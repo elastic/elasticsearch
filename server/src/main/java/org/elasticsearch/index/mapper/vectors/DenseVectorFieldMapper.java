@@ -13,15 +13,15 @@ import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
-import org.apache.lucene.document.KnnVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnVectorQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -187,12 +187,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            KnnByteVectorField createKnnVectorField(String name, BytesRef vector, VectorSimilarityFunction function) {
+            KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
                 return new KnnByteVectorField(name, vector, function);
             }
 
             @Override
-            KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
+            KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
                 throw new IllegalArgumentException("cannot create a float vector field from byte");
             }
 
@@ -317,9 +317,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     squaredMagnitude += value * value;
                 }
                 fieldMapper.checkDimensionMatches(index, context);
-                BytesRef bytesVector = new BytesRef(vector);
-                checkVectorMagnitude(fieldMapper.similarity, errorByteElementsAppender(bytesVector), squaredMagnitude);
-                return createKnnVectorField(fieldMapper.fieldType().name(), bytesVector, fieldMapper.similarity.function);
+                checkVectorMagnitude(fieldMapper.similarity, errorByteElementsAppender(vector), squaredMagnitude);
+                return createKnnVectorField(fieldMapper.fieldType().name(), vector, fieldMapper.similarity.function);
             }
 
             @Override
@@ -373,12 +372,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
-                return new KnnVectorField(name, vector, function);
+            KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
+                return new KnnFloatVectorField(name, vector, function);
             }
 
             @Override
-            KnnByteVectorField createKnnVectorField(String name, BytesRef vector, VectorSimilarityFunction function) {
+            KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
                 throw new IllegalArgumentException("cannot create a byte vector field from float");
             }
 
@@ -472,9 +471,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public abstract void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException;
 
-        abstract KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function);
+        abstract KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function);
 
-        abstract KnnByteVectorField createKnnVectorField(String name, BytesRef vector, VectorSimilarityFunction function);
+        abstract KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function);
 
         abstract IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext);
 
@@ -539,14 +538,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return errorBuilder;
         }
 
-        StringBuilder appendErrorElements(StringBuilder errorBuilder, BytesRef vector) {
+        StringBuilder appendErrorElements(StringBuilder errorBuilder, byte[] vector) {
             // Include the first five elements of the invalid vector in the error message
             errorBuilder.append(" Preview of invalid vector: [");
-            for (int i = vector.offset; i < vector.offset + Math.min(5, vector.length); i++) {
-                if (i > vector.offset) {
+            for (int i = 0; i < Math.min(5, vector.length); i++) {
+                if (i > 0) {
                     errorBuilder.append(", ");
                 }
-                errorBuilder.append(vector.bytes[i]);
+                errorBuilder.append(vector[i]);
             }
             if (vector.length >= 5) {
                 errorBuilder.append(", ...");
@@ -559,7 +558,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return sb -> appendErrorElements(sb, vector);
         }
 
-        Function<StringBuilder, StringBuilder> errorByteElementsAppender(BytesRef vector) {
+        Function<StringBuilder, StringBuilder> errorByteElementsAppender(byte[] vector) {
             return sb -> appendErrorElements(sb, vector);
         }
     }
@@ -724,7 +723,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public Query createKnnQuery(BytesRef queryVector, int numCands, Query filter) {
+        public Query createKnnQuery(byte[] queryVector, int numCands, Query filter) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -745,8 +744,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = 0.0f;
-                for (int i = queryVector.offset; i < queryVector.offset + queryVector.length; i++) {
-                    squaredMagnitude += queryVector.bytes[i] * queryVector.bytes[i];
+                for (byte b : queryVector) {
+                    squaredMagnitude += b * b;
                 }
                 elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
@@ -781,9 +780,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     for (int i = 0; i < queryVector.length; i++) {
                         bytes[i] = (byte) queryVector[i];
                     }
-                    yield new KnnByteVectorQuery(name(), new BytesRef(bytes), numCands, filter);
+                    yield new KnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
-                case FLOAT -> new KnnVectorQuery(name(), queryVector, numCands, filter);
+                case FLOAT -> new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
         }
     }
@@ -963,7 +962,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private class IndexedSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
-        private VectorValues values;
+        private FloatVectorValues values;
         private ByteVectorValues byteVectorValues;
         private boolean hasValue;
 
@@ -974,7 +973,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            values = leafReader.getVectorValues(name());
+            values = leafReader.getFloatVectorValues(name());
             if (values != null) {
                 return docId -> {
                     hasValue = docId == values.advance(docId);
@@ -1007,9 +1006,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     b.value(v);
                 }
             } else if (byteVectorValues != null) {
-                BytesRef vectorValue = byteVectorValues.vectorValue();
-                for (int i = vectorValue.offset; i < vectorValue.offset + vectorValue.length; i++) {
-                    b.value(vectorValue.bytes[i]);
+                byte[] vectorValue = byteVectorValues.vectorValue();
+                for (byte value : vectorValue) {
+                    b.value(value);
                 }
             }
             b.endArray();

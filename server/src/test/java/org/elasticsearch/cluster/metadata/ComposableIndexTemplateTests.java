@@ -75,6 +75,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         }
 
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
+        List<String> ignoreMissingComponentTemplates = randomList(0, 4, () -> randomAlphaOfLength(4));
         return new ComposableIndexTemplate(
             indexPatterns,
             template,
@@ -83,7 +84,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             randomBoolean() ? null : randomNonNegativeLong(),
             meta,
             dataStreamTemplate,
-            randomBoolean() ? null : randomBoolean()
+            randomBoolean() ? null : randomBoolean(),
+            ignoreMissingComponentTemplates
         );
     }
 
@@ -149,7 +151,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     }
 
     public static ComposableIndexTemplate mutateTemplate(ComposableIndexTemplate orig) {
-        switch (randomIntBetween(0, 6)) {
+        switch (randomIntBetween(0, 7)) {
             case 0:
                 List<String> newIndexPatterns = randomValueOtherThan(
                     orig.indexPatterns(),
@@ -177,7 +179,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.version(),
                     orig.metadata(),
                     orig.getDataStreamTemplate(),
-                    orig.getAllowAutoCreate()
+                    orig.getAllowAutoCreate(),
+                    orig.getIgnoreMissingComponentTemplates()
                 );
             case 2:
                 List<String> newComposedOf = randomValueOtherThan(orig.composedOf(), () -> randomList(0, 10, () -> randomAlphaOfLength(5)));
@@ -189,7 +192,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.version(),
                     orig.metadata(),
                     orig.getDataStreamTemplate(),
-                    orig.getAllowAutoCreate()
+                    orig.getAllowAutoCreate(),
+                    orig.getIgnoreMissingComponentTemplates()
                 );
             case 3:
                 return new ComposableIndexTemplate(
@@ -200,7 +204,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.version(),
                     orig.metadata(),
                     orig.getDataStreamTemplate(),
-                    orig.getAllowAutoCreate()
+                    orig.getAllowAutoCreate(),
+                    orig.getIgnoreMissingComponentTemplates()
                 );
             case 4:
                 return new ComposableIndexTemplate(
@@ -211,7 +216,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
                     orig.metadata(),
                     orig.getDataStreamTemplate(),
-                    orig.getAllowAutoCreate()
+                    orig.getAllowAutoCreate(),
+                    orig.getIgnoreMissingComponentTemplates()
                 );
             case 5:
                 return new ComposableIndexTemplate(
@@ -222,7 +228,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.version(),
                     randomValueOtherThan(orig.metadata(), ComposableIndexTemplateTests::randomMeta),
                     orig.getDataStreamTemplate(),
-                    orig.getAllowAutoCreate()
+                    orig.getAllowAutoCreate(),
+                    orig.getIgnoreMissingComponentTemplates()
                 );
             case 6:
                 return new ComposableIndexTemplate(
@@ -233,7 +240,24 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.version(),
                     orig.metadata(),
                     randomValueOtherThan(orig.getDataStreamTemplate(), ComposableIndexTemplateTests::randomDataStreamTemplate),
-                    orig.getAllowAutoCreate()
+                    orig.getAllowAutoCreate(),
+                    orig.getIgnoreMissingComponentTemplates()
+                );
+            case 7:
+                List<String> ignoreMissingComponentTemplates = randomValueOtherThan(
+                    orig.getIgnoreMissingComponentTemplates(),
+                    () -> randomList(1, 4, () -> randomAlphaOfLength(4))
+                );
+                return new ComposableIndexTemplate(
+                    orig.indexPatterns(),
+                    orig.template(),
+                    orig.composedOf(),
+                    orig.priority(),
+                    orig.version(),
+                    orig.metadata(),
+                    orig.getDataStreamTemplate(),
+                    orig.getAllowAutoCreate(),
+                    ignoreMissingComponentTemplates
                 );
             default:
                 throw new IllegalStateException("illegal randomization branch");

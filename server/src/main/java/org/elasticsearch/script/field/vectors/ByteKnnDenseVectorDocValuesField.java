@@ -9,7 +9,6 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
@@ -20,7 +19,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
     protected ByteVectorValues input; // null if no vectors
-    protected BytesRef vector;
+    protected byte[] vector;
     protected final int dims;
 
     public ByteKnnDenseVectorDocValuesField(@Nullable ByteVectorValues input, String name, int dims) {

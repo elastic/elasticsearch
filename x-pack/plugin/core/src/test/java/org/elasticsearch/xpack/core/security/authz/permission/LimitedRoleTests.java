@@ -305,6 +305,32 @@ public class LimitedRoleTests extends ESTestCase {
         }
     }
 
+    public void testAllowedIndicesMatcherWithNestedRole() {
+        Role role = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
+        assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
+        assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(true));
+        assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
+
+        final int depth = randomIntBetween(2, 4);
+        boolean index11Excluded = false;
+        for (int i = 0; i < depth; i++) {
+            final boolean excludeIndex11 = randomBoolean();
+            final String[] indexNames = excludeIndex11 ? new String[] { "ind-1", "ind-2" } : new String[] { "ind-*" };
+            index11Excluded = index11Excluded || excludeIndex11;
+            final Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-" + i)
+                .add(IndexPrivilege.READ, indexNames)
+                .build();
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(role);
+            } else {
+                role = role.limitedBy(limitedByRole);
+            }
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(false == index11Excluded));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
+        }
+    }
+
     public void testAllowedActionsMatcher() {
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "fromRole")
             .add(IndexPrivilege.WRITE, "ind*")

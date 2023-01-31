@@ -134,7 +134,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getPromotableAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -374,7 +374,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getPromotableAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
@@ -606,7 +606,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getPromotableAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();

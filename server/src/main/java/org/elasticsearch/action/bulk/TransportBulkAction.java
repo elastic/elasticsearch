@@ -192,11 +192,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> outerListener) {
-        // As a work-around to support `?refresh`, explicitly replace the refresh policy with a call to the Refresh API.
+        // As a work-around to support `?refresh`, explicitly replace the refresh policy with a call to the Refresh API,
+        // and always set forced_refresh to true.
         // TODO: Replace with a less hacky approach.
         ActionListener<BulkResponse> listener = outerListener;
         if (DiscoveryNode.isStateless(clusterService.getSettings()) && bulkRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
-            listener = outerListener.delegateFailure((l, r) -> { client.admin().indices().prepareRefresh().execute(l.map(ignored -> r)); });
+            listener = outerListener.delegateFailure((l, r) -> client.admin().indices().prepareRefresh().execute(l.map(ignored -> {
+                for (BulkItemResponse response : r.getItems()) {
+                    DocWriteResponse docWriteResponse = response.getResponse();
+                    if (docWriteResponse != null) {
+                        docWriteResponse.setForcedRefresh(true);
+                    }
+                }
+                return r;
+            })));
             bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         }
         /*
@@ -255,7 +264,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
             // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
             // this path is never taken.
-            try {
+            ActionListener.run(listener, l -> {
                 if (Assertions.ENABLED) {
                     final boolean arePipelinesResolved = bulkRequest.requests()
                         .stream()
@@ -265,13 +274,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, listener);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
                 } else {
-                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
+                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, l);
                 }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            });
             return;
         }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -29,9 +31,11 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction;
 import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
@@ -43,6 +47,7 @@ import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtil
 public class TransportTriggerTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportTriggerTransformAction.class);
+    private final TransformConfigManager transformConfigManager;
     private final TransformScheduler transformScheduler;
     private final SecurityContext securityContext;
 
@@ -66,6 +71,7 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
             ThreadPool.Names.SAME
         );
 
+        this.transformConfigManager = transformServices.getConfigManager();
         this.transformScheduler = transformServices.getScheduler();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -78,35 +84,43 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         useSecondaryAuthIfAvailable(securityContext, () -> {
-            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(request.getId(), clusterState);
+            ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(unusedConfig -> {
+                PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                    request.getId(),
+                    clusterState
+                );
 
-            // to send a request to trigger the transform at runtime, several requirements must be met:
-            // - transform must be running, meaning a task exists
-            // - transform is not failed (stopped transforms do not have a task)
-            if (transformTask != null
-                && transformTask.isAssigned()
-                && transformTask.getState() instanceof TransformState
-                && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
+                // to send a request to trigger the transform at runtime, several requirements must be met:
+                // - transform must be running, meaning a task exists
+                // - transform is not failed (stopped transforms do not have a task)
+                if (transformTask != null
+                    && transformTask.isAssigned()
+                    && transformTask.getState() instanceof TransformState
+                    && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
 
-                ActionListener<Response> taskTriggerListener = ActionListener.wrap(listener::onResponse, e -> {
-                    // benign: A transform might have been stopped meanwhile, this is not a problem
-                    if (e instanceof TransformTaskDisappearedDuringTriggerException) {
-                        logger.debug("[{}] transform task disappeared during trigger, ignoring", request.getId());
-                        listener.onResponse(Response.TRUE);
-                        return;
-                    }
-                    if (e instanceof TransformTaskTriggerException) {
-                        logger.warn(() -> format("[%s] failed to trigger running transform.", request.getId()), e);
-                        listener.onResponse(Response.TRUE);
-                        return;
-                    }
-                    listener.onFailure(e);
-                });
-                request.setNodes(transformTask.getExecutorNode());
-                super.doExecute(task, request, taskTriggerListener);
-            } else {
-                listener.onResponse(Response.TRUE);
-            }
+                    ActionListener<Response> taskTriggerListener = ActionListener.wrap(listener::onResponse, e -> {
+                        // benign: A transform might have been stopped meanwhile, this is not a problem
+                        if (e instanceof TransformTaskDisappearedDuringTriggerException) {
+                            logger.debug(() -> format("[%s] transform task disappeared during trigger, ignoring.", request.getId()), e);
+                            listener.onResponse(Response.TRUE);
+                            return;
+                        }
+                        if (e instanceof TransformTaskTriggerException) {
+                            logger.warn(() -> format("[%s] failed to trigger running transform.", request.getId()), e);
+                            listener.onResponse(Response.TRUE);
+                            return;
+                        }
+                        listener.onFailure(e);
+                    });
+                    request.setNodes(transformTask.getExecutorNode());
+                    super.doExecute(task, request, taskTriggerListener);
+                } else {
+                    listener.onResponse(Response.TRUE);
+                }
+            }, listener::onFailure);
+
+            // <1> Get the config to verify it exists and is valid
+            transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
         });
     }
 
@@ -125,9 +139,20 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
     ) {
         if (tasks.isEmpty()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw new TransformTaskTriggerException("Failed to trigger running transform.", taskOperationFailures.get(0).getCause());
+                throw new TransformTaskTriggerException(
+                    "Failed to trigger running transform due to task operation failure.",
+                    taskOperationFailures.get(0).getCause()
+                );
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw new TransformTaskTriggerException("Failed to trigger running transform.", failedNodeExceptions.get(0));
+                FailedNodeException failedNodeException = failedNodeExceptions.get(0);
+                Throwable failedNodeExceptionCause = ExceptionsHelper.unwrapCause(failedNodeException.getCause());
+                if (failedNodeExceptionCause instanceof ActionNotFoundTransportException) {
+                    throw (ActionNotFoundTransportException) failedNodeExceptionCause;
+                }
+                throw new TransformTaskTriggerException(
+                    "Failed to trigger running transform due to failed node exception.",
+                    failedNodeExceptions.get(0)
+                );
             } else {
                 throw new TransformTaskDisappearedDuringTriggerException("Could not trigger running transform as it has been stopped.");
             }

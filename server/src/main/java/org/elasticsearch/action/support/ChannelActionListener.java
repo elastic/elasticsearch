@@ -35,11 +35,7 @@ public final class ChannelActionListener<Response extends TransportResponse, Req
 
     @Override
     public void onResponse(Response response) {
-        try {
-            channel.sendResponse(response);
-        } catch (Exception e) {
-            onFailure(e);
-        }
+        ActionListener.run(this, l -> l.channel.sendResponse(response));
     }
 
     @Override

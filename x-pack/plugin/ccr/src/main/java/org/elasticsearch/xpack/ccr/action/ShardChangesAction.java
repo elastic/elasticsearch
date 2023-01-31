@@ -447,11 +447,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final ActionListener<Response> listener
         ) {
             logger.trace("{} global checkpoint advanced to [{}] after waiting for [{}]", shardId, globalCheckpoint, request.getFromSeqNo());
-            try {
-                super.asyncShardOperation(request, shardId, listener);
-            } catch (final IOException caught) {
-                listener.onFailure(caught);
-            }
+            ActionListener.run(listener, l -> super.asyncShardOperation(request, shardId, l));
         }
 
         private void globalCheckpointAdvancementFailure(

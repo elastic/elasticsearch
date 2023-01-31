@@ -68,6 +68,14 @@ public final class Pipeline {
         this.relativeTimeProvider = relativeTimeProvider;
     }
 
+    public static boolean containsNestedProcessors(Map<String, Object> config) {
+        boolean result;
+        List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
+        result = processorConfigs.stream().anyMatch(processor -> processor.keySet().size() > 1);
+        config.put(PROCESSORS_KEY, processorConfigs);
+        return result;
+    }
+
     public static Pipeline create(
         String id,
         Map<String, Object> config,

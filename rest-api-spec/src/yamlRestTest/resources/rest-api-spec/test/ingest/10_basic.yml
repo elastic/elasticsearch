@@ -154,6 +154,32 @@
           }
 
 ---
+"Test valid config with sequential processors":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [{}, {}, {}]
+          }
+  - match: { acknowledged: true }
+
+---
+"Test invalid config with nested processors":
+  - do:
+      catch: /illegal_argument_exception/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [{"grok": {}}, {"grok": {}, "date": {}}]
+          }
+  - match: { error.reason: "[processors] contains nested objects but should be a list of single-entry objects" }
+
+
+---
 "Test Get Summarized Pipelines":
   - skip:
       version: " - 7.12.99"

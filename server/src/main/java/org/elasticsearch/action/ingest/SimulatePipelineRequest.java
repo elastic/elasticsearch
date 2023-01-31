@@ -151,11 +151,9 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
 
         // check for nested objects in processor configs
-        List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, pipelineConfig, PROCESSORS_KEY);
-        if (processorConfigs.stream().anyMatch(processor -> processor.keySet().size() > 1)) {
+        if (Pipeline.containsNestedProcessors(pipelineConfig)) {
             throw new IllegalArgumentException("[processors] contains nested objects but should be a list of single-entry objects");
         }
-        pipelineConfig.put(PROCESSORS_KEY, processorConfigs);
 
         Pipeline pipeline = Pipeline.create(
             SIMULATED_PIPELINE_ID,

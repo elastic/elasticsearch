@@ -1,6 +1,15 @@
 [[plugin-management]]
 == Plugin Management
 
+[discrete]
+=== Managing plugins on {ess}
+
+Refer to the {cloud}/ec-adding-plugins.html[{ess} documentation] for information
+about managing plugins on {ecloud}.
+
+[discrete]
+=== Managing plugins for self-managed deployments
+
 Use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is
 located in the `$ES_HOME/bin` directory by default but it may be in a
 different location depending on which Elasticsearch package you installed:

@@ -260,9 +260,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         KnnByteVectorField vectorField = (KnnByteVectorField) fields[0];
         vectorField.vectorValue();
-        assertEquals(
+        assertArrayEquals(
             "Parsed vector is not equal to original.",
-            new BytesRef(new byte[] { (byte) -1, (byte) 1, (byte) 127 }),
+            new byte[] { (byte) -1, (byte) 1, (byte) 127 },
             vectorField.vectorValue()
         );
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());

@@ -836,7 +836,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     + "] doesn't not support indexing multiple values for the same field in the same document"
             );
         }
-
+        if (Token.VALUE_NULL == context.parser().currentToken()) {
+            return;
+        }
         Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);
         context.doc().addWithKey(fieldType().name(), field);
     }

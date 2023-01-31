@@ -240,7 +240,7 @@ of documents containing the item set by the total number of documents.
 
 The response shows that the categories customers purchase from most frequently 
 together are `Women's Clothing` and `Women's Shoes` and customers from New York 
-tend to buy items from these categories frequently togeher. In other words, 
+tend to buy items from these categories frequently together. In other words, 
 customers who buy products labelled `Women's Clothing` more likely buy products 
 also from the `Women's Shoes` category and customers from New York most likely 
 buy products from these categories together. The item set with the second 

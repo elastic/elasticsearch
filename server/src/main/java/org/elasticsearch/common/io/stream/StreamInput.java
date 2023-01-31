@@ -617,6 +617,20 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional byte array. It's effectively the same as readByteArray, except
+     * it supports null.
+     * @return a byte array or null
+     * @throws IOException
+     */
+    @Nullable
+    public byte[] readOptionalByteArray() throws IOException {
+        if (readBoolean()) {
+            return readByteArray();
+        }
+        return null;
+    }
+
+    /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {

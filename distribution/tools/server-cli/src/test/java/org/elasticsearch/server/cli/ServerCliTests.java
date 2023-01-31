@@ -29,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -50,6 +51,11 @@ import static org.hamcrest.Matchers.not;
 public class ServerCliTests extends CommandTestCase {
 
     private SecureSettingsLoader mockSecureSettingsLoader;
+
+    @BeforeClass
+    public static void skipForFips() {
+        assumeFalse("Pending fix for https://github.com/elastic/elasticsearch/issues/93335", inFipsJvm());
+    }
 
     @Before
     public void setupMockConfig() throws IOException {

@@ -26,10 +26,11 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.REMOTE_ACCESS;
 
 /**
  * A subject is a more generic concept similar to user and associated to the current authentication.
- * It is more generic than user because it can also represent API keys and service accounts.
+ * It is more generic than user because it can also represent API keys, service accounts, or remote access users.
  * It also contains authentication level information, e.g. realm and metadata so that it can answer
  * queries in a better encapsulated way.
  */
@@ -39,6 +40,7 @@ public class Subject {
         USER,
         API_KEY,
         SERVICE_ACCOUNT,
+        REMOTE_ACCESS,
     }
 
     private final TransportVersion version;
@@ -65,6 +67,9 @@ public class Subject {
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
+        } else if (AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.REMOTE_ACCESS_REALM_NAME.equals(realm.getName()) : "remote access realm name mismatch";
+            this.type = Type.REMOTE_ACCESS;
         } else {
             this.type = Type.USER;
         }
@@ -99,6 +104,9 @@ public class Subject {
                 return buildRoleReferencesForApiKey();
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+            case REMOTE_ACCESS:
+                assert false : "unsupported subject type: [" + type + "]";
+                throw new UnsupportedOperationException("unsupported subject type: [" + type + "]");
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -115,6 +123,9 @@ public class Subject {
         } else if ((API_KEY.equals(getType()) && false == API_KEY.equals(resourceCreatorSubject.getType()))
             || (false == API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType()))) {
                 // an API Key cannot access resources created by non-API Keys or vice-versa
+                return false;
+            } else if (REMOTE_ACCESS.equals(getType()) || REMOTE_ACCESS.equals(resourceCreatorSubject.getType())) {
+                // TODO implement this once remote authentication is fully supported
                 return false;
             } else {
                 if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {

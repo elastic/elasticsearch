@@ -108,7 +108,6 @@ import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -978,23 +977,7 @@ public class ApiKeyService {
         if (false == isEnabled()) {
             return null;
         }
-        return parseApiKeyCredentials(Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey"));
-    }
-
-    ApiKeyCredentials getCredentialsFromRemoteAccessHeader(ThreadContext threadContext) {
-        if (false == isEnabled()) {
-            return null;
-        }
-        return parseApiKeyCredentials(
-            Authenticator.extractCredentialFromHeader(
-                threadContext,
-                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
-                "ApiKey"
-            )
-        );
-    }
-
-    private ApiKeyCredentials parseApiKeyCredentials(SecureString apiKeyString) {
+        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;

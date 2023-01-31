@@ -19,11 +19,6 @@ public interface RoleReferenceResolver {
 
     void resolveApiKeyRoleReference(RoleReference.ApiKeyRoleReference apiKeyRoleReference, ActionListener<RolesRetrievalResult> listener);
 
-    void resolveRemoteAccessRoleReference(
-        RoleReference.RemoteAccessRoleReference remoteAccessRoleReference,
-        ActionListener<RolesRetrievalResult> listener
-    );
-
     void resolveBwcApiKeyRoleReference(
         RoleReference.BwcApiKeyRoleReference bwcApiKeyRoleReference,
         ActionListener<RolesRetrievalResult> listener

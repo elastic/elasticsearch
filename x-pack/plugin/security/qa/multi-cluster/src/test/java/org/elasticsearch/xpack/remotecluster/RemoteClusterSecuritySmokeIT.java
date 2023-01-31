@@ -56,7 +56,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
     /**
      * This test really depends on the local build.gradle, which configures cross-cluster search using the `remote_cluster.*` settings.
      */
-    public void testRemoteAccessPortFunctions() throws Exception {
+    public void testRemoteAccess() throws Exception {
         if (isFulfillingCluster()) {
             var createApiKeyRequest = new Request("POST", "/_security/api_key");
             createApiKeyRequest.setJsonEntity("""

@@ -58,11 +58,7 @@ public interface Authenticator {
     void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener);
 
     static SecureString extractCredentialFromAuthorizationHeader(ThreadContext threadContext, String prefix) {
-        return extractCredentialFromHeader(threadContext, "Authorization", prefix);
-    }
-
-    static SecureString extractCredentialFromHeader(ThreadContext threadContext, String headerKey, String prefix) {
-        final String header = threadContext.getHeader(headerKey);
+        final String header = threadContext.getHeader("Authorization");
         final String prefixWithSpace = prefix + " ";
         if (Strings.hasText(header)
             && header.regionMatches(true, 0, prefixWithSpace, 0, prefixWithSpace.length())

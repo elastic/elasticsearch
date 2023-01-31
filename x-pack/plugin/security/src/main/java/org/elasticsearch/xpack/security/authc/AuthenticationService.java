@@ -26,7 +26,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -46,7 +45,6 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -146,21 +144,21 @@ public class AuthenticationService {
         final boolean allowAnonymous,
         final ActionListener<Authentication> authenticationListener
     ) {
-        if (false == (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null)) {
+        if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
             authenticationListener.onFailure(new IllegalArgumentException("authentication header not allowed"));
             return;
         }
 
-        final Authenticator.Context context = new Authenticator.Context(
-            threadContext,
-            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
-            null,
-            allowAnonymous,
-            realms
+        final String credentialsHeader = threadContext.getHeader(
+            SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
         );
-        final AuthenticationToken authenticationToken = apiKeyService.getCredentialsFromRemoteAccessHeader(threadContext);
-        context.addAuthenticationToken(authenticationToken);
-        authenticatorChain.authenticateAsync(context, ActionListener.wrap(authentication -> {
+        if (credentialsHeader == null) {
+            authenticationListener.onFailure(new IllegalArgumentException("remote access cluster credential header is required"));
+            return;
+        }
+
+        threadContext.putHeader("Authorization", credentialsHeader);
+        authenticate(action, request, allowAnonymous, ActionListener.wrap(authentication -> {
             final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
             final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
@@ -175,29 +173,30 @@ public class AuthenticationService {
                     }
                 });
                 final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
-                final List<RemoteAccessAuthentication.RoleDescriptorsBytes> roleDescriptorsBytesList;
                 final User user = receivedAuthentication.getEffectiveSubject().getUser();
+                final RemoteAccessAuthentication finalRemoteAccessAuthentication;
                 if (SystemUser.is(user)) {
-                    roleDescriptorsBytesList = RemoteAccessAuthentication.toRoleDescriptorsBytesList(
-                        new RoleDescriptorsIntersection(List.of(Set.of(CROSS_CLUSTER_SEARCH_ROLE)))
+                    finalRemoteAccessAuthentication = new RemoteAccessAuthentication(
+                        receivedAuthentication,
+                        new RoleDescriptorsIntersection(CROSS_CLUSTER_SEARCH_ROLE)
                     );
                 } else if (User.isInternal(user)) {
                     throw new IllegalArgumentException(
                         "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
                     );
                 } else {
-                    roleDescriptorsBytesList = remoteAccessAuthentication.getRoleDescriptorsBytesList();
+                    finalRemoteAccessAuthentication = remoteAccessAuthentication;
                 }
-                final Map<String, Object> authMetadata = new HashMap<>(authentication.getAuthenticatingSubject().getMetadata());
-                authMetadata.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, roleDescriptorsBytesList);
-                // will also store receivedAuthentication in auth metadata
+                // TODO don't use authc chain
                 authenticatorChain.finishAuthentication(
-                    context,
-                    Authentication.newRemoteAccessAuthentication(
-                        AuthenticationResult.success(authentication.getEffectiveSubject().getUser(), Map.copyOf(authMetadata)),
-                        receivedAuthentication,
-                        nodeName
+                    new Authenticator.Context(
+                        threadContext,
+                        new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
+                        null,
+                        allowAnonymous,
+                        realms
                     ),
+                    authentication.toRemoteAccess(finalRemoteAccessAuthentication),
                     authenticationListener
                 );
             }

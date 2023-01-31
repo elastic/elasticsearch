@@ -28,9 +28,23 @@ tasks.register("copyCerts", Sync) {
   into "${buildDir}/certs"
 }
 
+restResources {
+  restApi {
+    // TODO remove unneeded resources
+    include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
+      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum'
+  }
+}
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
+
+  module ':modules:analysis-common'
+  module ':modules:lang-painless'
+  module ':modules:data-streams'
+  module ':x-pack:plugin:mapper-constant-keyword'
+  module ':x-pack:plugin:async-search'
+
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'remote_cluster.enabled', 'true'
   setting 'remote_cluster.port', '0'
@@ -39,33 +53,49 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c1.crt")
   extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
 
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.key', 'transport.key'
-  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
-  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
-  setting 'xpack.security.transport.ssl.client_authentication', 'required'
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+
+  // TODO bring this back
+//  setting 'xpack.security.transport.ssl.enabled', 'true'
+//  setting 'xpack.security.transport.ssl.key', 'transport.key'
+//  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
+//  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+//  setting 'xpack.security.transport.ssl.client_authentication', 'required'
+//  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
 
   // It is intentionally to use none for both verification_mode and client_authentication.
   // Because SSL is not wired up properly on the client (QC) side. These settings
   // just test that they can be configured.
   // Once SSL is all wired up, we will need (1) proper SSL verification and
   // (2) different set of key and cert than the ones used for the transport interface.
-  setting 'xpack.security.remote_cluster.ssl.key', 'transport.key'
-  setting 'xpack.security.remote_cluster.ssl.certificate', 'transport.cert'
-  setting 'xpack.security.remote_cluster.ssl.verification_mode', 'none'
-  setting 'xpack.security.remote_cluster.ssl.client_authentication', 'none'
+//  setting 'xpack.security.remote_cluster.ssl.key', 'transport.key'
+//  setting 'xpack.security.remote_cluster.ssl.certificate', 'transport.cert'
+//  setting 'xpack.security.remote_cluster.ssl.verification_mode', 'none'
+//  setting 'xpack.security.remote_cluster.ssl.client_authentication', 'none'
 }
 
 def queryingCluster = testClusters.register('querying-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
+
+  module ':modules:analysis-common'
+  module ':modules:lang-painless'
+  module ':modules:data-streams'
+  module ':x-pack:plugin:mapper-constant-keyword'
+  module ':x-pack:plugin:async-search'
+
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'cluster.remote.connections_per_cluster', "1"
 
+  // TODO don't need these?
+  setting 'xpack.security.enabled', 'true'
+
   setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
   setting 'cluster.remote.my_remote_cluster.proxy_address', {
-    "\"${fulfillingCluster.get().getAllRemoteAccessPortURI() .get(0)}\""
+    "\"${fulfillingCluster.get().getAllRemoteAccessPortURI().get(0)}\""
   }
+
+  user username: "test_user", password: "x-pack-test-password"
 }
 
 tasks.register('fulfilling-cluster', RestIntegTestTask) {
@@ -80,6 +110,7 @@ tasks.register('querying-cluster', RestIntegTestTask) {
   useCluster queryingCluster
   useCluster fulfillingCluster
   systemProperty 'tests.rest.suite', 'querying_cluster'
+  nonInputProperties.systemProperty 'tests.fulfilling_cluster_host', fulfillingCluster.map(c -> c.allHttpSocketURI.get(0))
 }
 
 // runs the fulfilling-cluster cluster tests then the querying-cluster tests

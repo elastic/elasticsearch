@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
@@ -24,12 +25,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -37,9 +43,12 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
@@ -68,6 +77,17 @@ public class AuthenticationService {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
+    public static final RoleDescriptor CROSS_CLUSTER_SEARCH_ROLE = new RoleDescriptor(
+        "_cross_cluster_search",
+        new String[] { ClusterStateAction.NAME },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
 
     private final Realms realms;
     private final AuditTrailService auditTrailService;
@@ -115,6 +135,87 @@ public class AuthenticationService {
         );
     }
 
+    public void authenticateRemoteAccess(
+        final String action,
+        final TransportRequest request,
+        final boolean allowAnonymous,
+        final ActionListener<Authentication> authenticationListener
+    ) {
+        if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
+            authenticationListener.onFailure(new IllegalArgumentException("authentication header is not allowed"));
+            return;
+        }
+
+        final String credentialsHeader = threadContext.getHeader(
+            SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+        );
+        if (credentialsHeader == null) {
+            authenticationListener.onFailure(
+                new IllegalArgumentException(
+                    "remote access header ["
+                        + SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                        + "] is missing"
+                )
+            );
+            return;
+        } else if (threadContext.getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null) {
+            authenticationListener.onFailure(
+                new IllegalArgumentException(
+                    "remote access header [" + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is missing"
+                )
+            );
+            return;
+        }
+
+        // Write remote access credential to the Authorization header, so we can re-use generic authentication service functionality for
+        // authc token extraction
+        threadContext.putHeader("Authorization", credentialsHeader);
+
+        authenticate(action, request, allowAnonymous, ActionListener.wrap(authentication -> {
+            final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
+            final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                // drop authentication and remote access authentication headers
+                existingRequestHeaders.forEach((k, v) -> {
+                    if (false == Set.of(
+                        AuthenticationField.AUTHENTICATION_KEY,
+                        SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
+                        RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
+                    ).contains(k)) {
+                        threadContext.putHeader(k, v);
+                    }
+                });
+                final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
+                final User user = receivedAuthentication.getEffectiveSubject().getUser();
+                final RemoteAccessAuthentication finalRemoteAccessAuthentication;
+                if (SystemUser.is(user)) {
+                    finalRemoteAccessAuthentication = new RemoteAccessAuthentication(
+                        receivedAuthentication,
+                        new RoleDescriptorsIntersection(CROSS_CLUSTER_SEARCH_ROLE)
+                    );
+                } else if (User.isInternal(user)) {
+                    throw new IllegalArgumentException(
+                        "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
+                    );
+                } else {
+                    finalRemoteAccessAuthentication = remoteAccessAuthentication;
+                }
+                // TODO don't use authc chain
+                authenticatorChain.finishAuthentication(
+                    new Authenticator.Context(
+                        threadContext,
+                        new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
+                        null,
+                        allowAnonymous,
+                        realms
+                    ),
+                    authentication.toRemoteAccess(finalRemoteAccessAuthentication),
+                    authenticationListener
+                );
+            }
+        }, authenticationListener::onFailure));
+    }
+
     /**
      * Authenticates the user that is associated with the given request. If the user was authenticated successfully (i.e.
      * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
@@ -157,7 +258,7 @@ public class AuthenticationService {
      * @param action       The action of the message
      * @param transportRequest      The request to be authenticated
      * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not
-    *                      be {@code null}.
+     *                      be {@code null}.
      */
     public void authenticate(String action, TransportRequest transportRequest, User fallbackUser, ActionListener<Authentication> listener) {
         Objects.requireNonNull(fallbackUser, "fallback user may not be null");

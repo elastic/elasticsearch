@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
@@ -440,9 +441,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        final boolean remoteClusterPortEnabled = TcpTransport.isUntrustedRemoteClusterEnabled()
+            && RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.get(settings);
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+            final boolean isRemoteClusterProfile = remoteClusterPortEnabled
+                && entry.getKey().equals(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
             profileFilters.put(
                 entry.getKey(),
                 new ServerTransportFilter(
@@ -451,7 +456,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     threadPool.getThreadContext(),
                     extractClientCert,
                     destructiveOperations,
-                    securityContext
+                    securityContext,
+                    isRemoteClusterProfile
                 )
             );
         }

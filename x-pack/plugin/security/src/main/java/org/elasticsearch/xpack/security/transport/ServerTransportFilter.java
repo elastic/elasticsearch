@@ -45,6 +45,7 @@ final class ServerTransportFilter {
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
+    private final boolean requiresRemoteAccessAuthentication;
 
     ServerTransportFilter(
         AuthenticationService authcService,
@@ -54,12 +55,25 @@ final class ServerTransportFilter {
         DestructiveOperations destructiveOperations,
         SecurityContext securityContext
     ) {
+        this(authcService, authzService, threadContext, extractClientCert, destructiveOperations, securityContext, false);
+    }
+
+    ServerTransportFilter(
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        ThreadContext threadContext,
+        boolean extractClientCert,
+        DestructiveOperations destructiveOperations,
+        SecurityContext securityContext,
+        boolean requiresRemoteAccessAuthentication
+    ) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.threadContext = threadContext;
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
+        this.requiresRemoteAccessAuthentication = requiresRemoteAccessAuthentication;
     }
 
     /**
@@ -100,8 +114,8 @@ final class ServerTransportFilter {
             }
         }
 
-        TransportVersion version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
+        final TransportVersion version = transportChannel.getVersion();
+        final ActionListener<Authentication> authorizationStep = ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
@@ -115,6 +129,15 @@ final class ServerTransportFilter {
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
-        }, listener::onFailure));
+        }, listener::onFailure);
+        if (requiresRemoteAccessAuthentication
+            // The handshake action is special; under the hood it will be executed by the system user - there won't be remote access
+            // headers, so we don't want to handle it via the remote access authenticator but rather fall back on our default authentication
+            // strategy
+            && false == TransportService.HANDSHAKE_ACTION_NAME.equals(securityAction)) {
+            authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
+        } else {
+            authcService.authenticate(securityAction, request, true, authorizationStep);
+        }
     }
 }

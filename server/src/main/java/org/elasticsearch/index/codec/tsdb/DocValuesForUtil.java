@@ -89,15 +89,16 @@ public class DocValuesForUtil {
             }
 
         }
-        // Skip padding bytes (bitsPerValue = 40 skip 3, bitsPerValue = 48 skip 2, bitsPerValue = 56 skip 1).
-        if (bitsPerValue == BITS_IN_FIVE_BYTES) {
-            in.readByte();
-            in.readByte();
-            in.readByte();
-        } else if (bitsPerValue == BITS_IN_SIX_BYTES) {
-            in.readByte();
-            in.readByte();
-        } else {
+        // Skip padding bytes (5 bytes skip 3, 6 bytes skip 2, 7 bytes skip 1).
+        switch (bitsPerValue) {
+            case BITS_IN_FIVE_BYTES -> discardBytes(in, 3);
+            case BITS_IN_SIX_BYTES -> discardBytes(in, 2);
+            case BITS_IN_SEVEN_BYTES -> discardBytes(in, 1);
+        }
+    }
+
+    private static void discardBytes(final DataInput in, int num) throws IOException {
+        for (int i = 0; i < num; i++) {
             in.readByte();
         }
     }

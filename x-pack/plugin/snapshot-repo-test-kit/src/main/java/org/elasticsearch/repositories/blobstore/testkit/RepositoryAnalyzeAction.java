@@ -10,7 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -673,7 +673,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize = ByteSizeValue.readFrom(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 abortWritePermitted = in.readBoolean();
             } else {
                 abortWritePermitted = false;
@@ -700,10 +700,12 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize.writeTo(out);
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
-                throw new IllegalStateException("cannot send abortWritePermitted request to node of version [" + out.getVersion() + "]");
+                throw new IllegalStateException(
+                    "cannot send abortWritePermitted request on transport version [" + out.getTransportVersion() + "]"
+                );
             }
         }
 

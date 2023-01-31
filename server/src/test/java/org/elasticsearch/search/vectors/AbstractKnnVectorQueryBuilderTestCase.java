@@ -11,9 +11,8 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnVectorQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -104,7 +103,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     @Override
     protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         switch (elementType()) {
-            case FLOAT -> assertTrue(query instanceof KnnVectorQuery);
+            case FLOAT -> assertTrue(query instanceof KnnFloatVectorQuery);
             case BYTE -> assertTrue(query instanceof KnnByteVectorQuery);
         }
 
@@ -116,13 +115,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         // The field should always be resolved to the concrete field
         Query knnVectorQueryBuilt = switch (elementType()) {
-            case BYTE -> new KnnByteVectorQuery(
-                VECTOR_FIELD,
-                new BytesRef(queryBuilder.getByteQueryVector()),
-                queryBuilder.numCands(),
-                filterQuery
-            );
-            case FLOAT -> new KnnVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands(), filterQuery);
+            case BYTE -> new KnnByteVectorQuery(VECTOR_FIELD, queryBuilder.getByteQueryVector(), queryBuilder.numCands(), filterQuery);
+            case FLOAT -> new KnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands(), filterQuery);
         };
         assertEquals(query, knnVectorQueryBuilt);
     }

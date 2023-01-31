@@ -8,7 +8,7 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
@@ -43,12 +43,12 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     public DiscoveryStats(StreamInput in) throws IOException {
         queueStats = in.readOptionalWriteable(PendingClusterStateStats::new);
         publishStats = in.readOptionalWriteable(PublishClusterStateStats::new);
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             clusterStateUpdateStats = in.readOptionalWriteable(ClusterStateUpdateStats::new);
         } else {
             clusterStateUpdateStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             applierRecordingStats = in.readOptionalWriteable(ClusterApplierRecordingService.Stats::new);
         } else {
             applierRecordingStats = null;
@@ -59,10 +59,10 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(queueStats);
         out.writeOptionalWriteable(publishStats);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeOptionalWriteable(clusterStateUpdateStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeOptionalWriteable(applierRecordingStats);
         }
     }

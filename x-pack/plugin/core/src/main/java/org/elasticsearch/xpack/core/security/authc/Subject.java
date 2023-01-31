@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersecti
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -105,8 +107,7 @@ public class Subject {
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
             case REMOTE_ACCESS:
-                assert false : "unsupported subject type: [" + type + "]";
-                throw new UnsupportedOperationException("unsupported subject type: [" + type + "]");
+                return buildRoleReferencesForRemoteAccess();
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -229,6 +230,27 @@ public class Subject {
             new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
             limitedByRoleReference
         );
+    }
+
+    private RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
+        final List<RoleReference> roleReferences = new ArrayList<>(4);
+        @SuppressWarnings("unchecked")
+        final List<RemoteAccessAuthentication.RoleDescriptorsBytes> remoteAccessRoleDescriptorsBytes = (List<
+            RemoteAccessAuthentication.RoleDescriptorsBytes>) metadata.get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY);
+        if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
+            // If the remote access role descriptors are empty, the remote user has no privileges. We need to add an empty role to restrict
+            // access of the overall intersection accordingly
+            roleReferences.add(new RoleReference.RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY));
+        } else {
+            // TODO handle this once we support API keys as querying subjects
+            assert remoteAccessRoleDescriptorsBytes.size() == 1
+                : "only a singleton list of remote access role descriptors bytes is supported";
+            for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
+                roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
+            }
+        }
+        roleReferences.addAll(buildRoleReferencesForApiKey().getRoleReferences());
+        return new RoleReferenceIntersection(List.copyOf(roleReferences));
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

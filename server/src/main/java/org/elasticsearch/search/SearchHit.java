@@ -1107,6 +1107,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 if (nestedParsedSource == null) {
                     return Source.empty(root.sourceContentType());
                 }
+                if (nested.getOffset() > nestedParsedSource.size() - 1) {
+                    throw new IllegalStateException("Error retrieving path " + this.field);
+                }
                 rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
                 if (nested.getChild() == null) {
                     current.put(nestedPath, rootSourceAsMap);

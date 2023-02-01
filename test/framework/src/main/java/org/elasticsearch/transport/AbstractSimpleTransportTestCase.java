@@ -111,7 +111,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
-    protected static final Version version0 = CURRENT_VERSION.minimumCompatibilityVersion();
+    protected static final Version version0 = CURRENT_VERSION;
 
     protected volatile DiscoveryNode nodeA;
     protected volatile MockTransportService serviceA;
@@ -158,7 +158,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         final Settings connectionSettings = connectionSettingsBuilder.build();
 
-        serviceA = buildService("TS_A", CURRENT_VERSION, clusterSettingsA, connectionSettings); // this one supports dynamic tracer updates
+        serviceA = buildService("TS_A", version0, clusterSettingsA, connectionSettings); // this one supports dynamic tracer updates
         nodeA = serviceA.getLocalNode();
         serviceB = buildService("TS_B", version1, null, connectionSettings); // this one doesn't support dynamic tracer updates
         nodeB = serviceB.getLocalNode();
@@ -2643,7 +2643,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(115, transportStats.getTxSize().getBytes());
+                assertEquals(114, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2651,7 +2651,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
             assertEquals(54, stats.getRxSize().getBytes());
-            assertEquals(115, stats.getTxSize().getBytes());
+            assertEquals(114, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2736,8 +2736,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(51, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(55, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2751,8 +2751,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(111, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(114, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2765,10 +2765,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             streamOutput.setTransportVersion(version0.transportVersion);
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
-            // 53 bytes are the non-exception message bytes that have been received. It should include the initial
+            // 58 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 53 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(111, stats.getTxSize().getBytes());
+            assertEquals(failedMessage, 57 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
+            assertEquals(114, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

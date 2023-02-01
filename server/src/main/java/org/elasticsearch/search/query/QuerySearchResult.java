@@ -499,6 +499,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     secondarySearchResult.serviceTimeEWMA = in.readZLong();
                     secondarySearchResult.nodeQueueSize = in.readInt();
                     secondarySearchResult.setRescoreDocIds(new RescoreDocIds(in));
+                    secondarySearchResults.add(secondarySearchResult);
                 }
             }
             success = true;

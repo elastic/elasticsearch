@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
@@ -71,11 +72,11 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.DisruptableMockTransport;
-import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.DisruptableMockTransport;
+import org.elasticsearch.transport.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -1140,7 +1141,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private void setUp() {
                 final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
                 clearableRecycler = new ClearableRecycler(recycler);
-                mockTransport = new DisruptableMockTransport(localNode, logger, deterministicTaskQueue) {
+                mockTransport = new DisruptableMockTransport(localNode, deterministicTaskQueue) {
                     @Override
                     protected void execute(Runnable runnable) {
                         deterministicTaskQueue.scheduleNow(onNode(runnable));
@@ -1294,6 +1295,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     settings,
                     new BatchedRerouteService(clusterService, allocationService::reroute),
                     clusterService,
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
                     threadPool
                 );
 
@@ -1395,13 +1397,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     public void run() {
                         if (clusterNodes.contains(ClusterNode.this)) {
                             wrapped.run();
-                        } else if (runnable instanceof DisruptableMockTransport.RebootSensitiveRunnable) {
+                        } else if (runnable instanceof DisruptableMockTransport.RebootSensitiveRunnable rebootSensitiveRunnable) {
                             logger.trace(
                                 "completing reboot-sensitive runnable {} from node {} as node has been removed from cluster",
                                 runnable,
                                 localNode
                             );
-                            ((DisruptableMockTransport.RebootSensitiveRunnable) runnable).ifRebooted();
+                            rebootSensitiveRunnable.ifRebooted();
                         } else {
                             logger.trace("ignoring runnable {} from node {} as node has been removed from cluster", runnable, localNode);
                         }

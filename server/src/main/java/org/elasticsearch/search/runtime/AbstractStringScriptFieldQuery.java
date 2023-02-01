@@ -24,7 +24,8 @@ abstract class AbstractStringScriptFieldQuery extends AbstractScriptFieldQuery<S
 
     @Override
     protected final boolean matches(StringFieldScript scriptContext, int docId) {
-        return matches(scriptContext.resultsForDoc(docId));
+        scriptContext.runForDoc(docId);
+        return matches(scriptContext.getValues());
     }
 
     /**

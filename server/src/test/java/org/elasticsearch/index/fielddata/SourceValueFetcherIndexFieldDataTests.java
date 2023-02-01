@@ -8,9 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBooleanIndexFieldData.SourceValueFetcherSortedBooleanDocValues;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -29,12 +27,7 @@ public class SourceValueFetcherIndexFieldDataTests extends ESTestCase {
         SourceValueFetcherSortedBooleanDocValues values = new SourceValueFetcherSortedBooleanDocValues(
             null,
             (source, doc, ignoredValues) -> docs.get(doc),
-            new SourceLookup(null) {
-                @Override
-                public void setSegmentAndDocument(LeafReaderContext context, int docId) {
-                    // do nothing
-                }
-            }
+            (ctx, doc) -> null
         );
 
         for (int doc = 0; doc < docs.size(); ++doc) {

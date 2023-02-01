@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
     requires java.logging;
@@ -22,8 +24,8 @@ module org.elasticsearch.server {
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
-    requires org.elasticsearch.plugin.api;
-    requires org.elasticsearch.plugin.analysis.api;
+    requires org.elasticsearch.plugin;
+    requires org.elasticsearch.plugin.analysis;
 
     requires com.sun.jna;
     requires hppc;
@@ -53,6 +55,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action;
     exports org.elasticsearch.action.admin.cluster.allocation;
     exports org.elasticsearch.action.admin.cluster.configuration;
+    exports org.elasticsearch.action.admin.cluster.coordination;
     exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
     exports org.elasticsearch.action.admin.cluster.migration;
@@ -228,6 +231,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.query;
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
+    exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
@@ -281,7 +285,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;
-    exports org.elasticsearch.reservedstate;
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
@@ -290,6 +293,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
+    exports org.elasticsearch.reservedstate;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;
@@ -368,4 +372,5 @@ module org.elasticsearch.server {
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 
     provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+    provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
 }

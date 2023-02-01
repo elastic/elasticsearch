@@ -61,7 +61,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     @Override
-    protected SortValue mutateInstance(SortValue instance) throws IOException {
+    protected SortValue mutateInstance(SortValue instance) {
         return randomValueOtherThanMany(mut -> instance.getKey().equals(mut.getKey()), this::createTestInstance);
     }
 
@@ -241,5 +241,11 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
                 return sortValue.toXContent(builder, format);
             }
         });
+    }
+
+    @Override
+    public void testToString() throws Exception {
+        // override parent since empty sort value serializes to empty string
+        assertNotNull(createTestInstance().toString());
     }
 }

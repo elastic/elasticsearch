@@ -118,7 +118,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     );
                 }, listener::onFailure);
 
-                groupedListener = new GroupedActionListener<>(mergeMapsListener, resolvedIndexes.numClusters());
+                groupedListener = new GroupedActionListener<>(resolvedIndexes.numClusters(), mergeMapsListener);
             }
 
             if (resolvedIndexes.getLocalIndices().isEmpty() == false) {

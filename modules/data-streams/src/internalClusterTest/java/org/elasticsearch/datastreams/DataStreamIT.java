@@ -104,6 +104,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -747,7 +748,14 @@ public class DataStreamIT extends ESIntegTestCase {
             equalTo(
                 Map.of(
                     "logs-foobar",
-                    List.of(new DataStreamAlias("foo", List.of("logs-foobar"), null, Map.of("term", Map.of("type", Map.of("value", "y")))))
+                    List.of(
+                        new DataStreamAlias(
+                            "foo",
+                            List.of("logs-foobar"),
+                            null,
+                            Map.of("logs-foobar", Map.of("term", Map.of("type", Map.of("value", "y"))))
+                        )
+                    )
                 )
             )
         );
@@ -772,7 +780,14 @@ public class DataStreamIT extends ESIntegTestCase {
             equalTo(
                 Map.of(
                     "logs-foobar",
-                    List.of(new DataStreamAlias("foo", List.of("logs-foobar"), null, Map.of("term", Map.of("type", Map.of("value", "x")))))
+                    List.of(
+                        new DataStreamAlias(
+                            "foo",
+                            List.of("logs-foobar"),
+                            null,
+                            Map.of("logs-foobar", Map.of("term", Map.of("type", Map.of("value", "x"))))
+                        )
+                    )
                 )
             )
         );
@@ -791,17 +806,17 @@ public class DataStreamIT extends ESIntegTestCase {
         String alias = randomAlphaOfLength(4);
         String[] dataStreams = Arrays.stream(generateRandomStringArray(16, 4, false, false))
             .map(s -> "log-" + s.toLowerCase(Locale.ROOT))
+            .distinct()
             .toArray(String[]::new);
         for (String dataStream : dataStreams) {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         }
-        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias)
-            .indices(dataStreams)
-            .filter(Map.of("term", Map.of("type", Map.of("value", "y"))));
+        Map<String, Object> indexFilters = Map.of("term", Map.of("type", Map.of("value", "y")));
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams).filter(indexFilters);
         assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
-        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).writeIndex(true);
+        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).filter(indexFilters).writeIndex(true);
         assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
@@ -816,7 +831,16 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(result.get(0).getName(), equalTo(alias));
         assertThat(result.get(0).getDataStreams(), containsInAnyOrder(dataStreams));
         assertThat(result.get(0).getWriteDataStream(), equalTo(dataStreams[0]));
-        assertThat(result.get(0).getFilter().string(), equalTo("{\"term\":{\"type\":{\"value\":\"y\"}}}"));
+        for (String dataStream : dataStreams) {
+            assertThat(
+                result.stream()
+                    .map(resultAlias -> resultAlias.getFilter(dataStream))
+                    .filter(Objects::nonNull)
+                    .map(CompressedXContent::string)
+                    .collect(Collectors.toSet()),
+                containsInAnyOrder("{\"term\":{\"type\":{\"value\":\"y\"}}}")
+            );
+        }
     }
 
     public void testDataSteamAliasWithMalformedFilter() throws Exception {
@@ -2075,6 +2099,7 @@ public class DataStreamIT extends ESIntegTestCase {
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+        ensureGreen(dataStreamName);
 
         indexDocsAndEnsureThereIsCapturedWriteLoad(dataStreamName);
 
@@ -2100,6 +2125,12 @@ public class DataStreamIT extends ESIntegTestCase {
             );
         }
 
+        logger.info(
+            "--> Node IDs failing to respond to stats requests {}, shard 1 replica routing {}",
+            failingIndicesStatsNodeIds,
+            currentDataStreamWriteIndexRoutingTable.shard(1).replicaShards().get(0)
+        );
+
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
@@ -2110,7 +2141,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
             // If all the shards are co-located within the failing nodes, no stats will be stored during rollover
             if (index.equals(dataStream.getWriteIndex()) == false && shard1ReplicaIsAllocatedInAReachableNode) {
-                assertThat(metadataStats, is(notNullValue()));
+                assertThat("Expected stats for index " + index, metadataStats, is(notNullValue()));
 
                 final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();
                 // All stats request performed against nodes holding the shard 0 failed

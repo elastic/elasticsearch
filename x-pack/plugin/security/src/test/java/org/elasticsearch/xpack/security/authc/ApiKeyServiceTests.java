@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -40,12 +41,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -1512,8 +1515,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         // Realm
         final Authentication authentication3 = AuthenticationTests.randomRealmAuthentication(randomBoolean());
-        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getSourceRealm().getName()));
-        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getSourceRealm().getType()));
+        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getEffectiveSubject().getRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getEffectiveSubject().getRealm().getType()));
 
         // Realm run-as
         final Authentication authentication4 = authentication3.runAs(AuthenticationTests.randomUser(), lookupRealmRef);
@@ -1526,8 +1529,19 @@ public class ApiKeyServiceTests extends ESTestCase {
             AuthenticationTests.randomAnonymousAuthentication(),
             AuthenticationTests.randomInternalAuthentication()
         );
-        assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getSourceRealm().getName()));
-        assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getSourceRealm().getType()));
+        assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getEffectiveSubject().getRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getEffectiveSubject().getRealm().getType()));
+
+        // Failed run-as returns authenticating subject's realm
+        final Authentication authentication6 = authentication3.runAs(AuthenticationTests.randomUser(), null);
+        assertThat(
+            ApiKeyService.getCreatorRealmName(authentication6),
+            equalTo(authentication6.getAuthenticatingSubject().getRealm().getName())
+        );
+        assertThat(
+            ApiKeyService.getCreatorRealmType(authentication6),
+            equalTo(authentication6.getAuthenticatingSubject().getRealm().getType())
+        );
     }
 
     public void testGetOwnersRealmNames() {
@@ -1588,7 +1602,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomAlphaOfLength(8),
             apiKeyCreatorRealm,
             "file",
-            Version.CURRENT
+            TransportVersion.CURRENT
         );
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication)), contains(apiKeyCreatorRealm));
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.token())), contains(apiKeyCreatorRealm));
@@ -2024,7 +2038,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             Authentication authentication,
             Set<RoleDescriptor> userRoles,
             List<RoleDescriptor> keyRoles,
-            Version version
+            TransportVersion version
         ) throws Exception {
             XContentBuilder keyDocSource = ApiKeyService.newDocument(
                 getFastStoredHashAlgoForTests().hash(new SecureString(randomAlphaOfLength(16).toCharArray())),
@@ -2093,7 +2107,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 authentication,
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
                 null,
-                Version.CURRENT
+                TransportVersion.CURRENT
             );
         }
     }
@@ -2108,12 +2122,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(baseSettings)
             .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
         final ApiKeyService service = new ApiKeyService(
             settings,
             clock,
             client,
             securityIndex,
-            ClusterServiceUtils.createClusterService(threadPool),
+            ClusterServiceUtils.createClusterService(threadPool, clusterSettings),
             cacheInvalidatorRegistry,
             threadPool
         );

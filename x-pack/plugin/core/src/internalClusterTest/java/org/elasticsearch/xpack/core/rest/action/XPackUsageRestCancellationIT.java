@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -172,8 +172,8 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             blockActionLatch.await();
             listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureSet.Usage("test", false, false) {
                 @Override
-                public Version getMinimalSupportedVersion() {
-                    return Version.CURRENT;
+                public TransportVersion getMinimalSupportedVersion() {
+                    return TransportVersion.CURRENT;
                 }
             }));
         }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
@@ -28,9 +29,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.TRUST_RESTRICTIONS_X509_FIELDS;
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE;
 
 /**
  * A configuration loader for SSL Settings
@@ -115,22 +113,18 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     }
 
     @Override
-    protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
-        final SslTrustConfig trustConfig = super.buildTrustConfig(basePath, verificationMode, keyConfig);
+    protected SslTrustConfig buildTrustConfig(
+        Path basePath,
+        SslVerificationMode verificationMode,
+        SslKeyConfig keyConfig,
+        Set<X509Field> restrictedTrustFields
+    ) {
+        final SslTrustConfig trustConfig = super.buildTrustConfig(basePath, verificationMode, keyConfig, null);
         final Path trustRestrictions = super.resolvePath("trust_restrictions.path", basePath);
         if (trustRestrictions == null) {
             return trustConfig;
         }
-        return new RestrictedTrustConfig(
-            trustRestrictions,
-            Set.copyOf(
-                super.resolveList(
-                    TRUST_RESTRICTIONS_X509_FIELDS.rawSetting().getKey(),
-                    TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE.apply("").getDefault(settings)
-                )
-            ),
-            trustConfig
-        );
+        return new RestrictedTrustConfig(trustRestrictions, restrictedTrustFields, trustConfig);
     }
 
     public SslConfiguration load(Environment env) {

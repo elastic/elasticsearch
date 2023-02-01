@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -131,12 +131,12 @@ public class DataDescription implements ToXContentObject, Writeable {
     }
 
     public DataDescription(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             DataFormat.readFromStream(in);
         }
         timeFieldName = in.readString();
         timeFormat = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // fieldDelimiter
             if (in.readBoolean()) {
                 in.read();
@@ -150,12 +150,12 @@ public class DataDescription implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             DataFormat.XCONTENT.writeTo(out);
         }
         out.writeString(timeFieldName);
         out.writeString(timeFormat);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // fieldDelimiter
             out.writeBoolean(false);
             // quoteCharacter

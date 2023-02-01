@@ -382,13 +382,13 @@ public final class DefBootstrap {
                 } else if (type.parameterType(0) != Object.class) {
                     // case 2: only the argument is unknown, just check that
                     MethodType testType = MethodType.methodType(boolean.class, type);
-                    MethodHandle unaryTest = CHECK_RHS.bindTo(clazz0).bindTo(clazz1);
-                    test = unaryTest.asType(testType);
+                    MethodHandle unaryTest = CHECK_RHS.bindTo(clazz1);
+                    test = MethodHandles.dropArguments(unaryTest, 0, Object.class).asType(testType);
                     nullCheck = MethodHandles.dropArguments(NON_NULL, 0, clazz0).asType(testType);
                 } else {
                     // case 3: check both receiver and argument
                     MethodType testType = MethodType.methodType(boolean.class, type);
-                    MethodHandle binaryTest = CHECK_BOTH.bindTo(clazz0).bindTo(clazz1);
+                    MethodHandle binaryTest = MethodHandles.insertArguments(CHECK_BOTH, 0, clazz0, clazz1);
                     test = binaryTest.asType(testType);
                     nullCheck = BOTH_NON_NULL.asType(testType);
                 }
@@ -423,7 +423,7 @@ public final class DefBootstrap {
          * guard method for inline caching: checks the first argument is the same
          * as the cached first argument.
          */
-        static boolean checkRHS(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
+        static boolean checkRHS(Class<?> right, Object rightObject) {
             return rightObject.getClass() == right;
         }
 
@@ -460,7 +460,7 @@ public final class DefBootstrap {
                 CHECK_RHS = methodHandlesLookup.findStatic(
                     methodHandlesLookup.lookupClass(),
                     "checkRHS",
-                    MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class)
+                    MethodType.methodType(boolean.class, Class.class, Object.class)
                 );
                 CHECK_BOTH = methodHandlesLookup.findStatic(
                     methodHandlesLookup.lookupClass(),

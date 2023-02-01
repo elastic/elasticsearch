@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -32,10 +33,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -158,7 +157,7 @@ public class ListTasksResponse extends BaseTasksResponse {
     /**
      * Convert this task response to XContent grouping by executing nodes.
      */
-    public ChunkedToXContent groupedByNode(Supplier<DiscoveryNodes> nodesInCluster) {
+    public ChunkedToXContentObject groupedByNode(Supplier<DiscoveryNodes> nodesInCluster) {
         return ignored -> {
             final var discoveryNodes = nodesInCluster.get();
             return Iterators.concat(Iterators.single((builder, params) -> {
@@ -166,9 +165,9 @@ public class ListTasksResponse extends BaseTasksResponse {
                 toXContentCommon(builder, params);
                 builder.startObject("nodes");
                 return builder;
-            }), getPerNodeTasks().entrySet().stream().flatMap(entry -> {
+            }), Iterators.flatMap(getPerNodeTasks().entrySet().iterator(), entry -> {
                 DiscoveryNode node = discoveryNodes.get(entry.getKey());
-                return Stream.<Stream<ToXContent>>of(Stream.of((builder, params) -> {
+                return Iterators.concat(Iterators.single((builder, params) -> {
                     builder.startObject(entry.getKey());
                     if (node != null) {
                         // If the node is no longer part of the cluster, oh well, we'll just skip its useful information.
@@ -193,17 +192,17 @@ public class ListTasksResponse extends BaseTasksResponse {
                     }
                     builder.startObject(TASKS);
                     return builder;
-                }), entry.getValue().stream().<ToXContent>map(task -> (builder, params) -> {
+                }), Iterators.flatMap(entry.getValue().iterator(), task -> Iterators.<ToXContent>single((builder, params) -> {
                     builder.startObject(task.taskId().toString());
                     task.toXContent(builder, params);
                     builder.endObject();
                     return builder;
-                }), Stream.of((builder, params) -> {
+                })), Iterators.<ToXContent>single((builder, params) -> {
                     builder.endObject();
                     builder.endObject();
                     return builder;
-                })).flatMap(Function.identity());
-            }).iterator(), Iterators.single((builder, params) -> {
+                }));
+            }), Iterators.<ToXContent>single((builder, params) -> {
                 builder.endObject();
                 builder.endObject();
                 return builder;
@@ -214,7 +213,7 @@ public class ListTasksResponse extends BaseTasksResponse {
     /**
      * Convert this response to XContent grouping by parent tasks.
      */
-    public ChunkedToXContent groupedByParent() {
+    public ChunkedToXContentObject groupedByParent() {
         return ignored -> Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject();
             toXContentCommon(builder, params);
@@ -234,7 +233,7 @@ public class ListTasksResponse extends BaseTasksResponse {
     /**
      * Presents a flat list of tasks
      */
-    public ChunkedToXContent groupedByNone() {
+    public ChunkedToXContentObject groupedByNone() {
         return ignored -> Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject();
             toXContentCommon(builder, params);
@@ -258,7 +257,7 @@ public class ListTasksResponse extends BaseTasksResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(ChunkedToXContent.wrapAsXContentObject(groupedByNone()), true, true);
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(groupedByNone()), true, true);
     }
 
 }

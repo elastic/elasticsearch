@@ -82,11 +82,17 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .keepOnCompletion(randomBoolean())
                 .fetchFields(randomFetchFields)
                 .runtimeMappings(randomRuntimeMappings())
-                .resultPosition(randomFrom("tail", "head"));
+                .resultPosition(randomFrom("tail", "head"))
+                .maxSamplesPerKey(randomIntBetween(1, 1000));
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
         return null;
+    }
+
+    @Override
+    protected EqlSearchRequest mutateInstance(EqlSearchRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     private TimeValue randomTV() {
@@ -133,6 +139,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
         mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
         mutatedInstance.resultPosition(version.onOrAfter(Version.V_7_17_8) ? instance.resultPosition() : "tail");
+        mutatedInstance.maxSamplesPerKey(version.onOrAfter(Version.V_8_7_0) ? instance.maxSamplesPerKey() : 1);
 
         return mutatedInstance;
     }

@@ -1,5 +1,0 @@
-pr: 91981
-summary: Handle any exception thrown while generating source for an `IngestDocument`
-area: Ingest Node
-type: bug
-issues: []

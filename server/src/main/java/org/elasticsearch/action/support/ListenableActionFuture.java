@@ -17,7 +17,7 @@ import java.util.List;
  * A {@code Future} and {@link ActionListener} against which other {@link ActionListener}s can be registered later, to support
  * fanning-out a result to a dynamic collection of listeners.
  */
-public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
+public class ListenableActionFuture<T> extends PlainActionFuture<T> {
 
     private Object listeners;
     private boolean executedListeners = false;
@@ -77,19 +77,10 @@ public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
         }
     }
 
-    @Override
-    protected T convert(T listenerResponse) {
-        return listenerResponse;
-    }
-
     private void executeListener(final ActionListener<T> listener) {
-        try {
-            // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
-            // here we know we will never block
-            listener.onResponse(actionGet(0));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
+        // here we know we will never block
+        ActionListener.completeWith(listener, () -> actionGet(0));
     }
 
 }

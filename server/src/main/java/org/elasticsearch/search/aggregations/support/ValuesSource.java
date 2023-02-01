@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
@@ -249,8 +248,7 @@ public abstract class ValuesSource {
              * Get the maximum global ordinal. Requires {@link #globalOrdinalsValues}
              * so see the note about its performance.
              */
-            public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
-                IndexReader indexReader = indexSearcher.getIndexReader();
+            public long globalMaxOrd(IndexReader indexReader) throws IOException {
                 if (indexReader.leaves().isEmpty()) {
                     return 0;
                 } else {

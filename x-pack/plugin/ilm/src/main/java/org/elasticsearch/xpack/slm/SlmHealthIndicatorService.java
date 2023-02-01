@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.health.Diagnosis;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING;
 
 /**
@@ -97,17 +99,19 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
-        var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
+        final ClusterState currentState = clusterService.state();
+        var slmMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        final OperationMode currentMode = currentSLMMode(currentState);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(
                 GREEN,
                 "No Snapshot Lifecycle Management policies configured",
-                createDetails(verbose, Collections.emptyList(), slmMetadata),
+                createDetails(verbose, Collections.emptyList(), slmMetadata, currentMode),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
-        } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
+        } else if (currentMode != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
                     NAME,
@@ -120,7 +124,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 YELLOW,
                 "Snapshot Lifecycle Management is not running",
-                createDetails(verbose, Collections.emptyList(), slmMetadata),
+                createDetails(verbose, Collections.emptyList(), slmMetadata, currentMode),
                 impacts,
                 List.of(SLM_NOT_RUNNING)
             );
@@ -159,7 +163,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
 
                 String unhealthyPolicyActions = unhealthyPolicies.stream()
-                    .map(policy -> "- /_slm/policy/" + policy.getPolicy().getId() + "?human")
+                    .map(policy -> "- GET /_slm/policy/" + policy.getPolicy().getId() + "?human")
                     .collect(Collectors.joining("\n"));
                 String action = "Check the snapshot lifecycle "
                     + (unhealthyPolicies.size() > 1 ? "policies" : "policy")
@@ -169,7 +173,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 return createIndicator(
                     YELLOW,
                     "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
-                    createDetails(verbose, unhealthyPolicies, slmMetadata),
+                    createDetails(verbose, unhealthyPolicies, slmMetadata, currentMode),
                     impacts,
                     List.of(
                         new Diagnosis(
@@ -177,7 +181,10 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                             List.of(
                                 new Diagnosis.Resource(
                                     Diagnosis.Resource.Type.SLM_POLICY,
-                                    unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
+                                    unhealthyPolicies.stream()
+                                        .map(SnapshotLifecyclePolicyMetadata::getName)
+                                        .limit(Math.min(unhealthyPolicies.size(), maxAffectedResourcesCount))
+                                        .toList()
                                 )
                             )
                         )
@@ -188,7 +195,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 GREEN,
                 "Snapshot Lifecycle Management is running",
-                createDetails(verbose, Collections.emptyList(), slmMetadata),
+                createDetails(verbose, Collections.emptyList(), slmMetadata, currentMode),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -215,11 +222,12 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     private static HealthIndicatorDetails createDetails(
         boolean verbose,
         Collection<SnapshotLifecyclePolicyMetadata> unhealthyPolicies,
-        SnapshotLifecycleMetadata metadata
+        SnapshotLifecycleMetadata metadata,
+        OperationMode mode
     ) {
         if (verbose) {
             Map<String, Object> details = new LinkedHashMap<>();
-            details.put("slm_status", metadata.getOperationMode());
+            details.put("slm_status", mode);
             details.put("policies", metadata.getSnapshotConfigurations().size());
             if (unhealthyPolicies.size() > 0) {
                 details.put(

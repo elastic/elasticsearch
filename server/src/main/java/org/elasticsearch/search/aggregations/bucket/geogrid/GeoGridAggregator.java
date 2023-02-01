@@ -29,6 +29,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * Aggregates data expressed as longs (for efficiency's sake) but formats results as aggregation-specific strings.
@@ -43,7 +45,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected GeoGridAggregator(
         String name,
         AggregatorFactories factories,
-        ValuesSource.Numeric valuesSource,
+        Function<LongConsumer, ValuesSource.Numeric> valuesSource,
         int requiredSize,
         int shardSize,
         AggregationContext aggregationContext,
@@ -52,7 +54,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = valuesSource.apply(this::addRequestCircuitBreakerBytes);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);

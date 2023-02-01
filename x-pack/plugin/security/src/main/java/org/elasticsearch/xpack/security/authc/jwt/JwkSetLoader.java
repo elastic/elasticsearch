@@ -19,6 +19,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
@@ -42,7 +43,7 @@ public class JwkSetLoader implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(JwkSetLoader.class);
 
-    private final AtomicReference<ListenableFuture<Boolean>> reloadFutureRef = new AtomicReference<>();
+    private final AtomicReference<ListenableFuture<Tuple<Boolean, JwksAlgs>>> reloadFutureRef = new AtomicReference<>();
     private final RealmConfig realmConfig;
     private final List<String> allowedJwksAlgsPkc;
     private final String jwkSetPath;
@@ -67,10 +68,10 @@ public class JwkSetLoader implements Releasable {
 
         // Any exception during loading requires closing JwkSetLoader's HTTP client to avoid a thread pool leak
         try {
-            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            final PlainActionFuture<Tuple<Boolean, JwksAlgs>> future = new PlainActionFuture<>();
             reload(future);
             // ASSUME: Blocking read operations are OK during startup
-            final Boolean isUpdated = future.actionGet();
+            final Boolean isUpdated = future.actionGet().v1();
             assert isUpdated : "initial reload should have updated the JWK set";
         } catch (Throwable t) {
             close();
@@ -83,8 +84,8 @@ public class JwkSetLoader implements Releasable {
      * they are different. The listener is called with false if the reloaded content is the same
      * as the existing one or true if they are different.
      */
-    void reload(final ActionListener<Boolean> listener) {
-        final ListenableFuture<Boolean> future = this.getFuture();
+    void reload(final ActionListener<Tuple<Boolean, JwksAlgs>> listener) {
+        final ListenableFuture<Tuple<Boolean, JwksAlgs>> future = getFuture();
         future.addListener(listener);
     }
 
@@ -92,17 +93,18 @@ public class JwkSetLoader implements Releasable {
         return contentAndJwksAlgs;
     }
 
-    private ListenableFuture<Boolean> getFuture() {
+    // Package private for testing
+    ListenableFuture<Tuple<Boolean, JwksAlgs>> getFuture() {
         for (;;) {
-            final ListenableFuture<Boolean> existingFuture = this.reloadFutureRef.get();
+            final ListenableFuture<Tuple<Boolean, JwksAlgs>> existingFuture = reloadFutureRef.get();
             if (existingFuture != null) {
                 return existingFuture;
             }
 
-            final ListenableFuture<Boolean> newFuture = new ListenableFuture<>();
-            if (this.reloadFutureRef.compareAndSet(null, newFuture)) {
-                loadInternal(ActionListener.runAfter(newFuture, () -> {
-                    final ListenableFuture<Boolean> oldValue = this.reloadFutureRef.getAndSet(null);
+            final ListenableFuture<Tuple<Boolean, JwksAlgs>> newFuture = new ListenableFuture<>();
+            if (reloadFutureRef.compareAndSet(null, newFuture)) {
+                loadInternal(ActionListener.runBefore(newFuture, () -> {
+                    final ListenableFuture<Tuple<Boolean, JwksAlgs>> oldValue = reloadFutureRef.getAndSet(null);
                     assert oldValue == newFuture : "future reference changed unexpectedly";
                 }));
                 return newFuture;
@@ -111,7 +113,8 @@ public class JwkSetLoader implements Releasable {
         }
     }
 
-    private void loadInternal(final ActionListener<Boolean> listener) {
+    // Package private for testing
+    void loadInternal(final ActionListener<Tuple<Boolean, JwksAlgs>> listener) {
         // PKC JWKSet get contents from local file or remote HTTPS URL
         if (httpClient == null) {
             logger.trace("Loading PKC JWKs from path [{}]", jwkSetPath);
@@ -135,16 +138,18 @@ public class JwkSetLoader implements Releasable {
         }
     }
 
-    private Boolean handleReloadedContentAndJwksAlgs(byte[] bytes) {
+    private Tuple<Boolean, JwksAlgs> handleReloadedContentAndJwksAlgs(byte[] bytes) {
         final ContentAndJwksAlgs newContentAndJwksAlgs = parseContent(bytes);
+        final boolean isUpdated;
         if (contentAndJwksAlgs != null && Arrays.equals(contentAndJwksAlgs.sha256, newContentAndJwksAlgs.sha256)) {
             logger.debug("No change in reloaded JWK set");
-            return false;
+            isUpdated = false;
         } else {
             logger.debug("Reloaded JWK set is different from the existing set");
             contentAndJwksAlgs = newContentAndJwksAlgs;
-            return true;
+            isUpdated = true;
         }
+        return new Tuple<>(isUpdated, contentAndJwksAlgs.jwksAlgs);
     }
 
     private ContentAndJwksAlgs parseContent(final byte[] jwkSetContentBytesPkc) {
@@ -186,7 +191,7 @@ public class JwkSetLoader implements Releasable {
         }
 
         boolean isEmpty() {
-            return this.jwks.isEmpty() && this.algs.isEmpty();
+            return jwks.isEmpty() && algs.isEmpty();
         }
     }
 

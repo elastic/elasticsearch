@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.plugin.api {
-    exports org.elasticsearch.plugin.api;
+module org.elasticsearch.plugin {
+    exports org.elasticsearch.plugin;
+    exports org.elasticsearch.plugin.settings;
 }

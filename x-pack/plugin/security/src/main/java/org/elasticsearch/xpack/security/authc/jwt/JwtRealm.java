@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
+import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -41,6 +44,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
+import java.util.function.Function;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
@@ -58,7 +63,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     private final Cache<BytesArray, ExpiringUser> jwtCache;
     private final CacheIteratorHelper<BytesArray, ExpiringUser> jwtCacheHelper;
-    private final JwtRealmsService jwtRealmsService;
     private final UserRoleMapper userRoleMapper;
     private final Boolean populateUserMetadata;
     private final ClaimParser claimParserPrincipal;
@@ -71,23 +75,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private final JwtAuthenticator jwtAuthenticator;
     private final TimeValue allowedClockSkew;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
+    private List<Function<JWTClaimsSet, String>> tokenPrincipalFunctions;
 
-    JwtRealm(
-        final RealmConfig realmConfig,
-        final JwtRealmsService jwtRealmsService,
-        final SSLService sslService,
-        final UserRoleMapper userRoleMapper
-    ) throws SettingsException {
+    public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
+        throws SettingsException {
         super(realmConfig);
-        this.jwtRealmsService = jwtRealmsService; // common configuration settings shared by all JwtRealm instances
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.refreshRealmOnChange(this);
         this.allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
-        this.claimParserPrincipal = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_PRINCIPAL, realmConfig, true);
-        this.claimParserGroups = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_GROUPS, realmConfig, false);
-        this.claimParserDn = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_DN, realmConfig, false);
-        this.claimParserMail = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_MAIL, realmConfig, false);
-        this.claimParserName = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_NAME, realmConfig, false);
+
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
         final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
@@ -115,6 +111,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.jwtCacheHelper = null;
         }
         jwtAuthenticator = new JwtAuthenticator(realmConfig, sslService, this::expireAll);
+
+        final Map<String, String> fallbackClaimNames = jwtAuthenticator.getFallbackClaimNames();
+
+        this.claimParserPrincipal = ClaimParser.forSetting(
+            logger,
+            JwtRealmSettings.CLAIMS_PRINCIPAL,
+            fallbackClaimNames,
+            realmConfig,
+            true
+        );
+        this.claimParserGroups = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_GROUPS, fallbackClaimNames, realmConfig, false);
+        this.claimParserDn = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_DN, fallbackClaimNames, realmConfig, false);
+        this.claimParserMail = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_MAIL, fallbackClaimNames, realmConfig, false);
+        this.claimParserName = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_NAME, fallbackClaimNames, realmConfig, false);
     }
 
     /**
@@ -130,6 +140,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
         // extract list of realms referenced by config.settings() value for DelegatedAuthorizationSettings.ROLES_REALMS
         delegatedAuthorizationSupport = new DelegatedAuthorizationSupport(allRealms, config, xpackLicenseState);
+
+        final List<Function<JWTClaimsSet, String>> tokenPrincipalFunctions = new ArrayList<>();
+        for (var realm : allRealms) {
+            if (realm instanceof final JwtRealm jwtRealm) {
+                tokenPrincipalFunctions.add(jwtRealm::buildTokenPrincipal);
+            }
+        }
+        this.tokenPrincipalFunctions = List.copyOf(tokenPrincipalFunctions);
     }
 
     /**
@@ -166,10 +184,66 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
         ensureInitialized();
-        // Token parsing is common code for all realms
-        // First JWT realm will parse in a way that is compatible with all JWT realms,
-        // taking into consideration each JWT realm might have a different principal claim name
-        return jwtRealmsService.token(threadContext);
+
+        final SecureString userCredentials = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
+            false
+        );
+        if (userCredentials == null) {
+            return null;
+        }
+        if (userCredentials.isEmpty()) {
+            throw new IllegalArgumentException("JWT bearer token must be non-empty");
+        }
+
+        final SecureString clientCredentials = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
+            true
+        );
+
+        // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
+        final SignedJWT signedJWT;
+        try {
+            signedJWT = SignedJWT.parse(userCredentials.toString());
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
+        }
+
+        final JWTClaimsSet jwtClaimsSet;
+        try {
+            jwtClaimsSet = signedJWT.getJWTClaimsSet();
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Failed to parse JWT claims set", e);
+        }
+
+        // If Issuer is not found, still return a JWT token since it is after still a JWT, authentication
+        // will fail later because issuer is mandated
+        final String issuer = jwtClaimsSet.getIssuer();
+        if (Strings.hasText(issuer) == false) {
+            logger.warn("Issuer claim 'iss' is missing.");
+            return new JwtAuthenticationToken("<unrecognized-jwt>", signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
+        }
+
+        // Try all known extraction functions to build the token principal
+        for (Function<JWTClaimsSet, String> func : tokenPrincipalFunctions) {
+            final String tokenPrincipalSuffix = func.apply(jwtClaimsSet);
+            if (tokenPrincipalSuffix != null) {
+                return new JwtAuthenticationToken(
+                    issuer + "/" + tokenPrincipalSuffix,
+                    signedJWT,
+                    JwtUtil.sha256(userCredentials),
+                    clientCredentials
+                );
+            }
+        }
+
+        // Token principal cannot be extracted even after trying all functions, but this is
+        // still a JWT token so that we should return as one.
+        return new JwtAuthenticationToken("<unrecognized-jwt> by " + issuer, signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
     }
 
     @Override
@@ -195,8 +269,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 return; // FAILED (secret is missing or mismatched)
             }
 
-            final SecureString serializedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
-            final BytesArray jwtCacheKey = isCacheEnabled() ? new BytesArray(JwtUtil.sha256(serializedJwt)) : null;
+            final BytesArray jwtCacheKey = isCacheEnabled() ? new BytesArray(jwtAuthenticationToken.getUserCredentialsHash()) : null;
             if (jwtCacheKey != null) {
                 final User cachedUser = tryAuthenticateWithCache(tokenPrincipal, jwtCacheKey);
                 if (cachedUser != null) {
@@ -254,40 +327,21 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final Date exp = expiringUser.exp; // claimsSet.getExpirationTime().getTime() + allowedClockSkew.getMillis()
             final String principal = user.principal();
             final Date now = new Date();
-            if (now.getTime() < exp.getTime()) {
-                logger.trace(
-                    "Realm ["
-                        + name()
-                        + "] JWT cache hit token=["
-                        + tokenPrincipal
-                        + "] key=["
-                        + jwtCacheKey
-                        + "] principal=["
-                        + principal
-                        + "] exp=["
-                        + exp
-                        + "] now=["
-                        + now
-                        + "]."
-                );
+            final boolean cacheEntryNotExpired = now.getTime() < exp.getTime();
+            logger.trace(
+                "Realm [{}] JWT cache {} token=[{}] key=[{}] principal=[{}] exp=[{}] now=[{}].",
+                name(),
+                cacheEntryNotExpired ? "hit" : "exp",
+                tokenPrincipal,
+                jwtCacheKey,
+                principal,
+                exp,
+                now
+            );
+            if (cacheEntryNotExpired) {
                 return user;
             }
             // TODO: evict the entry
-            logger.trace(
-                "Realm ["
-                    + name()
-                    + "] JWT cache exp token=["
-                    + tokenPrincipal
-                    + "] key=["
-                    + jwtCacheKey
-                    + "] principal=["
-                    + principal
-                    + "] exp=["
-                    + exp
-                    + "] now=["
-                    + now
-                    + "]."
-            );
         }
         return null;
     }
@@ -398,6 +452,30 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 .forEach(entry -> metadata.put("jwt_claim_" + entry.getKey(), entry.getValue()));
         }
         return Map.copyOf(metadata);
+    }
+
+    private String buildTokenPrincipal(JWTClaimsSet jwtClaimsSet) {
+        final Map<String, String> fallbackClaimNames = jwtAuthenticator.getFallbackClaimNames();
+        final FallbackableClaim subClaim = new FallbackableClaim("sub", fallbackClaimNames, jwtClaimsSet);
+        final String subject = subClaim.getStringClaimValue();
+        if (false == Strings.hasText(subject)) {
+            logger.debug("claim [{}] is missing for building token principal for realm [{}]", subClaim, name());
+            return null;
+        }
+
+        final FallbackableClaim audClaim = new FallbackableClaim("aud", fallbackClaimNames, jwtClaimsSet);
+        final List<String> audiences = audClaim.getStringListClaimValue();
+        if (audiences == null || audiences.isEmpty()) {
+            logger.debug("claim [{}] is missing for building token principal for realm [{}]", audClaim, name());
+            return null;
+        }
+
+        final String userPrincipal = claimParserPrincipal.getClaimValue(jwtClaimsSet);
+        if (false == Strings.hasText(userPrincipal)) {
+            logger.debug("No user principal can be extracted with [{}] for realm [{}]", claimParserPrincipal, name());
+            return null;
+        }
+        return String.join(",", new TreeSet<>(audiences)) + "/" + subject + "/" + userPrincipal;
     }
 
     /**

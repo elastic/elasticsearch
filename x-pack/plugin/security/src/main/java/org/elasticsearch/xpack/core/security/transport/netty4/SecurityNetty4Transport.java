@@ -12,10 +12,11 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.concurrent.Future;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -59,7 +60,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     public SecurityNetty4Transport(
         final Settings settings,
-        final Version version,
+        final TransportVersion version,
         final ThreadPool threadPool,
         final NetworkService networkService,
         final PageCacheRecycler pageCacheRecycler,
@@ -217,8 +218,24 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 sslParameters.setServerNames(Collections.singletonList(serverName));
                 sslEngine.setSSLParameters(sslParameters);
             }
-            ctx.pipeline().replace(this, "ssl", new SslHandler(sslEngine));
-            super.connect(ctx, remoteAddress, localAddress, promise);
+            final ChannelPromise connectPromise = ctx.newPromise();
+            final SslHandler sslHandler = new SslHandler(sslEngine);
+            ctx.pipeline().replace(this, "ssl", sslHandler);
+            final Future<?> handshakePromise = sslHandler.handshakeFuture();
+            connectPromise.addListener(result -> {
+                if (result.isSuccess() == false) {
+                    promise.tryFailure(result.cause());
+                } else {
+                    handshakePromise.addListener(handshakeResult -> {
+                        if (handshakeResult.isSuccess()) {
+                            promise.setSuccess();
+                        } else {
+                            promise.tryFailure(handshakeResult.cause());
+                        }
+                    });
+                }
+            });
+            super.connect(ctx, remoteAddress, localAddress, connectPromise);
         }
     }
 }

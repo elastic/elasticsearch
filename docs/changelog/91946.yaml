@@ -1,5 +1,0 @@
-pr: 91946
-summary: Support SAN/dnsName for restricted trust
-area: TLS
-type: enhancement
-issues: []

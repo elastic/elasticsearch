@@ -170,8 +170,7 @@ public class AuthenticationService {
      * message, then the given fallback user will be returned instead.
      * @param action       The action of the message
      * @param transportRequest      The request to be authenticated
-     * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not
-     *                      be {@code null}.
+     * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not be {@code null}.
      */
     public void authenticate(String action, TransportRequest transportRequest, User fallbackUser, ActionListener<Authentication> listener) {
         Objects.requireNonNull(fallbackUser, "fallback user may not be null");

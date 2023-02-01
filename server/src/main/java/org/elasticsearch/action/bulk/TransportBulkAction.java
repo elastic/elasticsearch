@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -209,7 +210,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         docWriteResponse.setForcedRefresh(true);
                     }
                 }
-                client.admin().indices().prepareRefresh().setIndices(indices.toArray(Strings.EMPTY_ARRAY)).execute(l.map(ignored -> r));
+                client.admin()
+                    .indices()
+                    .prepareRefresh()
+                    .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
+                    .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
+                    .execute(l.map(ignored -> r));
             });
             bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         }

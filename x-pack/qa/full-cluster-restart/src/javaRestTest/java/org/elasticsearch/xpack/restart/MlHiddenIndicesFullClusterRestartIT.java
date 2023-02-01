@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -16,7 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.spi.XContentProvider;
@@ -38,7 +40,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
     private static final String JOB_ID = "ml-hidden-indices-old-cluster-job";
     private static final List<Tuple<List<String>, String>> EXPECTED_INDEX_ALIAS_PAIRS = List.of(
@@ -48,6 +50,10 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
         Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
     );
+
+    public MlHiddenIndicesFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
 
     @Override
     protected Settings restClientSettings() {

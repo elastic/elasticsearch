@@ -8,6 +8,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
@@ -28,6 +30,10 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.Compression;
@@ -35,6 +41,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +54,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -80,13 +89,41 @@ import static org.hamcrest.Matchers.nullValue;
  * version is started with the same data directories and then this is rerun
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
-public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
+
+    private static TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    protected static LocalClusterConfigProvider clusterConfig = c -> {};
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(2)
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("xpack.security.enabled", "false")
+        // some tests rely on the translog not being flushed
+        .setting("indices.memory.shard_inactive_time", "60m")
+        .apply(() -> clusterConfig)
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     private String index;
 
+    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
     @Before
     public void setIndex() {
-        index = getTestName().toLowerCase(Locale.ROOT);
+        index = getRootTestName();
     }
 
     public void testSearch() throws Exception {
@@ -1051,7 +1088,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 repoConfig.startObject("settings");
                 {
                     repoConfig.field("compress", randomBoolean());
-                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                    repoConfig.field("location", repoDirectory.getRoot().getPath());
                 }
                 repoConfig.endObject();
             }
@@ -1725,7 +1762,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 repoConfig.startObject("settings");
                 {
                     repoConfig.field("compress", randomBoolean());
-                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                    repoConfig.field("location", repoDirectory.getRoot().getPath());
                 }
                 repoConfig.endObject();
             }
@@ -1785,7 +1822,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 repoConfig.startObject("settings");
                 {
                     repoConfig.field("compress", randomBoolean());
-                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                    repoConfig.field("location", repoDirectory.getRoot().getPath());
                 }
                 repoConfig.endObject();
             }

@@ -97,9 +97,12 @@ public class CollectionUtilsTests extends ESTestCase {
     }
 
     public void testEnsureNoSelfReferences() {
-        CollectionUtils.ensureNoSelfReferences(Map.of(), "test with empty map");
         CollectionUtils.ensureNoSelfReferences(null, "test with null");
+        CollectionUtils.ensureNoSelfReferences(Map.of(), "test with empty map");
+    }
 
+    public void testEnsureNoSelfReferencesMap() {
+        // map value
         {
             Map<String, Object> map = new HashMap<>();
             map.put("field", map);
@@ -110,6 +113,7 @@ public class CollectionUtilsTests extends ESTestCase {
             );
             assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref value)"));
         }
+        // map key
         {
             Map<Object, Object> map = new HashMap<>();
             map.put(map, 1);
@@ -120,7 +124,6 @@ public class CollectionUtilsTests extends ESTestCase {
             );
             assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref key)"));
         }
-
     }
 
     public void testLimitSizeOfShortList() {

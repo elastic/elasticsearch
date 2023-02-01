@@ -114,7 +114,6 @@ public class RedactProcessorTests extends ESTestCase {
         config.put("patterns", List.of("%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}", "%{CREDIT_CARD:CREDIT_CARD}"));
         config.put("pattern_definitions", Map.of("CREDIT_CARD", "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"));
         var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
-        var groks = processor.getGroks();
 
         {
             var ingestDoc = createIngestDoc(Map.of("to_redact", "This is ok nothing to redact"));
@@ -135,6 +134,20 @@ public class RedactProcessorTests extends ESTestCase {
                 "here is something that looks like a credit card number: <CREDIT_CARD>",
                 redacted.getFieldValue("to_redact", String.class)
             );
+        }
+    }
+
+    public void testRedactWithClassNamesRemove() throws Exception {
+        var config = new HashMap<String, Object>();
+        config.put("field", "to_redact");
+        config.put("patterns", List.of("%{EMAILADDRESS:REDACTED}", "%{IP:REDACTED}", "%{CREDIT_CARD:REDACTED}"));
+        config.put("pattern_definitions", Map.of("CREDIT_CARD", "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"));
+        var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+
+        {
+            var ingestDoc = createIngestDoc(Map.of("to_redact", "look a credit card number! 0001-0002-0003-0004 from david@email.com"));
+            var redacted = processor.execute(ingestDoc);
+            assertEquals("look a credit card number! <REDACTED> from <REDACTED>", redacted.getFieldValue("to_redact", String.class));
         }
     }
 

@@ -1,0 +1,99 @@
+[[redact-processor]]
+=== Redact processor
+++++
+<titleabbrev>Redact</titleabbrev>
+++++
+
+The Redact processor obscures portions of text in the input document
+matching the given Grok patterns. A Grok pattern is like a regular
+expression with a named capturing group, text that matches the regular
+expression is replaced with the capture name.
+
+{es} comes packaged with a number of useful predefined
+https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
+
+The Redact processor uses {ecs-ref}/ecs-field-reference.html[Elastic Common Schema (ECS)]
+patterns, legacy Grok patterns are not supported.
+
+
+[[grok-options]]
+.Grok Options
+[options="header"]
+|======
+| Name                   | Required  | Default             | Description
+| `field`                | yes       | -                   | The field to be redacted
+| `patterns`             | yes       | -                   | A list of grok expression to match and redact named captures with.
+| `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the processor. Patterns matching existing names will override the pre-existing definition.
+| `prefix`               | no        | <                   | Start a redacted section with this token
+| `suffix`               | no        | >                   | End a redacted section with this token
+| `ignore_missing`       | no        | false               | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::common-options.asciidoc[]
+|======
+
+
+In this example the predefined `IP` Grok pattern is used to match
+and redact an IP addresses from the `message` text field. The pipeline
+is tested against the Simulate API.
+
+[source,console]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "description" : "Hide my IP",
+    "processors": [
+      {
+        "redact": {
+          "field": "message",
+          "patterns": ["%{IP:client}"]
+        }
+      }
+    ]
+  },
+  "docs":[
+    {
+      "_source": {
+        "message": "55.3.244.1 GET /index.html 15824 0.043"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The document in the response still contains the `message` field
+but now the IP address `55.3.244.1` is replaced by the text `<client>`.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "_index",
+        "_id": "_id",
+        "_version": "-3",
+        "_source": {
+          "message": "<client> GET /index.html 15824 0.043"
+        },
+        "_ingest": {
+          "timestamp": "2023-02-01T16:08:39.419056008Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2023-02-01T16:08:39.419056008Z/$body.docs.0.doc._ingest.timestamp/]
+
+The IP address is replaced with the word `client` because that is what is
+specified in the Grok pattern `%{IP:client}`.
+
+
+[[grok-watchdog]]
+==== Grok watchdog
+
+The watchdog interrupts expressions that take too long to execute.
+When interrupted the Redact processor fails with an error.
+
+The same settings that control the Grok Watchdog apply to the Redact processor
+TODO Link to [[grok-watchdog-options]]

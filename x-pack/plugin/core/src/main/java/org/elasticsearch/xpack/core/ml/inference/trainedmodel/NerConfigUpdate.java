@@ -27,8 +27,6 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.T
 public class NerConfigUpdate extends NlpConfigUpdate {
     public static final String NAME = NerConfig.NAME;
 
-    public static final NerConfigUpdate EMPTY_NER_CONFIG_UPDATE = new NerConfigUpdate(null, null);
-
     public static NerConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
         String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());

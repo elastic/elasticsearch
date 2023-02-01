@@ -549,8 +549,8 @@ public class MachineLearning extends Plugin
             parameters.ingestService.getClusterService(),
             this.settings
         );
-
-        return Map.of(InferenceProcessor.TYPE, inferenceFactory);
+        parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
+        return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }
 
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion

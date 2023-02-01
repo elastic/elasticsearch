@@ -9,7 +9,6 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 
 import java.nio.file.Path;
 import java.util.AbstractList;
@@ -100,44 +99,68 @@ public class CollectionUtils {
      * @param messageHint A string to be included in the exception message if the call fails, to provide
      *                    more context to the handler of the exception
      */
-    public static void ensureNoSelfReferences(Object value, String messageHint) {
-        Iterable<?> it = convert(value);
-        if (it != null) {
-            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
+    public static void ensureNoSelfReferences(final Object value, final String messageHint) {
+        ensureNoSelfReferences(value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
+    }
+
+    private static void ensureNoSelfReferences(final Object value, final Set<Object> ancestors, final String messageHint) {
+        if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
+            // noop
+        } else if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
+            ensureNoSelfReferences(m, ancestors, messageHint);
+        } else if ((value instanceof List<?> l) && l.isEmpty() == false) {
+            ensureNoSelfReferences(l, ancestors, messageHint);
+        } else if ((value instanceof Set<?> s) && s.isEmpty() == false) {
+            ensureNoSelfReferences(s, ancestors, messageHint);
+        } else if ((value instanceof Iterable<?> i) && (value instanceof Path == false)) {
+            ensureNoSelfReferences(i, i, ancestors, messageHint);
+        } else if (value instanceof Object[]) {
+            ensureNoSelfReferences(Arrays.asList((Object[]) value), value, ancestors, messageHint);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static Iterable<?> convert(Object value) {
-        if (value == null) {
-            return null;
+    private static void ensureNoSelfReferences(final Map<?, ?> reference, final Set<Object> ancestors, final String messageHint) {
+        addToAncestorsOrThrow(reference, ancestors, messageHint);
+        for (Map.Entry<?, ?> e : reference.entrySet()) {
+            ensureNoSelfReferences(e.getKey(), ancestors, messageHint);
+            ensureNoSelfReferences(e.getValue(), ancestors, messageHint);
         }
-        if (value instanceof Map<?, ?> map) {
-            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
-        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-            return (Iterable<?>) value;
-        } else if (value instanceof Object[]) {
-            return Arrays.asList((Object[]) value);
-        } else {
-            return null;
+        ancestors.remove(reference);
+    }
+
+    private static void ensureNoSelfReferences(final List<?> reference, final Set<Object> ancestors, final String messageHint) {
+        addToAncestorsOrThrow(reference, ancestors, messageHint);
+        for (Object o : reference) {
+            ensureNoSelfReferences(o, ancestors, messageHint);
         }
+        ancestors.remove(reference);
+    }
+
+    private static void ensureNoSelfReferences(final Set<?> reference, final Set<Object> ancestors, final String messageHint) {
+        addToAncestorsOrThrow(reference, ancestors, messageHint);
+        for (Object o : reference) {
+            ensureNoSelfReferences(o, ancestors, messageHint);
+        }
+        ancestors.remove(reference);
     }
 
     private static void ensureNoSelfReferences(
-        final Iterable<?> value,
-        Object originalReference,
+        final Iterable<?> iterable,
+        final Object reference,
         final Set<Object> ancestors,
-        String messageHint
+        final String messageHint
     ) {
-        if (value != null) {
-            if (ancestors.add(originalReference) == false) {
-                String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
-                throw new IllegalArgumentException("Iterable object is self-referencing itself" + suffix);
-            }
-            for (Object o : value) {
-                ensureNoSelfReferences(convert(o), o, ancestors, messageHint);
-            }
-            ancestors.remove(originalReference);
+        addToAncestorsOrThrow(reference, ancestors, messageHint);
+        for (Object o : iterable) {
+            ensureNoSelfReferences(o, ancestors, messageHint);
+        }
+        ancestors.remove(reference);
+    }
+
+    private static void addToAncestorsOrThrow(Object reference, Set<Object> ancestors, String messageHint) {
+        if (ancestors.add(reference) == false) {
+            String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
+            throw new IllegalArgumentException("Iterable object is self-referencing itself" + suffix);
         }
     }
 

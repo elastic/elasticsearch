@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -51,7 +51,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
         contextId = new ShardSearchContextId(in);
         dfs = new AggregatedDfs(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             this.shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
         } else {
             this.shardSearchRequest = null;
@@ -64,7 +64,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
         contextId.writeTo(out);
         dfs.writeTo(out);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(shardSearchRequest);
         }
     }

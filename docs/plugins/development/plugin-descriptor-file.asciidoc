@@ -1,8 +1,9 @@
 ["source","properties"]
 :plugin-properties-files: {elasticsearch-root}/build-tools/src/main/resources
---------------------------------------------------
+[source,yaml]
+----
 include::{plugin-properties-files}/plugin-descriptor.properties[]
---------------------------------------------------
+----
 
 Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
 can fill in the necessary values in the `build.gradle` file for your plugin.

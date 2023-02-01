@@ -11,12 +11,14 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.common.util.CollectionUtils.ensureNoSelfReferences;
@@ -98,8 +100,14 @@ public class CollectionUtilsTests extends ESTestCase {
     }
 
     public void testEnsureNoSelfReferences() {
-        ensureNoSelfReferences(null, "test with null");
-        ensureNoSelfReferences(Map.of(), "test with empty map");
+        ensureNoSelfReferences("string", "test with a string");
+        ensureNoSelfReferences(2, "test with a number");
+        ensureNoSelfReferences(true, "test with a boolean");
+        ensureNoSelfReferences(Map.of(), "test with an empty map");
+        ensureNoSelfReferences(Set.of(), "test with an empty set");
+        ensureNoSelfReferences(List.of(), "test with an empty list");
+        ensureNoSelfReferences(new Object[0], "test with an empty array");
+        ensureNoSelfReferences((Iterable<?>) Collections::emptyIterator, "test with an empty iterable");
     }
 
     public void testEnsureNoSelfReferencesMap() {

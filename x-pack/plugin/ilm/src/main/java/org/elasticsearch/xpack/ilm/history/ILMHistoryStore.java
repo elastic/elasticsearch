@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.Closeable;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -107,6 +108,7 @@ public class ILMHistoryStore implements Closeable {
                         ElasticsearchException e = new ElasticsearchException("no ILM history template");
                         logger.warn(
                             () -> format(
+                                Locale.ROOT,
                                 "unable to index the following ILM history items:\n%s",
                                 request.requests()
                                     .stream()
@@ -192,7 +194,10 @@ public class ILMHistoryStore implements Closeable {
             IndexRequest request = new IndexRequest(ILM_HISTORY_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
             processor.add(request);
         } catch (Exception e) {
-            logger.error(() -> format("failed to send ILM history item to index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item), e);
+            logger.error(
+                () -> format(Locale.ROOT, "failed to send ILM history item to index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item),
+                e
+            );
         }
     }
 

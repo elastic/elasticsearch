@@ -114,7 +114,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void prepare() {
         threadPool = new TestThreadPool("test");
         noopClient = new NoOpClient(threadPool);
-        historyStore = new NoOpHistoryStore(noopClient);
+        historyStore = new NoOpHistoryStore(noopClient, ClusterServiceUtils.createClusterService(threadPool));
     }
 
     @After

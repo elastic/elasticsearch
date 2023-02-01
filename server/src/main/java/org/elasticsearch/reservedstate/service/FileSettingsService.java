@@ -24,10 +24,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.WatchKey;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
@@ -116,7 +114,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // TODO[wrb]: inline/remove
     boolean watchedFileChanged(Path path) throws IOException {
-        return fileSettingsMap.get(OPERATOR_DIRECTORY).watchedFileChanged(path);
+        return fileWatchService.watchedFileChanged(path);
     }
 
     // visible for testing
@@ -249,76 +247,20 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // Get this thing down into FileWatchService somehow
     private void watcherThread() {
-        try {
-            logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
-
-            if (operatorSettingsFiles().stream().anyMatch(Files::exists)) {
-                logger.debug("found initial operator settings file [{}], applying...", operatorSettingsFiles());
-                processSettingsAndNotifyListeners();
-            } else {
-                // Notify everyone we don't have any initial file settings
+        fileWatchService.watcherThread(
+            () -> {
+                try {
+                    processSettingsAndNotifyListeners();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            },
+            () -> {
                 for (var listener : eventListeners) {
                     listener.settingsChanged();
                 }
             }
-
-            WatchKey key;
-            while ((key = fileWatchService.watchService().take()) != null) {
-                /*
-                 * Reading and interpreting watch service events can vary from platform to platform. E.g:
-                 * MacOS symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
-                 *     ENTRY_MODIFY:operator
-                 *     ENTRY_CREATE:settings.json
-                 *     ENTRY_MODIFY:settings.json
-                 * Linux in Docker symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
-                 *     ENTRY_CREATE:operator
-                 * Windows
-                 *     ENTRY_CREATE:operator
-                 *     ENTRY_MODIFY:operator
-                 * After we get an indication that something has changed, we check the timestamp, file id,
-                 * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
-                 */
-                List<Path> settingsPathList = operatorSettingsDirs();
-
-                if (settingsPathList.stream().anyMatch(Files::exists)) {
-                    try {
-                        if (logger.isDebugEnabled()) {
-                            key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
-                        } else {
-                            key.pollEvents();
-                        }
-                        key.reset();
-
-                        // We re-register the settings directory watch key, because we don't know
-                        // if the file name maps to the same native file system file id. Symlinks
-                        // are one potential cause of inconsistency here, since their handling by
-                        // the WatchService is platform dependent.
-                        for (FileWatchService fileWatchService : fileSettingsMap.values()) {
-                            fileWatchService.settingsDirWatchKey = fileWatchService.enableSettingsWatcher(
-                                fileWatchService.settingsDirWatchKey,
-                                fileWatchService.operatorSettingsDir
-                            );
-                        }
-
-                        for (Path path : operatorSettingsFiles()) {
-                            if (watchedFileChanged(path)) {
-                                processSettingsAndNotifyListeners();
-                                break;
-                            }
-                        }
-                    } catch (IOException e) {
-                        logger.warn("encountered I/O error while watching file settings", e);
-                    }
-                } else {
-                    key.pollEvents();
-                    key.reset();
-                }
-            }
-        } catch (ClosedWatchServiceException | InterruptedException expected) {
-            logger.info("shutting down watcher thread");
-        } catch (Exception e) {
-            logger.error("shutting down watcher thread with exception", e);
-        }
+        );
     }
 
     // package private for testing

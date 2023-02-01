@@ -96,7 +96,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
         // TODO[wrb]: this object will eventually be constructed before the service is
-        fileWatchService = fileSettingsService.fileSettingsMap.get("operator");
+        fileWatchService = fileSettingsService.fileWatchService();
     }
 
     @After
@@ -352,7 +352,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     // TODO[wrb]: move to FileWatchServiceTests
     public void testRegisterWatchKeyRetry() throws IOException, InterruptedException {
-        var service = spy(fileSettingsService.fileWatchService());
+        var service = spy(fileWatchService);
         doAnswer(i -> 0L).when(service).retryDelayMillis(anyInt());
 
         Files.createDirectories(service.operatorSettingsDir);

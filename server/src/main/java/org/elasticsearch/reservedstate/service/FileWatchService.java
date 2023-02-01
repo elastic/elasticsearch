@@ -14,6 +14,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 
 import java.io.IOException;
+import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -21,6 +22,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 
 // Settings have a path, a file update state, and a watch key
@@ -174,4 +176,73 @@ public class FileWatchService extends AbstractLifecycleComponent {
         assert failedCount < 31; // don't let the count overflow
         return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
     }
+
+    // Get this thing down into FileWatchService somehow
+    void watcherThread(Runnable processOperation, Runnable listenOperation) {
+        try {
+            logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
+
+            List<Path> operatorSettingsFiles = List.of(operatorSettingsDir.resolve(settingsFileName));
+            if (operatorSettingsFiles.stream().anyMatch(Files::exists)) {
+                logger.debug("found initial operator settings file [{}], applying...", operatorSettingsFiles);
+                processOperation.run();
+            } else {
+                // Notify everyone we don't have any initial file settings
+                listenOperation.run();
+            }
+
+            WatchKey key;
+            while ((key = watchService().take()) != null) {
+                /*
+                 * Reading and interpreting watch service events can vary from platform to platform. E.g:
+                 * MacOS symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
+                 *     ENTRY_MODIFY:operator
+                 *     ENTRY_CREATE:settings.json
+                 *     ENTRY_MODIFY:settings.json
+                 * Linux in Docker symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
+                 *     ENTRY_CREATE:operator
+                 * Windows
+                 *     ENTRY_CREATE:operator
+                 *     ENTRY_MODIFY:operator
+                 * After we get an indication that something has changed, we check the timestamp, file id,
+                 * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
+                 */
+                List<Path> settingsPathList = List.of(operatorSettingsDir);
+
+                if (settingsPathList.stream().anyMatch(Files::exists)) {
+                    try {
+                        if (logger.isDebugEnabled()) {
+                            key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
+                        } else {
+                            key.pollEvents();
+                        }
+                        key.reset();
+
+                        // We re-register the settings directory watch key, because we don't know
+                        // if the file name maps to the same native file system file id. Symlinks
+                        // are one potential cause of inconsistency here, since their handling by
+                        // the WatchService is platform dependent.
+                        settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, operatorSettingsDir);
+
+                        for (Path path : operatorSettingsFiles) {
+                            if (watchedFileChanged(path)) {
+                                processOperation.run();
+                                break;
+                            }
+                        }
+                    } catch (IOException e) {
+                        logger.warn("encountered I/O error while watching file settings", e);
+                    }
+                } else {
+                    key.pollEvents();
+                    key.reset();
+                }
+            }
+        } catch (ClosedWatchServiceException | InterruptedException expected) {
+            logger.info("shutting down watcher thread");
+        } catch (Exception e) {
+            logger.error("shutting down watcher thread with exception", e);
+        }
+    }
+
 }

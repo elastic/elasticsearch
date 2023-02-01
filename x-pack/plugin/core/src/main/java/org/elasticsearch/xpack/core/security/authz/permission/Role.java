@@ -40,6 +40,9 @@ import java.util.Set;
 
 public interface Role {
 
+    // TODO move once we have a dedicated class for RCS 2.0 constants
+    String REMOTE_USER_ROLE_NAME = "_remote_user";
+
     Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
 
     String[] names();
@@ -159,6 +162,8 @@ public interface Role {
         Map<String, IndexAbstraction> aliasAndIndexLookup,
         FieldPermissionsCache fieldPermissionsCache
     );
+
+    Collection<RoleDescriptor> getRemoteRoleDescriptors(String remoteClusterAlias);
 
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Privilege
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -87,6 +88,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -142,7 +144,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -1661,7 +1662,7 @@ public class RBACEngineTests extends ESTestCase {
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 expectedIndicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
                                 null,
@@ -1675,8 +1676,6 @@ public class RBACEngineTests extends ESTestCase {
                 )
             )
         );
-        verify(role, times(1)).remoteIndices();
-        verifyNoMoreInteractions(role);
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
@@ -1712,8 +1711,6 @@ public class RBACEngineTests extends ESTestCase {
         final PlainActionFuture<RoleDescriptorsIntersection> future1 = new PlainActionFuture<>();
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo1, future1);
         final RoleDescriptorsIntersection actual1 = future1.get();
-        verify(role1, times(1)).remoteIndices();
-        verifyNoMoreInteractions(role1);
 
         // Randomize the order of both remote indices groups and each of the indices permissions groups each group holds
         final RemoteIndicesPermission shuffledPermissions = new RemoteIndicesPermission(
@@ -1735,8 +1732,6 @@ public class RBACEngineTests extends ESTestCase {
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo2, future2);
         final RoleDescriptorsIntersection actual2 = future2.get();
 
-        verify(role2, times(1)).remoteIndices();
-        verifyNoMoreInteractions(role2);
         assertThat(actual1, equalTo(actual2));
         assertThat(actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length, equalTo(numGroups));
     }
@@ -1768,8 +1763,6 @@ public class RBACEngineTests extends ESTestCase {
         );
         final RoleDescriptorsIntersection actual = future.get();
         assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
-        verify(role, times(1)).remoteIndices();
-        verifyNoMoreInteractions(role);
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutRemoteIndicesPermissions() throws ExecutionException,
@@ -2043,14 +2036,21 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     private Role mockRoleWithRemoteIndices(final RemoteIndicesPermission remoteIndicesPermission) {
-        final Role role = mock(Role.class);
         final String[] roleNames = generateRandomStringArray(3, 10, false, false);
-        when(role.names()).thenReturn(roleNames);
-        when(role.cluster()).thenReturn(ClusterPermission.NONE);
-        when(role.indices()).thenReturn(IndicesPermission.NONE);
-        when(role.application()).thenReturn(ApplicationPermission.NONE);
-        when(role.runAs()).thenReturn(RunAsPermission.NONE);
-        when(role.remoteIndices()).thenReturn(remoteIndicesPermission);
-        return role;
+        Role.Builder roleBuilder = Role.builder(new RestrictedIndices(Automatons.EMPTY), roleNames);
+        remoteIndicesPermission.remoteIndicesGroups().forEach(group -> {
+            group.indicesPermissionGroups()
+                .forEach(
+                    p -> roleBuilder.addRemoteGroup(
+                        group.remoteClusterAliases(),
+                        p.getFieldPermissions(),
+                        p.getQuery(),
+                        p.privilege(),
+                        p.allowRestrictedIndices(),
+                        p.indices()
+                    )
+                );
+        });
+        return roleBuilder.build();
     }
 }

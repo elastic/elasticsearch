@@ -12,13 +12,17 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -116,6 +120,14 @@ public final class LimitedRole implements Role {
             fieldPermissionsCache
         );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
+    }
+
+    @Override
+    public Collection<RoleDescriptor> getRemoteRoleDescriptors(String remoteClusterAlias) {
+        final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
+        roleDescriptors.addAll(baseRole.getRemoteRoleDescriptors(remoteClusterAlias));
+        roleDescriptors.addAll(limitedByRole.getRemoteRoleDescriptors(remoteClusterAlias));
+        return Collections.unmodifiableList(roleDescriptors);
     }
 
     /**

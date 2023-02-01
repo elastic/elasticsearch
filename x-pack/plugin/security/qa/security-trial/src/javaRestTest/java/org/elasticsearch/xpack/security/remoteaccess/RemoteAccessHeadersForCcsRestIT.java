@@ -49,10 +49,10 @@ import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
-import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.junit.After;
 import org.junit.Before;
@@ -172,7 +172,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
@@ -242,7 +242,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
@@ -269,7 +269,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()

@@ -1,0 +1,22 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.restart;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
+public class QueryBuilderBWCIT extends org.elasticsearch.upgrades.QueryBuilderBWCIT {
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+}

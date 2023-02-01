@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.restart;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -16,7 +14,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -25,11 +23,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
-
-    public WatcherMappingUpdateIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
-        super(upgradeStatus);
-    }
+public class WatcherMappingUpdateIT extends AbstractFullClusterRestartTestCase {
 
     @Override
     protected Settings restClientSettings() {
@@ -97,7 +91,7 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
 
     private RequestOptions.Builder getWarningHandlerOptions(String index) {
         return RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(w -> w.size() > 0 && w.contains(getWatcherSystemIndexWarning(index)) == false);
+            .setWarningsHandler(w -> w.contains(getWatcherSystemIndexWarning(index)) == false || w.size() != 1);
     }
 
     private String getWatcherSystemIndexWarning(String index) {

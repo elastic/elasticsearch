@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -133,6 +135,49 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
             ).withQuery(new MatchAllDocsQuery())
         );
+    }
+
+    public void testMultiBucketAggregationAsSubAggregation() throws IOException {
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            writeTS(iw, startTime + 1, new Object[] { "dim1", "aaa", "dim2", "xxx" }, new Object[] {});
+            writeTS(iw, startTime + 2, new Object[] { "dim1", "aaa", "dim2", "yyy" }, new Object[] {});
+            writeTS(iw, startTime + 3, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] {});
+            writeTS(iw, startTime + 4, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] {});
+            writeTS(iw, startTime + 5, new Object[] { "dim1", "aaa", "dim2", "xxx" }, new Object[] {});
+            writeTS(iw, startTime + 6, new Object[] { "dim1", "aaa", "dim2", "yyy" }, new Object[] {});
+            writeTS(iw, startTime + 7, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] {});
+            writeTS(iw, startTime + 8, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] {});
+        };
+        Consumer<InternalTimeSeries> verifier = ts -> {
+            assertThat(ts.getBuckets(), hasSize(3));
+
+            assertThat(ts.getBucketByKey("{dim1=aaa, dim2=xxx}").docCount, equalTo(2L));
+            InternalDateHistogram byTimeStampBucket = ts.getBucketByKey("{dim1=aaa, dim2=xxx}").getAggregations().get("by_timestamp");
+            assertThat(
+                byTimeStampBucket.getBuckets(),
+                contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
+            );
+            assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L));
+            byTimeStampBucket = ts.getBucketByKey("{dim1=aaa, dim2=yyy}").getAggregations().get("by_timestamp");
+            assertThat(
+                byTimeStampBucket.getBuckets(),
+                contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
+            );
+            assertThat(ts.getBucketByKey("{dim1=bbb, dim2=zzz}").docCount, equalTo(4L));
+            byTimeStampBucket = ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("by_timestamp");
+            assertThat(
+                byTimeStampBucket.getBuckets(),
+                contains(new InternalDateHistogram.Bucket(startTime, 4, false, null, InternalAggregations.EMPTY))
+            );
+        };
+
+        DateHistogramAggregationBuilder dateBuilder = new DateHistogramAggregationBuilder("by_timestamp");
+        dateBuilder.field("@timestamp");
+        dateBuilder.fixedInterval(DateHistogramInterval.seconds(1));
+        TimeSeriesAggregationBuilder tsBuilder = new TimeSeriesAggregationBuilder("by_tsid");
+        tsBuilder.subAggregation(dateBuilder);
+        timeSeriesTestCase(tsBuilder, new MatchAllDocsQuery(), buildIndex, verifier);
     }
 
     private void timeSeriesTestCase(

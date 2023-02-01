@@ -1,0 +1,5 @@
+pr: 92239
+summary: Stop the `frequent_items` aggregation reporting a subset when a superset exists
+area: Machine Learning
+type: bug
+issues: []

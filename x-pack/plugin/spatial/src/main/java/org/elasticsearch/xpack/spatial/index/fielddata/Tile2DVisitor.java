@@ -16,7 +16,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * This class supports checking bounding box relations against a serialized triangle tree.
  *
  */
-class Tile2DVisitor implements TriangleTreeReader.Visitor {
+class Tile2DVisitor implements TriangleTreeVisitor {
 
     private GeoRelation relation;
     private int minX;

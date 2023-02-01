@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc.jwt;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -19,7 +20,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -155,6 +158,10 @@ public class JwtRealmSettings {
         // JWT End-user settings
         set.addAll(
             List.of(
+                ALLOWED_SUBJECTS,
+                FALLBACK_SUB_CLAIM,
+                FALLBACK_AUD_CLAIM,
+                REQUIRED_CLAIMS,
                 CLAIMS_PRINCIPAL.getClaim(),
                 CLAIMS_PRINCIPAL.getPattern(),
                 CLAIMS_GROUPS.getClaim(),
@@ -244,6 +251,78 @@ public class JwtRealmSettings {
     );
 
     // JWT end-user settings
+
+    public static final Setting.AffixSetting<List<String>> ALLOWED_SUBJECTS = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "allowed_subjects",
+        key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
+    );
+
+    // Registered claim names from the JWT spec https://www.rfc-editor.org/rfc/rfc7519#section-4.1.
+    // Being registered means they have prescribed meanings when they present in a JWT.
+    public static final List<String> REGISTERED_CLAIM_NAMES = List.of("iss", "sub", "aud", "exp", "nbf", "iat", "jti");
+
+    public static final Setting.AffixSetting<String> FALLBACK_SUB_CLAIM = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "fallback_claims.sub",
+        key -> Setting.simpleString(key, "sub", new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                validateFallbackClaimSetting(FALLBACK_SUB_CLAIM, key, value, settings, isPresent);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = FALLBACK_SUB_CLAIM.getNamespace(FALLBACK_SUB_CLAIM.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(TOKEN_TYPE.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<String> FALLBACK_AUD_CLAIM = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "fallback_claims.aud",
+        key -> Setting.simpleString(key, "aud", new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                validateFallbackClaimSetting(FALLBACK_AUD_CLAIM, key, value, settings, isPresent);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = FALLBACK_AUD_CLAIM.getNamespace(FALLBACK_AUD_CLAIM.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(TOKEN_TYPE.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<Settings> REQUIRED_CLAIMS = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "required_claims",
+        key -> Setting.groupSetting(key + ".", settings -> {
+            final List<String> invalidRequiredClaims = List.of("iss", "sub", "aud", "exp", "nbf", "iat");
+            for (String name : settings.names()) {
+                final String fullName = key + "." + name;
+                if (invalidRequiredClaims.contains(name)) {
+                    throw new IllegalArgumentException(
+                        Strings.format("required claim [%s] cannot be one of [%s]", fullName, String.join(",", invalidRequiredClaims))
+                    );
+                }
+                final List<String> values = settings.getAsList(name);
+                if (values.isEmpty()) {
+                    throw new IllegalArgumentException(Strings.format("required claim [%s] cannot be empty", fullName));
+                }
+            }
+        }, Setting.Property.NodeScope)
+    );
 
     // Note: ClaimSetting is a wrapper for two individual settings: getClaim(), getPattern()
     public static final ClaimSetting CLAIMS_PRINCIPAL = new ClaimSetting(TYPE, "principal");
@@ -354,6 +433,50 @@ public class JwtRealmSettings {
         }
         for (final String value : values) {
             verifyNonNullNotEmpty(key, value, allowedValues);
+        }
+    }
+
+    private static void validateFallbackClaimSetting(
+        Setting.AffixSetting<String> setting,
+        String key,
+        String value,
+        Map<Setting<?>, Object> settings,
+        boolean isPresent
+    ) {
+        if (false == isPresent) {
+            return;
+        }
+        final String namespace = setting.getNamespace(setting.getConcreteSetting(key));
+        final TokenType tokenType = (TokenType) settings.get(TOKEN_TYPE.getConcreteSettingForNamespace(namespace));
+        if (tokenType == TokenType.ID_TOKEN) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "fallback claim setting [%s] is not allowed when JWT realm [%s] is [%s] type",
+                    key,
+                    namespace,
+                    JwtRealmSettings.TokenType.ID_TOKEN.value()
+                )
+            );
+        }
+        verifyFallbackClaimName(key, value);
+    }
+
+    private static void verifyFallbackClaimName(String key, String fallbackClaimName) {
+        final String claimName = key.substring(key.lastIndexOf(".") + 1);
+        verifyNonNullNotEmpty(key, fallbackClaimName, null);
+        if (claimName.equals(fallbackClaimName)) {
+            return;
+        }
+        // Registered claims have prescribed meanings and should not be used for something else.
+        if (REGISTERED_CLAIM_NAMES.contains(fallbackClaimName)) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Invalid fallback claims setting [%s]. Claim [%s] cannot fallback to a registered claim [%s]",
+                    key,
+                    claimName,
+                    fallbackClaimName
+                )
+            );
         }
     }
 

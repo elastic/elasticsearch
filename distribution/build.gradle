@@ -116,6 +116,14 @@ def processIntegTestOutputsTaskProvider = tasks.register("processIntegTestOutput
   into integTestOutputs
 }
 
+def integTestConfigFiles = fileTree("${integTestOutputs}/config") {
+  builtBy processIntegTestOutputsTaskProvider
+}
+
+def integTestBinFiles = fileTree("${integTestOutputs}/bin") {
+  builtBy processIntegTestOutputsTaskProvider
+}
+
 def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
   builtBy processDefaultOutputsTaskProvider
 }
@@ -358,7 +366,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           filter("tokens" : expansionsForDistribution(distributionType, isTestDistro), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
-        from defaultConfigFiles
+        from isTestDistro ? integTestConfigFiles : defaultConfigFiles
       }
     }
 
@@ -388,7 +396,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          from(defaultBinFiles)
+          from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
           }

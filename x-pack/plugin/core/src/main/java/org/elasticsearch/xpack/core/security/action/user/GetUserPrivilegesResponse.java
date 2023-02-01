@@ -47,7 +47,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         index = Collections.unmodifiableSet(in.readSet(Indices::new));
         application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
         runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        if (in.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+        if (in.getTransportVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             remoteIndex = Collections.unmodifiableSet(in.readSet(RemoteIndices::new));
         } else {
             remoteIndex = Collections.emptySet();
@@ -105,14 +105,14 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+        if (out.getTransportVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             out.writeCollection(remoteIndex);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + RoleDescriptor.VERSION_REMOTE_INDICES
                     + "] can't handle remote indices privileges and attempted to send to ["
-                    + out.getVersion()
+                    + out.getTransportVersion()
                     + "]"
             );
         }

@@ -87,11 +87,11 @@ public class Counters implements Writeable {
      *     },
      *     "foobar": 5
      * }
-     * @return A nested map with all the current configured counters
+     * @return A mutable nested map with all the current configured counters. The map is mutable to allow the client to further enrich it.
      * @throws IllegalStateException if there is a conflict in a path of two counters for example `foo`: 1 and `foo.bar`: 1.
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> toNestedMap() {
+    public Map<String, Object> toMutableNestedMap() {
         Map<String, Object> root = new HashMap<>();
         for (var counter : counters.entrySet()) {
             Map<String, Object> currentLevel = root;

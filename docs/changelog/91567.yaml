@@ -1,6 +1,0 @@
-pr: 91567
-summary: Refactor `DatabaseNodeService` as a cluster state listener
-area: Ingest Node
-type: bug
-issues:
- - 86999

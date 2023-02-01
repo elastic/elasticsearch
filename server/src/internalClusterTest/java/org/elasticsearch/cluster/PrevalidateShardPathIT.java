@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodePrevalidateShardPathResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathResponse;
@@ -25,6 +26,12 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/*
+ * We rely on the shard directory being deleted after the relocation. This removal sometimes fails
+ * with "java.io.IOException: access denied" when using WindowsFS which seems to be a known issue.
+ * See {@link FileSystemUtilsTests}.
+ */
+@LuceneTestCase.SuppressFileSystems(value = "WindowsFS")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PrevalidateShardPathIT extends ESIntegTestCase {
 
@@ -63,12 +70,25 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._name", node2));
         ensureGreen(indexName);
         assertBusy(() -> {
-            // The excluded node should eventually delete the shards
-            PrevalidateShardPathRequest req2 = new PrevalidateShardPathRequest(shardIdsToCheck, node2Id);
-            PrevalidateShardPathResponse resp2 = client().execute(TransportPrevalidateShardPathAction.TYPE, req2).get();
-            assertThat(resp2.getNodes().size(), equalTo(1));
-            assertTrue(resp.failures().isEmpty());
-            assertTrue(resp2.getNodes().get(0).getShardIds().isEmpty());
+            try {
+                // The excluded node should eventually delete the shards
+                PrevalidateShardPathRequest req2 = new PrevalidateShardPathRequest(shardIdsToCheck, node2Id);
+                PrevalidateShardPathResponse resp2 = client().execute(TransportPrevalidateShardPathAction.TYPE, req2).get();
+                assertThat(resp2.getNodes().size(), equalTo(1));
+                assertThat(resp2.getNodes().get(0).getNode().getId(), equalTo(node2Id));
+                assertTrue("There should be no failures in the response", resp.failures().isEmpty());
+                assertTrue("The relocation source node should have removed the shard(s)", resp2.getNodes().get(0).getShardIds().isEmpty());
+            } catch (AssertionError e) {
+                // Removal of shards which are no longer allocated to the node is attempted on every cluster state change in IndicesStore.
+                // If for whatever reason the removal is not triggered (e.g. not enough nodes reported that the shards are active) or it
+                // temporarily failed to clean up the shard folder, we need to trigger another cluster state change for this removal to
+                // finally succeed.
+                updateIndexSettings(
+                    indexName,
+                    Settings.builder().put("index.routing.allocation.exclude.name", "non-existent" + randomAlphaOfLength(5))
+                );
+                throw e;
+            }
         });
     }
 }

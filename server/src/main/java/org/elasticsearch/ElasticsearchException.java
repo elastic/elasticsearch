@@ -275,7 +275,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
-            if (id == 127 && input.getVersion().before(Version.V_7_5_0)) {
+            if (id == 127 && input.getTransportVersion().before(TransportVersion.V_7_5_0)) {
                 // was SearchContextException
                 return new SearchException(input);
             }
@@ -287,10 +287,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Returns <code>true</code> iff the given class is a registered for an exception to be read.
      */
-    public static boolean isRegistered(Class<? extends Throwable> exception, Version version) {
+    public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded);
+            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded.transportVersion);
         }
         return false;
     }
@@ -1090,12 +1090,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             71,
             UNKNOWN_VERSION_ADDED
         ),
-        SEARCH_PARSE_EXCEPTION(
-            org.elasticsearch.search.SearchParseException.class,
-            org.elasticsearch.search.SearchParseException::new,
-            72,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 72 was SearchParseException, only used in tests after 7.11
         CONCURRENT_SNAPSHOT_EXECUTION_EXCEPTION(
             org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class,
             org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException::new,

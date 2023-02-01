@@ -3,6 +3,21 @@
 
 Also see <<breaking-changes-8.5,Breaking changes in 8.5>>.
 
+[[known-issues-8.5.0]]
+[float]
+=== Known issues
+
+* It is possible to inadvertently create an alias with the same name as an
+index in version 8.5.0. This action leaves the cluster in an invalid state in
+which several features will not work correctly, and it may not even be possible
+to restart nodes while in this state. Upgrade to 8.5.1 as soon as possible to
+avoid the risk of this occurring ({es-pull}91456[#91456]). If your cluster is
+affected by this issue, upgrade to 8.5.3 to repair it ({es-pull}91887[#91887]).
+
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
 [[breaking-8.5.0]]
 [float]
 === Breaking changes
@@ -319,12 +334,3 @@ Client::
 
 Packaging::
 * Upgrade bundled JDK to Java 19 {es-pull}90571[#90571]
-
-
-[[known-issues-8.5.0]]
-[float]
-=== Known issues
-
-* When using date range search with format that does not have all date fields (missing month or day)
-an incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
-(issue: {es-issue}90187[#90187])

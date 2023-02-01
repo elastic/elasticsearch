@@ -1,0 +1,5 @@
+pr: 91839
+summary: Speed h3 library by using `FastMath` implementation for trigonometric functions
+area: Geo
+type: enhancement
+issues: []

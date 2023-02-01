@@ -29,6 +29,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -67,6 +68,9 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));
         for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
             assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(failure.getCause().getStackTrace(), emptyArray());
+            // We don't write out the entire, repetitive stacktrace in the reason
+            assertThat(failure.reason(), equalTo("org.elasticsearch.action.NoShardAvailableActionException" + System.lineSeparator()));
         }
     }
 

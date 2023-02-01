@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -57,11 +58,15 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupplier;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuthorizationResult;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
+import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -88,6 +93,7 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -98,13 +104,18 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
@@ -125,6 +136,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -158,7 +170,7 @@ public class RBACEngineTests extends ESTestCase {
 
         final PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
         engine.resolveAuthorizationInfo(
-            new AuthorizationEngine.RequestInfo(
+            new RequestInfo(
                 AuthenticationTestHelper.builder().build(),
                 mock(TransportRequest.class),
                 randomAlphaOfLengthBetween(20, 30),
@@ -1777,6 +1789,155 @@ public class RBACEngineTests extends ESTestCase {
         );
         final RoleDescriptorsIntersection actual = future.get();
         assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
+    }
+
+    public void testChildSearchActionAuthorizationIsSkipped() {
+        final String[] indices = { "test-index" };
+        final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
+
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                // Child authorization should be skipped since we passed parent authorization.
+                Mockito.verify(role, never()).checkIndicesAction(action);
+                Mockito.verify(role, never()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    public void testChildSearchActionIsAuthorizedWithoutSkipping() {
+        final String[] indices = { "test-index" };
+        final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
+
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final ParentActionAuthorization parentAuthorization = null;
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                // Child action should have been authorized normally since we did not pass parent authorization
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    public void testChildSearchActionAuthorizationIsNotSkippedWhenRoleHasDLS() {
+        final String[] indices = { "test-index" };
+        final BytesArray query = new BytesArray("""
+            {"term":{"foo":bar}}""");
+        final Role role = Mockito.spy(
+            Role.builder(RESTRICTED_INDICES, "test-role")
+                .add(
+                    new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, new String[0])),
+                    Set.of(query),
+                    IndexPrivilege.READ,
+                    randomBoolean(),
+                    indices
+                )
+                .build()
+        );
+
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                // Child action authorization should not be skipped, even though the parent authorization was present
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    public void testRandomChildSearchActionAuthorizionIsNotSkipped() {
+        final String[] indices = { "test-index" };
+        final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
+
+        final String action = SearchAction.NAME + "[" + randomAlphaOfLength(3) + "]";
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    private void authorizeIndicesAction(
+        final String[] indices,
+        final Role role,
+        final String action,
+        final ParentActionAuthorization parentAuthorization,
+        final ActionListener<IndexAuthorizationResult> listener
+    ) {
+
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final ResolvedIndices resolvedIndices = new ResolvedIndices(List.of(indices), List.of());
+        final TransportRequest searchRequest = new SearchRequest(indices);
+        final RequestInfo requestInfo = createRequestInfo(searchRequest, action, parentAuthorization);
+        final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = s -> s.onResponse(resolvedIndices);
+
+        final Map<String, IndexAbstraction> aliasOrIndexLookup = Stream.of(indices)
+            .collect(
+                Collectors.toMap(
+                    i -> i,
+                    v -> new IndexAbstraction.ConcreteIndex(
+                        IndexMetadata.builder(v)
+                            .settings(
+                                Settings.builder()
+                                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                            )
+                            .build()
+                    )
+                )
+            );
+
+        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, aliasOrIndexLookup, listener);
+    }
+
+    private static RequestInfo createRequestInfo(TransportRequest request, String action, ParentActionAuthorization parentAuthorization) {
+        final Authentication.RealmRef realm = new Authentication.RealmRef(
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(4),
+            "node0" + randomIntBetween(1, 9)
+        );
+        return new RequestInfo(
+            AuthenticationTestHelper.builder().user(new User(randomAlphaOfLength(8))).realmRef(realm).build(false),
+            request,
+            action,
+            null,
+            parentAuthorization
+        );
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

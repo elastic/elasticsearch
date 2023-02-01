@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ssl;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -22,8 +23,6 @@ import java.util.List;
 import java.util.Set;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-
-import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_COMMON;
 
 public class RestrictedTrustConfigTests extends ESTestCase {
 
@@ -71,7 +70,11 @@ public class RestrictedTrustConfigTests extends ESTestCase {
             }
         };
 
-        final RestrictedTrustConfig restrictedTrustConfig = new RestrictedTrustConfig(groupConfigPath, Set.of(SAN_OTHER_COMMON), delegate);
+        final RestrictedTrustConfig restrictedTrustConfig = new RestrictedTrustConfig(
+            groupConfigPath,
+            Set.of(X509Field.SAN_OTHERNAME_COMMONNAME),
+            delegate
+        );
         Collection<Path> filesToMonitor = restrictedTrustConfig.getDependentFiles();
         List<Path> expectedPathList = new ArrayList<>(otherFiles);
         expectedPathList.add(groupConfigPath);

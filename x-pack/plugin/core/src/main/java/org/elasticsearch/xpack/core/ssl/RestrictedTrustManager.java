@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ssl;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ssl.DerParser;
+import org.elasticsearch.common.ssl.X509Field;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -19,7 +20,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -30,8 +30,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_DNS;
-import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_COMMON;
 
 /**
  * An X509 trust manager that only trusts connections from a restricted set of predefined network entities (nodes, clients, etc).
@@ -55,12 +53,12 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
 
     private final X509ExtendedTrustManager delegate;
     private final CertificateTrustRestrictions trustRestrictions;
-    private final Set<String> x509Fields;
+    private final Set<X509Field> x509Fields;
 
-    public RestrictedTrustManager(X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions, Set<String> x509Fields) {
+    public RestrictedTrustManager(X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions, Set<X509Field> x509Fields) {
         this.delegate = delegate;
         this.trustRestrictions = restrictions;
-        this.x509Fields = x509Fields.stream().map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+        this.x509Fields = x509Fields;
         logger.debug("Configured with trust restrictions: [{}]", restrictions);
         logger.debug("Configured with x509 fields: [{}]", x509Fields);
     }
@@ -157,7 +155,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
     private Set<String> readX509Certificate(X509Certificate certificate) throws CertificateParsingException {
         Collection<List<?>> sans = getSubjectAlternativeNames(certificate);
         Set<String> values = new HashSet<>();
-        if (x509Fields.contains(SAN_DNS.toLowerCase(Locale.ROOT))) {
+        if (x509Fields.contains(X509Field.SAN_DNS)) {
             Set<String> dnsNames = sans.stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_DNS)
                 .map(pair -> pair.get(1))
@@ -166,8 +164,8 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 .collect(Collectors.toSet());
             values.addAll(dnsNames);
         }
-        if (x509Fields.contains(SAN_OTHER_COMMON.toLowerCase(Locale.ROOT))) {
-            Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
+        if (x509Fields.contains(X509Field.SAN_OTHERNAME_COMMONNAME)) {
+            Set<String> otherNames = sans.stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
                 .map(pair -> pair.get(1))
                 .map(value -> decodeDerValue((byte[]) value, certificate))

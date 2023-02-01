@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
@@ -45,6 +44,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -225,7 +225,8 @@ public class MetadataIndexStateService {
                     final Tuple<ClusterState, List<IndexResult>> closingResult = closeRoutingTable(
                         state,
                         task.blockedIndices,
-                        task.verifyResults
+                        task.verifyResults,
+                        allocationService.getShardRoutingRoleStrategy()
                     );
                     state = closingResult.v1();
                     final List<IndexResult> indices = closingResult.v2();
@@ -619,9 +620,9 @@ public class MetadataIndexStateService {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<>() {
+                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
-                    public void innerOnResponse(final ReplicationResponse replicationResponse) {
+                    public void onResponse(ReplicationResponse replicationResponse) {
                         ShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
                             .map(f -> new ShardResult.Failure(f.index(), f.shardId(), f.getCause(), f.nodeId()))
                             .toArray(ShardResult.Failure[]::new);
@@ -630,7 +631,7 @@ public class MetadataIndexStateService {
                     }
 
                     @Override
-                    public void innerOnFailure(final Exception e) {
+                    public void onFailure(Exception e) {
                         ShardResult.Failure failure = new ShardResult.Failure(index.getName(), shardId, e);
                         results.setOnce(shardId, new ShardResult(shardId, new ShardResult.Failure[] { failure }));
                         processIfFinished();
@@ -641,7 +642,7 @@ public class MetadataIndexStateService {
                             onResponse.accept(new IndexResult(index, results.toArray(new ShardResult[results.length()])));
                         }
                     }
-                });
+                }));
             }
         }
 
@@ -749,9 +750,9 @@ public class MetadataIndexStateService {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<>() {
+                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
-                    public void innerOnResponse(final ReplicationResponse replicationResponse) {
+                    public void onResponse(ReplicationResponse replicationResponse) {
                         AddBlockShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
                             .map(f -> new AddBlockShardResult.Failure(f.index(), f.shardId(), f.getCause(), f.nodeId()))
                             .toArray(AddBlockShardResult.Failure[]::new);
@@ -760,7 +761,7 @@ public class MetadataIndexStateService {
                     }
 
                     @Override
-                    public void innerOnFailure(final Exception e) {
+                    public void onFailure(Exception e) {
                         AddBlockShardResult.Failure failure = new AddBlockShardResult.Failure(index.getName(), shardId, e);
                         results.setOnce(shardId, new AddBlockShardResult(shardId, new AddBlockShardResult.Failure[] { failure }));
                         processIfFinished();
@@ -773,7 +774,7 @@ public class MetadataIndexStateService {
                             onResponse.accept(result);
                         }
                     }
-                });
+                }));
             }
         }
 
@@ -809,11 +810,12 @@ public class MetadataIndexStateService {
     static Tuple<ClusterState, List<IndexResult>> closeRoutingTable(
         final ClusterState currentState,
         final Map<Index, ClusterBlock> blockedIndices,
-        final Map<Index, IndexResult> verifyResult
+        final Map<Index, IndexResult> verifyResult,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
-        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
+        final RoutingTable.Builder routingTable = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable());
 
         final Set<String> closedIndices = new HashSet<>();
         Map<Index, IndexResult> closingResults = new HashMap<>(verifyResult);
@@ -1151,7 +1153,10 @@ public class MetadataIndexStateService {
 
             ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).blocks(blocks).build();
 
-            final RoutingTable.Builder routingTable = RoutingTable.builder(updatedState.routingTable());
+            final RoutingTable.Builder routingTable = RoutingTable.builder(
+                allocationService.getShardRoutingRoleStrategy(),
+                updatedState.routingTable()
+            );
             for (IndexMetadata previousIndexMetadata : indicesToOpen) {
                 if (previousIndexMetadata.getState() != IndexMetadata.State.OPEN) {
                     routingTable.addAsFromCloseToOpen(updatedState.metadata().getIndexSafe(previousIndexMetadata.getIndex()));

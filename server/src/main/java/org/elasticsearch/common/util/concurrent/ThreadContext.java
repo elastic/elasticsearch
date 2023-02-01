@@ -312,11 +312,29 @@ public final class ThreadContext implements Writeable {
 
     /**
      * Just like {@link #stashContext()} but no default context is set. Instead, the {@code transientHeadersToClear} argument can be used
-     * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
-     * restored by closing the returned {@link StoredContext}.
-     *
+     * to clear specific transient headers in the new context and {@code requestHeadersToClear} can be used to clear specific request
+     * headers. All original headers (without the {@code responseHeaders}) are restored by closing the returned {@link StoredContext}.
      */
-    public StoredContext newStoredContext(Collection<String> transientHeadersToClear) {
+    public StoredContext newStoredContext(Collection<String> transientHeadersToClear, Collection<String> requestHeadersToClear) {
+        return newStoredContext(false, transientHeadersToClear, requestHeadersToClear);
+    }
+
+    /**
+     * Just like {@link #newStoredContext(Collection, Collection)} but all headers are restored to original,
+     * except of {@code responseHeaders} which will be preserved from the restore thread.
+     */
+    public StoredContext newStoredContextPreservingResponseHeaders(
+        Collection<String> transientHeadersToClear,
+        Collection<String> requestHeadersToClear
+    ) {
+        return newStoredContext(true, transientHeadersToClear, requestHeadersToClear);
+    }
+
+    private StoredContext newStoredContext(
+        boolean preserveResponseHeaders,
+        Collection<String> transientHeadersToClear,
+        Collection<String> requestHeadersToClear
+    ) {
         final ThreadContextStruct originalContext = threadLocal.get();
         // clear specific transient headers from the current context
         Map<String, Object> newTransientHeaders = null;
@@ -328,18 +346,34 @@ public final class ThreadContext implements Writeable {
                 newTransientHeaders.remove(transientHeaderToClear);
             }
         }
-        // this is the context when this method returns
-        if (newTransientHeaders != null) {
+        Map<String, String> newRequestHeaders = null;
+        for (String requestHeaderToClear : requestHeadersToClear) {
+            if (originalContext.requestHeaders.containsKey(requestHeaderToClear)) {
+                if (newRequestHeaders == null) {
+                    newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
+                }
+                newRequestHeaders.remove(requestHeaderToClear);
+            }
+        }
+        if (newTransientHeaders != null || newRequestHeaders != null) {
             ThreadContextStruct threadContextStruct = new ThreadContextStruct(
-                originalContext.requestHeaders,
+                newRequestHeaders != null ? newRequestHeaders : originalContext.requestHeaders,
                 originalContext.responseHeaders,
-                newTransientHeaders,
+                newTransientHeaders != null ? newTransientHeaders : originalContext.transientHeaders,
                 originalContext.isSystemContext,
                 originalContext.warningHeadersSize
             );
             threadLocal.set(threadContextStruct);
         }
-        return storedOriginalContext(originalContext);
+        // this is the context when this method returns
+        final ThreadContextStruct newContext = threadLocal.get();
+        return () -> {
+            if (preserveResponseHeaders && threadLocal.get() != newContext) {
+                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+            } else {
+                threadLocal.set(originalContext);
+            }
+        };
     }
 
     /**
@@ -508,6 +542,13 @@ public final class ThreadContext implements Writeable {
     @SuppressWarnings("unchecked") // (T)object
     public <T> T getTransient(String key) {
         return (T) threadLocal.get().transientHeaders.get(key);
+    }
+
+    /**
+     * Returns unmodifiable copy of all transient headers.
+     */
+    public Map<String, Object> getTransientHeaders() {
+        return Collections.unmodifiableMap(threadLocal.get().transientHeaders);
     }
 
     /**

@@ -34,6 +34,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -54,10 +56,10 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 /**
  * The {@link BalancedShardsAllocator} re-balances the nodes allocations
@@ -122,23 +124,49 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private final WriteLoadForecaster writeLoadForecaster;
 
+    public BalancedShardsAllocator() {
+        this(Settings.EMPTY);
+    }
+
     public BalancedShardsAllocator(Settings settings) {
-        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), WriteLoadForecaster.DEFAULT);
+        this(createBuiltInClusterSettings(settings), WriteLoadForecaster.DEFAULT);
+    }
+
+    public BalancedShardsAllocator(ClusterSettings clusterSettings) {
+        this(clusterSettings, WriteLoadForecaster.DEFAULT);
     }
 
     @Inject
-    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
-        watchSetting(settings, clusterSettings, INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
-        watchSetting(settings, clusterSettings, SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
-        watchSetting(settings, clusterSettings, WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
-        watchSetting(settings, clusterSettings, DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
-        watchSetting(settings, clusterSettings, THRESHOLD_SETTING, value -> this.threshold = value);
+    public BalancedShardsAllocator(ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
+        clusterSettings.initializeAndWatch(INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
+        clusterSettings.initializeAndWatch(SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
+        clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
+        clusterSettings.initializeAndWatch(DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
+        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = ensureValidThreshold(value));
         this.writeLoadForecaster = writeLoadForecaster;
     }
 
-    private <T> void watchSetting(Settings settings, ClusterSettings clusterSettings, Setting<T> setting, Consumer<T> consumer) {
-        consumer.accept(setting.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(setting, consumer);
+    /**
+     * Clamp threshold to be at least 1, and log a critical deprecation warning if smaller values are given.
+     *
+     * Once {@link org.elasticsearch.Version#V_7_17_0} goes out of scope, start to properly reject such bad values.
+     */
+    private static float ensureValidThreshold(float threshold) {
+        if (1.0f <= threshold) {
+            return threshold;
+        } else {
+            DeprecationLogger.getLogger(BalancedShardsAllocator.class)
+                .critical(
+                    DeprecationCategory.SETTINGS,
+                    "balance_threshold_too_small",
+                    "ignoring value [{}] for [{}] since it is smaller than 1.0; "
+                        + "setting [{}] to a value smaller than 1.0 will be forbidden in a future release",
+                    threshold,
+                    THRESHOLD_SETTING.getKey(),
+                    THRESHOLD_SETTING.getKey()
+                );
+            return 1.0f;
+        }
     }
 
     @Override

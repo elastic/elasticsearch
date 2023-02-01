@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -62,6 +63,12 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
             RateAggregationBuilder.REGISTRY_KEY,
             Collections.singletonList(AnalyticsValuesSourceType.HISTOGRAM),
             HistogramRateAggregator::new,
+            true
+        );
+        builder.register(
+            RateAggregationBuilder.REGISTRY_KEY,
+            Collections.singletonList(TimeSeriesValuesSourceType.COUNTER),
+            TimeSeriesRateAggregator::new,
             true
         );
     }

@@ -14,7 +14,6 @@ import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +42,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         source = new HashMap<>();
         source.put("foo.bar", "baz1");
-        source.put("foo", new HashMap<>(Collections.singletonMap("bar", "baz2")));
+        source.put("foo", new HashMap<>(Map.of("bar", "baz2")));
         document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
@@ -55,7 +54,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         source = new HashMap<>();
         source.put("foo.bar", "2");
-        source.put("foo", new HashMap<>(Collections.singletonMap("bar", 1)));
+        source.put("foo", new HashMap<>(Map.of("bar", 1)));
         document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
@@ -103,7 +102,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         source = new HashMap<>();
         source.put("foo.bar.baz", "baz1");
-        source.put("foo", new HashMap<>(Collections.singletonMap("bar", new HashMap<>())));
+        source.put("foo", new HashMap<>(Map.of("bar", new HashMap<>())));
         document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar.baz");
         processor.execute(document);
@@ -113,7 +112,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         source = new HashMap<>();
         source.put("foo.bar.baz", "baz1");
-        source.put("foo", new HashMap<>(Collections.singletonMap("bar", "baz2")));
+        source.put("foo", new HashMap<>(Map.of("bar", "baz2")));
         IngestDocument document2 = TestIngestDocument.withDefaultVersion(source);
         Processor processor2 = new DotExpanderProcessor("_tag", null, null, "foo.bar.baz");
         e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(document2));
@@ -122,7 +121,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
     public void testEscapeFields_path() throws Exception {
         Map<String, Object> source = new HashMap<>();
-        source.put("foo", new HashMap<>(Collections.singletonMap("bar.baz", "value")));
+        source.put("foo", new HashMap<>(Map.of("bar.baz", "value")));
         IngestDocument document = TestIngestDocument.withDefaultVersion(source);
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, "foo", "bar.baz");
         processor.execute(document);
@@ -131,7 +130,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         assertThat(document.getFieldValue("foo.bar.baz", String.class), equalTo("value"));
 
         source = new HashMap<>();
-        source.put("field", new HashMap<>(Collections.singletonMap("foo.bar.baz", "value")));
+        source.put("field", new HashMap<>(Map.of("foo.bar.baz", "value")));
         document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, "field", "foo.bar.baz");
         processor.execute(document);

@@ -49,7 +49,7 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
     }
 
     @Override
-    protected SearchHitCursor mutateInstance(SearchHitCursor instance) throws IOException {
+    protected SearchHitCursor mutateInstance(SearchHitCursor instance) {
         return new SearchHitCursor(
             instance.next(),
             instance.extractors(),

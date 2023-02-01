@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -88,7 +88,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         super.setUp();
         TcpTransport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -254,13 +254,9 @@ public class BroadcastReplicationTests extends ESTestCase {
                 null,
                 actionFilters,
                 indexNameExpressionResolver,
-                null
+                null,
+                ThreadPool.Names.SAME
             );
-        }
-
-        @Override
-        protected ReplicationResponse newShardResponse() {
-            return new ReplicationResponse();
         }
 
         @Override

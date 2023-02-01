@@ -10,6 +10,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.Strings;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
@@ -21,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * natural ordering of the tasks, limiting the max number of concurrently running tasks. Each new task
  * that is dequeued to be run, is forked off to the given executor.
  */
-public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> {
+public class PrioritizedThrottledTaskRunner<T extends AbstractRunnable & Comparable<T>> {
     private static final Logger logger = LogManager.getLogger(PrioritizedThrottledTaskRunner.class);
 
     private final String taskRunnerName;
@@ -50,8 +51,7 @@ public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> 
         pollAndSpawn();
     }
 
-    // visible for testing
-    protected void pollAndSpawn() {
+    private void pollAndSpawn() {
         // A pollAndSpawn attempts to run a new task. There could be many concurrent pollAndSpawn calls competing
         // to get a "free slot", since we attempt to run a new task on every enqueueTask call and every time an
         // existing task is finished.
@@ -70,7 +70,54 @@ public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> 
                 // non-empty queue and no workers!
                 if (tasks.peek() == null) break;
             } else {
-                executor.execute(() -> runTask(task));
+                executor.execute(new AbstractRunnable() {
+                    private boolean rejected; // need not be volatile - if we're rejected then that happens-before calling onAfter
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return task.isForceExecution();
+                    }
+
+                    @Override
+                    public void onRejection(Exception e) {
+                        logger.trace("[{}] task {} rejected", taskRunnerName, task);
+                        rejected = true;
+                        task.onRejection(e);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.trace(() -> Strings.format("[%s] task %s failed", taskRunnerName, task), e);
+                        task.onFailure(e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        logger.trace("[{}] running task {}", taskRunnerName, task);
+                        task.doRun();
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        try {
+                            task.onAfter();
+                        } finally {
+                            // To avoid missing to run tasks that are enqueued and waiting, we check the queue again once running
+                            // a task is finished.
+                            int decremented = runningTasks.decrementAndGet();
+                            assert decremented >= 0;
+
+                            if (rejected == false) {
+                                pollAndSpawn();
+                            }
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return task.toString();
+                    }
+                });
             }
         }
     }
@@ -90,18 +137,5 @@ public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> 
     // Only use for testing
     public int queueSize() {
         return tasks.size();
-    }
-
-    private void runTask(final T task) {
-        try {
-            logger.trace("[{}] running task {}", taskRunnerName, task);
-            task.run();
-        } finally {
-            // To avoid missing to run tasks that are enqueued and waiting, we check the queue again once running
-            // a task is finished.
-            int decremented = runningTasks.decrementAndGet();
-            assert decremented >= 0;
-            pollAndSpawn();
-        }
     }
 }

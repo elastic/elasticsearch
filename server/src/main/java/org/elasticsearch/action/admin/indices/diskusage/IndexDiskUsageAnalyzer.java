@@ -20,11 +20,13 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -38,7 +40,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -137,7 +138,7 @@ final class IndexDiskUsageAnalyzer {
         final int skipMask = 0x1FF; // 511
         while (docID < reader.maxDoc()) {
             cancellationChecker.logEvent();
-            storedFieldsReader.visitDocument(docID, visitor);
+            storedFieldsReader.document(docID, visitor);
             // As we already estimate the size of stored fields, we can trade off the accuracy for the speed of the estimate.
             // Here we only visit 1/11 documents instead of all documents. Ideally, we should visit 1 doc then skip 10 docs
             // to avoid missing many skew documents. But, documents are stored in chunks in compressed format and a chunk can
@@ -525,23 +526,47 @@ final class IndexDiskUsageAnalyzer {
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
             if (field.getVectorDimension() > 0) {
-                iterateDocValues(reader.maxDoc(), () -> vectorReader.getVectorValues(field.name), vectors -> {
-                    cancellationChecker.logEvent();
-                    vectors.vectorValue();
-                });
+                switch (field.getVectorEncoding()) {
+                    case BYTE -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getByteVectorValues(field.name), vectors -> {
+                            cancellationChecker.logEvent();
+                            vectors.vectorValue();
+                        });
 
-                // do a couple of randomized searches to figure out min and max offsets of index file
-                VectorValues vectorValues = vectorReader.getVectorValues(field.name);
-                int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
-                int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
-                for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                    if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
-                        break;
+                        // do a couple of randomized searches to figure out min and max offsets of index file
+                        ByteVectorValues vectorValues = vectorReader.getByteVectorValues(field.name);
+                        int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
+                        int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
+                        for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
+                            if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                                break;
+                            }
+                            cancellationChecker.checkForCancellation();
+                            vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
+                        }
+                        stats.addKnnVectors(field.name, directory.getBytesRead());
                     }
-                    cancellationChecker.checkForCancellation();
-                    vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
+                    case FLOAT32 -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name), vectors -> {
+                            cancellationChecker.logEvent();
+                            vectors.vectorValue();
+                        });
+
+                        // do a couple of randomized searches to figure out min and max offsets of index file
+                        FloatVectorValues vectorValues = vectorReader.getFloatVectorValues(field.name);
+                        int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
+                        int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
+                        for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
+                            if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                                break;
+                            }
+                            cancellationChecker.checkForCancellation();
+                            vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
+                        }
+                        stats.addKnnVectors(field.name, directory.getBytesRead());
+                    }
                 }
-                stats.addKnnVectors(field.name, directory.getBytesRead());
+
             }
         }
     }

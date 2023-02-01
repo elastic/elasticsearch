@@ -14,7 +14,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -69,6 +71,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .build(),
             gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );
 
@@ -127,6 +130,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .build(),
             gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );
 
@@ -190,7 +194,12 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 5)
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 5)
             .build();
-        AllocationService strategy = createAllocationService(settings, gatewayAllocator, snapshotsInfoService);
+        AllocationService strategy = createAllocationService(
+            settings,
+            gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
+            snapshotsInfoService
+        );
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
@@ -249,6 +258,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 1).build(),
             gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );
 
@@ -348,7 +358,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     ) {
         DiscoveryNode node1 = newNode("node1");
         Metadata.Builder metadataBuilder = Metadata.builder(metadata);
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
@@ -444,7 +454,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 new ShardId(index, shard),
                 primary,
                 primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
+                ShardRouting.Role.DEFAULT
             );
             ShardRouting started = ShardRoutingHelper.moveToStarted(ShardRoutingHelper.initialize(unassigned, node1.getId()));
             indexMetadata.putInSyncAllocationIds(shard, Collections.singleton(started.allocationId().getId()));

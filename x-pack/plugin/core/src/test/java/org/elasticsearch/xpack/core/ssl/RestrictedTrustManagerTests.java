@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
@@ -34,16 +35,13 @@ import java.util.stream.Collectors;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
-import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_DNS;
-import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_COMMON;
-
 public class RestrictedTrustManagerTests extends ESTestCase {
 
     private X509ExtendedTrustManager baseTrustManager;
     private Map<String, X509Certificate[]> certificates;
     private int numberOfClusters;
     private int numberOfNodes;
-    private List<String> fields;
+    private List<X509Field> fields;
 
     @Before
     public void readCertificates() throws GeneralSecurityException, IOException {
@@ -97,7 +95,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
 
         numberOfClusters = scaledRandomIntBetween(2, 8);
         numberOfNodes = scaledRandomIntBetween(2, 8);
-        fields = randomNonEmptySubsetOf(Set.of(SAN_OTHER_COMMON, SAN_DNS));
+        fields = randomNonEmptySubsetOf(Set.of(X509Field.SAN_OTHERNAME_COMMONNAME, X509Field.SAN_DNS));
     }
 
     public void testTrustsOnlyNameDns() throws Exception {
@@ -110,7 +108,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             List.of("localhost", "localhost.localdomain", "localhost4", "localhost4.localdomain4", "localhost6", "localhost6.localdomain6")
         );
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(validDnsNames);
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_DNS));
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(X509Field.SAN_DNS));
         assertTrusted(trustManager, "onlyDns");
     }
 
@@ -121,8 +119,61 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         assertTrue(certs[0].getSubjectAlternativeNames().stream().filter(pair -> (Integer) pair.get(0) == 2).findAny().isEmpty());
         certificates.put("onlyOtherName", certs);
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(List.of("node.trusted"));
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_OTHER_COMMON));
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(
+            baseTrustManager,
+            restrictions,
+            Set.of(X509Field.SAN_OTHERNAME_COMMONNAME)
+        );
         assertTrusted(trustManager, "onlyOtherName");
+    }
+
+    public void testTrustWithVariedFields() throws Exception {
+        final Path cert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt");
+        baseTrustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(cert));
+        X509Certificate[] certs = CertParsingUtils.readX509Certificates(Collections.singletonList(cert));
+        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 0)); // othername
+        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 2)); // dns
+        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 7)); // ip
+        certificates.put("varied", certs);
+        // othername/common name -> "instance03.cluster02.elasticsearch"
+        // dns -> "search.example.com"
+        // ip -> 50.100.150.200
+        String failureMatchDns = ".*subjectAltName\\.dnsName.*search\\.example\\.com.*does not match.*";
+        String failureMatchCommon = ".*subjectAltName\\.otherName\\.commonName.*instance03\\.cluster02\\.elasticsearch.*does not match.*";
+
+        // instance03.cluster02.elasticsearch -> *.cluster02.elasticsearch
+        CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(List.of("*.cluster02.elasticsearch"));
+        RestrictedTrustManager trustManager = new RestrictedTrustManager(
+            baseTrustManager,
+            restrictions,
+            Set.of(X509Field.SAN_OTHERNAME_COMMONNAME)
+        );
+        assertTrusted(trustManager, "varied");
+
+        // search.example.com -> *.cluster02.elasticsearch
+        restrictions = new CertificateTrustRestrictions(List.of("*.cluster02.elasticsearch"));
+        trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(X509Field.SAN_DNS));
+        assertNotValid(trustManager, "varied", failureMatchDns); // <-- this one
+
+        // search.example.com -> *.example.com
+        restrictions = new CertificateTrustRestrictions(List.of("*.example.com"));
+        trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(X509Field.SAN_DNS));
+        assertTrusted(trustManager, "varied");
+
+        // instance03.cluster02.elasticsearch -> *.example.com
+        restrictions = new CertificateTrustRestrictions(List.of("*.example.com"));
+        trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(X509Field.SAN_OTHERNAME_COMMONNAME));
+        assertNotValid(trustManager, "varied", failureMatchCommon);
+
+        // instance03.cluster02.elasticsearch or search.example.com -> *.150.200
+        restrictions = new CertificateTrustRestrictions(List.of("*.150.200"));
+        trustManager = new RestrictedTrustManager(
+            baseTrustManager,
+            restrictions,
+            Set.of(X509Field.SAN_DNS, X509Field.SAN_OTHERNAME_COMMONNAME)
+        );
+        assertNotValid(trustManager, "varied", failureMatchDns);
+        assertNotValid(trustManager, "varied", failureMatchCommon);
     }
 
     public void testTrustsExplicitCertificateName() throws Exception {

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -64,7 +64,8 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
             true,
             true,
             false,
-            true
+            true,
+            false
         );
 
         PARSER.declareBoolean(MultiTermsAggregationBuilder::showTermDocCountError, MultiTermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR);
@@ -435,7 +436,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_12_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_12_0;
     }
 }

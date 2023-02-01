@@ -112,7 +112,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(
-            ChunkedToXContent.wrapAsXContentObject(randomResponse),
+            ChunkedToXContent.wrapAsToXContent(randomResponse),
             xContentType,
             ToXContent.EMPTY_PARAMS,
             humanReadable

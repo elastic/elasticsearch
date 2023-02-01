@@ -1,6 +1,0 @@
-pr: 91334
-summary: "Fix NPE in IndexService getNodeMappingStats"
-area: "Stats"
-type: bug
-issues:
-  - 91259

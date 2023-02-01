@@ -15,13 +15,14 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class ScriptedMetricAggContexts {
 
@@ -55,6 +56,8 @@ public class ScriptedMetricAggContexts {
     public abstract static class MapScript extends DocBasedScript {
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+
+        @SuppressWarnings("unchecked")
         private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
             deprecationLogger.warn(
                 DeprecationCategory.SCRIPTING,
@@ -79,17 +82,23 @@ public class ScriptedMetricAggContexts {
                     + "is deprecated in favor of using [state]."
             );
             return value;
-        }, "_source", value -> ((SourceLookup) value).source());
+        }, "_source", value -> ((Supplier<Source>) value).get().source());
 
         private final Map<String, Object> params;
         private final Map<String, Object> state;
         private Scorable scorer;
 
         public MapScript(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup, LeafReaderContext leafContext) {
-            super(leafContext == null ? null : new DocValuesDocReader(lookup, leafContext));
+            this(params, state, leafContext == null ? null : new DocValuesDocReader(lookup, leafContext));
+        }
+
+        private MapScript(Map<String, Object> params, Map<String, Object> state, DocReader docReader) {
+            super(docReader);
             this.state = state;
             params = new HashMap<>(params); // copy params so we aren't modifying input
-            params.putAll(docAsMap()); // add lookup vars
+            if (docReader != null) {
+                params.putAll(docReader.docAsMap()); // add lookup vars
+            }
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS); // wrap with deprecations
         }
 

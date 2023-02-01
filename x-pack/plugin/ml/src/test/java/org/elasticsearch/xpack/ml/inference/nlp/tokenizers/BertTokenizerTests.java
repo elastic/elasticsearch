@@ -67,6 +67,35 @@ public class BertTokenizerTests extends ESTestCase {
         }
     }
 
+    public void testTokenizeFailureCaseAccentFilter() {
+        List<String> testingVocab = List.of(
+            "[CLS]",
+            "br",
+            "##ᄎ",
+            "##ᅡ",
+            "##ᆼ",
+            "##n",
+            "'",
+            "s",
+            "[SEP]",
+            BertTokenizer.MASK_TOKEN,
+            BertTokenizer.UNKNOWN_TOKEN,
+            BertTokenizer.PAD_TOKEN
+        );
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                testingVocab,
+                new BertTokenization(true, true, 512, Tokenization.Truncate.FIRST, -1)
+            ).build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Br창n's", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }));
+
+            tokenization = tokenizer.tokenize("Br창n", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 0, 1, 2, 3, 4, 5, 8 }));
+        }
+    }
+
     public void testTokenizeLargeInputNoTruncation() {
         try (
             BertTokenizer tokenizer = BertTokenizer.builder(

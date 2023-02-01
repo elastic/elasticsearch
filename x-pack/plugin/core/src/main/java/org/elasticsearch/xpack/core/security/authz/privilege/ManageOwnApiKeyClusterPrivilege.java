@@ -145,11 +145,11 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     if (false == username.equals(authentication.getEffectiveSubject().getUser().principal())) {
                         return false;
                     }
-                    RealmDomain domain = authentication.getSourceRealm().getDomain();
+                    RealmDomain domain = authentication.getEffectiveSubject().getRealm().getDomain();
                     if (domain != null) {
                         return domain.realms().stream().anyMatch(realmIdentifier -> realmName.equals(realmIdentifier.getName()));
                     } else {
-                        return realmName.equals(authentication.getSourceRealm().getName());
+                        return realmName.equals(authentication.getEffectiveSubject().getRealm().getName());
                     }
                 }
             }

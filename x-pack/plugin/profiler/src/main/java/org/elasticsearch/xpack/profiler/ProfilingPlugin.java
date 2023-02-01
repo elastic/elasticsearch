@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -30,7 +30,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -39,7 +38,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -48,15 +46,12 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
     public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
         "xpack.profiling.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
-    private static final int REQUIRED_MAX_BUCKETS = 150_000;
-    private final Settings settings;
     private final boolean enabled;
 
     public ProfilingPlugin(Settings settings) {
-        this.settings = settings;
         this.enabled = PROFILING_ENABLED.get(settings);
     }
 
@@ -74,7 +69,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
         return super.createComponents(
@@ -90,7 +85,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             indexNameExpressionResolver,
             repositoriesServiceSupplier,
             tracer,
-            allocationDeciders
+            allocationService
         );
     }
 
@@ -114,31 +109,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(PROFILING_ENABLED);
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        // workaround until https://github.com/elastic/elasticsearch/issues/91776 is implemented
-        final Settings.Builder builder = Settings.builder();
-        if (enabled) {
-            if (MultiBucketConsumerService.MAX_BUCKET_SETTING.exists(settings) == false) {
-                logger.debug("Overriding [{}] to [{}].", MultiBucketConsumerService.MAX_BUCKET_SETTING, REQUIRED_MAX_BUCKETS);
-                builder.put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), REQUIRED_MAX_BUCKETS);
-            } else {
-                Integer configuredMaxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
-                if (configuredMaxBuckets != null && configuredMaxBuckets < REQUIRED_MAX_BUCKETS) {
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "Profiling requires [%s] to be set at least to [%d] but was configured to [%d].",
-                        MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(),
-                        REQUIRED_MAX_BUCKETS,
-                        configuredMaxBuckets
-                    );
-                    throw new IllegalArgumentException(message);
-                }
-            }
-        }
-        return builder.build();
     }
 
     @Override

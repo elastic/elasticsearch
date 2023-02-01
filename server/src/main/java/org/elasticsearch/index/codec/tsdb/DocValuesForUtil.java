@@ -61,7 +61,7 @@ public class DocValuesForUtil {
     private void encodeFiveSixOrSevenBytesPerValue(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
         int bytesPerValue = bitsPerValue / Byte.SIZE;
         int padding = Long.BYTES - bytesPerValue;
-        byte[] encoded = new byte[bytesPerValue * in.length + padding];
+        byte[] encoded = new byte[bytesPerValue * blockSize + padding];
         for (int i = 0; i < in.length; ++i) {
             ByteUtils.writeLongLE(in[i], encoded, i * bytesPerValue);
         }
@@ -85,13 +85,11 @@ public class DocValuesForUtil {
     private void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         // NOTE: we expect multibyte values to be written "least significant byte" first
         int bytesPerValue = bitsPerValue / Byte.SIZE;
-        for (int longValueIndex = 0; longValueIndex < blockSize; longValueIndex++) {
-            out[longValueIndex] = 0;
-            for (int byteIndex = 0; byteIndex < bytesPerValue; byteIndex++) {
-                byte b = in.readByte();
-                out[longValueIndex] += ((long) b & 0xFFL) << (8 * byteIndex);
-            }
-
+        long mask = (1L << bitsPerValue) - 1;
+        byte[] buffer = new byte[bytesPerValue * blockSize + Long.BYTES - bytesPerValue];
+        in.readBytes(buffer, 0, bytesPerValue * blockSize);
+        for (int i = 0; i < blockSize; ++i) {
+            out[i] = ByteUtils.readLongLE(buffer, i * bytesPerValue) & mask;
         }
     }
 

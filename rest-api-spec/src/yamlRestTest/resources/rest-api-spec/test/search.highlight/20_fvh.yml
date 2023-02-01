@@ -38,7 +38,8 @@ setup:
             - title: "purple fish"
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: [test]
 
 ---
 "Highlight query":

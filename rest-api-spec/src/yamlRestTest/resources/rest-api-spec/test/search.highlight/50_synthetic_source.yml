@@ -74,7 +74,8 @@ setup:
             - "And lose the name of action."
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: [test]
 
 ---
 keyword single plain:

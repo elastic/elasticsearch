@@ -11,8 +11,6 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,7 +18,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.hamcrest.Matchers.containsString;
@@ -29,7 +26,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class CollectionUtilsTests extends ESTestCase {
     public void testRotateEmpty() {
-        assertTrue(CollectionUtils.rotate(Collections.emptyList(), randomInt()).isEmpty());
+        assertTrue(CollectionUtils.rotate(List.of(), randomInt()).isEmpty());
     }
 
     public void testRotate() {
@@ -77,36 +74,30 @@ public class CollectionUtilsTests extends ESTestCase {
     }
 
     public void testEmptyPartition() {
-        assertEquals(Collections.emptyList(), eagerPartition(Collections.emptyList(), 1));
+        assertEquals(List.of(), eagerPartition(List.of(), 1));
     }
 
     public void testSimplePartition() {
-        assertEquals(
-            Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4), Arrays.asList(5)),
-            eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 2)
-        );
+        assertEquals(List.of(List.of(1, 2), List.of(3, 4), List.of(5)), eagerPartition(List.of(1, 2, 3, 4, 5), 2));
     }
 
     public void testSingletonPartition() {
-        assertEquals(
-            Arrays.asList(Arrays.asList(1), Arrays.asList(2), Arrays.asList(3), Arrays.asList(4), Arrays.asList(5)),
-            eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 1)
-        );
+        assertEquals(List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(5)), eagerPartition(List.of(1, 2, 3, 4, 5), 1));
     }
 
     public void testOversizedPartition() {
-        assertEquals(Arrays.asList(Arrays.asList(1, 2, 3, 4, 5)), eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 15));
+        assertEquals(List.of(List.of(1, 2, 3, 4, 5)), eagerPartition(List.of(1, 2, 3, 4, 5), 15));
     }
 
     public void testPerfectPartition() {
         assertEquals(
-            Arrays.asList(Arrays.asList(1, 2, 3, 4, 5, 6), Arrays.asList(7, 8, 9, 10, 11, 12)),
-            eagerPartition(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 6)
+            List.of(List.of(1, 2, 3, 4, 5, 6), List.of(7, 8, 9, 10, 11, 12)),
+            eagerPartition(List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 6)
         );
     }
 
     public void testEnsureNoSelfReferences() {
-        CollectionUtils.ensureNoSelfReferences(emptyMap(), "test with empty map");
+        CollectionUtils.ensureNoSelfReferences(Map.of(), "test with empty map");
         CollectionUtils.ensureNoSelfReferences(null, "test with null");
 
         {

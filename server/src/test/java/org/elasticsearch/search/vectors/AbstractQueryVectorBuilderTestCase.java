@@ -63,6 +63,11 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         return namedWriteableRegistry;
     }
 
+    // Just in case the vector builder needs to know the expected value when testing
+    protected T createTestInstance(float[] expected) {
+        return createTestInstance();
+    }
+
     public void testKnnSearchBuilderXContent() throws Exception {
         AbstractXContentTestCase.XContentTester<KnnSearchBuilder> tester = AbstractXContentTestCase.xContentTester(
             this::createParser,
@@ -89,7 +94,8 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
 
     public void testKnnSearchRewrite() throws Exception {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            T queryVectorBuilder = createTestInstance();
+            float[] expected = randomVector(randomIntBetween(10, 1024));
+            T queryVectorBuilder = createTestInstance(expected);
             KnnSearchBuilder searchBuilder = new KnnSearchBuilder(randomAlphaOfLength(10), queryVectorBuilder, 5, 10);
             KnnSearchBuilder serialized = copyWriteable(
                 searchBuilder,
@@ -97,7 +103,6 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 KnnSearchBuilder::new,
                 TransportVersion.CURRENT
             );
-            float[] expected = randomVector(randomIntBetween(10, 1024));
             try (NoOpClient client = new AssertingClient(expected, queryVectorBuilder)) {
                 QueryRewriteContext context = new QueryRewriteContext(null, null, client, null);
                 PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
@@ -110,8 +115,8 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
     }
 
     public void testVectorFetch() throws Exception {
-        T queryVectorBuilder = createTestInstance();
         float[] expected = randomVector(randomIntBetween(10, 1024));
+        T queryVectorBuilder = createTestInstance(expected);
         try (NoOpClient client = new AssertingClient(expected, queryVectorBuilder)) {
             PlainActionFuture<float[]> future = new PlainActionFuture<>();
             queryVectorBuilder.buildVector(client, future);
@@ -119,8 +124,19 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         }
     }
 
+    /**
+     * Assert that the client action request is correct given this provided random builder
+     * @param request The built request to be executed by the client
+     * @param builder The builder used when generating this request
+     */
     abstract void doAssertClientRequest(ActionRequest request, T builder);
 
+    /**
+     * Create a response given this expected array that is acceptable to the query builder
+     * @param array The expected final array
+     * @param builder The original randomly built query vector builder
+     * @return An action response to be handled by the query vector builder
+     */
     abstract ActionResponse createResponse(float[] array, T builder);
 
     private class AssertingClient extends NoOpClient {

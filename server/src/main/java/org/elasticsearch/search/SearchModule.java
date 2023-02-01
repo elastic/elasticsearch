@@ -243,7 +243,6 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.search.vectors.IndexedQueryVectorBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
@@ -985,13 +984,6 @@ public class SearchModule {
     }
 
     private void registerQueryVectorBuilders(List<SearchPlugin> plugins) {
-        registerQueryVectorBuilder(
-            new QueryVectorBuilderSpec<>(
-                IndexedQueryVectorBuilder.NAME,
-                IndexedQueryVectorBuilder::new,
-                (p, unused) -> IndexedQueryVectorBuilder.fromXContent(p)
-            )
-        );
         registerFromPlugin(plugins, SearchPlugin::getQueryVectorBuilders, this::registerQueryVectorBuilder);
     }
 

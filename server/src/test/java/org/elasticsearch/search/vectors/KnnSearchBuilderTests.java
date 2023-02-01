@@ -52,11 +52,8 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         float[] vector = randomVector(dim);
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
-        QueryVectorBuilder queryVectorBuilder = IndexedQueryVectorBuilderTests.getRandomInstance();
 
-        KnnSearchBuilder builder = randomBoolean()
-            ? new KnnSearchBuilder(field, vector, k, numCands)
-            : new KnnSearchBuilder(field, queryVectorBuilder, k, numCands);
+        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands);
         if (randomBoolean()) {
             builder.boost(randomFloat());
         }

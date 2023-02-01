@@ -59,17 +59,17 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
             .setQuery(
                 QueryBuilders.boolQuery()
                     .should(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE))
-                    .should(QueryBuilders.termQuery(FIELD_NAME, LOWER_RANKED_FEATURE))
+                    .should(QueryBuilders.termQuery(FIELD_NAME, LOWER_RANKED_FEATURE).boost(3f))
                     .minimumShouldMatch(1)
             )
             .get();
         assertThat(response.getHits().getTotalHits().value, equalTo(3L));
         for (SearchHit hit : response.getHits().getHits()) {
             if (hit.getId().equals("all")) {
-                assertThat(hit.getScore(), equalTo(30f));
+                assertThat(hit.getScore(), equalTo(50f));
             }
             if (hit.getId().equals("lower")) {
-                assertThat(hit.getScore(), equalTo(10f));
+                assertThat(hit.getScore(), equalTo(30f));
             }
             if (hit.getId().equals("higher")) {
                 assertThat(hit.getScore(), equalTo(20f));

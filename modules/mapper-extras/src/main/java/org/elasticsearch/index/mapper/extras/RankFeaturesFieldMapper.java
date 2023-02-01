@@ -28,6 +28,8 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
+
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
  * vector of features.
@@ -77,9 +79,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         private final boolean positiveScoreImpact;
 
-        private static final RankFeatureQueryBuilder.ScoreFunction.Linear TERM_QUERY_BUILDER =
-            new RankFeatureQueryBuilder.ScoreFunction.Linear();
-
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
             super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.positiveScoreImpact = positiveScoreImpact;
@@ -88,10 +87,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        public boolean positiveScoreImpact() {
-            return positiveScoreImpact;
         }
 
         @Override
@@ -111,7 +106,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return TERM_QUERY_BUILDER.toQuery(name(), indexedValueForSearch(value), true);
+            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
         }
 
         private static String indexedValueForSearch(Object value) {

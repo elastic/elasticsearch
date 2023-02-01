@@ -120,7 +120,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
     public void testNoActionIfDisabled() throws Exception {
         Settings settings = Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(settings, client, null, threadPool)) {
+        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(settings, client, clusterService, threadPool)) {
             String policyId = randomAlphaOfLength(5);
             final long timestamp = randomNonNegativeLong();
             ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, null, null);

@@ -457,7 +457,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     extractClientCert,
                     destructiveOperations,
                     securityContext,
-                    isRemoteClusterProfile
+                    isRemoteClusterProfile ? ServerTransportFilter.ProfileType.REMOTE_CLUSTER : ServerTransportFilter.ProfileType.TRANSPORT
                 )
             );
         }

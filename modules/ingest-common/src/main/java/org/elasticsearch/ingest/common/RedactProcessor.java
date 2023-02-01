@@ -242,8 +242,8 @@ public class RedactProcessor extends AbstractProcessor {
                 writeOffset = writeOffset + numBytesToWrite;
 
                 byte[] replacementText = (redactStartToken + rep.className + redactEndToken).getBytes(StandardCharsets.UTF_8);
-
                 System.arraycopy(replacementText, 0, redact, writeOffset, replacementText.length);
+
                 writeOffset = writeOffset + replacementText.length;
             }
 
@@ -295,7 +295,6 @@ public class RedactProcessor extends AbstractProcessor {
                 current = next;
                 next++;
             }
-
             return result;
         }
 
@@ -312,12 +311,12 @@ public class RedactProcessor extends AbstractProcessor {
             int longestIndex = 0;
             int endPos = replacementPositions.get(0).end;
             int maxLength = replacementPositions.get(0).length();
+
             for (int i = 1; i < replacementPositions.size(); i++) {
                 if (replacementPositions.get(i).length() > maxLength) {
                     maxLength = replacementPositions.get(i).length();
                     longestIndex = i;
                 }
-
                 endPos = Math.max(endPos, replacementPositions.get(i).end);
             }
 

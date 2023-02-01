@@ -12,24 +12,23 @@ expression is replaced with the capture name.
 {es} comes packaged with a number of useful predefined
 https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
 
-The Redact processor uses {ecs-ref}/ecs-field-reference.html[Elastic Common Schema (ECS)]
+The Redact processor is compatible with {ecs-ref}/ecs-field-reference.html[Elastic Common Schema (ECS)]
 patterns, legacy Grok patterns are not supported.
 
 
-[[grok-options]]
-.Grok Options
+[[redact-options]]
+.Redact Options
 [options="header"]
 |======
 | Name                   | Required  | Default             | Description
 | `field`                | yes       | -                   | The field to be redacted
-| `patterns`             | yes       | -                   | A list of grok expression to match and redact named captures with.
-| `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the processor. Patterns matching existing names will override the pre-existing definition.
+| `patterns`             | yes       | -                   | A list of grok expressions to match and redact named captures with
+| `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the processor. Patterns matching existing names will override the pre-existing definition
 | `prefix`               | no        | <                   | Start a redacted section with this token
 | `suffix`               | no        | >                   | End a redacted section with this token
 | `ignore_missing`       | no        | false               | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 include::common-options.asciidoc[]
 |======
-
 
 In this example the predefined `IP` Grok pattern is used to match
 and redact an IP addresses from the `message` text field. The pipeline
@@ -86,14 +85,77 @@ but now the IP address `55.3.244.1` is replaced by the text `<client>`.
 // TESTRESPONSE[s/2023-02-01T16:08:39.419056008Z/$body.docs.0.doc._ingest.timestamp/]
 
 The IP address is replaced with the word `client` because that is what is
-specified in the Grok pattern `%{IP:client}`.
+specified in the Grok pattern `%{IP:client}`. The `<` and `>` tokens which
+surround the pattern name are also configurable.
+
+The next example defines multiple patterns both of which are replaced
+with the word `REDACTED` and the prefix and suffix tokens are both set to `*`
+
+[source,console]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "description": "Hide my IP",
+    "processors": [
+      {
+        "redact": {
+          "field": "message",
+          "patterns": [
+            "%{IP:REDACTED}",
+            "%{EMAILADDRESS:REDACTED}"
+          ],
+          "prefix": "*",
+          "suffix": "*"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "message": "55.3.244.1 GET /index.html 15824 0.043 test@elastic.co"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+In the response both the IP `55.3.244.1` and email address `test@elastic.co`
+have been replaced by `*REDACTED*`.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "_index",
+        "_id": "_id",
+        "_version": "-3",
+        "_source": {
+          "message": "*REDACTED* GET /index.html 15824 0.043 *REDACTED*"
+        },
+        "_ingest": {
+          "timestamp": "2023-02-01T16:53:14.560005377Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2023-02-01T16:53:14.560005377Z/$body.docs.0.doc._ingest.timestamp/]
+
+[[redact-custom-patterns]]
+==== Custom Patterns
 
 
-[[grok-watchdog]]
+
+[[grok-watchdog-redact]]
 ==== Grok watchdog
 
 The watchdog interrupts expressions that take too long to execute.
 When interrupted the Redact processor fails with an error.
 
 The same settings that control the Grok Watchdog apply to the Redact processor
-TODO Link to [[grok-watchdog-options]]
+// TODO Link to [[grok-watchdog-options]]

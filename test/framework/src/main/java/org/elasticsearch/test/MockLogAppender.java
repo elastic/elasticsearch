@@ -10,11 +10,14 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
+import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.util.Arrays;
@@ -38,17 +41,34 @@ public class MockLogAppender extends AbstractAppender {
     private final List<WrappedLoggingExpectation> expectations;
 
     public MockLogAppender() {
-        super("mock", null, null, false, Property.EMPTY_ARRAY);
+        this(null);
+    }
+
+    public MockLogAppender(@Nullable String regexFilter) {
+        super("mock", createRegexFilter(regexFilter), null, false, Property.EMPTY_ARRAY);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
          * modification from #addExpectation.
          */
         expectations = new CopyOnWriteArrayList<>();
+
     }
 
     public void addExpectation(LoggingExpectation expectation) {
         expectations.add(new WrappedLoggingExpectation(expectation));
+    }
+
+    private static Filter createRegexFilter(@Nullable String regexFilter) {
+        if (regexFilter == null) {
+            return null;
+        } else {
+            try {
+                return RegexFilter.createFilter(regexFilter, new String[0], false, null, null);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     @Override

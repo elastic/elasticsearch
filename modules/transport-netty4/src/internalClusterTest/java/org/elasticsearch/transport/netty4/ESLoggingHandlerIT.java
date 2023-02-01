@@ -28,7 +28,8 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        appender = new MockLogAppender();
+        // Only watch for single line logs to avoid Netty .
+        appender = new MockLogAppender("^[^\\n]+$");
         Loggers.addAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
         Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
         Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);

@@ -22,7 +22,6 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 
 // Settings have a path, a file update state, and a watch key

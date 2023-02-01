@@ -247,20 +247,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // Get this thing down into FileWatchService somehow
     private void watcherThread() {
-        fileWatchService.watcherThread(
-            () -> {
-                try {
-                    processSettingsAndNotifyListeners();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            () -> {
-                for (var listener : eventListeners) {
-                    listener.settingsChanged();
-                }
+        fileWatchService.watcherThread(() -> {
+            try {
+                processSettingsAndNotifyListeners();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
-        );
+        }, () -> {
+            for (var listener : eventListeners) {
+                listener.settingsChanged();
+            }
+        });
     }
 
     // package private for testing

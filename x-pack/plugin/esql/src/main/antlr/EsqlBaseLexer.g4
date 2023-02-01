@@ -100,7 +100,10 @@ SLASH : '/';
 PERCENT : '%';
 
 UNQUOTED_IDENTIFIER
-    : (LETTER | '_') (LETTER | DIGIT | '_')*
+    : LETTER (LETTER | DIGIT | '_')*
+    // only allow @ at beginning of identifier to keep the option to allow @ as infix operator in the future
+    // also, single `_` and `@` characters are not valid identifiers
+    | ('_' | '@') (LETTER | DIGIT | '_')+
     ;
 
 QUOTED_IDENTIFIER

@@ -191,8 +191,8 @@ public class StatementParserTests extends ESTestCase {
             LessThan.class,
             GreaterThanOrEqual.class,
             LessThanOrEqual.class };
-        String[] identifiers = new String[] { "abc", "`abc`", "ab_c", "a.b.c", "`a@b.c`" };
-        String[] expectedIdentifiers = new String[] { "abc", "abc", "ab_c", "a.b.c", "a@b.c" };
+        String[] identifiers = new String[] { "abc", "`abc`", "ab_c", "a.b.c", "@a", "a.@b", "`a@b.c`" };
+        String[] expectedIdentifiers = new String[] { "abc", "abc", "ab_c", "a.b.c", "@a", "a.@b", "a@b.c" };
         LogicalPlan where;
         for (int i = 0; i < operators.length; i++) {
             for (int j = 0; j < identifiers.length; j++) {

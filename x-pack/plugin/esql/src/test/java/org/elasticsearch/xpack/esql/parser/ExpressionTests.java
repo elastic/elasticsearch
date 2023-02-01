@@ -343,6 +343,12 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
     }
 
+    public void testUnquotedIdentifiers() {
+        for (String identifier : List.of("a", "_a", "a_b", "a9", "abc123", "a_____9", "__a_b", "@a", "_1", "@2")) {
+            assertEquals(new UnresolvedAttribute(EMPTY, identifier), whereExpression(identifier));
+        }
+    }
+
     public void testWildcardProjectKeepPatterns() {
         String[] exp = new String[] {
             "a*",

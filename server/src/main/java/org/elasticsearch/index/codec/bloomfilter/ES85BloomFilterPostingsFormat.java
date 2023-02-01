@@ -49,6 +49,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
@@ -544,13 +545,17 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
             outputs[0] = hash_v1;
         } else if (outputs.length == 7) {
             final long hash_v2 = CityHash.cityHash64(br.bytes, br.offset, br.length);
-            outputs[0] = (int) ((hash_v2 & 0x7FFF_FFFF_0000_0000L) >> 32);
-            outputs[1] = (int) ((hash_v2 & 0x07FF_FFFF_F000_0000L) >> (32 - 4));
-            outputs[2] = (int) ((hash_v2 & 0x007F_FFFF_FF00_0000L) >> (32 - 8));
-            outputs[3] = (int) ((hash_v2 & 0x0007_FFFF_FFF0_0000L) >> (32 - 12));
-            outputs[4] = (int) ((hash_v2 & 0x0000_7FFF_FFFF_0000L) >> (32 - 16));
-            outputs[5] = (int) ((hash_v2 & 0x0000_07FF_FFFF_F000L) >> (32 - 20));
-            outputs[6] = (int) ((hash_v2 & 0x0000_007F_FFFF_FF00L) >> (32 - 24));
+            final int upper_half = (int)hash_v2 >> 32;
+            final int lower_half = (int)hash_v2;
+            // Derive 7 hash outputs by combining the two 64-bit halves, adding the upper half multiplied with different small constants
+            // without common gcd.
+            outputs[0] = (lower_half + 2*upper_half) & 0x7FFF_FFFF;
+            outputs[1] = (lower_half + 3*upper_half) & 0x7FFF_FFFF;
+            outputs[2] = (lower_half + 5*upper_half) & 0x7FFF_FFFF;
+            outputs[3] = (lower_half + 7*upper_half) & 0x7FFF_FFFF;
+            outputs[4] = (lower_half + 11*upper_half) & 0x7FFF_FFFF;
+            outputs[5] = (lower_half + 13*upper_half) & 0x7FFF_FFFF;
+            outputs[6] = (lower_half + 17*upper_half) & 0x7FFF_FFFF;
         }
         return outputs;
     }
@@ -642,12 +647,11 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
         private static final long k3 = 0xc949d7c7509e6557L;
 
         private static long toLongLE(byte[] b, int i) {
-            return (((long) b[i + 7] << 56) + ((long) (b[i + 6] & 255) << 48) + ((long) (b[i + 5] & 255) << 40) + ((long) (b[i + 4] & 255)
-                << 32) + ((long) (b[i + 3] & 255) << 24) + ((b[i + 2] & 255) << 16) + ((b[i + 1] & 255) << 8) + ((b[i + 0] & 255) << 0));
+            return ByteUtils.readLongLE(b, i);
         }
 
         private static int toIntLE(byte[] b, int i) {
-            return (((b[i + 3] & 255) << 24) + ((b[i + 2] & 255) << 16) + ((b[i + 1] & 255) << 8) + ((b[i + 0] & 255) << 0));
+            return ByteUtils.readIntLE(b, i);
         }
 
         private static long fetch64(byte[] s, int pos) {
@@ -659,11 +663,7 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         private static long rotate(long val, int shift) {
-            return shift == 0 ? val : (val >>> shift) | (val << (64 - shift));
-        }
-
-        private static long rotateByAtLeast1(long val, int shift) {
-            return (val >>> shift) | (val << (64 - shift));
+            return Long.rotateRight(val, shift);
         }
 
         private static long shiftMix(long val) {
@@ -689,7 +689,7 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
             if (len > 8) {
                 long a = fetch64(s, pos + 0);
                 long b = fetch64(s, pos + len - 8);
-                return hashLen16(a, rotateByAtLeast1(b + len, len)) ^ b;
+                return hashLen16(a, rotate(b + len, len)) ^ b;
             }
             if (len >= 4) {
                 long a = 0xffffffffL & fetch32(s, pos + 0);

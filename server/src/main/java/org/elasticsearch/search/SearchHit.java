@@ -10,6 +10,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -134,7 +135,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         docId = -1;
         score = in.readFloat();
         id = in.readOptionalText();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readOptionalText();
         }
         nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
@@ -148,7 +149,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             documentFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
             metaFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
         } else {

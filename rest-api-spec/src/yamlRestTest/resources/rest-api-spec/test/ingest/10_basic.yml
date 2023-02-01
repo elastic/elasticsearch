@@ -167,11 +167,14 @@
 
 ---
 "Test invalid config with nested processors":
+  - skip:
+      version: " - 8.6.99"
+      reason: "bug fixed in 8.7.0"
   - do:
       catch: /illegal_argument_exception/
       ingest.put_pipeline:
         id: "my_pipeline"
-        body:  >
+        body: >
           {
             "description": "_description",
             "processors": [{"grok": {}}, {"grok": {}, "date": {}}]

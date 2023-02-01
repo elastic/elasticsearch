@@ -70,6 +70,7 @@ public final class Pipeline {
 
     public static boolean containsNestedProcessors(Map<String, Object> config) {
         boolean result;
+
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
         result = processorConfigs.stream().anyMatch(processor -> processor.keySet().size() > 1);
         config.put(PROCESSORS_KEY, processorConfigs);

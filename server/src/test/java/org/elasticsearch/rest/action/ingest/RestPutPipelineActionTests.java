@@ -46,7 +46,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
-            .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
+            .withContent(new BytesArray("{\"processors\":[]}"), XContentType.JSON)
             .withParams(params)
             .build();
 
@@ -60,7 +60,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
-            .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
+            .withContent(new BytesArray("{\"processors\":[]}"), XContentType.JSON)
             .withParams(params)
             .build();
 
@@ -94,7 +94,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
-            .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
+            .withContent(new BytesArray("{\"processors\":[]}"), XContentType.JSON)
             .withParams(params)
             .build();
 

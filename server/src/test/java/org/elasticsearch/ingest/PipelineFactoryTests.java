@@ -53,7 +53,7 @@ public class PipelineFactoryTests extends ESTestCase {
         assertThat(pipeline.getProcessors().get(1).getTag(), nullValue());
     }
 
-    public void testContainsNestedProcessors() throws  Exception {
+    public void testContainsNestedProcessors() throws Exception {
         // create a pipeline with non-nested processors
         Map<String, Object> processorConfig0 = new HashMap<>();
         Map<String, Object> processorConfig1 = new HashMap<>();
@@ -64,8 +64,7 @@ public class PipelineFactoryTests extends ESTestCase {
         if (metadata != null) {
             pipelineConfig.put(Pipeline.META_KEY, metadata);
         }
-        pipelineConfig.put(Pipeline.PROCESSORS_KEY,
-            List.of(Map.of("test", processorConfig0), Map.of("test", processorConfig1)));
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY, List.of(Map.of("test", processorConfig0), Map.of("test", processorConfig1)));
 
         assertFalse(Pipeline.containsNestedProcessors(pipelineConfig));
 
@@ -73,11 +72,10 @@ public class PipelineFactoryTests extends ESTestCase {
         Map<String, Object> processorConfigNested = new HashMap<>();
         processorConfigNested.put("mock_grok", new HashMap<>());
         processorConfigNested.put("mock_date", new HashMap<>());
-        pipelineConfig.put(Pipeline.PROCESSORS_KEY,
-            List.of(
-                Map.of("test", processorConfig0),
-                Map.of("test", processorConfig1),
-                processorConfigNested));
+        pipelineConfig.put(
+            Pipeline.PROCESSORS_KEY,
+            List.of(Map.of("test", processorConfig0), Map.of("test", processorConfig1), processorConfigNested)
+        );
         assertTrue(Pipeline.containsNestedProcessors(pipelineConfig));
     }
 

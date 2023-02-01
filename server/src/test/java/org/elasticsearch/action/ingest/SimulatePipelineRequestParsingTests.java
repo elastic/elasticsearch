@@ -210,6 +210,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.pipeline().getDescription(), nullValue());
         assertThat(actualRequest.pipeline().getProcessors().size(), equalTo(numProcessors));
     }
+
     public void testParseWithNestedProcessors() throws Exception {
         Map<String, Object> requestContent = new HashMap<>();
         Map<String, Object> pipelineConfig = new HashMap<>();
@@ -237,12 +238,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         // parse and expect failure
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parse(
-                requestContent,
-                false,
-                ingestService,
-                RestApiVersion.current()
-            ));
+            () -> SimulatePipelineRequest.parse(requestContent, false, ingestService, RestApiVersion.current())
+        );
         assertThat(e.getMessage(), equalTo("[processors] contains nested objects but should be a list of single-entry objects"));
     }
 

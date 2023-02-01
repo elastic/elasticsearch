@@ -365,13 +365,37 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterNumericLiteral(EsqlBaseParser.NumericLiteralContext ctx) { }
+  @Override public void enterQualifiedIntegerLiteral(EsqlBaseParser.QualifiedIntegerLiteralContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitNumericLiteral(EsqlBaseParser.NumericLiteralContext ctx) { }
+  @Override public void exitQualifiedIntegerLiteral(EsqlBaseParser.QualifiedIntegerLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -473,25 +497,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx) { }
+  @Override public void enterDecimalValue(EsqlBaseParser.DecimalValueContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx) { }
+  @Override public void exitDecimalValue(EsqlBaseParser.DecimalValueContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) { }
+  @Override public void enterIntegerValue(EsqlBaseParser.IntegerValueContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) { }
+  @Override public void exitIntegerValue(EsqlBaseParser.IntegerValueContext ctx) { }
   /**
    * {@inheritDoc}
    *

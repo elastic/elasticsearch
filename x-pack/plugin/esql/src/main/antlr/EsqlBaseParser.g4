@@ -109,7 +109,9 @@ identifier
 
 constant
     : NULL                                                                              #nullLiteral
-    | number                                                                            #numericLiteral
+    | integerValue UNQUOTED_IDENTIFIER                                                  #qualifiedIntegerLiteral
+    | decimalValue                                                                      #decimalLiteral
+    | integerValue                                                                      #integerLiteral
     | booleanValue                                                                      #booleanLiteral
     | string                                                                            #stringLiteral
     ;
@@ -139,9 +141,12 @@ booleanValue
     : TRUE | FALSE
     ;
 
-number
-    : DECIMAL_LITERAL  #decimalLiteral
-    | INTEGER_LITERAL  #integerLiteral
+decimalValue
+    : DECIMAL_LITERAL
+    ;
+
+integerValue
+    : INTEGER_LITERAL
     ;
 
 string

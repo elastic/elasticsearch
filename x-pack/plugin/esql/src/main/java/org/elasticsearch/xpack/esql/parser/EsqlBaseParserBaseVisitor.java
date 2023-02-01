@@ -221,7 +221,21 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitNumericLiteral(EsqlBaseParser.NumericLiteralContext ctx) { return visitChildren(ctx); }
+  @Override public T visitQualifiedIntegerLiteral(EsqlBaseParser.QualifiedIntegerLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -284,14 +298,14 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx) { return visitChildren(ctx); }
+  @Override public T visitDecimalValue(EsqlBaseParser.DecimalValueContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) { return visitChildren(ctx); }
+  @Override public T visitIntegerValue(EsqlBaseParser.IntegerValueContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

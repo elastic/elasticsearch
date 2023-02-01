@@ -31,9 +31,13 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.time.Duration;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -321,6 +325,10 @@ public class ExpressionTests extends ESTestCase {
             whereExpression("true and false or true and c/12+x*5-y%2>=50"),
             equalTo(whereExpression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
         );
+        assertThat(
+            whereExpression("10 days > 5 hours and 1/5 minutes > 8 seconds * 3 and -1 minutes > foo"),
+            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-(1 minute) > foo)"))
+        );
     }
 
     public void testFunctionExpressions() {
@@ -347,6 +355,58 @@ public class ExpressionTests extends ESTestCase {
         for (String identifier : List.of("a", "_a", "a_b", "a9", "abc123", "a_____9", "__a_b", "@a", "_1", "@2")) {
             assertEquals(new UnresolvedAttribute(EMPTY, identifier), whereExpression(identifier));
         }
+    }
+
+    public void testDurationLiterals() {
+        int value = randomInt(Integer.MAX_VALUE);
+
+        assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 millisecond"));
+        assertEquals(l(Duration.ofMillis(value), TIME_DURATION), whereExpression(value + "millisecond"));
+        assertEquals(l(Duration.ofMillis(value), TIME_DURATION), whereExpression(value + " milliseconds"));
+
+        assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 second"));
+        assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + "second"));
+        assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " seconds"));
+
+        assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 minute"));
+        assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + "minute"));
+        assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " minutes"));
+
+        assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 hour"));
+        assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + "hour"));
+        assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + " hours"));
+
+        assertEquals(new Neg(EMPTY, l(Duration.ofHours(value), TIME_DURATION)), whereExpression("-" + value + " hours"));
+    }
+
+    public void testDatePeriodLiterals() {
+        int value = randomInt(Integer.MAX_VALUE);
+
+        assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 day"));
+        assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + "day"));
+        assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + " days"));
+
+        assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0week"));
+        assertEquals(l(Period.ofDays(value * 7), DATE_PERIOD), whereExpression(value + "week"));
+        assertEquals(l(Period.ofDays(value * 7), DATE_PERIOD), whereExpression(value + " weeks"));
+
+        assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 month"));
+        assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + "month"));
+        assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + " months"));
+
+        assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0year"));
+        assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + "year"));
+        assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " years"));
+
+        assertEquals(new Neg(EMPTY, l(Period.ofYears(value), DATE_PERIOD)), whereExpression("-" + value + " years"));
+    }
+
+    public void testUnknownNumericQualifier() {
+        assertParsingException(() -> whereExpression("1 decade"), "Unexpected numeric qualifier 'decade'");
+    }
+
+    public void testQualifiedDecimalLiteral() {
+        assertParsingException(() -> whereExpression("1.1 hours"), "extraneous input 'hours' expecting <EOF>");
     }
 
     public void testWildcardProjectKeepPatterns() {

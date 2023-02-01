@@ -33,10 +33,20 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public final class EsqlDataTypes {
 
-    private static final Collection<DataType> TYPES = Arrays.asList(UNSUPPORTED, NULL, INTEGER, LONG, DOUBLE, FLOAT, KEYWORD)
-        .stream()
-        .sorted(Comparator.comparing(DataType::typeName))
-        .toList();
+    public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
+    public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
+
+    private static final Collection<DataType> TYPES = Arrays.asList(
+        UNSUPPORTED,
+        NULL,
+        INTEGER,
+        LONG,
+        DOUBLE,
+        FLOAT,
+        KEYWORD,
+        DATE_PERIOD,
+        TIME_DURATION
+    ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 

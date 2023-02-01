@@ -200,12 +200,26 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitNullLiteral(EsqlBaseParser.NullLiteralContext ctx);
   /**
-   * Visit a parse tree produced by the {@code numericLiteral}
+   * Visit a parse tree produced by the {@code qualifiedIntegerLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitNumericLiteral(EsqlBaseParser.NumericLiteralContext ctx);
+  T visitQualifiedIntegerLiteral(EsqlBaseParser.QualifiedIntegerLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code decimalLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code integerLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx);
   /**
    * Visit a parse tree produced by the {@code booleanLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
@@ -257,19 +271,17 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBooleanValue(EsqlBaseParser.BooleanValueContext ctx);
   /**
-   * Visit a parse tree produced by the {@code decimalLiteral}
-   * labeled alternative in {@link EsqlBaseParser#number}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#decimalValue}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx);
+  T visitDecimalValue(EsqlBaseParser.DecimalValueContext ctx);
   /**
-   * Visit a parse tree produced by the {@code integerLiteral}
-   * labeled alternative in {@link EsqlBaseParser#number}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#integerValue}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx);
+  T visitIntegerValue(EsqlBaseParser.IntegerValueContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#string}.
    * @param ctx the parse tree

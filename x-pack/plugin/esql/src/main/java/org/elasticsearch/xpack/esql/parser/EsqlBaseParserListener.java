@@ -328,17 +328,41 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitNullLiteral(EsqlBaseParser.NullLiteralContext ctx);
   /**
-   * Enter a parse tree produced by the {@code numericLiteral}
+   * Enter a parse tree produced by the {@code qualifiedIntegerLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void enterNumericLiteral(EsqlBaseParser.NumericLiteralContext ctx);
+  void enterQualifiedIntegerLiteral(EsqlBaseParser.QualifiedIntegerLiteralContext ctx);
   /**
-   * Exit a parse tree produced by the {@code numericLiteral}
+   * Exit a parse tree produced by the {@code qualifiedIntegerLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void exitNumericLiteral(EsqlBaseParser.NumericLiteralContext ctx);
+  void exitQualifiedIntegerLiteral(EsqlBaseParser.QualifiedIntegerLiteralContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code decimalLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code decimalLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code integerLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code integerLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx);
   /**
    * Enter a parse tree produced by the {@code booleanLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
@@ -424,29 +448,25 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanValue(EsqlBaseParser.BooleanValueContext ctx);
   /**
-   * Enter a parse tree produced by the {@code decimalLiteral}
-   * labeled alternative in {@link EsqlBaseParser#number}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#decimalValue}.
    * @param ctx the parse tree
    */
-  void enterDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx);
+  void enterDecimalValue(EsqlBaseParser.DecimalValueContext ctx);
   /**
-   * Exit a parse tree produced by the {@code decimalLiteral}
-   * labeled alternative in {@link EsqlBaseParser#number}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#decimalValue}.
    * @param ctx the parse tree
    */
-  void exitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx);
+  void exitDecimalValue(EsqlBaseParser.DecimalValueContext ctx);
   /**
-   * Enter a parse tree produced by the {@code integerLiteral}
-   * labeled alternative in {@link EsqlBaseParser#number}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#integerValue}.
    * @param ctx the parse tree
    */
-  void enterIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx);
+  void enterIntegerValue(EsqlBaseParser.IntegerValueContext ctx);
   /**
-   * Exit a parse tree produced by the {@code integerLiteral}
-   * labeled alternative in {@link EsqlBaseParser#number}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#integerValue}.
    * @param ctx the parse tree
    */
-  void exitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx);
+  void exitIntegerValue(EsqlBaseParser.IntegerValueContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#string}.
    * @param ctx the parse tree

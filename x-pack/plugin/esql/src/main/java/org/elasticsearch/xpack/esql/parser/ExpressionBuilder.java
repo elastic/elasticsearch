@@ -40,9 +40,13 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.time.Duration;
+import java.time.Period;
 import java.time.ZoneId;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
@@ -65,7 +69,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Literal visitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx) {
+    public Literal visitDecimalValue(EsqlBaseParser.DecimalValueContext ctx) {
         Source source = source(ctx);
         String text = ctx.getText();
 
@@ -77,7 +81,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Literal visitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) {
+    public Literal visitIntegerValue(EsqlBaseParser.IntegerValueContext ctx) {
         Source source = source(ctx);
         String text = ctx.getText();
         long value;
@@ -114,6 +118,27 @@ public class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitStringLiteral(EsqlBaseParser.StringLiteralContext ctx) {
         Source source = source(ctx.string());
         return new Literal(source, unquoteString(source), DataTypes.KEYWORD);
+    }
+
+    @Override
+    public Object visitQualifiedIntegerLiteral(EsqlBaseParser.QualifiedIntegerLiteralContext ctx) {
+        Source source = source(ctx);
+        Literal intLit = typedParsing(this, ctx.integerValue(), Literal.class);
+        Integer value = (Integer) intLit.value();
+        String qualifier = ctx.UNQUOTED_IDENTIFIER().getText();
+
+        return switch (qualifier) {
+            case "millisecond", "milliseconds" -> new Literal(source, Duration.ofMillis(value), TIME_DURATION);
+            case "second", "seconds" -> new Literal(source, Duration.ofSeconds(value), TIME_DURATION);
+            case "minute", "minutes" -> new Literal(source, Duration.ofMinutes(value), TIME_DURATION);
+            case "hour", "hours" -> new Literal(source, Duration.ofHours(value), TIME_DURATION);
+
+            case "day", "days" -> new Literal(source, Period.ofDays(value), DATE_PERIOD);
+            case "week", "weeks" -> new Literal(source, Period.ofDays(value * 7), DATE_PERIOD);
+            case "month", "months" -> new Literal(source, Period.ofMonths(value), DATE_PERIOD);
+            case "year", "years" -> new Literal(source, Period.ofYears(value), DATE_PERIOD);
+            default -> throw new ParsingException(source, "Unexpected numeric qualifier '{}'", qualifier);
+        };
     }
 
     @Override

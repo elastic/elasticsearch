@@ -26,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat.hashTerm;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -35,8 +34,8 @@ public class ES85BloomFilterPostingsFormatTests extends BasePostingsFormatTestCa
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysPostingsFormat(new ES85BloomFilterPostingsFormat(BigArrays.NON_RECYCLING_INSTANCE, field -> {
-            PostingsFormat postingsFormat = Codec.getDefault().postingsFormat();
+        return TestUtil.alwaysPostingsFormat(new ES85BloomFilterRWPostingsFormat(BigArrays.NON_RECYCLING_INSTANCE, field -> {
+            PostingsFormat postingsFormat = TestUtil.getDefaultPostingsFormat();
             if (postingsFormat instanceof PerFieldPostingsFormat) {
                 postingsFormat = TestUtil.getDefaultPostingsFormat();
             }
@@ -52,7 +51,7 @@ public class ES85BloomFilterPostingsFormatTests extends BasePostingsFormatTestCa
         assertThat(ES85BloomFilterPostingsFormat.numBytesForBloomFilter(Integer.MAX_VALUE), equalTo(1 << 28));
     }
 
-    public void testHashTermsV1() {
+    public void testHashTerms() {
         Map<String, Integer> testStrings = Map.of(
             "hello",
             1568626408,
@@ -72,8 +71,7 @@ public class ES85BloomFilterPostingsFormatTests extends BasePostingsFormatTestCa
         for (Map.Entry<String, Integer> e : testStrings.entrySet()) {
             String term = e.getKey();
             BytesRef byteRef = randomBytesRef(term.getBytes(StandardCharsets.UTF_8));
-            int[] hashes = { 0 };
-            int hash = hashTerm(byteRef, hashes)[0];
+            int hash = ES85BloomFilterPostingsFormat.hashTerm(byteRef);
             assertThat("term=" + term, hash, equalTo(e.getValue()));
         }
 
@@ -102,54 +100,12 @@ public class ES85BloomFilterPostingsFormatTests extends BasePostingsFormatTestCa
         for (Map.Entry<byte[], Integer> e : testBytes.entrySet()) {
             byte[] term = e.getKey();
             final BytesRef bytesRef = randomBytesRef(term);
-            int[] hashes = { 0 };
-            int hash = hashTerm(bytesRef, hashes)[0];
+            int hash = ES85BloomFilterPostingsFormat.hashTerm(bytesRef);
             assertThat("term=" + Arrays.toString(term), hash, equalTo(e.getValue()));
         }
 
         byte[] bytes = ESTestCase.randomByteArrayOfLength(ESTestCase.between(0, 1000));
-        assertThat(hashTerm(randomBytesRef(bytes), new int[] { 0 })[0], greaterThanOrEqualTo(0));
-    }
-
-    public void testHashTermsV2() {
-        // Philosophical question: In past environments, the testing philosophy was that tests should not
-        // be brittle, e.g. test externally visible properties and not internal implementation details to
-        // keep code agility high. These tests (hardcoding specific hash values) seem to not follow that
-        // philosophy. I suspect the specificity of the tests is useful to catch compatibility issues in
-        // future version upgrades?
-        /*
-        Map<String, List<Integer>> testStrings = Map.of(
-            "hello",
-            List.of(1380667438, 1968195860, 542183772, 1969437389, 1326608973, 1078019780, 359366295),
-            "elasticsearch",
-            List.of(2025674736, 650360721, 1781586794, 1829185816, 1226755340, 150188357, 1416753788),
-            "elastic",
-            List.of(1079004764, 1505351228, 1620194778, 1739313494, 2026788108, 715216665, 1356494285),
-            "java",
-            List.of(196343046, 1006975080, 1322262268, 1938886024, 1681507783, 531099153, 475120638),
-            "lucene",
-            List.of(864732739, 510526233, 750187164, 2068544193, 1512399983, 1357188193, 1553243046),
-            "bloom_filter",
-            List.of(302304049, 1875625365, 1390636927, 1168830145, 1298058585, 1253768250, 1824320738),
-            "",
-            List.of(2013023607, 407056934, 1511252831, 132787567, 1845217193, 755076846, 1422621990)
-        );
-        for (Map.Entry<String, List<Integer>> e : testStrings.entrySet()) {
-            String term = e.getKey();
-            List<Integer> hashValues = new ArrayList<>();
-            for (int seed : V2_HASH_SEEDS) {
-                final BytesRef bytesRef = randomBytesRef(term.getBytes(StandardCharsets.UTF_8));
-                hashValues.add(hashTermWithSeed(bytesRef, seed));
-            }
-            assertThat("term=" + term, hashValues, equalTo(e.getValue()));
-        }*/
-
-        byte[] bytes = ESTestCase.randomByteArrayOfLength(ESTestCase.between(0, 1000));
-        int[] hashes = { 0, 0, 0, 0, 0, 0, 0 };
-        hashTerm(randomBytesRef(bytes), hashes);
-        for (int hash : hashes) {
-            assertThat(hash, greaterThanOrEqualTo(0));
-        }
+        assertThat(ES85BloomFilterPostingsFormat.hashTerm(randomBytesRef(bytes)), greaterThanOrEqualTo(0));
     }
 
     private static BytesRef randomBytesRef(byte[] bytes) {

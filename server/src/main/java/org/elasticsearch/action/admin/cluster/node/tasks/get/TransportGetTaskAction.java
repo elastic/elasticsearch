@@ -151,12 +151,13 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 }
                 final ActionListener<Void> waitedForCompletionListener = ActionListener.runBefore(
                     ActionListener.wrap(
-                        () -> waitedForCompletion(
+                        v -> waitedForCompletion(
                             thisTask,
                             request,
                             runningTask.taskInfo(clusterService.localNode().getId(), true),
                             listener
-                        )
+                        ),
+                        listener::onFailure
                     ),
                     () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
                 );

@@ -72,9 +72,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        this.setActive(
-            Stream.of(this).map(e -> e.operatorSettingsDir.getParent()).anyMatch(Files::exists)
-        );
+        this.setActive(Stream.of(this).map(e -> e.operatorSettingsDir.getParent()).anyMatch(Files::exists));
 
         // TODO[wrb]: remove
         if (this.isActive() == false) {

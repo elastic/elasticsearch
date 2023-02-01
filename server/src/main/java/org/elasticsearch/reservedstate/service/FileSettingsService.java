@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -371,12 +370,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         } else {
             logger.trace("file settings service already stopped");
         }
-    }
-
-    // TODO[wrb]: still here because of tests, fix tests then remove this
-    // package private for testing
-    WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
-        return fileWatchService.enableSettingsWatcher(previousKey, settingsDir);
     }
 
     PlainActionFuture<Void> processFileSettings(Path path) {

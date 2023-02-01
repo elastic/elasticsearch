@@ -158,7 +158,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         final Settings connectionSettings = connectionSettingsBuilder.build();
 
-        serviceA = buildService("TS_A", version0, clusterSettingsA, connectionSettings); // this one supports dynamic tracer updates
+        serviceA = buildService("TS_A", CURRENT_VERSION, clusterSettingsA, connectionSettings); // this one supports dynamic tracer updates
         nodeA = serviceA.getLocalNode();
         serviceB = buildService("TS_B", version1, null, connectionSettings); // this one doesn't support dynamic tracer updates
         nodeB = serviceB.getLocalNode();
@@ -2627,8 +2627,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(51, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(55, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2642,16 +2642,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(111, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(115, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
-            assertEquals(50, stats.getRxSize().getBytes());
-            assertEquals(111, stats.getTxSize().getBytes());
+            assertEquals(54, stats.getRxSize().getBytes());
+            assertEquals(115, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

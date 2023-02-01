@@ -1,5 +1,0 @@
-pr: 91725
-summary: Align all usages of Jackson to be 2.14.0
-area: Infra/REST API
-type: upgrade
-issues: []

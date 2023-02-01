@@ -301,7 +301,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().before(TransportVersion.V_7_11_0)) {
                 throw new IllegalArgumentException(
-                    "data versions before [7110099] can't handle non-numeric sort values and attempted to send to ["
+                    "data versions before [7110099] can't handle non-numeric sort values, attempted to send to ["
                         + out.getTransportVersion()
                         + "]"
                 );

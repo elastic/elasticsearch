@@ -46,7 +46,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
 
     private static final Logger logger = LogManager.getLogger(WebhookService.class);
 
-    public static final String TOKEN_HEADER_NAME = "X-Token";
+    public static final String TOKEN_HEADER_NAME = "X-Elastic-App-Auth";
     public static final Setting<SecureString> SETTING_WEBHOOK_ADDITIONAL_TOKEN = SecureSetting.secureString(
         "xpack.notification.webhook.additional_token",
         null

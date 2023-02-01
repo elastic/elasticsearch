@@ -89,6 +89,7 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.NAME;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.CREATING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.RESTARTING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
@@ -130,6 +131,55 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has all shards available.",
                     Map.of("started_primaries", 2, "started_replicas", 1),
+                    emptyList(),
+                    emptyList()
+                )
+            )
+        );
+    }
+
+    public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStartedOrInitializing() {
+        var clusterState = createClusterStateWith(
+            List.of(
+                index(
+                    "replicated-index",
+                    new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation(randomNodeId(), INITIALIZING)
+                ),
+                index("unreplicated-index", new ShardAllocation(randomNodeId(), INITIALIZING))
+            ),
+            List.of()
+        );
+        var service = createShardsAvailabilityIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                createExpectedResult(
+                    GREEN,
+                    "This cluster has 1 initializing primary shard, 1 initializing replica shard.",
+                    Map.of("started_primaries", 1, "initializing_primaries", 1, "initializing_replicas", 1),
+                    emptyList(),
+                    emptyList()
+                )
+            )
+        );
+    }
+
+    public void testShouldBeGreenWhenAllPrimariesAreCreating() {
+        var clusterState = createClusterStateWith(
+            List.of(index("unreplicated-index", new ShardAllocation(randomNodeId(), CREATING))),
+            List.of()
+        );
+        var service = createShardsAvailabilityIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                createExpectedResult(
+                    GREEN,
+                    "This cluster has 1 creating primary shard.",
+                    Map.of("creating_primaries", 1),
                     emptyList(),
                     emptyList()
                 )
@@ -439,10 +489,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeGreenWhenThereAreInitializingPrimaries() {
-        var clusterState = createClusterStateWith(
-            List.of(index("restarting-index", new ShardAllocation("node-0", INITIALIZING))),
-            List.of()
-        );
+        var clusterState = createClusterStateWith(List.of(index("restarting-index", new ShardAllocation("node-0", CREATING))), List.of());
         var service = createShardsAvailabilityIndicatorService(clusterState);
 
         assertThat(
@@ -1685,10 +1732,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT
         );
-        if (allocation.state == INITIALIZING) {
+        if (allocation.state == CREATING) {
             return routing;
         }
         routing = routing.initialize(allocation.nodeId, null, 0);
+        if (allocation.state == INITIALIZING) {
+            return routing;
+        }
         routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         if (allocation.state == AVAILABLE) {
             return routing;
@@ -1718,7 +1768,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     private static RecoverySource getSource(boolean primary, ShardState state) {
         if (primary) {
-            return state == INITIALIZING
+            return state == CREATING
                 ? RecoverySource.EmptyStoreRecoverySource.INSTANCE
                 : RecoverySource.ExistingStoreRecoverySource.INSTANCE;
         } else {
@@ -1728,9 +1778,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public enum ShardState {
         UNAVAILABLE,
-        INITIALIZING,
+        CREATING,
         AVAILABLE,
-        RESTARTING
+        RESTARTING,
+        INITIALIZING,
     }
 
     private record ShardAllocation(String nodeId, ShardState state, Long unassignedTimeNanos, @Nullable UnassignedInfo unassignedInfo) {

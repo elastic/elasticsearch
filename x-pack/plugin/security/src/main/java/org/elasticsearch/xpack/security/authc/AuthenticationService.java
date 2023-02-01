@@ -45,10 +45,9 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -143,87 +142,99 @@ public class AuthenticationService {
         final boolean allowAnonymous,
         final ActionListener<Authentication> listener
     ) {
-        if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
-            listener.onFailure(new IllegalArgumentException("authentication header is not allowed"));
-            return;
-        } else if (threadContext.getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "remote access header [" + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"
-                )
-            );
-            return;
-        }
-        final String credentialsHeader = threadContext.getHeader(
-            SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+        final Authenticator.Context context = new Authenticator.Context(
+            threadContext,
+            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
+            null,
+            allowAnonymous,
+            realms
         );
-        if (credentialsHeader == null) {
-            listener.onFailure(
-                new IllegalArgumentException(
+
+        final ThreadContext innerThreadContext = context.getThreadContext();
+        try {
+            if (innerThreadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
+                throw new IllegalArgumentException("authentication header is not allowed");
+            } else if (innerThreadContext.getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null) {
+                throw new IllegalArgumentException(
+                    "remote access header [" + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"
+                );
+            }
+            final String credentialsHeader = innerThreadContext.getHeader(
+                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+            );
+            if (credentialsHeader == null) {
+                throw new IllegalArgumentException(
                     "remote access header ["
                         + SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
                         + "] is required"
-                )
-            );
+                );
+            }
+            // Write remote access credential to the Authorization header, so we can re-use generic authentication service functionality for
+            // authc token extraction
+            innerThreadContext.putHeader("Authorization", credentialsHeader);
+        } catch (Exception ex) {
+            withRequestProcessingFailure(context, ex, listener);
             return;
         }
 
-        // Write remote access credential to the Authorization header, so we can re-use generic authentication service functionality for
-        // authc token extraction
-        threadContext.putHeader("Authorization", credentialsHeader);
-
-        authenticate(action, request, allowAnonymous, wrapPreservingContext(ActionListener.wrap(authentication -> {
-            assert threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null : "authentication header is not allowed";
-            final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
-            final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
-            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                // drop remote access authentication headers
-                existingRequestHeaders.forEach((k, v) -> {
-                    if (false == Set.of(
+        authenticatorChain.authenticateAsync(context, wrapPreservingContext(ActionListener.wrap(authentication -> {
+            assert innerThreadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null : "authentication header is not allowed";
+            final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(innerThreadContext);
+            try (
+                ThreadContext.StoredContext ignored = innerThreadContext.newStoredContext(
+                    Collections.emptyList(),
+                    // drop remote access authentication headers
+                    List.of(
                         SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
                         RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
-                    ).contains(k)) {
-                        threadContext.putHeader(k, v);
-                    }
-                });
+                    )
+                )
+            ) {
                 final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
                 final User user = receivedAuthentication.getEffectiveSubject().getUser();
-                final RemoteAccessAuthentication finalRemoteAccessAuthentication;
+                final Authentication successfulAuthentication;
                 if (SystemUser.is(user)) {
-                    finalRemoteAccessAuthentication = new RemoteAccessAuthentication(
-                        receivedAuthentication,
-                        new RoleDescriptorsIntersection(CROSS_CLUSTER_SEARCH_ROLE)
+                    successfulAuthentication = authentication.toRemoteAccess(
+                        new RemoteAccessAuthentication(receivedAuthentication, new RoleDescriptorsIntersection(CROSS_CLUSTER_SEARCH_ROLE))
                     );
                 } else if (User.isInternal(user)) {
                     throw new IllegalArgumentException(
                         "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
                     );
                 } else {
-                    finalRemoteAccessAuthentication = remoteAccessAuthentication;
+                    successfulAuthentication = authentication.toRemoteAccess(remoteAccessAuthentication);
                 }
-                finishAuthentication(action, request, authentication.toRemoteAccess(finalRemoteAccessAuthentication), listener);
+                writeAuthToContext(context, successfulAuthentication, listener);
             }
-        }, listener::onFailure), threadContext));
+        }, ex -> withRequestProcessingFailure(context, ex, listener)), innerThreadContext));
     }
 
-    void finishAuthentication(
-        final String action,
-        final TransportRequest request,
-        final Authentication authentication,
-        final ActionListener<Authentication> authenticationListener
+    private void withRequestProcessingFailure(
+        final Authenticator.Context context,
+        final Exception e,
+        final ActionListener<Authentication> listener
     ) {
-        final var auditableRequest = new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request);
+        final ElasticsearchSecurityException ese = context.getRequest()
+            .exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken());
+        context.addUnsuccessfulMessageToMetadata(ese);
+        listener.onFailure(ese);
+    }
+
+    private void writeAuthToContext(
+        final Authenticator.Context context,
+        final Authentication authentication,
+        final ActionListener<Authentication> listener
+    ) {
         try {
-            new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
-            auditableRequest.authenticationSuccess(authentication);
+            authentication.writeToContext(context.getThreadContext());
+            context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
-            logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, auditableRequest), e);
-            final ElasticsearchSecurityException ese = auditableRequest.exceptionProcessingRequest(e, null);
-            authenticationListener.onFailure(ese);
+            logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);
+            withRequestProcessingFailure(context, e, listener);
             return;
         }
-        logger.trace("Established authentication [{}] for request [{}]", authentication, auditableRequest);
-        authenticationListener.onResponse(authentication);
+        logger.trace("Established authentication [{}] for request [{}]", authentication, context.getRequest());
+        listener.onResponse(authentication);
     }
 
     /**

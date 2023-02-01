@@ -57,7 +57,7 @@ public class QueryVectorBuilderTests extends AbstractQueryVectorBuilderTestCase<
 
     @Override
     protected void doAssertClientRequest(ActionRequest request, TestQueryVectorBuilderPlugin.TestQueryVectorBuilder builder) {
-        // Nothing to assert here as this object does make client calls
+        // Nothing to assert here as this object does not make client calls
     }
 
     @Override

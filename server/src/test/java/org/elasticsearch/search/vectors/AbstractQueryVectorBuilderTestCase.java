@@ -68,7 +68,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         return createTestInstance();
     }
 
-    public void testKnnSearchBuilderXContent() throws Exception {
+    public final void testKnnSearchBuilderXContent() throws Exception {
         AbstractXContentTestCase.XContentTester<KnnSearchBuilder> tester = AbstractXContentTestCase.xContentTester(
             this::createParser,
             () -> new KnnSearchBuilder(randomAlphaOfLength(10), createTestInstance(), 5, 10),
@@ -78,7 +78,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         tester.test();
     }
 
-    public void testKnnSearchBuilderWireSerialization() throws IOException {
+    public final void testKnnSearchBuilderWireSerialization() throws IOException {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             KnnSearchBuilder searchBuilder = new KnnSearchBuilder(randomAlphaOfLength(10), createTestInstance(), 5, 10);
             KnnSearchBuilder serialized = copyWriteable(
@@ -92,7 +92,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         }
     }
 
-    public void testKnnSearchRewrite() throws Exception {
+    public final void testKnnSearchRewrite() throws Exception {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             float[] expected = randomVector(randomIntBetween(10, 1024));
             T queryVectorBuilder = createTestInstance(expected);
@@ -114,7 +114,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         }
     }
 
-    public void testVectorFetch() throws Exception {
+    public final void testVectorFetch() throws Exception {
         float[] expected = randomVector(randomIntBetween(10, 1024));
         T queryVectorBuilder = createTestInstance(expected);
         try (NoOpClient client = new AssertingClient(expected, queryVectorBuilder)) {

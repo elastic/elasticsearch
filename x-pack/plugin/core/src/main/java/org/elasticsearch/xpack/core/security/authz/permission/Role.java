@@ -164,7 +164,7 @@ public interface Role {
         FieldPermissionsCache fieldPermissionsCache
     );
 
-    RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(final String remoteClusterAlias);
+    RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(String remoteClusterAlias);
 
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.

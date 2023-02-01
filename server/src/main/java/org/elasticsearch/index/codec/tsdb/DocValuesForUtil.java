@@ -10,7 +10,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.util.packed.DirectWriter;
+import org.elasticsearch.common.util.ByteUtils;
 
 import java.io.IOException;
 
@@ -59,11 +59,13 @@ public class DocValuesForUtil {
     }
 
     private void encodeFiveSixOrSevenBytesPerValue(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
-        final DirectWriter writer = DirectWriter.getInstance(out, in.length, bitsPerValue);
-        for (long l : in) {
-            writer.add(l);
+        int bytesPerValue = bitsPerValue / Byte.SIZE;
+        int padding = Long.BYTES - bytesPerValue;
+        byte[] encoded = new byte[bytesPerValue * in.length + padding];
+        for (int i = 0; i < in.length; ++i) {
+            ByteUtils.writeLongLE(in[i], encoded, i * bytesPerValue);
         }
-        writer.finish();
+        out.writeBytes(encoded, bytesPerValue * in.length);
     }
 
     void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
@@ -90,18 +92,6 @@ public class DocValuesForUtil {
                 out[longValueIndex] += ((long) b & 0xFFL) << (8 * byteIndex);
             }
 
-        }
-        // Skip padding bytes (5 bytes skip 3, 6 bytes skip 2, 7 bytes skip 1).
-        switch (bitsPerValue) {
-            case BITS_IN_FIVE_BYTES -> discardBytes(in, 3);
-            case BITS_IN_SIX_BYTES -> discardBytes(in, 2);
-            case BITS_IN_SEVEN_BYTES -> discardBytes(in, 1);
-        }
-    }
-
-    private static void discardBytes(final DataInput in, int num) throws IOException {
-        for (int i = 0; i < num; i++) {
-            in.readByte();
         }
     }
 

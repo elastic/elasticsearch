@@ -144,7 +144,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
             arr[i] = Double.doubleToLongBits(value);
         }
         // NOTE: 36 bits per value strictly required, but we round to 40 bits per value to write exactly 5 bytes per value
-        final long expectedNumBytes = 9 // token (2 bytes) + GCD (4 bytes) + padding (3 bytes)
+        final long expectedNumBytes = 6 // token (2 bytes) + GCD (4 bytes)
             + (blockSize * 40) / Byte.SIZE; // data
         doTest(arr, expectedNumBytes);
     }
@@ -155,7 +155,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         for (int i = 0; i < blockSize; ++i) {
             arr[i] = random.nextLong(1L << 32, 1L << 40);
         }
-        final long expectedNumBytes = 5 // token (2 bytes) + padding (3 bytes)
+        final long expectedNumBytes = 2 // token (2 bytes)
             + (blockSize * 40) / Byte.SIZE; // data
         doTest(arr, expectedNumBytes);
     }
@@ -166,7 +166,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         for (int i = 0; i < blockSize; ++i) {
             arr[i] = random.nextLong(1L << 40, 1L << 48);
         }
-        final long expectedNumBytes = 4 // token (2 bytes) + padding (2 bytes)
+        final long expectedNumBytes = 2 // token (2 bytes)
             + (blockSize * 48) / Byte.SIZE; // data
         doTest(arr, expectedNumBytes);
     }
@@ -177,7 +177,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         for (int i = 0; i < blockSize; ++i) {
             arr[i] = random.nextLong(1L << 48, 1L << 56);
         }
-        final long expectedNumBytes = 3 // token (2 bytes) + padding (1 bytes)
+        final long expectedNumBytes = 2 // token (2 bytes)
             + (blockSize * 56) / Byte.SIZE; // data
         doTest(arr, expectedNumBytes);
     }

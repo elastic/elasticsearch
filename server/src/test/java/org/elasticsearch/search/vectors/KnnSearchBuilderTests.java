@@ -177,7 +177,12 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     public void testRewrite() throws Exception {
         float[] expectedArray = randomVector(randomIntBetween(10, 1024));
-        KnnSearchBuilder searchBuilder = new KnnSearchBuilder("field", new SimpleQueryVectorBuilder(expectedArray), 5, 10);
+        KnnSearchBuilder searchBuilder = new KnnSearchBuilder(
+            "field",
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray),
+            5,
+            10
+        );
         searchBuilder.boost(randomFloat());
         searchBuilder.addFilterQueries(List.of(new RewriteableQuery()));
 
@@ -200,39 +205,6 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             vector[i] = randomFloat();
         }
         return vector;
-    }
-
-    private static class SimpleQueryVectorBuilder implements QueryVectorBuilder {
-        private final float[] array;
-
-        private SimpleQueryVectorBuilder(float[] array) {
-            this.array = array;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String getWriteableName() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void buildVector(Client client, ActionListener<float[]> listener) {
-            listener.onResponse(array);
-        }
     }
 
     private static class RewriteableQuery extends AbstractQueryBuilder<RewriteableQuery> {

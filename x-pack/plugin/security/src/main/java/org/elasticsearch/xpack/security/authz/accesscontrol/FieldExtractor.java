@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 
@@ -39,5 +41,9 @@ class FieldExtractor {
                 return super.acceptField(field);
             }
         });
+        //Queries that don't touch any field and are not specifically known to do so are not supported
+        if (fields.isEmpty() && query instanceof MatchAllDocsQuery == false && query instanceof MatchNoDocsQuery == false) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

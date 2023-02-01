@@ -15,11 +15,13 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -149,5 +151,70 @@ public class FieldExtractorTests extends ESTestCase {
         IndexOrDocValuesQuery query4 = new IndexOrDocValuesQuery(slowQuery, exactQuery);
         FieldExtractor.extractFields(query4, fields);
         assertEquals(asSet("bar", "foo"), fields);
+    }
+
+    public void testMatchAll() {
+        Set<String> fields = new HashSet<>();
+        FieldExtractor.extractFields(new MatchAllDocsQuery(), fields);
+        assertEquals(0, fields.size());
+    }
+
+    public void testMatchNone() {
+        Set<String> fields = new HashSet<>();
+        FieldExtractor.extractFields(new MatchNoDocsQuery(), fields);
+        assertEquals(0, fields.size());
+    }
+
+    public void testUnsupported() {
+        Set<String> fields = new HashSet<>();
+        Query unsupported = new Query() {
+            @Override
+            public String toString(String field) {
+                return null;
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                return false;
+            }
+
+            @Override
+            public int hashCode() {
+                return 0;
+            }
+        };
+        expectThrows(UnsupportedOperationException.class, () -> FieldExtractor.extractFields(unsupported, fields));
+    }
+
+    public void testCustomSupportedQuery() {
+        Set<String> fields = new HashSet<>();
+        Query custom = new Query() {
+            @Override
+            public String toString(String field) {
+                return null;
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                visitor.acceptField("field");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                return false;
+            }
+
+            @Override
+            public int hashCode() {
+                return 0;
+            }
+        };
+        FieldExtractor.extractFields(custom, fields);
+        assertEquals(asSet("field"), fields);
     }
 }

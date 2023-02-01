@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafMetaData;
@@ -30,7 +31,6 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TopDocs;
@@ -198,7 +198,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public VectorValues getVectorValues(String field) throws IOException {
+    public FloatVectorValues getFloatVectorValues(String field) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -253,7 +253,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) {
+    public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) {
         throw new UnsupportedOperationException();
     }
 

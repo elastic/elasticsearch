@@ -14,8 +14,8 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -32,6 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.both;
@@ -243,7 +244,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         int i = 1;
         List<BulkItemResponse> sortedResponses = bulkItemResponses.stream()
             .sorted(Comparator.comparing(o -> Integer.valueOf(o.getId())))
-            .toList();
+            .collect(Collectors.toList());
         for (BulkItemResponse bulkItemResponse : sortedResponses) {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));

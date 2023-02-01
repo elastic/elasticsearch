@@ -79,13 +79,13 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     public class Node {
         private final LocalNodeSpec spec;
         private final Path workingDir;
-        private final Path distributionDir;
         private final Path repoDir;
         private final Path dataDir;
         private final Path logsDir;
         private final Path configDir;
         private final Path tempDir;
 
+        private Path distributionDir;
         private Version currentVersion;
         private Process process = null;
         private DistributionDescriptor distributionDescriptor;
@@ -93,7 +93,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         public Node(LocalNodeSpec spec) {
             this.spec = spec;
             this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
-            this.distributionDir = workingDir.resolve("distro"); // location of es distribution files, typically hard-linked
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -111,6 +110,11 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 LOGGER.info("Creating installation for node '{}' in {}", spec.getName(), workingDir);
                 distributionDescriptor = resolveDistribution();
                 LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
+                distributionDir = OS.conditional(
+                    // Use per-version distribution directories on Windows to avoid cleanup failures
+                    c -> c.onWindows(() -> workingDir.resolve("distro").resolve(distributionDescriptor.getVersion().toString()))
+                        .onUnix(() -> workingDir.resolve("distro"))
+                );
                 initializeWorkingDirectory(currentVersion != null);
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install

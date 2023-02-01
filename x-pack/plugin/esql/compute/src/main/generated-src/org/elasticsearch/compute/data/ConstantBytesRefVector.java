@@ -47,6 +47,19 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
         return true;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof BytesRefVector that) {
+            return BytesRefVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefVector.hash(this);
+    }
+
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }

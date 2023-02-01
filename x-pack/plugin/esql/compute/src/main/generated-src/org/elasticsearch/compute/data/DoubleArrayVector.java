@@ -48,6 +48,19 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DoubleVector that) {
+            return DoubleVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return DoubleVector.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }

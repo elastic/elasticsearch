@@ -83,6 +83,19 @@ $if(int)$
 $endif$
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof $Type$Block that) {
+            return $Type$Block.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return $Type$Block.hash(this);
+    }
+
+    @Override
     public String toString() {
 $if(BytesRef)$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';

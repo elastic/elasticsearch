@@ -51,6 +51,19 @@ public final class DoubleArrayBlock extends AbstractBlock implements DoubleBlock
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DoubleBlock that) {
+            return DoubleBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return DoubleBlock.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }

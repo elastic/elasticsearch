@@ -24,15 +24,15 @@ spotless {
     /*
      * Generated files go here.
      */
-    targetExclude 'src/main/generated/**/*.java'
+    targetExclude "src/main/generated/**/*.java"
   }
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties      = ["Type" : "Int",      "type" : "int",      "TYPE" : "INT",       "int" : "true", "BytesRef" : ""]
-  var longProperties     = ["Type" : "Long",     "type" : "long",     "TYPE" : "LONG",      "int" : "",     "BytesRef" : ""]
-  var doubleProperties   = ["Type" : "Double",   "type" : "double",   "TYPE" : "DOUBLE",    "int" : "",     "BytesRef" : ""]
-  var bytesRefProperties = ["Type" : "BytesRef", "type" : "BytesRef", "TYPE" : "BYTES_REF", "int" : "",     "BytesRef" : "true"]
+  var intProperties      = ["Type" : "Int",      "type" : "int",      "TYPE" : "INT",       "int" : "true", "long" : "",     "double" : "",     "BytesRef" : ""]
+  var longProperties     = ["Type" : "Long",     "type" : "long",     "TYPE" : "LONG",      "int" : "",     "long" : "true", "double" : "",     "BytesRef" : ""]
+  var doubleProperties   = ["Type" : "Double",   "type" : "double",   "TYPE" : "DOUBLE",    "int" : "",     "long" : "",     "double" : "true", "BytesRef" : ""]
+  var bytesRefProperties = ["Type" : "BytesRef", "type" : "BytesRef", "TYPE" : "BYTES_REF", "int" : "",     "long" : "",     "double" : "",     "BytesRef" : "true"]
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {

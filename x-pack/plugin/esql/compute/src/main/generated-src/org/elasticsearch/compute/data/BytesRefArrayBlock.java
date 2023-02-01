@@ -51,6 +51,19 @@ public final class BytesRefArrayBlock extends AbstractBlock implements BytesRefB
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof BytesRefBlock that) {
+            return BytesRefBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefBlock.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
     }

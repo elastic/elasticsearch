@@ -48,6 +48,19 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof BytesRefVector that) {
+            return BytesRefVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefVector.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }

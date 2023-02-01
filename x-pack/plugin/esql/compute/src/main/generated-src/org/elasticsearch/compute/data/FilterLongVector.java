@@ -46,6 +46,19 @@ public final class FilterLongVector extends AbstractFilterVector implements Long
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof LongVector that) {
+            return LongVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return LongVector.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }

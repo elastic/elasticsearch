@@ -45,6 +45,19 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
         return true;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DoubleVector that) {
+            return DoubleVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return DoubleVector.hash(this);
+    }
+
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }

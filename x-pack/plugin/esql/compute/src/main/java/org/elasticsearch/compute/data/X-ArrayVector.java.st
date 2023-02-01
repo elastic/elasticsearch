@@ -71,6 +71,19 @@ $endif$
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof $Type$Vector that) {
+            return $Type$Vector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return $Type$Vector.hash(this);
+    }
+
+    @Override
     public String toString() {
 $if(BytesRef)$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';

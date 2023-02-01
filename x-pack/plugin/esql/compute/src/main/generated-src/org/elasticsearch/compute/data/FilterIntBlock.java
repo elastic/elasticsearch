@@ -51,6 +51,19 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof IntBlock that) {
+            return IntBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return IntBlock.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[block=" + block + "]";
     }

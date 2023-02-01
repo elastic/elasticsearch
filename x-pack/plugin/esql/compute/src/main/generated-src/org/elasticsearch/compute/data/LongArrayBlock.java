@@ -51,6 +51,19 @@ public final class LongArrayBlock extends AbstractBlock implements LongBlock {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof LongBlock that) {
+            return LongBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return LongBlock.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }

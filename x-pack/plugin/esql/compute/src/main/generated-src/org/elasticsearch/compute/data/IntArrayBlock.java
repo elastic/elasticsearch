@@ -61,6 +61,19 @@ public final class IntArrayBlock extends AbstractBlock implements IntBlock {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof IntBlock that) {
+            return IntBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return IntBlock.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }

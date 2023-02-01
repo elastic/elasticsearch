@@ -49,4 +49,22 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     public DoubleBlock filter(int... positions) {
         return new FilterDoubleVector(vector, positions).asBlock();
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DoubleBlock that) {
+            return DoubleBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return DoubleBlock.hash(this);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
 }

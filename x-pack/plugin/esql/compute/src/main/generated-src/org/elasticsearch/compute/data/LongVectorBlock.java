@@ -49,4 +49,22 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     public LongBlock filter(int... positions) {
         return new FilterLongVector(vector, positions).asBlock();
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof LongBlock that) {
+            return LongBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return LongBlock.hash(this);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
 }

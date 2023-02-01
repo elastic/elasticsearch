@@ -53,6 +53,19 @@ $endif$
         return true;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof $Type$Vector that) {
+            return $Type$Vector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return $Type$Vector.hash(this);
+    }
+
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }

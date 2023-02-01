@@ -48,6 +48,19 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof IntVector that) {
+            return IntVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return IntVector.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }

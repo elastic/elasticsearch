@@ -49,6 +49,19 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof BytesRefVector that) {
+            return BytesRefVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefVector.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
     }

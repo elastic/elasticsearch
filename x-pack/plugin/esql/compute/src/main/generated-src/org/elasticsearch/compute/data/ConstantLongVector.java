@@ -45,6 +45,19 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
         return true;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof LongVector that) {
+            return LongVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return LongVector.hash(this);
+    }
+
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }

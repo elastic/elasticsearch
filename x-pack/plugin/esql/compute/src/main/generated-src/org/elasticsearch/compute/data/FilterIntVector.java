@@ -46,6 +46,19 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof IntVector that) {
+            return IntVector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return IntVector.hash(this);
+    }
+
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }

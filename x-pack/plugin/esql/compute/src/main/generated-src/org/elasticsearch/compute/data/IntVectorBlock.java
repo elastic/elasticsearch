@@ -58,4 +58,22 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     public IntBlock filter(int... positions) {
         return new FilterIntVector(vector, positions).asBlock();
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof IntBlock that) {
+            return IntBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return IntBlock.hash(this);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
 }

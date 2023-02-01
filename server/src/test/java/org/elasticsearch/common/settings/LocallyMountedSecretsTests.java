@@ -53,7 +53,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
 
     public void testCreate() {
         SecureSettings secrets = new LocallyMountedSecrets(env);
-        assertFalse(secrets.isLoaded());
+        assertTrue(secrets.isLoaded());
     }
 
     public void testProcessSettingsFile() throws IOException {
@@ -95,7 +95,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         secrets.writeTo(out);
         final LocallyMountedSecrets fromStream = new LocallyMountedSecrets(out.bytes().streamInput());
 
-        assertFalse(fromStream.isLoaded());
+        assertTrue(fromStream.isLoaded());
     }
 
     public void testClose() throws IOException {

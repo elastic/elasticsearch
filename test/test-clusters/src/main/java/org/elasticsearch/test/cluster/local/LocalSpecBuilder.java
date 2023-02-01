@@ -12,7 +12,6 @@ import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.function.Supplier;
@@ -70,11 +69,6 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T keystore(String key, String value);
 
     /**
-     * Adds a secure file to the node keystore.
-     */
-    T keystore(String key, Resource file);
-
-    /**
      * Sets the security setting keystore password.
      */
     T keystorePassword(String password);
@@ -83,11 +77,6 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Adds a file to the node config directory
      */
     T configFile(String fileName, Resource configFile);
-
-    /**
-     * Sets the version of Elasticsearch. Defaults to {@link Version#CURRENT}.
-     */
-    T version(Version version);
 
     /**
      * Adds a system property to node JVM arguments.

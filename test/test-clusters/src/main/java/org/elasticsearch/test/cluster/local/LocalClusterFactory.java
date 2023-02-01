@@ -86,7 +86,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         private final Path configDir;
         private final Path tempDir;
 
-        private Version currentVersion;
+        private boolean initialized = false;
         private Process process = null;
         private DistributionDescriptor distributionDescriptor;
 
@@ -101,25 +101,22 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
         }
 
-        public synchronized void start(Version version) {
+        public synchronized void start() {
             LOGGER.info("Starting Elasticsearch node '{}'", spec.getName());
-            if (version != null) {
-                spec.setVersion(version);
-            }
 
-            if (currentVersion == null || currentVersion.equals(spec.getVersion()) == false) {
+            if (initialized == false) {
                 LOGGER.info("Creating installation for node '{}' in {}", spec.getName(), workingDir);
                 distributionDescriptor = resolveDistribution();
                 LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
-                initializeWorkingDirectory(currentVersion != null);
+                initializeWorkingDirectory();
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
                 copyExtraJarFiles();
                 installPlugins();
-                if (distributionDescriptor.getType() == DistributionType.INTEG_TEST) {
+                if (spec.getDistributionType() == DistributionType.INTEG_TEST) {
                     installModules();
                 }
-                currentVersion = spec.getVersion();
+                initialized = true;
             } else {
                 createConfigDirectory();
                 copyExtraConfigFiles();
@@ -128,7 +125,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             writeConfiguration();
             createKeystore();
             addKeystoreSettings();
-            addKeystoreFiles();
             configureSecurity();
 
             startElasticsearch();
@@ -139,7 +135,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 ProcessUtils.stopHandle(process.toHandle(), forcibly);
                 ProcessReaper.instance().unregister(getServiceName());
             }
-            deletePortsFiles();
         }
 
         public void waitForExit() {
@@ -162,20 +157,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 waitUntilReady();
             }
             return readPortsFile(portsFile).get(0);
-        }
-
-        public void deletePortsFiles() {
-            try {
-                Path hostsFile = workingDir.resolve("config").resolve("unicast_hosts.txt");
-                Path httpPortsFile = workingDir.resolve("logs").resolve("http.ports");
-                Path transportPortsFile = workingDir.resolve("logs").resolve("transport.ports");
-
-                Files.deleteIfExists(hostsFile);
-                Files.deleteIfExists(httpPortsFile);
-                Files.deleteIfExists(transportPortsFile);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to write unicast_hosts for: " + this, e);
-            }
         }
 
         public LocalNodeSpec getSpec() {
@@ -224,13 +205,9 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
-        private void initializeWorkingDirectory(boolean preserveWorkingDirectory) {
+        private void initializeWorkingDirectory() {
             try {
-                if (preserveWorkingDirectory) {
-                    IOUtils.deleteWithRetry(distributionDir);
-                } else {
-                    IOUtils.deleteWithRetry(workingDir);
-                }
+                IOUtils.deleteWithRetry(workingDir);
                 try {
                     IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
                 } catch (IOUtils.LinkCreationException e) {
@@ -368,31 +345,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                         key
                     ).waitFor();
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        private void addKeystoreFiles() {
-            spec.getKeystoreFiles().forEach((key, file) -> {
-                try {
-                    Path path = Files.createTempFile(tempDir, key, null);
-                    file.writeTo(path);
-
-                    ProcessUtils.exec(
-                        spec.getKeystorePassword(),
-                        workingDir,
-                        OS.conditional(
-                            c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
-                                .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
-                        ),
-                        getEnvironmentVariables(),
-                        false,
-                        "add-file",
-                        key,
-                        path.toString()
-                    ).waitFor();
-                } catch (InterruptedException | IOException e) {
                     throw new RuntimeException(e);
                 }
             });

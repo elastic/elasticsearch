@@ -29,7 +29,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -51,11 +50,6 @@ import static org.hamcrest.Matchers.not;
 public class ServerCliTests extends CommandTestCase {
 
     private SecureSettingsLoader mockSecureSettingsLoader;
-
-    @BeforeClass
-    public static void skipForFips() {
-        assumeFalse("Pending fix for https://github.com/elastic/elasticsearch/issues/93335", inFipsJvm());
-    }
 
     @Before
     public void setupMockConfig() throws IOException {
@@ -542,7 +536,7 @@ public class ServerCliTests extends CommandTestCase {
                     return mockSecureSettingsLoader;
                 }
 
-                return super.secureSettingsLoader(env);
+                return new KeystoreSecureSettingsLoader();
             }
         };
     }
@@ -611,6 +605,10 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             this.bootstrapped = true;
+            // make sure we don't fail in fips mode when we run with an empty password
+            if (inFipsJvm() && (password == null || password.isEmpty())) {
+                return KeyStoreWrapper.create();
+            }
             return super.bootstrap(environment, password);
         }
     }

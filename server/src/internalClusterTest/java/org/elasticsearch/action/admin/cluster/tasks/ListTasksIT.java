@@ -8,15 +8,36 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class ListTasksIT extends ESIntegTestCase {
+public class ListTasksIT extends ESSingleNodeTestCase {
 
     public void testListTasksFilteredByDescription() {
 
@@ -40,4 +61,111 @@ public class ListTasksIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), containsString("matching on descriptions is not available when [detailed] is false"));
 
     }
+
+    public void testWaitForCompletion() throws Exception {
+        final var threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
+
+        final var barrier = new CyclicBarrier(2);
+        getInstanceFromNode(PluginsService.class).filterPlugins(TestPlugin.class).get(0).barrier = barrier;
+
+        final var testActionFuture = new PlainActionFuture<ActionResponse.Empty>();
+        client().execute(TEST_ACTION, new TestRequest(), testActionFuture.map(r -> {
+            assertThat(threadContext.getResponseHeaders().get(TestTransportAction.HEADER_NAME), hasItem(TestTransportAction.HEADER_VALUE));
+            return r;
+        }));
+
+        barrier.await(10, TimeUnit.SECONDS);
+
+        final var listTasksResponse = client().admin().cluster().prepareListTasks().setActions(TestTransportAction.NAME).get();
+        assertThat(listTasksResponse.getNodeFailures(), empty());
+        assertEquals(1, listTasksResponse.getTasks().size());
+        final var task = listTasksResponse.getTasks().get(0);
+        assertEquals(TestTransportAction.NAME, task.action());
+
+        final var waitFuture = new PlainActionFuture<Void>();
+        client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setTargetTaskId(task.taskId())
+            .setWaitForCompletion(true)
+            .execute(waitFuture.delegateFailure((l, waitResult) -> {
+                // cannot guarantee that waitResult contains the task (it may be allowed to complete before we start to wait)
+                // but the task must now be complete:
+                client().admin().cluster().prepareListTasks().setActions(TestTransportAction.NAME).execute(l.map(listAfterWaitResult -> {
+                    assertThat(listAfterWaitResult.getTasks(), empty());
+                    return null;
+                }));
+                // and we must not see its header:
+                assertNull(threadContext.getResponseHeaders().get(TestTransportAction.HEADER_NAME));
+            }));
+
+        Thread.yield();
+
+        assertFalse(waitFuture.isDone());
+        assertFalse(testActionFuture.isDone());
+        barrier.await(10, TimeUnit.SECONDS);
+        testActionFuture.get(10, TimeUnit.SECONDS);
+        waitFuture.get(10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(TestPlugin.class);
+    }
+
+    private static final ActionType<ActionResponse.Empty> TEST_ACTION = new ActionType<>(
+        TestTransportAction.NAME,
+        in -> ActionResponse.Empty.INSTANCE
+    );
+
+    public static class TestPlugin extends Plugin implements ActionPlugin {
+        volatile CyclicBarrier barrier;
+
+        @Override
+        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            return List.of(new ActionHandler<>(TEST_ACTION, TestTransportAction.class));
+        }
+    }
+
+    public static class TestRequest extends ActionRequest {
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+    }
+
+    public static class TestTransportAction extends HandledTransportAction<TestRequest, ActionResponse.Empty> {
+
+        static final String NAME = "internal:test/action";
+
+        static final String HEADER_NAME = "HEADER_NAME";
+        static final String HEADER_VALUE = "HEADER_VALUE";
+
+        private final TestPlugin testPlugin;
+        private final ThreadPool threadPool;
+
+        @Inject
+        public TestTransportAction(
+            TransportService transportService,
+            ActionFilters actionFilters,
+            PluginsService pluginsService,
+            ThreadPool threadPool
+        ) {
+            super(NAME, transportService, actionFilters, in -> new TestRequest());
+            testPlugin = pluginsService.filterPlugins(TestPlugin.class).get(0);
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        protected void doExecute(Task task, TestRequest request, ActionListener<ActionResponse.Empty> listener) {
+            final var barrier = testPlugin.barrier;
+            assertNotNull(barrier);
+            threadPool.generic().execute(ActionRunnable.run(listener, () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                threadPool.getThreadContext().addResponseHeader(HEADER_NAME, HEADER_VALUE);
+                barrier.await(10, TimeUnit.SECONDS);
+            }));
+        }
+    }
+
 }

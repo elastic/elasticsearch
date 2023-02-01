@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -272,7 +273,27 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
         int docsToIndex = randomIntBetween(1, 100);
-        indexDocsAndRefresh(indexName, docsToIndex);
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < docsToIndex; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        boolean bulkRefreshes = randomBoolean();
+        if (bulkRefreshes) {
+            bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        }
+        var bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+        if (bulkRefreshes == false) {
+            assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+        } else {
+            // Currently anything other than NONE would result in the forced_refresh set to true.
+            // TODO: refine this once https://elasticco.atlassian.net/browse/ES-5312 is done.
+            for (BulkItemResponse response : bulkResponse.getItems()) {
+                if (response.getResponse() != null) {
+                    assertTrue(response.getResponse().forcedRefresh());
+                }
+            }
+        }
         var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
         assertNoFailures(searchResponse);
         assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);

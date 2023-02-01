@@ -12,18 +12,24 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.OLD;
 import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.UPGRADED;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
@@ -58,6 +64,30 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
 
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
+    }
+
+    @Before
+    public void init() throws IOException {
+        assertThat(
+            "we don't need this branch if we aren't compatible with 6.0",
+            org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(org.elasticsearch.Version.V_6_0_0),
+            equalTo(true)
+        );
+        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(org.elasticsearch.Version.V_7_0_0)) {
+            XContentBuilder template = jsonBuilder();
+            template.startObject();
+            {
+                template.field("index_patterns", "*");
+                template.field("order", "0");
+                template.startObject("settings");
+                template.field("number_of_shards", 5);
+                template.endObject();
+            }
+            template.endObject();
+            Request createTemplate = new Request("PUT", "/_template/template");
+            createTemplate.setJsonEntity(Strings.toString(template));
+            client().performRequest(createTemplate);
+        }
     }
 
     @AfterClass

@@ -113,8 +113,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-        }
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
     },
     TIME_SERIES("time_series") {
         @Override

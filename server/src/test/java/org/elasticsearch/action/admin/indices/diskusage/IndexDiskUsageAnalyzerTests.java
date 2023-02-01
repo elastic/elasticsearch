@@ -24,7 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.KnnVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -257,7 +257,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
             indexRandomly(dir, codec, numDocs, doc -> {
                 float[] vector = randomVector(dimension);
-                doc.add(new KnnVectorField("vector", vector, similarity));
+                doc.add(new KnnFloatVectorField("vector", vector, similarity));
             });
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             logger.info("--> stats {}", stats);
@@ -520,7 +520,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     static void addRandomKnnVectors(Document doc) {
         int numFields = randomFrom(1, 3);
         for (int f = 0; f < numFields; f++) {
-            doc.add(new KnnVectorField("knnvector-" + f, randomVector(DEFAULT_VECTOR_DIMENSION)));
+            doc.add(new KnnFloatVectorField("knnvector-" + f, randomVector(DEFAULT_VECTOR_DIMENSION)));
         }
     }
 

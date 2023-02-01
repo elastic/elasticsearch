@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test.cluster;
 
-import org.elasticsearch.test.cluster.util.Version;
-
 import java.io.Closeable;
 
 /**
@@ -75,19 +73,4 @@ public interface ClusterHandle extends Closeable {
      * @return cluster node TCP transport endpoints
      */
     String getTransportEndpoint(int index);
-
-    /**
-     * Upgrades a single node to the given version. Method blocks until the node is back up and ready to respond to requests.
-     *
-     * @param index index of node ot upgrade
-     * @param version version to upgrade to
-     */
-    void upgradeNodeToVersion(int index, Version version);
-
-    /**
-     * Performs a "full cluster restart" upgrade to the given version. Method blocks until the cluster is restarted and available.
-     *
-     * @param version version to upgrade to
-     */
-    void upgradeToVersion(Version version);
 }

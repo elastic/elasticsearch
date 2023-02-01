@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
+import static org.elasticsearch.common.util.CollectionUtils.ensureNoSelfReferences;
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,8 +98,8 @@ public class CollectionUtilsTests extends ESTestCase {
     }
 
     public void testEnsureNoSelfReferences() {
-        CollectionUtils.ensureNoSelfReferences(null, "test with null");
-        CollectionUtils.ensureNoSelfReferences(Map.of(), "test with empty map");
+        ensureNoSelfReferences(null, "test with null");
+        ensureNoSelfReferences(Map.of(), "test with empty map");
     }
 
     public void testEnsureNoSelfReferencesMap() {
@@ -109,7 +110,7 @@ public class CollectionUtilsTests extends ESTestCase {
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> CollectionUtils.ensureNoSelfReferences(map, "test with self ref value")
+                () -> ensureNoSelfReferences(map, "test with self ref value")
             );
             assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref value)"));
         }
@@ -120,7 +121,7 @@ public class CollectionUtilsTests extends ESTestCase {
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> CollectionUtils.ensureNoSelfReferences(map, "test with self ref key")
+                () -> ensureNoSelfReferences(map, "test with self ref key")
             );
             assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref key)"));
         }

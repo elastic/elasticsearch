@@ -65,7 +65,13 @@ public class LocalClusterHandle implements ClusterHandle {
     public void start() {
         if (started.getAndSet(true) == false) {
             LOGGER.info("Starting Elasticsearch test cluster '{}'", name);
-            execute(() -> nodes.parallelStream().forEach(n -> n.start(null)));
+            if (nodes.stream().anyMatch(n -> n.getSpec().getVersion().before("6.5.0"))) {
+                // We need to start a seed node for clusters before 6.5.0 that don't support unicast hosts file provider
+                nodes.get(0).start(null, null);
+                execute(() -> nodes.parallelStream().skip(1).forEach(n -> n.start(null, nodes.get(0).getTransportEndpoint())));
+            } else {
+                execute(() -> nodes.parallelStream().forEach(n -> n.start(null, null)));
+            }
         }
         waitUntilReady();
     }
@@ -131,7 +137,7 @@ public class LocalClusterHandle implements ClusterHandle {
         Node node = nodes.get(index);
         node.stop(false);
         LOGGER.info("Upgrading node '{}' to version {}", node.getSpec().getName(), version);
-        node.start(version);
+        node.start(version, null);
         waitUntilReady();
     }
 
@@ -140,7 +146,7 @@ public class LocalClusterHandle implements ClusterHandle {
         stop(false);
         if (started.getAndSet(true) == false) {
             LOGGER.info("Upgrading Elasticsearch test cluster '{}' to version {}", name, version);
-            execute(() -> nodes.parallelStream().forEach(n -> n.start(version)));
+            execute(() -> nodes.parallelStream().forEach(n -> n.start(version, null)));
         }
         waitUntilReady();
     }

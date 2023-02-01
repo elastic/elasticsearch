@@ -33,7 +33,6 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
         this.apply(new FipsEnabledClusterConfigProvider());
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());
-        this.rolesFile(Resource.fromClasspath("default_test_roles.yml"));
     }
 
     @Override

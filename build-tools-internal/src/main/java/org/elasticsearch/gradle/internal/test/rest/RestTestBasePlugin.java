@@ -14,6 +14,9 @@ import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
+import org.elasticsearch.gradle.Jdk;
+import org.elasticsearch.gradle.JdkDownloadPlugin;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
@@ -56,6 +59,7 @@ import javax.inject.Inject;
 public class RestTestBasePlugin implements Plugin<Project> {
 
     private static final String TESTS_RUNTIME_JAVA_SYSPROP = "tests.runtime.java";
+    private static final String TESTS_LEGACY_JAVA_SYSPROP = "tests.legacy.java";
     private static final String DEFAULT_DISTRIBUTION_SYSPROP = "tests.default.distribution";
     private static final String INTEG_TEST_DISTRIBUTION_SYSPROP = "tests.integ-test.distribution";
     private static final String BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX = "tests.snapshot.distribution.";
@@ -67,6 +71,8 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String MODULES_CONFIGURATION = "clusterModules";
     private static final String PLUGINS_CONFIGURATION = "clusterPlugins";
     private static final String EXTRACTED_PLUGINS_CONFIGURATION = "extractedPlugins";
+    private static final String LEGACY_JAVA_VENDOR = "adoptium";
+    private static final String LEGACY_JAVA_VERSION = "8u302+b08";
 
     private final ProviderFactory providerFactory;
 
@@ -79,6 +85,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
+        project.getPluginManager().apply(JdkDownloadPlugin.class);
 
         // Register integ-test and default distributions
         ElasticsearchDistribution defaultDistro = createDistribution(
@@ -108,6 +115,14 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 project.getDependencies().add(pluginsConfiguration.getName(), project.files(project.getTasks().named("bundlePlugin")));
             }
 
+        });
+
+        // Register legacy JDK for running pre-7.0 clusters
+        Jdk legacyJdk = JdkDownloadPlugin.getContainer(project).create("legacy_jdk", jdk -> {
+            jdk.setVendor(LEGACY_JAVA_VENDOR);
+            jdk.setVersion(LEGACY_JAVA_VERSION);
+            jdk.setPlatform(OS.current().name().toLowerCase());
+            jdk.setArchitecture(Architecture.current().name().toLowerCase());
         });
 
         project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(task -> {
@@ -175,6 +190,15 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         (isReleased ? BWC_RELEASED_DISTRIBUTION_SYSPROP_PREFIX : BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX) + versionString,
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
+
+                    // If we're testing a version pre-7.0 we also need a compatible JDK
+                    if (version.before("7.0.0")) {
+                        task.dependsOn(legacyJdk);
+                        nonInputSystemProperties.systemProperty(
+                            TESTS_LEGACY_JAVA_SYSPROP,
+                            providerFactory.provider(() -> legacyJdk.getJavaHomePath().toString())
+                        );
+                    }
 
                     return null;
                 }

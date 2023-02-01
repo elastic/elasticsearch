@@ -27,7 +27,6 @@ import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.UPGRADE
 
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private static boolean upgradeFailed = false;
     private static boolean upgraded = false;
@@ -46,10 +45,6 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     public void maybeUpgrade() throws Exception {
         if (upgraded == false && requestedUpgradeStatus == UPGRADED) {
             try {
-                if (OLD_CLUSTER_VERSION.before(MINIMUM_WIRE_COMPATIBLE_VERSION)) {
-                    // First upgrade to latest wire compatible version
-                    getUpgradeCluster().upgradeToVersion(MINIMUM_WIRE_COMPATIBLE_VERSION);
-                }
                 getUpgradeCluster().upgradeToVersion(Version.CURRENT);
                 closeClients();
                 initClient();

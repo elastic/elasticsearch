@@ -101,7 +101,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
         }
 
-        public synchronized void start(Version version) {
+        public synchronized void start(Version version, String seedTransportAddress) {
             LOGGER.info("Starting Elasticsearch node '{}'", spec.getName());
             if (version != null) {
                 spec.setVersion(version);
@@ -130,7 +130,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 copyExtraConfigFiles();
             }
 
-            writeConfiguration();
+            writeConfiguration(seedTransportAddress);
             createKeystore();
             addKeystoreSettings();
             addKeystoreFiles();
@@ -277,7 +277,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             );
         }
 
-        private void writeConfiguration() {
+        private void writeConfiguration(String seedTransportAddress) {
             Path configFile = configDir.resolve("elasticsearch.yml");
             Path jvmOptionsFile = configDir.resolve("jvm.options");
 
@@ -288,6 +288,16 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
                 finalSettings.putAll(spec.resolveSettings());
+
+                // For versions pre-6.5 we cannot use the unicast hosts file
+                if (spec.getVersion().before("6.5.0")) {
+                    if (seedTransportAddress != null) {
+                        finalSettings.put("discovery.zen.ping.unicast.hosts", "[\"" + seedTransportAddress + "\"]");
+                    } else {
+                        finalSettings.put("discovery.zen.ping.unicast.hosts", "[]");
+
+                    }
+                }
 
                 Files.writeString(
                     configFile,

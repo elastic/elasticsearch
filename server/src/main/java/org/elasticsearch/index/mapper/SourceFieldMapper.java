@@ -89,7 +89,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final Parameter<Mode> mode = new Parameter<>(
             "mode",
             true,
-            () -> null,
+            () -> getIndexMode() == IndexMode.TIME_SERIES ? Mode.SYNTHETIC : null,
             (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
             m -> toType(m).enabled.explicit() ? null : toType(m).mode,
             (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
@@ -142,21 +142,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (isDefault()) {
                 return indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT;
             }
-            if (indexMode == IndexMode.TIME_SERIES) {
-                if (mode.get() != Mode.SYNTHETIC) {
-                    throw new IllegalArgumentException("time series indices only support synthetic source");
-                }
-                if (includes.isConfigured() || excludes.isConfigured()) {
-                    throw new IllegalArgumentException("time series indices don't support includes and excludes attributes");
-                }
-            }
-            return new SourceFieldMapper(
+            SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
                 mode.get(),
                 enabled.get(),
                 includes.getValue().toArray(String[]::new),
                 excludes.getValue().toArray(String[]::new),
                 indexMode
             );
+            indexMode.validateSourceFieldMapper(sourceFieldMapper);
+            return sourceFieldMapper;
+        }
+
+        private IndexMode getIndexMode() {
+            return indexMode;
         }
     }
 

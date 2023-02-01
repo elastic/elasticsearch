@@ -11,7 +11,7 @@ Plugins are ZIP files composed of JAR files and two metadata files:
 
 * `stable-plugin-descriptor.properties` - a Java properties file that describes 
 the plugin. Refer to <<stable-plugin-descriptor.properties>>.
-* `named_components.json`  - a JSON file mapping interfaces to key-value pairs 
+* `named_components.json` - a JSON file mapping interfaces to key-value pairs 
 of component names and implementation classes.
 
 Note that only JAR files at the root of the plugin are added to the classpath
@@ -36,12 +36,12 @@ major release. In other words, once you have a working artifact, you can re-use
 it when you upgrade {es} to a new bugfix or minor version.
 
 It's also possible to create text analysis plugins using the method described in
-<<creating-non-text-analysis-plugins>> but plugins created using that method are
-pinned to specific version of {es} and will have to be recompiled when upgrading
-{es}.
+<<creating-non-text-analysis-plugins>>. Howeverm plugins created using that 
+method are pinned to specific version of {es}. You will need to recompile them
+when upgrading{es}.
 
-The analysis plugin API provides four factory classes that a stable analysis
-plugin may choose to implement:
+A text analysis can implement four factory classes that are provided by the 
+analysis plugin API.
 
 * `AnalyzerFactory` to create a Lucene analyzer
 * `CharFilterFactory` to create a character character filter
@@ -81,7 +81,7 @@ that this build script uses the `elasticsearch.stable-esplugin` gradle plugin to
 build your plugin.
 . Edit the `build.gradle` build script:
 ** Add a definition for the `elasticsearchVersion` and matching `luceneVersion` 
-variables to the top of the file. These versions can be found in the 
+variables to the top of the file. You can find these versions in the 
 `build-tools-internal/version.properties` file in the {es-repo}[Elasticsearch 
 Github repository].
 ** Edit the `name` and `description` in the `esplugin` section of the build 
@@ -101,7 +101,7 @@ runtime.
 +
 [source,sh]
 ----
-./gradlew bundlePlugin
+gradle bundlePlugin
 ----
 The resulting plugin ZIP file will be written to the  `build/distributions` 
 directory.

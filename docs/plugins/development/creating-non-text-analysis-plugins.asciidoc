@@ -1,25 +1,26 @@
 [[creating-non-text-analysis-plugins]]
 === Creating non-text analysis plugins
 
-Non-text analysis plugins provide {es} with mechanisms for custom
-authentication, authorization, or scoring mechanisms and more.
+Non-text analysis plugins provide {es} with mechanisms for custom 
+authentication, authorization, scoring, and more.
 
 [IMPORTANT]
 .Plugin release lifecycle
 ==============================================
 
-For plugins created using the method on this page, you will have to release a
-new version of the plugin for each new {es} release. This version is
-checked when the plugin is loaded so {es} will refuse to start in the
-presence of plugins with the incorrect `elasticsearch.version`.
+For plugins created using the method described on this page, you will have to
+release a new version of the plugin for each new {es} release. This version is
+checked when the plugin is loaded. {es} will refuse to start in the presence of
+plugins with the incorrect `elasticsearch.version`.
 
 ==============================================
 
 [discrete]
 ==== Plugin file structure
 
-Plugins are ZIP files composed of JAR files and a metadata file called `plugin-descriptor.properties`, a Java properties file that describes 
-the plugin. Refer to <<plugin-descriptor.properties>>.
+Plugins are ZIP files composed of JAR files and <<plugin-descriptor.properties,a
+metadata file called `plugin-descriptor.properties`>>, a Java properties file
+that describes the plugin.
 
 Note that only JAR files at the root of the plugin are added to the classpath
 for the plugin. If you need other resources, package them into a resources JAR.

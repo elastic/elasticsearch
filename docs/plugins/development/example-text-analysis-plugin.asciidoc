@@ -6,8 +6,8 @@ The plugin provides a custom Lucene token filter that strips all tokens except
 for "hello" and "world". 
 
 Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it
-easier to develop and package plugins. The steps below assume you use this
-plugin. However, you don't need Gradle to create plugins.
+easier to develop and package plugins. The steps in this guide assume you use
+this plugin. However, you don't need Gradle to create plugins.
 
 . Create a new directory for your project.
 . In this example, the source code  will be organized under the `main` and 
@@ -105,9 +105,10 @@ public class HelloWorldTokenFilter extends FilteringTokenFilter {
     }
 }
 ----
-. This filter can be provided to Elasticsearch using the following `HelloWorldTokenFilterFactory.java` factory class. It uses the `@NamedComponent`
-annotation to give the filter the `hello_world` name. This is the name you can 
-use to refer to the filter, once the plugin has been deployed.
+. This filter can be provided to Elasticsearch using the following
+`HelloWorldTokenFilterFactory.java` factory class. The `@NamedComponent`
+annotation is used to give the filter the `hello_world` name. This is the name
+you can use to refer to the filter, once the plugin has been deployed.
 +
 [source,java]
 ----
@@ -130,16 +131,18 @@ public class HelloWorldTokenFilterFactory implements TokenFilterFactory {
 . Unit tests may go under the `src/test` directory. You will have to add
 dependencies for your preferred testing framework.
 
-. Assemble a plugin ZIP file by running:
+. Run:
 +
 [source,sh]
 ----
-./gradlew bundlePlugin
+gradle bundlePlugin
 ----
-The resulting plugin ZIP file will be written to the `build/distributions` 
-directory.
+This builds the JAR file, generates the metadata files, and bundles them into a 
+plugin ZIP file. The resulting ZIP file will be written to the 
+`build/distributions` directory.
 . <<plugin-management,Install the plugin>>.
-. Verify that the `hello_world` token filter works using the `_analyze` API:
+. You can use the `_analyze` API to verify that the `hello_world` token filter 
+works as expected:
 +
 [source,console]
 ----
@@ -166,7 +169,9 @@ the {es} Github repository for an example.
 . Create a `yamlRestTest` directory in the `src` directory.
 . Under the `yamlRestTest` directory, create a `java` folder for Java sources
 and a `resources` folder.
-. In `src/yamlRestTest/java/org/example/`, create `HelloWorldPluginClientYamlTestSuiteIT.java`. This class implements `ESClientYamlSuiteTestCase`.
+. In `src/yamlRestTest/java/org/example/`, create 
+`HelloWorldPluginClientYamlTestSuiteIT.java`. This class implements 
+`ESClientYamlSuiteTestCase`.
 +
 [source,java]
 ----
@@ -174,19 +179,23 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
 public class HelloWorldPluginClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
     public HelloWorldPluginClientYamlTestSuiteIT(
             @Name("yaml") ClientYamlTestCandidate testCandidate
     ) {
         super(testCandidate);
     }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
 ----
-. In Under `src/yamlRestTest/resources/rest-api-spec/test/plugin`, create this YAML file:
+. In `src/yamlRestTest/resources/rest-api-spec/test/plugin`, create the 
+`10_token_filter.yml` YAML file:
 +
 [source,yaml]
 ----
@@ -203,4 +212,11 @@ public class HelloWorldPluginClientYamlTestSuiteIT extends ESClientYamlSuiteTest
   - length: { tokens: 2 }
   - match:  { tokens.0.token: "hello" }
   - match:  { tokens.1.token: "world" }
+
+----
+. Run the test with:
++
+[source,sh]
+----
+gradle yamlRestTest
 ----

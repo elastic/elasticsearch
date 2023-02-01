@@ -481,7 +481,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 int ssrSize = in.readVInt();
-                for (int ssrIndex = 0; ssrIndex < ssrSize; ++ssrSize) {
+                for (int ssrIndex = 0; ssrIndex < ssrSize; ++ssrIndex) {
                     SingleSearchResult secondarySearchResult = new SingleSearchResult();
                     secondarySearchResult.from = in.readVInt();
                     secondarySearchResult.size = in.readVInt();

@@ -31,12 +31,13 @@ public class FileWatchService extends AbstractLifecycleComponent {
     private static final int REGISTER_RETRY_COUNT = 5;
     private static final Logger logger = LogManager.getLogger(FileWatchService.class);
 
+
     final Path operatorSettingsDir;
     final String settingsFileName;
     FileSettingsService.FileUpdateState fileUpdateState;
     private WatchService watchService; // null;
     WatchKey settingsDirWatchKey;
-    private WatchKey configDirWatchKey; // there is only one config dir
+    WatchKey configDirWatchKey; // there is only one config dir
     private volatile boolean active = false;
 
     FileWatchService(Path operatorSettingsDir, String settingsFileName) {
@@ -137,7 +138,11 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
             throw new IllegalStateException("unable to launch a new watch service", e);
         }
+    }
 
+    synchronized void stopWatcher() {
+        settingsDirWatchKey = null;
+        configDirWatchKey = null;
     }
 
     // package private for testing

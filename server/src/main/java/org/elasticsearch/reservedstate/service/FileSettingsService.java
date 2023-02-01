@@ -57,7 +57,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     // TODO[wrb]: don't hardcode these
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings"; // TODO[wrb]: do we need multiple namespaces? Seems that one should do
-    private static final int REGISTER_RETRY_COUNT = 5;
 
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
@@ -65,10 +64,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private Thread watcherThread;
     // TODO[wrb]: parameterize
     // private WatchKey settingsDirWatchKey;
-    private WatchKey configDirWatchKey; // there is only one config dir
 
     public static final String OPERATOR_DIRECTORY = "operator";
-
     private final List<FileSettingsChangedListener> eventListeners;
 
     Map<String, FileWatchService> fileSettingsMap = new ConcurrentHashMap<>();
@@ -210,7 +207,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      */
     private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
         if (watching()) {
-            // TODO[wrb]: this is only checking one file: can we check all?
             ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
             // like snapshot restores.
@@ -246,11 +242,12 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
         fileWatchService.startWatcher();
 
-        // thread for each? thread for both?
+        // Get this down into FileWatchService somehow
         watcherThread = new Thread(this::watcherThread, "elasticsearch[file-settings-watcher]");
         watcherThread.start();
     }
 
+    // Get this thing down into FileWatchService somehow
     private void watcherThread() {
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
@@ -344,17 +341,16 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever
             // this will also close any outstanding keys
-            FileWatchService oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
             try (var ws = fileWatchService.watchService()) {
                 watcherThread.interrupt();
                 watcherThread.join();
 
                 // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
-                if (configDirWatchKey != null) {
-                    configDirWatchKey.cancel();
+                if (fileWatchService.configDirWatchKey != null) {
+                    fileWatchService.configDirWatchKey.cancel();
                 }
-                if (oss.settingsDirWatchKey != null) {
-                    oss.settingsDirWatchKey.cancel();
+                if (fileWatchService.settingsDirWatchKey != null) {
+                    fileWatchService.settingsDirWatchKey.cancel();
                 }
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
@@ -362,8 +358,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 logger.info("interrupted while closing the watch service", interruptedException);
             } finally {
                 watcherThread = null;
-                oss.settingsDirWatchKey = null;
-                configDirWatchKey = null;
+                fileWatchService.stopWatcher();
                 fileWatchService.close();
                 logger.info("watcher service stopped");
             }

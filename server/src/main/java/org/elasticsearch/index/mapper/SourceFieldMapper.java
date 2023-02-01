@@ -293,7 +293,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     /**
      * Build something to load source {@code _source}.
      */
-    public <T> SourceLoader newSourceLoader(Mapping mapping) {
+    public SourceLoader newSourceLoader(Mapping mapping) {
         if (mode == Mode.SYNTHETIC) {
             return new SourceLoader.Synthetic(mapping);
         }

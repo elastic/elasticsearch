@@ -9,10 +9,9 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 
@@ -35,7 +34,7 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
     }
 
     public void testCheckVersionCompatibility() throws IOException {
-        Version streamVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion streamVersion = TransportVersionUtils.randomPreviousCompatibleVersion(random(), TransportVersion.CURRENT);
         try (VersionCheckingStreamOutput out = new VersionCheckingStreamOutput(streamVersion)) {
             out.writeNamedWriteable(QueryBuilders.matchAllQuery());
 
@@ -47,7 +46,7 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
                 "[test_writable] was released first in version "
                     + TransportVersion.CURRENT
                     + ", failed compatibility check trying to send it to node with version "
-                    + streamVersion.transportVersion,
+                    + streamVersion,
                 e.getMessage()
             );
         }

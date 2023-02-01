@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -59,7 +58,11 @@ public final class SearchContextId {
         return contextIds.contains(contextId);
     }
 
-    public static String encode(List<SearchPhaseResult> searchPhaseResults, Map<String, AliasFilter> aliasFilter, Version version) {
+    public static String encode(
+        List<SearchPhaseResult> searchPhaseResults,
+        Map<String, AliasFilter> aliasFilter,
+        TransportVersion version
+    ) {
         final Map<ShardId, SearchContextIdForNode> shards = new HashMap<>();
         for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
             final SearchShardTarget target = searchPhaseResult.getSearchShardTarget();
@@ -69,8 +72,8 @@ public final class SearchContextId {
             );
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
-            Version.writeVersion(version, out);
+            out.setTransportVersion(version);
+            TransportVersion.writeVersion(version, out);
             out.writeMap(shards, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
             out.writeMap(aliasFilter, StreamOutput::writeString, (o, v) -> v.writeTo(o));
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));

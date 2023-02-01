@@ -9,7 +9,6 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 import java.io.EOFException;

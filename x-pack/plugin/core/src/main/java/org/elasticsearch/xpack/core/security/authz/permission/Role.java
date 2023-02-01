@@ -17,6 +17,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -163,7 +164,7 @@ public interface Role {
         FieldPermissionsCache fieldPermissionsCache
     );
 
-    Collection<RoleDescriptor> getRemoteRoleDescriptors(String remoteClusterAlias);
+    RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(final String remoteClusterAlias);
 
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.

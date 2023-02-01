@@ -668,19 +668,13 @@ public class RBACEngine implements AuthorizationEngine {
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
-            listener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
-            );
-            return;
-        }
-
-        final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-        final Collection<RoleDescriptor> remoteRoleDescriptors = role.getRemoteRoleDescriptors(remoteClusterAlias);
-        if (remoteRoleDescriptors.isEmpty()) {
-            listener.onResponse(RoleDescriptorsIntersection.EMPTY);
+        if (authorizationInfo instanceof RBACAuthorizationInfo rbacAuthzInfo) {
+            final Role role = rbacAuthzInfo.getRole();
+            listener.onResponse(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias));
         } else {
-            listener.onResponse(new RoleDescriptorsIntersection(remoteRoleDescriptors.stream().map(Set::of).collect(Collectors.toList())));
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info: " + authorizationInfo.getClass().getSimpleName())
+            );
         }
     }
 

@@ -1647,7 +1647,7 @@ public class RBACEngineTests extends ESTestCase {
             );
         }
 
-        final Role role = mockRoleWithRemoteIndices(remoteIndicesBuilder.build());
+        final Role role = createSimpleRoleWithRemoteIndices(remoteIndicesBuilder.build());
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo.getRole()).thenReturn(role);
 
@@ -1705,7 +1705,7 @@ public class RBACEngineTests extends ESTestCase {
         }
         final RemoteIndicesPermission permissions = remoteIndicesBuilder.build();
         List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = permissions.remoteIndicesGroups();
-        final Role role1 = mockRoleWithRemoteIndices(permissions);
+        final Role role1 = createSimpleRoleWithRemoteIndices(permissions);
         final RBACAuthorizationInfo authorizationInfo1 = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo1.getRole()).thenReturn(role1);
         final PlainActionFuture<RoleDescriptorsIntersection> future1 = new PlainActionFuture<>();
@@ -1725,7 +1725,7 @@ public class RBACEngineTests extends ESTestCase {
                     .toList()
             )
         );
-        final Role role2 = mockRoleWithRemoteIndices(shuffledPermissions);
+        final Role role2 = createSimpleRoleWithRemoteIndices(shuffledPermissions);
         final RBACAuthorizationInfo authorizationInfo2 = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo2.getRole()).thenReturn(role2);
         final PlainActionFuture<RoleDescriptorsIntersection> future2 = new PlainActionFuture<>();
@@ -1740,7 +1740,7 @@ public class RBACEngineTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final String concreteClusterAlias = randomAlphaOfLength(10);
-        final Role role = mockRoleWithRemoteIndices(
+        final Role role = createSimpleRoleWithRemoteIndices(
             RemoteIndicesPermission.builder()
                 .addGroup(
                     Set.of(concreteClusterAlias),
@@ -1770,7 +1770,7 @@ public class RBACEngineTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final String concreteClusterAlias = randomAlphaOfLength(10);
-        final Role role = mockRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
+        final Role role = createSimpleRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo.getRole()).thenReturn(role);
 
@@ -2035,7 +2035,7 @@ public class RBACEngineTests extends ESTestCase {
         return new FieldPermissionsDefinition.FieldGrantExcludeGroup(generateRandomStringArray(3, 10, false, false), new String[] {});
     }
 
-    private Role mockRoleWithRemoteIndices(final RemoteIndicesPermission remoteIndicesPermission) {
+    private Role createSimpleRoleWithRemoteIndices(final RemoteIndicesPermission remoteIndicesPermission) {
         final String[] roleNames = generateRandomStringArray(3, 10, false, false);
         Role.Builder roleBuilder = Role.builder(new RestrictedIndices(Automatons.EMPTY), roleNames);
         remoteIndicesPermission.remoteIndicesGroups().forEach(group -> {

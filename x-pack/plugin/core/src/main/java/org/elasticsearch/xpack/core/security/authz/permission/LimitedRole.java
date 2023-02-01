@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -123,11 +124,24 @@ public final class LimitedRole implements Role {
     }
 
     @Override
-    public Collection<RoleDescriptor> getRemoteRoleDescriptors(String remoteClusterAlias) {
-        final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
-        roleDescriptors.addAll(baseRole.getRemoteRoleDescriptors(remoteClusterAlias));
-        roleDescriptors.addAll(limitedByRole.getRemoteRoleDescriptors(remoteClusterAlias));
-        return Collections.unmodifiableList(roleDescriptors);
+    public RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(final String remoteClusterAlias) {
+        final RoleDescriptorsIntersection baseIntersection = baseRole.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias);
+        // Intersecting with empty descriptors list should result in an empty intersection.
+        if (baseIntersection.roleDescriptorsList().isEmpty()) {
+            return RoleDescriptorsIntersection.EMPTY;
+        }
+        final RoleDescriptorsIntersection limitedByIntersection = limitedByRole.getRemoteAccessRoleDescriptorsIntersection(
+            remoteClusterAlias
+        );
+        if (limitedByIntersection.roleDescriptorsList().isEmpty()) {
+            return RoleDescriptorsIntersection.EMPTY;
+        }
+        final List<Set<RoleDescriptor>> mergedIntersection = new ArrayList<>(
+            baseIntersection.roleDescriptorsList().size() + limitedByIntersection.roleDescriptorsList().size()
+        );
+        mergedIntersection.addAll(baseIntersection.roleDescriptorsList());
+        mergedIntersection.addAll(limitedByIntersection.roleDescriptorsList());
+        return new RoleDescriptorsIntersection(Collections.unmodifiableList(mergedIntersection));
     }
 
     /**

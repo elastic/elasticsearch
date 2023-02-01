@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -175,12 +176,11 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public Collection<RoleDescriptor> getRemoteRoleDescriptors(final String remoteClusterAlias) {
+    public RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(final String remoteClusterAlias) {
         final RemoteIndicesPermission remoteIndicesPermission = remoteIndices.forCluster(remoteClusterAlias);
         if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
-            return List.of();
+            return RoleDescriptorsIntersection.EMPTY;
         }
-
         final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
         for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
             for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
@@ -188,7 +188,7 @@ public class SimpleRole implements Role {
             }
         }
 
-        return List.of(
+        return new RoleDescriptorsIntersection(
             new RoleDescriptor(
                 REMOTE_USER_ROLE_NAME,
                 null,

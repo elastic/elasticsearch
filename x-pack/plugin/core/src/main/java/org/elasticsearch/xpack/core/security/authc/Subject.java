@@ -242,6 +242,9 @@ public class Subject {
             // access of the overall intersection accordingly
             roleReferences.add(new RoleReference.RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY));
         } else {
+            // TODO handle this once we support API keys as querying subjects
+            assert remoteAccessRoleDescriptorsBytes.size() == 1
+                : "only a singleton list of remote access role descriptors bytes is supported";
             for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
                 roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
             }

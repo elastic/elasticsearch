@@ -165,7 +165,9 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     // The task has already finished, we can run the completion listener in the same thread
                     waitedForCompletionListener.onResponse(null);
                 } else {
-                    future.addListener(waitedForCompletionListener);
+                    future.addListener(
+                        ContextPreservingActionListener.wrapPreservingContext(waitedForCompletionListener, threadPool.getThreadContext())
+                    );
                     var cancellable = threadPool.schedule(
                         () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of task")),
                         requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 /**
@@ -40,6 +41,7 @@ final class ServerTransportFilter {
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
+    private final RemoteClusterAuthenticationService remoteClusterAuthcService;
     private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final ThreadContext threadContext;
     private final boolean extractClientCert;
@@ -74,6 +76,7 @@ final class ServerTransportFilter {
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
         this.requiresRemoteAccessAuthentication = requiresRemoteAccessAuthentication;
+        this.remoteClusterAuthcService = new RemoteClusterAuthenticationService(authcService);
     }
 
     /**
@@ -130,12 +133,17 @@ final class ServerTransportFilter {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
         }, listener::onFailure);
+
         if (requiresRemoteAccessAuthentication
             // The handshake action is special; under the hood it will be executed by the system user - there won't be remote access
             // headers, so we don't want to handle it via the remote access authenticator but rather fall back on our default authentication
             // strategy
             && false == TransportService.HANDSHAKE_ACTION_NAME.equals(securityAction)) {
-            authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
+            if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
+                listener.onFailure(new IllegalArgumentException("Action [" + action + "] is not allow-listed for cross cluster requests"));
+                return;
+            }
+            remoteClusterAuthcService.authenticate(securityAction, request, true, authorizationStep);
         } else {
             authcService.authenticate(securityAction, request, true, authorizationStep);
         }

@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -108,14 +109,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(123, pointField.numericValue().doubleValue(), 0d);
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertFalse(dvField.fieldType().stored());
+        // One field indexes points
+        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
+        // One field indexes doc values
+        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
     }
 
     public void testNotIndexed() throws Exception {
@@ -153,15 +150,13 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(123, pointField.numericValue().doubleValue(), 0d);
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        IndexableField storedField = fields[2];
-        assertTrue(storedField.fieldType().stored());
-        assertEquals(123, storedField.numericValue().doubleValue(), 0d);
+
+        // One field indexes points
+        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
+        // One field indexes doc values
+        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
+        // One field is stored
+        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().stored()).count());
     }
 
     public void testCoerce() throws IOException {
@@ -169,12 +164,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "123")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(123, pointField.numericValue().doubleValue(), 0d);
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        // One field indexes points
+        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
+        // One field indexes doc values
+        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
 
         DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);

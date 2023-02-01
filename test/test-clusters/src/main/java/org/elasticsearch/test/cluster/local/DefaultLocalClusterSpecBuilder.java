@@ -19,12 +19,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<LocalClusterSpecBuilder> implements LocalClusterSpecBuilder {
     private String name = "test-cluster";
     private final List<DefaultLocalNodeSpecBuilder> nodeBuilders = new ArrayList<>();
     private final List<User> users = new ArrayList<>();
     private final List<Resource> roleFiles = new ArrayList<>();
+    private final List<Supplier<LocalClusterConfigProvider>> lazyConfigProviders = new ArrayList<>();
 
     public DefaultLocalClusterSpecBuilder() {
         super(null);
@@ -43,6 +45,12 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
     @Override
     public DefaultLocalClusterSpecBuilder apply(LocalClusterConfigProvider configProvider) {
         configProvider.apply(this);
+        return this;
+    }
+
+    @Override
+    public LocalClusterSpecBuilder apply(Supplier<LocalClusterConfigProvider> configProvider) {
+        lazyConfigProviders.add(configProvider);
         return this;
     }
 
@@ -117,7 +125,28 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
         clusterSpec.setNodes(nodeSpecs);
         clusterSpec.validate();
 
-        return new LocalElasticsearchCluster(clusterSpec);
+        return new LocalElasticsearchCluster(this);
+    }
+
+    LocalClusterSpec buildClusterSpec() {
+        // Apply lazily provided configuration
+        lazyConfigProviders.forEach(s -> s.get().apply(this));
+
+        List<User> clusterUsers = users.isEmpty() ? List.of(User.DEFAULT_USER) : users;
+        LocalClusterSpec clusterSpec = new LocalClusterSpec(name, clusterUsers, roleFiles);
+        List<LocalNodeSpec> nodeSpecs;
+
+        if (nodeBuilders.isEmpty()) {
+            // No node-specific configuration so assume a single-node cluster
+            nodeSpecs = List.of(new DefaultLocalNodeSpecBuilder(this).build(clusterSpec));
+        } else {
+            nodeSpecs = nodeBuilders.stream().map(node -> node.build(clusterSpec)).toList();
+        }
+
+        clusterSpec.setNodes(nodeSpecs);
+        clusterSpec.validate();
+
+        return clusterSpec;
     }
 
     public static class DefaultLocalNodeSpecBuilder extends AbstractLocalSpecBuilder<LocalNodeSpecBuilder> implements LocalNodeSpecBuilder {
@@ -138,7 +167,7 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
             return new LocalNodeSpec(
                 cluster,
                 name,
-                Version.CURRENT,
+                Optional.ofNullable(getVersion()).orElse(Version.CURRENT),
                 getSettingsProviders(),
                 getSettings(),
                 getEnvironmentProviders(),
@@ -148,6 +177,7 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
                 Optional.ofNullable(getDistributionType()).orElse(DistributionType.INTEG_TEST),
                 getFeatures(),
                 getKeystoreSettings(),
+                getKeystoreFiles(),
                 getKeystorePassword(),
                 getExtraConfigFiles(),
                 getSystemProperties()

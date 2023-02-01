@@ -10,9 +10,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +33,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A query that performs kNN search using Lucene's {@link KnnVectorQuery}.
+ * A query that performs kNN search using Lucene's {@link org.apache.lucene.search.KnnFloatVectorQuery} or
+ * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  *
  * NOTE: this is an internal class and should not be used outside of core Elasticsearch code.
  */
@@ -215,7 +214,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         return queryVector != null
             ? vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery)
-            : vectorFieldType.createKnnQuery(new BytesRef(byteQueryVector), numCands, filterQuery);
+            : vectorFieldType.createKnnQuery(byteQueryVector, numCands, filterQuery);
     }
 
     @Override

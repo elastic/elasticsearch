@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
@@ -56,8 +57,10 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             fieldCapsRequest.indexFilter(new DummyQueryBuilder() {
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {
-                    if (out.getVersion().before(Version.CURRENT)) {
-                        throw new IllegalArgumentException("This query isn't serializable to nodes before " + Version.CURRENT);
+                    if (out.getTransportVersion().before(TransportVersion.CURRENT)) {
+                        throw new IllegalArgumentException(
+                            "This query isn't serializable before transport version " + TransportVersion.CURRENT
+                        );
                     }
                 }
             });
@@ -88,7 +91,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 containsString("[class org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest] is not compatible with version")
             );
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+            assertEquals("This query isn't serializable before transport version " + TransportVersion.CURRENT, ex.getCause().getMessage());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

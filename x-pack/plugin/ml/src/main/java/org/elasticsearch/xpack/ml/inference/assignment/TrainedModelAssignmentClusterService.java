@@ -809,15 +809,15 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         final PersistentTasksCustomMetadata currentPersistentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Set<String> previousMlTaskIds = findMlProcessTaskIds(previousPersistentTasks);
         Set<String> currentMlTaskIds = findMlProcessTaskIds(currentPersistentTasks);
-        previousMlTaskIds.removeAll(currentMlTaskIds);
         Set<String> stoppedTaskTypes = previousMlTaskIds.stream()
+            .filter(id -> currentMlTaskIds.contains(id) == false) // remove the tasks that are still present. Stopped Ids only.
             .map(previousPersistentTasks::getTask)
             .map(PersistentTasksCustomMetadata.PersistentTask::getTaskName)
             .map(MlTasks::prettyPrintTaskName)
             .collect(Collectors.toSet());
-        if (previousMlTaskIds.size() == 1) {
+        if (stoppedTaskTypes.size() == 1) {
             return Optional.of("ML [" + stoppedTaskTypes.iterator().next() + "] job stopped");
-        } else if (previousMlTaskIds.size() > 1) {
+        } else if (stoppedTaskTypes.size() > 1) {
             return Optional.of("ML " + stoppedTaskTypes + " jobs stopped");
         }
         return Optional.empty();

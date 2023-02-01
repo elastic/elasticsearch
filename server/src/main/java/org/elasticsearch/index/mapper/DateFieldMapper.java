@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -907,16 +908,19 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {
-        if (indexed) {
-            context.doc().add(new LongPoint(fieldType().name(), timestamp));
-        }
-        if (hasDocValues) {
+        if (indexed && hasDocValues) {
+            context.doc().add(new LongField(fieldType().name(), timestamp));
+        } else if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-        } else if (store || indexed) {
-            context.addToFieldNames(fieldType().name());
+        } else if (indexed) {
+            context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
+        }
+        if (hasDocValues == false && (indexed || store)) {
+            // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
+            context.addToFieldNames(fieldType().name());
         }
     }
 

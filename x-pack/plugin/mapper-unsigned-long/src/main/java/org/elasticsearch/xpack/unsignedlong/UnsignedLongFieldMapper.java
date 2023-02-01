@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -605,11 +606,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         List<Field> fields = new ArrayList<>();
-        if (indexed) {
-            fields.add(new LongPoint(fieldType().name(), numericValue));
-        }
-        if (hasDocValues) {
+        if (indexed && hasDocValues) {
+            fields.add(new LongField(fieldType().name(), numericValue));
+        } else if (hasDocValues) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+        } else if (indexed) {
+            fields.add(new LongPoint(fieldType().name(), numericValue));
         }
         if (stored) {
             // for stored field, keeping original unsigned_long value in the String form

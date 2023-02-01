@@ -253,6 +253,7 @@ public class InboundHandlerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93415")
     public void testLogsSlowInboundProcessing() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();

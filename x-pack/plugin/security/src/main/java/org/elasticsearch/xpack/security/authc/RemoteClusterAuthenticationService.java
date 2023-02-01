@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -22,10 +23,11 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
@@ -57,62 +59,78 @@ public class RemoteClusterAuthenticationService {
         final boolean allowAnonymous,
         final ActionListener<Authentication> listener
     ) {
-        authenticate(authenticationService.newContext(action, request, allowAnonymous), listener);
+        final Authenticator.Context authcContext = authenticationService.newContext(action, request, allowAnonymous);
+        final ThreadContext threadContext = authcContext.getThreadContext();
+
+        if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
+            withRequestProcessingFailure(
+                authcContext,
+                new IllegalArgumentException("authentication header is not allowed with remote access"),
+                listener
+            );
+            return;
+        }
+
+        final RemoteAccessHeaders remoteAccessHeaders;
+        try {
+            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
+        } catch (Exception ex) {
+            withRequestProcessingFailure(authcContext, ex, listener);
+            return;
+        }
+
+        try (
+            ThreadContext.StoredContext ignored = threadContext.newStoredContext(
+                Collections.emptyList(),
+                // drop remote access authentication headers since we've read their values, and we want to maintain the invariant that
+                // either the remote access authentication header is in the context, or the authentication header, but not both
+                List.of(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+            )
+        ) {
+            final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(true);
+            // Write remote access credential to the Authorization header, so we can re-use generic authentication service functionality for
+            // authc token extraction
+            threadContext.putHeader("Authorization", remoteAccessHeaders.clusterCredentialHeader());
+            authenticationService.authenticate(
+                authcContext,
+                new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
+                    final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
+                    final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
+                    final User user = receivedAuthentication.getEffectiveSubject().getUser();
+                    final Authentication finalAuthentication;
+                    if (SystemUser.is(user)) {
+                        finalAuthentication = authentication.toRemoteAccess(
+                            new RemoteAccessAuthentication(
+                                receivedAuthentication,
+                                new RoleDescriptorsIntersection(CROSS_CLUSTER_SEARCH_ROLE)
+                            )
+                        );
+                    } else if (User.isInternal(user)) {
+                        throw new IllegalArgumentException(
+                            "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
+                        );
+                    } else {
+                        finalAuthentication = authentication.toRemoteAccess(remoteAccessAuthentication);
+                    }
+                    writeAuthToContext(authcContext, finalAuthentication, listener);
+                }, ex -> withRequestProcessingFailure(authcContext, ex, listener)))
+            );
+        }
     }
 
-    private void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
-        // TODO restore context after executing?
-        final ThreadContext threadContext = context.getThreadContext();
-        try {
-            if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
-                throw new IllegalArgumentException("authentication header is not allowed");
-            } else if (threadContext.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null) {
-                throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
-            }
-            final String credentialsHeader = threadContext.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
-            if (credentialsHeader == null) {
+    private record RemoteAccessHeaders(String clusterCredentialHeader, RemoteAccessAuthentication remoteAccessAuthentication) {
+        static RemoteAccessHeaders readFromContext(ThreadContext threadContext) throws IOException {
+            final String clusterCredentialHeader = threadContext.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
+            if (clusterCredentialHeader == null) {
                 throw new IllegalArgumentException(
                     "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"
                 );
             }
-            // Write remote access credential to the Authorization header, so we can re-use generic authentication service functionality for
-            // authc token extraction
-            threadContext.putHeader("Authorization", credentialsHeader);
-        } catch (Exception ex) {
-            withRequestProcessingFailure(context, ex, listener);
-            return;
+            return new RemoteAccessHeaders(clusterCredentialHeader, RemoteAccessAuthentication.readFromContext(threadContext));
         }
-
-        authenticationService.authenticate(context, wrapPreservingContext(ActionListener.wrap(authentication -> {
-            assert threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null : "authentication header is not allowed";
-            final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
-            try (
-                ThreadContext.StoredContext ignored = threadContext.newStoredContext(
-                    Collections.emptyList(),
-                    // drop remote access authentication headers
-                    List.of(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
-                )
-            ) {
-                final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
-                final User user = receivedAuthentication.getEffectiveSubject().getUser();
-                final Authentication successfulAuthentication;
-                if (SystemUser.is(user)) {
-                    successfulAuthentication = authentication.toRemoteAccess(
-                        new RemoteAccessAuthentication(receivedAuthentication, new RoleDescriptorsIntersection(CROSS_CLUSTER_SEARCH_ROLE))
-                    );
-                } else if (User.isInternal(user)) {
-                    throw new IllegalArgumentException(
-                        "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
-                    );
-                } else {
-                    successfulAuthentication = authentication.toRemoteAccess(remoteAccessAuthentication);
-                }
-                writeAuthToContext(context, successfulAuthentication, listener);
-            }
-        }, ex -> withRequestProcessingFailure(context, ex, listener)), threadContext));
     }
 
-    private void withRequestProcessingFailure(
+    private static void withRequestProcessingFailure(
         final Authenticator.Context context,
         final Exception ex,
         final ActionListener<Authentication> listener

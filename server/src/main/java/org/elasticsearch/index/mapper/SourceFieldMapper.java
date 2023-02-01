@@ -149,7 +149,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 excludes.getValue().toArray(String[]::new),
                 indexMode
             );
-            indexMode.validateSourceFieldMapper(sourceFieldMapper);
+            if (indexMode != null) {
+                indexMode.validateSourceFieldMapper(sourceFieldMapper);
+            }
             return sourceFieldMapper;
         }
 

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -27,7 +29,7 @@ import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -67,7 +69,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
     public static final String INDEX_ACTION_TYPES_DEPRECATION_MESSAGE =
         "[types removal] Specifying types in a watcher index action is deprecated.";
@@ -83,6 +85,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     @Before
     public void setType() {
         type = getOldClusterVersion().before(Version.V_6_7_0) ? "doc" : "_doc";
+    }
+
+    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
     }
 
     @Override
@@ -125,17 +131,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            RequestOptions.Builder systemIndexWarningOptions = RequestOptions.DEFAULT.toBuilder();
-            systemIndexWarningOptions.setWarningsHandler(warnings -> {
-                if (warnings.isEmpty()) {
-                    return false;
-                } else if (warnings.size() > 1) {
-                    return true;
-                } else {
-                    return warnings.get(0).contains("this request accesses system indices:") == false;
-                }
-            });
-            getSettingsRequest.setOptions(systemIndexWarningOptions);
+            getSettingsRequest.setOptions(systemIndexWarningHandlerOptions(".security-7"));
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
@@ -1074,7 +1070,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
         assertEquals(DataStream.getDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()), indices.get(0).get("index_name"));
-        assertNumHits("ds", 1, 1);
+        assertNumHits(isRunningAgainstOldCluster(), "ds", 1, 1);
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {
@@ -1085,5 +1081,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);
+    }
+
+    private RequestOptions.Builder systemIndexWarningHandlerOptions(String index) {
+        return RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(
+                w -> w.size() > 0
+                    && w.contains(
+                        "this request accesses system indices: ["
+                            + index
+                            + "], but in a future major "
+                            + "version, direct access to system indices will be prevented by default"
+                    ) == false
+            );
     }
 }

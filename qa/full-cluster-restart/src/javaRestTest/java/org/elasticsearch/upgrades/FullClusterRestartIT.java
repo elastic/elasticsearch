@@ -8,6 +8,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
@@ -32,6 +34,10 @@ import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.transport.Compression;
@@ -39,6 +45,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +58,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -80,15 +89,44 @@ import static org.hamcrest.Matchers.startsWith;
  * version is started with the same data directories and then this is rerun
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
-public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
     private final boolean supportsLenientBooleans = getOldClusterVersion().before(Version.V_6_0_0_alpha1);
+
+    private static TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    protected static LocalClusterConfigProvider clusterConfig = c -> {};
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(2)
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("xpack.security.enabled", "false")
+        // some tests rely on the translog not being flushed
+        .setting("indices.memory.shard_inactive_time", "60m")
+        .setting("http.content_type.required", "true")
+        .apply(() -> clusterConfig)
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     private String index;
     private String type;
 
+    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
     @Before
     public void setIndex() {
-        index = getTestName().toLowerCase(Locale.ROOT);
+        index = getRootTestName();
     }
 
     @Before
@@ -236,7 +274,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 search.addParameter("preference", "_only_nodes:" + node);
                 Map<String, Object> responseBody = entityAsMap(client().performRequest(search));
                 assertNoFailures(responseBody);
-                int hits = extractTotalHits(responseBody);
+                int hits = extractTotalHits(isRunningAgainstOldCluster(), responseBody);
                 counts.add(hits);
             }
             assertEquals("All nodes should have a consistent number of documents", 1, counts.size());
@@ -367,7 +405,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(totalShards, greaterThan(1));
         int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(totalShards, successfulShards);
-        int totalHits = extractTotalHits(response);
+        int totalHits = extractTotalHits(isRunningAgainstOldCluster(), response);
         assertEquals(numDocs, totalHits);
 
         response = entityAsMap(client().performRequest(new Request("GET", "/" + shrunkenIndex + "/_search")));
@@ -376,7 +414,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(1, totalShards);
         successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(1, successfulShards);
-        totalHits = extractTotalHits(response);
+        totalHits = extractTotalHits(isRunningAgainstOldCluster(), response);
         assertEquals(numDocs, totalHits);
     }
 
@@ -444,7 +482,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(totalShards, greaterThan(1));
         int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(totalShards, successfulShards);
-        int totalHits = extractTotalHits(response);
+        int totalHits = extractTotalHits(isRunningAgainstOldCluster(), response);
         assertEquals(numDocs, totalHits);
 
         if (isRunningAgainstOldCluster() == false) {
@@ -454,7 +492,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertEquals(1, totalShards);
             successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
             assertEquals(1, successfulShards);
-            totalHits = extractTotalHits(response);
+            totalHits = extractTotalHits(isRunningAgainstOldCluster(), response);
             assertEquals(numDocs, totalHits);
         }
     }
@@ -508,7 +546,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNoFailures(count);
 
         int expectedCount = bulkCount + (isRunningAgainstOldCluster() ? 0 : bulkCount);
-        assertEquals(expectedCount, extractTotalHits(count));
+        assertEquals(expectedCount, extractTotalHits(isRunningAgainstOldCluster(), count));
     }
 
     void assertBasicSearchWorks(int count) throws IOException {
@@ -516,7 +554,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         {
             Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
             assertNoFailures(response);
-            int numDocs = extractTotalHits(response);
+            int numDocs = extractTotalHits(isRunningAgainstOldCluster(), response);
             logger.info("Found {} in old index", numDocs);
             assertEquals(count, numDocs);
         }
@@ -913,7 +951,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 repoConfig.startObject("settings");
                 {
                     repoConfig.field("compress", randomBoolean());
-                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                    repoConfig.field("location", repoDirectory.getRoot().getPath());
                 }
                 repoConfig.endObject();
             }
@@ -1613,7 +1651,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 repoConfig.startObject("settings");
                 {
                     repoConfig.field("compress", randomBoolean());
-                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                    repoConfig.field("location", repoDirectory.getRoot().getPath());
                 }
                 repoConfig.endObject();
             }
@@ -1668,7 +1706,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 repoConfig.startObject("settings");
                 {
                     repoConfig.field("compress", randomBoolean());
-                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                    repoConfig.field("location", repoDirectory.getRoot().getPath());
                 }
                 repoConfig.endObject();
             }
@@ -1739,12 +1777,29 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
+    public static void assertNumHits(boolean isRunningAgainstOldCluster, String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(resp);
         assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
         assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
-        assertThat(extractTotalHits(resp), equalTo(numHits));
+        assertThat(extractTotalHits(isRunningAgainstOldCluster, resp), equalTo(numHits));
     }
 
+    protected static void assertNoFailures(Map<?, ?> response) {
+        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
+        assertEquals(0, failed);
+    }
+
+    protected void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
+        int actualTotalHits = extractTotalHits(isRunningAgainstOldCluster(), response);
+        assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
+    }
+
+    protected static int extractTotalHits(boolean isRunningAgainstOldCluster, Map<?, ?> response) {
+        if (isRunningAgainstOldCluster && getOldClusterVersion().before(org.elasticsearch.Version.V_7_0_0)) {
+            return (Integer) XContentMapValues.extractValue("hits.total", response);
+        } else {
+            return (Integer) XContentMapValues.extractValue("hits.total.value", response);
+        }
+    }
 }

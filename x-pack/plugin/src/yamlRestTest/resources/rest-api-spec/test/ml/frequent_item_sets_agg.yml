@@ -507,6 +507,9 @@ setup:
 
 ---
 "Test deprecated frequent items":
+  - skip:
+      features:
+        - "allowed_warnings"
 
   - do:
       allowed_warnings:

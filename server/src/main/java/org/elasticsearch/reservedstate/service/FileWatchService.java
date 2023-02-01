@@ -31,7 +31,6 @@ public class FileWatchService extends AbstractLifecycleComponent {
     private static final int REGISTER_RETRY_COUNT = 5;
     private static final Logger logger = LogManager.getLogger(FileWatchService.class);
 
-
     final Path operatorSettingsDir;
     final String settingsFileName;
     FileSettingsService.FileUpdateState fileUpdateState;

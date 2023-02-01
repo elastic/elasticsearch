@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  * SecureSettings implementation is loaded with empty settings map.
  */
 public class LocallyMountedSecrets implements SecureSettings {
+
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
 
@@ -69,6 +71,8 @@ public class LocallyMountedSecrets implements SecureSettings {
             } catch (IOException e) {
                 throw new IllegalStateException("Error processing secrets file", e);
             }
+        } else {
+            secrets.set(new LocalFileSecrets(Map.of(), new ReservedStateVersion(-1L, Version.CURRENT)));
         }
         this.secretsDir = secretsDirPath.toString();
         this.secretsFile = secretsFilePath.toString();
@@ -85,7 +89,6 @@ public class LocallyMountedSecrets implements SecureSettings {
         if (in.readBoolean()) {
             secrets.set(LocalFileSecrets.readFrom(in));
         }
-
         // TODO: Add support for watching for file changes here.
     }
 

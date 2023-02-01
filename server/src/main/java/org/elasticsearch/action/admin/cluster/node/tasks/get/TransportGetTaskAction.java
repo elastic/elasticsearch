@@ -144,8 +144,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     }
                 };
                 taskManager.registerRemovedTaskListener(removedTaskListener);
-                // Check if the task had finished before we registered the listener,
-                // so we wouldn't wait for a task removal event that would never come
+                // Check if the task had finished before we registered the listener, so we wouldn't wait
+                // for an event that would never come
                 if (taskManager.getTask(request.getTaskId().getId()) == null) {
                     future.onResponse(null);
                 }
@@ -168,12 +168,12 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     future.addListener(
                         ContextPreservingActionListener.wrapPreservingContext(waitedForCompletionListener, threadPool.getThreadContext())
                     );
-                    var cancellable = threadPool.schedule(
+                    var failByTimeout = threadPool.schedule(
                         () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of task")),
                         requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                         ThreadPool.Names.SAME
                     );
-                    future.addListener(ActionListener.wrap(cancellable::cancel));
+                    future.addListener(ActionListener.wrap(failByTimeout::cancel));
                 }
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);

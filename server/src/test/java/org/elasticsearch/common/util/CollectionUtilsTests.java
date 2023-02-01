@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -133,6 +134,53 @@ public class CollectionUtilsTests extends ESTestCase {
             );
             assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref key)"));
         }
+        // nested map value
+        {
+            Map<String, Object> map = new HashMap<>();
+            map.put("field", Set.of(List.of((Iterable<?>) () -> Iterators.single(new Object[] { map }))));
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ensureNoSelfReferences(map, "test with self ref nested value")
+            );
+            assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref nested value)"));
+        }
+    }
+
+    public void testEnsureNoSelfReferencesSet() {
+        Set<Object> set = new HashSet<>();
+        set.add("foo");
+        set.add(set);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ensureNoSelfReferences(set, "test with self ref set")
+        );
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref set)"));
+    }
+
+    public void testEnsureNoSelfReferencesList() {
+        List<Object> list = new ArrayList<>();
+        list.add("foo");
+        list.add(list);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ensureNoSelfReferences(list, "test with self ref list")
+        );
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref list)"));
+    }
+
+    public void testEnsureNoSelfReferencesArray() {
+        Object[] array = new Object[2];
+        array[0] = "foo";
+        array[1] = array;
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ensureNoSelfReferences(array, "test with self ref array")
+        );
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref array)"));
     }
 
     public void testLimitSizeOfShortList() {

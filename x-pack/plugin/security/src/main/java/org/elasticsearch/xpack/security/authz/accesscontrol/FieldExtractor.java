@@ -41,7 +41,7 @@ class FieldExtractor {
                 return super.acceptField(field);
             }
         });
-        //Queries that don't touch any field and are not specifically known to do so are not supported
+        // Queries that don't touch any field and are not specifically known to do so are not supported
         if (fields.isEmpty() && query instanceof MatchAllDocsQuery == false && query instanceof MatchNoDocsQuery == false) {
             throw new UnsupportedOperationException();
         }

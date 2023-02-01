@@ -66,7 +66,7 @@ public final class OptOutQueryCache extends IndexQueryCache {
         Set<String> fields = new HashSet<>();
         try {
             FieldExtractor.extractFields(weight.getQuery(), fields);
-        } catch(UnsupportedOperationException e) {
+        } catch (UnsupportedOperationException e) {
             return false;
         }
         // we successfully extracted the set of fields: check each one

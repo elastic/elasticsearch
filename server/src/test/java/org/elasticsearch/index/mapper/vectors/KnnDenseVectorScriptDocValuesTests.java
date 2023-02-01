@@ -9,8 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
-import org.apache.lucene.index.VectorValues;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.index.FloatVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.ByteKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.DenseVector;
@@ -19,7 +18,6 @@ import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -208,11 +206,11 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
             }
 
             @Override
-            public BytesRef vectorValue() {
+            public byte[] vectorValue() {
                 for (int i = 0; i < byteVector.length; i++) {
                     byteVector[i] = (byte) vectors[index][i];
                 }
-                return new BytesRef(byteVector);
+                return byteVector;
             }
 
             @Override
@@ -235,8 +233,8 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         };
     }
 
-    public static VectorValues wrap(float[][] vectors) {
-        return new VectorValues() {
+    public static FloatVectorValues wrap(float[][] vectors) {
+        return new FloatVectorValues() {
             int index = 0;
 
             @Override
@@ -252,15 +250,6 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
             @Override
             public float[] vectorValue() {
                 return vectors[index];
-            }
-
-            @Override
-            public BytesRef binaryValue() {
-                ByteBuffer byteBuffer = ByteBuffer.allocate(ElementType.FLOAT.elementBytes * vectors[index].length);
-                for (float value : vectors[index]) {
-                    ElementType.FLOAT.writeValue(byteBuffer, value);
-                }
-                return new BytesRef(byteBuffer.array());
             }
 
             @Override

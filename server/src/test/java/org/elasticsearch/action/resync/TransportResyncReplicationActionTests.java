@@ -152,7 +152,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     new ReplicationGroup(
                         shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
-                        shardRoutingTable.getAllAllocationIds(),
+                        shardRoutingTable.getPromotableAllocationIds(),
                         0
                     )
                 );

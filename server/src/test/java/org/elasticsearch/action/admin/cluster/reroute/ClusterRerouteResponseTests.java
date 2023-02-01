@@ -114,7 +114,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "search",
                       "transform",
                       "voting_only"
-                    ]
+                    ],
+                    "version": "%s"
                   }
                 },
                 "metadata": {
@@ -178,7 +179,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                   }
                 }
               }
-            }""", clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT.id), """
+            }""", clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT, Version.CURRENT.id), """
             The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
             Specify ?metric=none to adopt the future behaviour.""");
     }

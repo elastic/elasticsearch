@@ -213,6 +213,7 @@ public class ReplicationOperation<
         final long maxSeqNoOfUpdatesOrDeletes,
         final PendingReplicationActions pendingReplicationActions
     ) {
+        assert shard.isPromotableToPrimary() : "only promotable shards should receive replication requests";
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }

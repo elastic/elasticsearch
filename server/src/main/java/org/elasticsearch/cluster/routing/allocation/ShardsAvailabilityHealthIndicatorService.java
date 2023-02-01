@@ -556,10 +556,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @return A predicate that returns true if the decision exists and matches the expected outcome, false otherwise.
      */
     private static Predicate<NodeAllocationResult> hasDeciderResult(String deciderName, Decision.Type outcome) {
-        return (nodeResult) -> nodeResult.getCanAllocateDecision()
-            .getDecisions()
-            .stream()
-            .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
+        return (nodeResult) -> {
+            Decision decision = nodeResult.getCanAllocateDecision();
+            return decision != null && decision.getDecisions().stream().anyMatch(d -> deciderName.equals(d.label()) && outcome == d.type());
+        };
     }
 
     /**

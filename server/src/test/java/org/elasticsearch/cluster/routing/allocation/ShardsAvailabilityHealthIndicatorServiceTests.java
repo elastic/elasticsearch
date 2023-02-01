@@ -849,6 +849,35 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION));
     }
 
+    public void testNodeAllocationResultWithNullDecision() {
+        // Index definition, 1 primary no replicas, allocation is not allowed
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        var service = createShardsAvailabilityIndicatorService();
+
+        // Get the list of user actions that are generated for this unassigned index shard
+        List<Diagnosis.Definition> actions = service.checkIsAllocationDisabled(
+            indexMetadata,
+            List.of(new NodeAllocationResult(
+                // Shard allocation is disabled on index
+                new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                new NodeAllocationResult.ShardStoreInfo(10),
+                null
+            ))
+        );
+
+        assertThat(actions, hasSize(0));
+    }
+
     public void testDiagnoseEnableClusterAllocation() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")

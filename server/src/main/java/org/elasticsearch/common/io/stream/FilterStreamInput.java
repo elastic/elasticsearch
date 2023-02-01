@@ -87,22 +87,8 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    @Deprecated(forRemoval = true)
-    public Version getVersion() {
-        return delegate.getVersion();
-    }
-
-    @Override
     public TransportVersion getTransportVersion() {
         return delegate.getTransportVersion();
-    }
-
-    @Override
-    @Deprecated(forRemoval = true)
-    public void setVersion(Version version) {
-        delegate.setVersion(version);
-        // also set the version on this stream directly, so that any uses of this.version are still correct
-        super.setVersion(version);
     }
 
     @Override

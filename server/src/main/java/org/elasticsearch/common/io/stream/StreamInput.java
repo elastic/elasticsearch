@@ -87,26 +87,10 @@ public abstract class StreamInput extends InputStream {
     private TransportVersion version = TransportVersion.CURRENT;
 
     /**
-     * The version of the node on the other side of this stream.
-     */
-    @Deprecated(forRemoval = true)
-    public Version getVersion() {
-        return Version.fromId(this.version.id);
-    }
-
-    /**
      * The transport version the data is serialized as.
      */
     public TransportVersion getTransportVersion() {
         return this.version;
-    }
-
-    /**
-     * Set the version of the node on the other side of this stream.
-     */
-    @Deprecated(forRemoval = true)
-    public void setVersion(Version version) {
-        this.version = version.transportVersion;
     }
 
     /**

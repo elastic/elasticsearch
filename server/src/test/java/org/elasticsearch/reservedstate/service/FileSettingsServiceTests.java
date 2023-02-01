@@ -350,13 +350,14 @@ public class FileSettingsServiceTests extends ESTestCase {
         deadThreadLatch.countDown();
     }
 
+    // TODO[wrb]: move to FileWatchServiceTests
     public void testRegisterWatchKeyRetry() throws IOException, InterruptedException {
-        var service = spy(fileSettingsService);
+        var service = spy(fileSettingsService.fileWatchService());
         doAnswer(i -> 0L).when(service).retryDelayMillis(anyInt());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.operatorSettingsDir);
 
-        var mockedPath = spy(service.operatorSettingsDir());
+        var mockedPath = spy(service.operatorSettingsDir);
         var prevWatchKey = mock(WatchKey.class);
         var newWatchKey = mock(WatchKey.class);
 

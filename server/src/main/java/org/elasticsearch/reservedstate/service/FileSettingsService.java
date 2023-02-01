@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -122,6 +121,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     // TODO[wrb]: inline/remove
     boolean watchedFileChanged(Path path) throws IOException {
         return fileSettingsMap.get(OPERATOR_DIRECTORY).watchedFileChanged(path);
+    }
+
+    // visible for testing
+    FileWatchService fileWatchService() {
+        return fileWatchService;
     }
 
     @Override
@@ -294,7 +298,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                         // are one potential cause of inconsistency here, since their handling by
                         // the WatchService is platform dependent.
                         for (FileWatchService fileWatchService : fileSettingsMap.values()) {
-                            fileWatchService.settingsDirWatchKey = enableSettingsWatcher(
+                            fileWatchService.settingsDirWatchKey = fileWatchService.enableSettingsWatcher(
                                 fileWatchService.settingsDirWatchKey,
                                 fileWatchService.operatorSettingsDir
                             );
@@ -369,35 +373,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
-    // package private for testing
-    long retryDelayMillis(int failedCount) {
-        assert failedCount < 31; // don't let the count overflow
-        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
-    }
-
+    // TODO[wrb]: still here because of tests, fix tests then remove this
     // package private for testing
     WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
-        if (previousKey != null) {
-            previousKey.cancel();
-        }
-        int retryCount = 0;
-
-        do {
-            try {
-                return settingsDir.register(
-                    fileWatchService.watchService(),
-                    StandardWatchEventKinds.ENTRY_MODIFY,
-                    StandardWatchEventKinds.ENTRY_CREATE,
-                    StandardWatchEventKinds.ENTRY_DELETE
-                );
-            } catch (IOException e) {
-                if (retryCount == REGISTER_RETRY_COUNT - 1) {
-                    throw e;
-                }
-                Thread.sleep(retryDelayMillis(retryCount));
-                retryCount++;
-            }
-        } while (true);
+        return fileWatchService.enableSettingsWatcher(previousKey, settingsDir);
     }
 
     PlainActionFuture<Void> processFileSettings(Path path) {

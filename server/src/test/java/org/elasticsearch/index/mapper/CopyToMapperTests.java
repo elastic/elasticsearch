@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.ToXContent;
@@ -91,9 +92,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertThat(doc.getFields("cyclic_test")[1].stringValue(), equalTo("bar"));
 
         assertThat(doc.getFields("int_to_str_test").length, equalTo(1));
+        assertThat(doc.getFields("int_to_str_test")[0].fieldType().docValuesType(), equalTo(DocValuesType.NONE));
         assertThat(doc.getFields("int_to_str_test")[0].numericValue().intValue(), equalTo(42));
 
-        assertThat(doc.getFields("new_field").length, equalTo(2)); // new field has doc values
+        assertThat(doc.getFields("new_field").length, equalTo(1));
+        // new_field has doc values
+        assertThat(doc.getFields("new_field")[0].fieldType().docValuesType(), equalTo(DocValuesType.SORTED_NUMERIC));
         assertThat(doc.getFields("new_field")[0].numericValue().intValue(), equalTo(42));
 
         assertNotNull(parsedDoc.dynamicMappingsUpdate());

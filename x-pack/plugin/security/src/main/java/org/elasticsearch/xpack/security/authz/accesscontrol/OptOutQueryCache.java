@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
+import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -63,14 +67,24 @@ public final class OptOutQueryCache extends IndexQueryCache {
      */
     static boolean cachingIsSafe(Weight weight, IndicesAccessControl.IndexAccessControl permissions) {
         // support caching for common queries, by inspecting the field
-        Set<String> fields = new HashSet<>();
-        FieldExtractor.extractFields(weight.getQuery(), fields);
-        // we successfully extracted the set of fields: check each one
-        for (String field : fields) {
-            // don't cache any internal fields (e.g. _field_names), these are complicated.
-            if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
-                return false;
-            }
+        try {
+            weight.getQuery().visit(new QueryVisitor() {
+                @Override
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                    return this; //we want to use the same visitor for must_not clauses too
+                }
+
+                @Override
+                public boolean acceptField(String field) {
+                    // don't cache any internal fields (e.g. _field_names), these are complicated.
+                    if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
+                        throw new UnsupportedOperationException();
+                    }
+                    return super.acceptField(field);
+                }
+            });
+        } catch(UnsupportedOperationException e) {
+            return false;
         }
         // we can cache, all fields are ok
         return true;

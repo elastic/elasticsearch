@@ -115,11 +115,11 @@ These tests use a YAML-formatted domain language to issue REST requests against
 an internal {es} cluster that has your plugin installed, and to check the 
 results of those requests. The structure of a YAML REST test directory is as 
 follows:
-** A test suite class, defined under `src/yamlRestTest/java`. This class should extend
-`ESClientYamlSuiteTestCase`.
-** If the plugin defines new REST endpoints, the specifications for those 
-endpoints should be defined in `src/yamlRestTest/resources/rest-api-spec/api/`.
-** The YAML tests themselves should be defined under `src/yamlRestTest/resources/test/`.
+
+* A test suite class, defined under `src/yamlRestTest/java`. This class should 
+extend `ESClientYamlSuiteTestCase`.
+* The YAML tests themselves should be defined under 
+`src/yamlRestTest/resources/test/`.
 
 [discrete]
 [[stable-plugin-descriptor.properties]]

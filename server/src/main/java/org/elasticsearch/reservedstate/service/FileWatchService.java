@@ -39,6 +39,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
     WatchKey settingsDirWatchKey;
     WatchKey configDirWatchKey; // there is only one config dir
     private volatile boolean active = false;
+    private Thread watcherThread;
 
     FileWatchService(Path operatorSettingsDir, String settingsFileName) {
         this.operatorSettingsDir = operatorSettingsDir;
@@ -102,7 +103,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
         return active;
     }
 
-    synchronized void startWatcher() {
+    synchronized void startWatcher(Runnable processOperation, Runnable listenOperation) {
         /*
          * We essentially watch for two things:
          *  - the creation of the operator directory (if it doesn't exist), symlink changes to the operator directory
@@ -137,11 +138,41 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
             throw new IllegalStateException("unable to launch a new watch service", e);
         }
+
+        watcherThread = new Thread(() -> watcherThread(processOperation, listenOperation), "elasticsearch[file-settings-watcher]");
+        watcherThread.start();
     }
 
     synchronized void stopWatcher() {
-        settingsDirWatchKey = null;
-        configDirWatchKey = null;
+        if (watching()) {
+            // TODO[wrb]: move thread handlinig into FileWatchService
+            logger.debug("stopping watcher ...");
+            // make sure watch service is closed whatever
+            // this will also close any outstanding keys
+            try (var ws = watchService()) {
+                watcherThread.interrupt();
+                watcherThread.join();
+
+                // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
+                if (configDirWatchKey != null) {
+                    configDirWatchKey.cancel();
+                }
+                if (settingsDirWatchKey != null) {
+                    settingsDirWatchKey.cancel();
+                }
+            } catch (IOException e) {
+                logger.warn("encountered exception while closing watch service", e);
+            } catch (InterruptedException interruptedException) {
+                logger.info("interrupted while closing the watch service", interruptedException);
+            } finally {
+                watcherThread = null;
+                settingsDirWatchKey = null;
+                configDirWatchKey = null;
+                logger.info("watcher service stopped");
+            }
+        } else {
+            logger.trace("file settings service already stopped");
+        }
     }
 
     // package private for testing
@@ -243,4 +274,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
         }
     }
 
+    public boolean watching() {
+        return watcherThread != null;
+    }
 }

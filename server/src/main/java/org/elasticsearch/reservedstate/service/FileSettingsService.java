@@ -57,7 +57,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
 
-    // TODO[wrb]: move to FileWatchService
+    // TODO[wrb]: NEXT- move thread to FileWatchService
     private Thread watcherThread;
 
     public static final String OPERATOR_DIRECTORY = "operator";
@@ -213,7 +213,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // TODO[wrb]: thread management should be moved to watch service
     public boolean watching() {
-        return watcherThread != null;
+        return fileWatchService.watching();
     }
 
     // need to start all the watchers here
@@ -226,16 +226,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
         logger.info("starting file settings watcher ...");
 
-        fileWatchService.startWatcher();
-
-        // Get this down into FileWatchService somehow
-        watcherThread = new Thread(this::watcherThread, "elasticsearch[file-settings-watcher]");
-        watcherThread.start();
-    }
-
-    // Get this thing down into FileWatchService somehow
-    private void watcherThread() {
-        fileWatchService.watcherThread(() -> {
+        fileWatchService.startWatcher(() -> {
             try {
                 processSettingsAndNotifyListeners();
             } catch (InterruptedException e) {
@@ -263,36 +254,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     // need to stop all the watchers
-    synchronized void stopWatcher() {
-        if (watching()) {
-            // TODO[wrb]: move thread handlinig into FileWatchService
-            logger.debug("stopping watcher ...");
-            // make sure watch service is closed whatever
-            // this will also close any outstanding keys
-            try (var ws = fileWatchService.watchService()) {
-                watcherThread.interrupt();
-                watcherThread.join();
-
-                // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
-                if (fileWatchService.configDirWatchKey != null) {
-                    fileWatchService.configDirWatchKey.cancel();
-                }
-                if (fileWatchService.settingsDirWatchKey != null) {
-                    fileWatchService.settingsDirWatchKey.cancel();
-                }
-            } catch (IOException e) {
-                logger.warn("encountered exception while closing watch service", e);
-            } catch (InterruptedException interruptedException) {
-                logger.info("interrupted while closing the watch service", interruptedException);
-            } finally {
-                watcherThread = null;
-                fileWatchService.stopWatcher();
-                fileWatchService.close();
-                logger.info("watcher service stopped");
-            }
-        } else {
-            logger.trace("file settings service already stopped");
-        }
+    void stopWatcher() {
+        fileWatchService.stopWatcher();
     }
 
     PlainActionFuture<Void> processFileSettings(Path path) {

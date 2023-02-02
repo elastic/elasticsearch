@@ -39,7 +39,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         maxThreads = between(1, 10);
-        executor = EsExecutors.newScaling("test", 1, maxThreads, 0, TimeUnit.MILLISECONDS, false, threadFactory, threadContext);
+        executor = EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.NANOSECONDS, false, threadFactory, threadContext);
     }
 
     @Override
@@ -197,7 +197,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
     public void testFailsTasksOnRejectionOrShutdown() throws Exception {
         final var executor = randomBoolean()
-            ? EsExecutors.newScaling("test", 1, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
+            ? EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
             : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, false);
         final var taskRunner = new PrioritizedThrottledTaskRunner<TestTask>("test", between(1, maxThreads * 2), executor);
         final var totalPermits = between(1, maxThreads * 2);

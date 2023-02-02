@@ -48,11 +48,9 @@
   - do:
       indices.create:
         index: test_index
-
-  - do:
-      cluster.health:
-        index: [test_index]
-        wait_for_no_initializing_shards: true
+        body:
+          settings:
+            number_of_replicas: 0
 
   - do:
       indices.close:
@@ -78,11 +76,9 @@
   - do:
       indices.create:
         index: test_index
-
-  - do:
-      cluster.health:
-        index: [test_index]
-        wait_for_no_initializing_shards: true
+        body:
+          settings:
+            number_of_replicas: 0
 
   - do:
       indices.close:

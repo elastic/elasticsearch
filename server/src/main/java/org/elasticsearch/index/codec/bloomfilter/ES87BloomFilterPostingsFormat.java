@@ -514,8 +514,13 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     static int bloomFilterSize(int maxDocs) {
+        if (maxDocs < 1) {
+            throw new IllegalStateException("maxDocs must be greater than or equal to 1, got " + maxDocs);
+        }
         // 10% saturation (i.e., 10 bits for each term)
-        final long numBits = maxDocs * 10L;
+        long numBits = maxDocs * 10L;
+        // Round to the next number of 8 since we can only store whole bytes
+        numBits = ((numBits - 1) | 0x07L) + 1;
         if (numBits > Integer.MAX_VALUE) {
             return Integer.MAX_VALUE;
         } else {

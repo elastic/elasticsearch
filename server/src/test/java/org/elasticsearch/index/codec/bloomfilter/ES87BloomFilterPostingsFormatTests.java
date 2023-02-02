@@ -42,6 +42,8 @@ public class ES87BloomFilterPostingsFormatTests extends BasePostingsFormatTestCa
 
     public void testBloomFilterSize() {
         assertThat(ES87BloomFilterPostingsFormat.bloomFilterSize(1000), equalTo(10_000));
+        assertThat(ES87BloomFilterPostingsFormat.bloomFilterSize(999), equalTo(9992)); // rounded to next multiple of 8
+        assertThat(ES87BloomFilterPostingsFormat.bloomFilterSize(1001), equalTo(10_016)); // rounded to next multiple of 8
         assertThat(ES87BloomFilterPostingsFormat.bloomFilterSize(IndexWriter.MAX_DOCS - random().nextInt(10)), equalTo(Integer.MAX_VALUE));
         assertThat(ES87BloomFilterPostingsFormat.numBytesForBloomFilter(16384), equalTo(2048));
         assertThat(ES87BloomFilterPostingsFormat.numBytesForBloomFilter(16383), equalTo(2048));

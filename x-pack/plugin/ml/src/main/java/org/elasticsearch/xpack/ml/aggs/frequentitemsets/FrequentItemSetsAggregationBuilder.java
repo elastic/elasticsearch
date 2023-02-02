@@ -37,7 +37,10 @@ import static org.elasticsearch.common.Strings.format;
 
 public final class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuilder<FrequentItemSetsAggregationBuilder> {
 
-    public static final String NAME = "frequent_items";
+    public static final String NAME = "frequent_item_sets";
+
+    // name used between 8.4 - 8.6, kept for backwards compatibility until 9.0
+    public static final String DEPRECATED_NAME = "frequent_items";
 
     public static final double DEFAULT_MINIMUM_SUPPORT = 0.01;
     public static final int DEFAULT_MINIMUM_SET_SIZE = 1;

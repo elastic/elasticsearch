@@ -495,6 +495,16 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertThat(resetTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
+    protected void scheduleNowTransform(String transformId) throws IOException {
+        final Request scheduleNowTransformRequest = createRequestWithAuth(
+            "POST",
+            getTransformEndpoint() + transformId + "/_schedule_now",
+            null
+        );
+        Map<String, Object> scheduleNowTransformResponse = entityAsMap(client().performRequest(scheduleNowTransformRequest));
+        assertThat(scheduleNowTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+    }
+
     protected Request createRequestWithSecondaryAuth(
         final String method,
         final String endpoint,

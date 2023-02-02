@@ -491,3 +491,19 @@ from test | sort salary | limit 1 | project languages, salary | eval x = languag
 x:integer
 6
 ;
+
+filterKeyword
+from test | where first_name != "abc" and emp_no < 10010 | project first_name
+;
+
+first_name:keyword 
+Georgi
+Bezalel
+Parto
+Chirstian
+Kyoichi
+Anneke
+Tzvetan
+Saniya
+Sumant
+;

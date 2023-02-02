@@ -1,7 +1,7 @@
 {
-  "transform.trigger_transform":{
+  "transform.schedule_now_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/trigger-transform.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/schedule-now-transform.html",
       "description":"Triggers a transform."
     },
     "stability":"stable",
@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_transform/{transform_id}/_trigger",
+          "path":"/_transform/{transform_id}/_schedule_now",
           "methods":[
             "POST"
           ],
@@ -31,7 +31,7 @@
       "timeout":{
         "type":"time",
         "required":false,
-        "description":"Controls the time to wait for the trigger"
+        "description":"Controls the time to wait for the scheduling to take place"
       }
     }
   }

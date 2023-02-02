@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[trigger-transform]]
+[[schedule-now-transform]]
 = Trigger {transform} API
 
 [subs="attributes"]
@@ -10,33 +10,33 @@
 
 Triggers a {transform}.
 
-[[trigger-transform-request]]
+[[schedule-now-transform-request]]
 == {api-request-title}
 
-`POST _transform/<transform_id>/_trigger`
+`POST _transform/<transform_id>/_schedule_now`
 
-[[trigger-transform-prereqs]]
+[[schedule-now-transform-prereqs]]
 == {api-prereq-title}
 
 * Requires the `manage_transform` cluster privilege. This privilege is included
 in the `transform_admin` built-in role.
 
-[trigger-transform-desc]]
+[schedule-now-transform-desc]]
 == {api-description-title}
 
-If you trigger a {transform}, it will process the new data instantly,
+If you _schedule_now a {transform}, it will process the new data instantly,
 without waiting for the configured `frequency` interval.
-After trigger API is called, the transform will be processed again at
-`now + frequency` unless trigger API is called again in the meantime.
+After _schedule_now API is called, the transform will be processed again at
+`now + frequency` unless _schedule_now API is called again in the meantime.
 
-[[trigger-transform-path-parms]]
+[[schedule-now-transform-path-parms]]
 == {api-path-parms-title}
 
 `<transform_id>`::
 (Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
-[[trigger-transform-query-parms]]
+[[schedule-now-transform-query-parms]]
 == {api-query-parms-title}
 
 `timeout`::
@@ -44,16 +44,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 Period to wait for a response. If no response is received before the timeout
 expires, the request fails and returns an error. Defaults to `30s`.
 
-[[trigger-transform-examples]]
+[[schedule-now-transform-examples]]
 == {api-examples-title}
 
 [source,console]
 --------------------------------------------------
-POST _transform/ecommerce_transform/_trigger
+POST _transform/ecommerce_transform/_schedule_now
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
-When the {transform} is triggered, you receive the following results:
+When the {transform} is scheduled now, you receive the following results:
 
 [source,console-result]
 ----

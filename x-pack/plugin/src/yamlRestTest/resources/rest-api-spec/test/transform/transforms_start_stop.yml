@@ -138,36 +138,36 @@ teardown:
         transform_id: "airline-transform-start-stop"
 
 ---
-"Test trigger on a stopped transform":
+"Test schedule_now on a stopped transform":
   - do:
-      transform.trigger_transform:
+      transform.schedule_now_transform:
         transform_id: "airline-transform-start-stop"
   - match: { acknowledged: true }
 
 ---
-"Test trigger on an already started transform":
+"Test schedule_now on an already started transform":
   - do:
       transform.start_transform:
         transform_id: "airline-transform-start-stop"
   - match: { acknowledged: true }
 
   - do:
-      transform.trigger_transform:
+      transform.schedule_now_transform:
         transform_id: "airline-transform-start-stop"
   - match: { acknowledged: true }
 
 ---
-"Test trigger all transforms":
+"Test schedule_now all transforms":
   - do:
-      catch: /_trigger API does not support _all wildcard/
-      transform.trigger_transform:
+      catch: /_schedule_now API does not support _all wildcard/
+      transform.schedule_now_transform:
         transform_id: "_all"
 
 ---
-"Test trigger missing transform":
+"Test schedule_now missing transform":
   - do:
       catch: missing
-      transform.trigger_transform:
+      transform.schedule_now_transform:
         transform_id: "missing"
 
 ---

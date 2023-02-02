@@ -26,7 +26,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformTriggerIT extends TransformRestTestCase {
+public class TransformScheduleNowIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";
     private static final String TEST_ADMIN_USER_NAME_1 = "transform_admin_1";
@@ -72,7 +72,7 @@ public class TransformTriggerIT extends TransformRestTestCase {
         indicesCreated = true;
     }
 
-    public void testTrigger() throws Exception {
+    public void testScheduleNow() throws Exception {
         String sourceIndex = REVIEWS_INDEX_NAME;
         String transformId = "old_transform";
         String destIndex = transformId + "_idx";
@@ -119,8 +119,8 @@ public class TransformTriggerIT extends TransformRestTestCase {
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        // Verify that trigger is a no-op on a new transform
-        triggerTransform(transformId);
+        // Verify that _schedule_now is a no-op on a new transform
+        scheduleNowTransform(transformId);
 
         // Start the transform, notice that frequency is set pretty high
         startAndWaitForContinuousTransform(transformId, destIndex, null, null, 1L);
@@ -139,11 +139,11 @@ public class TransformTriggerIT extends TransformRestTestCase {
         verifyNumberOfSourceDocs(sourceIndex, newUser, 1);
         verifyDestDoc(destIndex, newUser, 0, null);
 
-        // Trigger the transform to force processing the new data despite 1h-long interval
-        triggerTransform(transformId);
+        // Schedule now the transform to force processing the new data despite 1h-long interval
+        scheduleNowTransform(transformId);
         waitForTransformCheckpoint(transformId, 2L);
 
-        // Verify that the new data is available in the destination index after trigger
+        // Verify that the new data is available in the destination index after _schedule_now
         verifyNumberOfSourceDocs(sourceIndex, newUser, 1);
         verifyDestDoc(destIndex, newUser, 1, 7.0);
 
@@ -157,21 +157,21 @@ public class TransformTriggerIT extends TransformRestTestCase {
         verifyNumberOfSourceDocs(sourceIndex, newUser, 2);
         verifyDestDoc(destIndex, newUser, 1, 7.0);
 
-        // Try triggering all the transforms at once using _all wildcard, it is *not* supported
-        ResponseException e = expectThrows(ResponseException.class, () -> triggerTransform("_all"));
-        assertThat(e.getMessage(), containsString("_trigger API does not support _all wildcard"));
+        // Try scheduling now all the transforms at once using _all wildcard, it is *not* supported
+        ResponseException e = expectThrows(ResponseException.class, () -> scheduleNowTransform("_all"));
+        assertThat(e.getMessage(), containsString("_schedule_now API does not support _all wildcard"));
 
-        // Trigger the transform to force processing the new data despite 1h-long interval
-        triggerTransform(transformId);
+        // Schedule now the transform to force processing the new data despite 1h-long interval
+        scheduleNowTransform(transformId);
         waitForTransformCheckpoint(transformId, 3L);
 
-        // Verify that the new data is available in the destination index after trigger
+        // Verify that the new data is available in the destination index after _schedule_now
         verifyNumberOfSourceDocs(sourceIndex, newUser, 2);
         verifyDestDoc(destIndex, newUser, 1, 8.0);  // 8.0 = (7.0 + 9.0) / 2
 
-        // Verify that trigger works on a stopped transform
+        // Verify that _schedule_now works on a stopped transform
         stopTransform(transformId, false);
-        triggerTransform(transformId);
+        scheduleNowTransform(transformId);
     }
 
     private void indexSourceDoc(String sourceIndex, String user, int stars) throws IOException {

@@ -235,10 +235,10 @@ public final class TransformScheduler {
      * Updates the transform task's next_scheduled_time so that it is set to now.
      * Doing so may result in the task being processed earlier that it would normally (i.e.: according to its frequency) be.
      *
-     * @param transformId id of the transform to trigger
+     * @param transformId id of the transform to schedule now
      */
-    public void trigger(String transformId) {
-        logger.trace(() -> format("[%s] trigger transform", transformId));
+    public void scheduleNow(String transformId) {
+        logger.trace(() -> format("[%s] schedule_now transform", transformId));
         long currentTimeMillis = clock.millis();
         // Update the task's next_scheduled_time
         scheduledTasks.update(

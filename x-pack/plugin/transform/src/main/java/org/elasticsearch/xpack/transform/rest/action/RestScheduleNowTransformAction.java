@@ -14,23 +14,23 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction;
+import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestTriggerTransformAction extends BaseRestHandler {
+public class RestScheduleNowTransformAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_trigger"));
+        return List.of(new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_schedule_now"));
     }
 
     @Override
     public String getName() {
-        return "transform_trigger_transform_action";
+        return "transform_schedule_now_transform_action";
     }
 
     @Override
@@ -38,8 +38,8 @@ public class RestTriggerTransformAction extends BaseRestHandler {
         String id = restRequest.param(TransformField.ID.getPreferredName());
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
-        TriggerTransformAction.Request request = TriggerTransformAction.Request.fromXContent(id, timeout);
+        ScheduleNowTransformAction.Request request = ScheduleNowTransformAction.Request.fromXContent(id, timeout);
 
-        return channel -> client.execute(TriggerTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(ScheduleNowTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

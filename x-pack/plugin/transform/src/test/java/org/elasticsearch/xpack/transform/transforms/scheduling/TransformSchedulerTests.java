@@ -174,8 +174,8 @@ public class TransformSchedulerTests extends ESTestCase {
         transformScheduler.stop();
     }
 
-    public void testTrigger() {
-        String transformId = "test-trigger-with-fake-clock";
+    public void testScheduleNow() {
+        String transformId = "test-schedule-now-with-fake-clock";
         TimeValue frequency = TimeValue.timeValueHours(1);
         TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, Version.CURRENT, frequency, false);
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
@@ -198,8 +198,8 @@ public class TransformSchedulerTests extends ESTestCase {
         );
         assertThat(events, hasSize(1));
 
-        // Trigger the transform now even though it is half-way through between checkpoints.
-        transformScheduler.trigger(transformId);
+        // Schedule the transform now even though it is half-way through between checkpoints.
+        transformScheduler.scheduleNow(transformId);
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(new TransformScheduledTask(transformId, frequency, 30 * 60 * 1000L, 0, 90 * 60 * 1000, listener))
@@ -207,7 +207,7 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events, hasSize(2));
 
         clock.advanceTimeBy(Duration.ofMinutes(1));
-        transformScheduler.trigger(transformId);
+        transformScheduler.scheduleNow(transformId);
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(new TransformScheduledTask(transformId, frequency, 31 * 60 * 1000L, 0, 91 * 60 * 1000, listener))
@@ -329,8 +329,8 @@ public class TransformSchedulerTests extends ESTestCase {
         transformScheduler.stop();
     }
 
-    public void testTriggerWithSystemClock() throws Exception {
-        String transformId = "test-trigger-with-system-clock";
+    public void testScheduleNowWithSystemClock() throws Exception {
+        String transformId = "test-schedule-now-with-system-clock";
         TimeValue frequency = TimeValue.timeValueHours(1);  // Very long pause between checkpoints
         TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, Version.CURRENT, frequency, false);
         Clock clock = Clock.systemUTC();
@@ -342,7 +342,7 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events, hasSize(1));
 
         Thread.sleep(5 * 1000L);
-        transformScheduler.trigger(transformId);
+        transformScheduler.scheduleNow(transformId);
 
         assertThat(events, hasSize(2));
         assertThat(events.get(0).transformId(), is(equalTo(transformId)));

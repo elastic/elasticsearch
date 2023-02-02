@@ -11,14 +11,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Request;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TriggerTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class ScheduleNowTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -41,7 +41,7 @@ public class TriggerTransformActionRequestTests extends AbstractWireSerializingT
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        return new TriggerTransformAction.Request(id, timeout);
+        return new ScheduleNowTransformAction.Request(id, timeout);
     }
 
     public void testValidationSuccess() {
@@ -53,6 +53,6 @@ public class TriggerTransformActionRequestTests extends AbstractWireSerializingT
         Request request = new Request("_all", TimeValue.ZERO);
         ActionRequestValidationException e = request.validate();
         assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(), contains("_trigger API does not support _all wildcard"));
+        assertThat(e.validationErrors(), contains("_schedule_now API does not support _all wildcard"));
     }
 }

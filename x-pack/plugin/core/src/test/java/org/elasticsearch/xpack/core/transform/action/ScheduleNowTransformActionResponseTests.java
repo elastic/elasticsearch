@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Response;
 
-public class TriggerTransformActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
+public class ScheduleNowTransformActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {

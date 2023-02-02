@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction;
+import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
 import org.junit.Before;
 
 import java.util.Map;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class RestTriggerTransformActionTests extends ESTestCase {
+public class RestScheduleNowTransformActionTests extends ESTestCase {
 
     private static final String ID = "id";
     private static final String TIMEOUT = "timeout";
@@ -39,25 +39,31 @@ public class RestTriggerTransformActionTests extends ESTestCase {
     }
 
     public void testHandleRequest() throws Exception {
-        RestTriggerTransformAction handler = new RestTriggerTransformAction();
+        RestScheduleNowTransformAction handler = new RestScheduleNowTransformAction();
         FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of(ID, "my-id")).build();
 
         handler.handleRequest(request, channel, client);
 
-        TriggerTransformAction.Request expectedActionRequest = new TriggerTransformAction.Request("my-id", TimeValue.timeValueSeconds(30));
-        verify(client).execute(eq(TriggerTransformAction.INSTANCE), eq(expectedActionRequest), any());
+        ScheduleNowTransformAction.Request expectedActionRequest = new ScheduleNowTransformAction.Request(
+            "my-id",
+            TimeValue.timeValueSeconds(30)
+        );
+        verify(client).execute(eq(ScheduleNowTransformAction.INSTANCE), eq(expectedActionRequest), any());
         verifyNoMoreInteractions(client);
     }
 
     public void testHandleRequestWithTimeout() throws Exception {
-        RestTriggerTransformAction handler = new RestTriggerTransformAction();
+        RestScheduleNowTransformAction handler = new RestScheduleNowTransformAction();
         FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of(ID, "my-id", TIMEOUT, "45s"))
             .build();
 
         handler.handleRequest(request, channel, client);
 
-        TriggerTransformAction.Request expectedActionRequest = new TriggerTransformAction.Request("my-id", TimeValue.timeValueSeconds(45));
-        verify(client).execute(eq(TriggerTransformAction.INSTANCE), eq(expectedActionRequest), any());
+        ScheduleNowTransformAction.Request expectedActionRequest = new ScheduleNowTransformAction.Request(
+            "my-id",
+            TimeValue.timeValueSeconds(45)
+        );
+        verify(client).execute(eq(ScheduleNowTransformAction.INSTANCE), eq(expectedActionRequest), any());
         verifyNoMoreInteractions(client);
     }
 }

@@ -28,13 +28,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class TriggerTransformAction extends ActionType<TriggerTransformAction.Response> {
+public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformAction.Response> {
 
-    public static final TriggerTransformAction INSTANCE = new TriggerTransformAction();
-    public static final String NAME = "cluster:admin/transform/trigger";
+    public static final ScheduleNowTransformAction INSTANCE = new ScheduleNowTransformAction();
+    public static final String NAME = "cluster:admin/transform/schedule_now";
 
-    private TriggerTransformAction() {
-        super(NAME, TriggerTransformAction.Response::new);
+    private ScheduleNowTransformAction() {
+        super(NAME, ScheduleNowTransformAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -59,7 +59,7 @@ public class TriggerTransformAction extends ActionType<TriggerTransformAction.Re
         public ActionRequestValidationException validate() {
             if (Metadata.ALL.equals(id)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
-                e.addValidationError("_trigger API does not support _all wildcard");
+                e.addValidationError("_schedule_now API does not support _all wildcard");
                 return e;
             }
             return null;
@@ -144,7 +144,7 @@ public class TriggerTransformAction extends ActionType<TriggerTransformAction.Re
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            TriggerTransformAction.Response response = (TriggerTransformAction.Response) o;
+            ScheduleNowTransformAction.Response response = (ScheduleNowTransformAction.Response) o;
             return acknowledged == response.acknowledged;
         }
 

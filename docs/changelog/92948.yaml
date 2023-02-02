@@ -1,5 +1,5 @@
 pr: 92948
-summary: Transform Trigger API
+summary: Transform _schedule_now API
 area: Transform
 type: feature
 issues:

@@ -28,9 +28,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction;
-import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction.Request;
-import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
+import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -44,15 +44,15 @@ import java.util.List;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
-public class TransportTriggerTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
+public class TransportScheduleNowTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportTriggerTransformAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportScheduleNowTransformAction.class);
     private final TransformConfigManager transformConfigManager;
     private final TransformScheduler transformScheduler;
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportTriggerTransformAction(
+    public TransportScheduleNowTransformAction(
         Settings settings,
         TransportService transportService,
         ThreadPool threadPool,
@@ -61,7 +61,7 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
         TransformServices transformServices
     ) {
         super(
-            TriggerTransformAction.NAME,
+            ScheduleNowTransformAction.NAME,
             clusterService,
             transportService,
             actionFilters,
@@ -90,7 +90,7 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
                     clusterState
                 );
 
-                // to send a request to trigger the transform at runtime, several requirements must be met:
+                // to send a request to schedule now the transform at runtime, several requirements must be met:
                 // - transform must be running, meaning a task exists
                 // - transform is not failed (stopped transforms do not have a task)
                 if (transformTask != null
@@ -98,22 +98,25 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
                     && transformTask.getState() instanceof TransformState
                     && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
 
-                    ActionListener<Response> taskTriggerListener = ActionListener.wrap(listener::onResponse, e -> {
+                    ActionListener<Response> taskScheduleNowListener = ActionListener.wrap(listener::onResponse, e -> {
                         // benign: A transform might have been stopped meanwhile, this is not a problem
-                        if (e instanceof TransformTaskDisappearedDuringTriggerException) {
-                            logger.debug(() -> format("[%s] transform task disappeared during trigger, ignoring.", request.getId()), e);
+                        if (e instanceof TransformTaskDisappearedDuringScheduleNowException) {
+                            logger.debug(
+                                () -> format("[%s] transform task disappeared during schedule_now, ignoring.", request.getId()),
+                                e
+                            );
                             listener.onResponse(Response.TRUE);
                             return;
                         }
-                        if (e instanceof TransformTaskTriggerException) {
-                            logger.warn(() -> format("[%s] failed to trigger running transform.", request.getId()), e);
+                        if (e instanceof TransformTaskScheduleNowException) {
+                            logger.warn(() -> format("[%s] failed to schedule now the running transform.", request.getId()), e);
                             listener.onResponse(Response.TRUE);
                             return;
                         }
                         listener.onFailure(e);
                     });
                     request.setNodes(transformTask.getExecutorNode());
-                    super.doExecute(task, request, taskTriggerListener);
+                    super.doExecute(task, request, taskScheduleNowListener);
                 } else {
                     listener.onResponse(Response.TRUE);
                 }
@@ -126,7 +129,7 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
 
     @Override
     protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
-        transformScheduler.trigger(request.getId());
+        transformScheduler.scheduleNow(request.getId());
         listener.onResponse(Response.TRUE);
     }
 
@@ -139,8 +142,8 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
     ) {
         if (tasks.isEmpty()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw new TransformTaskTriggerException(
-                    "Failed to trigger running transform due to task operation failure.",
+                throw new TransformTaskScheduleNowException(
+                    "Failed to schedule now the running transform due to task operation failure.",
                     taskOperationFailures.get(0).getCause()
                 );
             } else if (failedNodeExceptions.isEmpty() == false) {
@@ -149,25 +152,27 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
                 if (failedNodeExceptionCause instanceof ActionNotFoundTransportException) {
                     throw (ActionNotFoundTransportException) failedNodeExceptionCause;
                 }
-                throw new TransformTaskTriggerException(
-                    "Failed to trigger running transform due to failed node exception.",
+                throw new TransformTaskScheduleNowException(
+                    "Failed to schedule now the running transform due to failed node exception.",
                     failedNodeExceptions.get(0)
                 );
             } else {
-                throw new TransformTaskDisappearedDuringTriggerException("Could not trigger running transform as it has been stopped.");
+                throw new TransformTaskDisappearedDuringScheduleNowException(
+                    "Could not schedule now the running transform as it has been stopped."
+                );
             }
         }
         return tasks.get(0);
     }
 
-    private static class TransformTaskTriggerException extends ElasticsearchException {
-        TransformTaskTriggerException(String msg, Throwable cause, Object... args) {
+    private static class TransformTaskScheduleNowException extends ElasticsearchException {
+        TransformTaskScheduleNowException(String msg, Throwable cause, Object... args) {
             super(msg, cause, args);
         }
     }
 
-    private static class TransformTaskDisappearedDuringTriggerException extends ElasticsearchException {
-        TransformTaskDisappearedDuringTriggerException(String msg) {
+    private static class TransformTaskDisappearedDuringScheduleNowException extends ElasticsearchException {
+        TransformTaskDisappearedDuringScheduleNowException(String msg) {
             super(msg);
         }
     }

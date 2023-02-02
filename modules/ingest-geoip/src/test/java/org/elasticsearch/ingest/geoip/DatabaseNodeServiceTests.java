@@ -125,8 +125,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ingestService = mock(IngestService.class);
         clusterService = mock(ClusterService.class);
         geoIpTmpDir = createTempDir();
-        databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run);
-        databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService, clusterService);
+        databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
+        databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService);
     }
 
     @After
@@ -151,7 +151,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         // Nothing should be downloaded, since the database is no longer valid (older than 30 days)
         databaseNodeService.checkDatabases(state);
-        DatabaseReaderLazyLoader database = databaseNodeService.getDatabase("GeoIP2-City.mmdb");
+        DatabaseReaderLazyLoader database = databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb");
         assertThat(database, nullValue());
         verify(client, times(0)).search(any());
         verify(ingestService, times(0)).reloadPipeline(anyString());
@@ -169,7 +169,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         // Database should be downloaded
         databaseNodeService.checkDatabases(state);
-        database = databaseNodeService.getDatabase("GeoIP2-City.mmdb");
+        database = databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb");
         assertThat(database, notNullValue());
         verify(client, times(10)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {

@@ -107,10 +107,6 @@ public class CollectionUtils {
             // noop
         } else if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
             ensureNoSelfReferences(m, ancestors, messageHint);
-        } else if ((value instanceof List<?> l) && l.isEmpty() == false) {
-            ensureNoSelfReferences(l, ancestors, messageHint);
-        } else if ((value instanceof Set<?> s) && s.isEmpty() == false) {
-            ensureNoSelfReferences(s, ancestors, messageHint);
         } else if ((value instanceof Iterable<?> i) && (value instanceof Path == false)) {
             ensureNoSelfReferences(i, i, ancestors, messageHint);
         } else if (value instanceof Object[]) {
@@ -124,22 +120,6 @@ public class CollectionUtils {
         for (Map.Entry<?, ?> e : reference.entrySet()) {
             ensureNoSelfReferences(e.getKey(), ancestors, messageHint);
             ensureNoSelfReferences(e.getValue(), ancestors, messageHint);
-        }
-        ancestors.remove(reference);
-    }
-
-    private static void ensureNoSelfReferences(final List<?> reference, final Set<Object> ancestors, final String messageHint) {
-        addToAncestorsOrThrow(reference, ancestors, messageHint);
-        for (Object o : reference) {
-            ensureNoSelfReferences(o, ancestors, messageHint);
-        }
-        ancestors.remove(reference);
-    }
-
-    private static void ensureNoSelfReferences(final Set<?> reference, final Set<Object> ancestors, final String messageHint) {
-        addToAncestorsOrThrow(reference, ancestors, messageHint);
-        for (Object o : reference) {
-            ensureNoSelfReferences(o, ancestors, messageHint);
         }
         ancestors.remove(reference);
     }

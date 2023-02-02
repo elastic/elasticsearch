@@ -26,8 +26,16 @@ public class RemoteClusterPortSettingsIT extends ESIntegTestCase {
         final Settings.Builder builder = Settings.builder()
             .put(randomBoolean() ? masterNode() : dataOnlyNode())
             .put("discovery.initial_state_timeout", "1s")
-            .put("remote_cluster.enabled", true)
-            .put("transport.profiles._remote_cluster.port", 9900);
+            .put("remote_cluster.enabled", true);
+
+        // Test that the same error message is always reported for direct usage of the _remote_cluster profile
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> builder.put("transport.profiles._remote_cluster.tcp.keep_alive", true);
+            case 1 -> builder.put("transport.profiles._remote_cluster.port", 9900);
+            default -> builder.put("transport.profiles._remote_cluster.port", 9900)
+                .put("transport.profiles._remote_cluster.tcp.keep_alive", true);
+        }
+
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(builder));
         assertThat(
             e.getMessage(),

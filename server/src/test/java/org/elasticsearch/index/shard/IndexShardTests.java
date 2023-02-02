@@ -482,7 +482,9 @@ public class IndexShardTests extends IndexShardTestCase {
         promoteReplica(
             indexShard,
             Collections.singleton(replicaRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build()
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(
+                TestShardRouting.newShardRouting(replicaRouting.shardId(), "ignored", true, ShardRoutingState.STARTED)
+            ).addShard(replicaRouting).build()
         );
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
@@ -570,7 +572,9 @@ public class IndexShardTests extends IndexShardTestCase {
         promoteReplica(
             indexShard,
             Collections.singleton(replicaRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build()
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(
+                TestShardRouting.newShardRouting(replicaRouting.shardId(), "ignored", true, ShardRoutingState.STARTED)
+            ).addShard(replicaRouting).build()
         );
 
         stop.set(true);
@@ -593,7 +597,9 @@ public class IndexShardTests extends IndexShardTestCase {
         promoteReplica(
             indexShard,
             Collections.singleton(replicaRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build()
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(
+                TestShardRouting.newShardRouting(replicaRouting.shardId(), "ignored", true, ShardRoutingState.STARTED)
+            ).addShard(replicaRouting).build()
         );
 
         /*
@@ -2918,8 +2924,6 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.openEngineAndRecoverFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
-        // Recovery state should be propagated to the engine
-        assertEquals(isPrimary, shard.getEngine().config().isRecoveringAsPrimary());
         closeShards(shard);
     }
 
@@ -4527,7 +4531,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.isRecoveringAsPrimary()
+                config.isPromotableToPrimary()
             );
             return new InternalEngine(configWithWarmer);
         });

@@ -260,8 +260,22 @@ public class LogConfigurator {
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that. Note that we do NOT close the streams because other code may have
         // grabbed a handle to the streams and intend to write to it, eg log4j for writing to the console
-        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8));
-        System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8));
+        System.setOut(
+            new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO, List.of()), false, StandardCharsets.UTF_8)
+        );
+        System.setErr(
+            new PrintStream(
+                new LoggingOutputStream(
+                    LogManager.getLogger("stderr"),
+                    Level.WARN,
+                    // MMapDirectory messages come from Lucene, suggesting to users as a warning that they should enable preview features in
+                    // the JDK
+                    List.of("MMapDirectory")
+                ),
+                false,
+                StandardCharsets.UTF_8
+            )
+        );
 
         final Logger rootLogger = LogManager.getRootLogger();
         Appender appender = Loggers.findAppender(rootLogger, ConsoleAppender.class);

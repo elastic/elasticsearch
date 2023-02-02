@@ -37,15 +37,16 @@ public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<G
                 )
             )
         );
+        int maxInlined = randomInt(5);
         Map<String, StackFrame> stackFrames = randomNullable(
             Map.of(
                 "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf",
                 new StackFrame(
-                    randomNullable(() -> randomAlphaOfLength(20)),
-                    randomNullable(() -> randomAlphaOfLength(20)),
-                    randomNullable(() -> randomIntBetween(1, Integer.MAX_VALUE)),
-                    randomNullable(() -> randomIntBetween(1, 30_000)),
-                    randomNullable(() -> randomIntBetween(1, 10))
+                    randomList(0, maxInlined, () -> randomAlphaOfLength(20)),
+                    randomList(0, maxInlined, () -> randomAlphaOfLength(20)),
+                    randomList(0, maxInlined, () -> randomIntBetween(1, Integer.MAX_VALUE)),
+                    randomList(0, maxInlined, () -> randomIntBetween(1, 30_000)),
+                    randomList(0, maxInlined, () -> randomIntBetween(1, 10))
                 )
             )
         );
@@ -53,6 +54,11 @@ public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<G
         Map<String, Integer> stackTraceEvents = randomNullable(Map.of(randomAlphaOfLength(12), randomIntBetween(1, 200)));
 
         return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames);
+    }
+
+    @Override
+    protected GetProfilingResponse mutateInstance(GetProfilingResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

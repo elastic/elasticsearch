@@ -1082,7 +1082,7 @@ public class PersistedClusterStateService {
 
         private void addGlobalMetadataDocuments(Metadata metadata) throws IOException {
             logger.trace("updating global metadata doc");
-            writePages(ChunkedToXContent.wrapAsXContentObject(metadata), (bytesRef, pageIndex, isLastPage) -> {
+            writePages(ChunkedToXContent.wrapAsToXContent(metadata), (bytesRef, pageIndex, isLastPage) -> {
                 final Document document = new Document();
                 document.add(new StringField(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME, Field.Store.NO));
                 document.add(new StoredField(PAGE_FIELD_NAME, pageIndex));

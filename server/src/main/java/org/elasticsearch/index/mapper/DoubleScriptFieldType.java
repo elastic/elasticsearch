@@ -47,9 +47,10 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             String name,
             DoubleFieldScript.Factory factory,
             Script script,
-            Map<String, String> meta
+            Map<String, String> meta,
+            OnScriptError onScriptError
         ) {
-            return new DoubleScriptFieldType(name, factory, script, meta);
+            return new DoubleScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
@@ -67,10 +68,16 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         return new Builder(name).createRuntimeField(DoubleFieldScript.PARSE_FROM_SOURCE);
     }
 
-    DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    DoubleScriptFieldType(
+        String name,
+        DoubleFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta

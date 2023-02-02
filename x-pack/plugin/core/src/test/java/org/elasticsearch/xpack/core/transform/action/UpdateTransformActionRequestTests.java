@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Reque
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests.randomTransformConfigUpdate;
 
 public class UpdateTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
@@ -39,7 +37,7 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         TransformConfigUpdate update = instance.getUpdate();
         boolean deferValidation = instance.isDeferValidation();

@@ -1,6 +1,0 @@
-pr: 90768
-summary: Keep track of average shard write load
-area: CRUD
-type: enhancement
-issues:
- - 90102

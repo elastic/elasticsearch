@@ -64,7 +64,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        ChunkedToXContent.wrapAsXContentObject(watcherMetadata).toXContent(builder, params);
+        ChunkedToXContent.wrapAsToXContent(watcherMetadata).toXContent(builder, params);
         builder.startArray("stats");
         for (Node node : getNodes()) {
             node.toXContent(builder, params);

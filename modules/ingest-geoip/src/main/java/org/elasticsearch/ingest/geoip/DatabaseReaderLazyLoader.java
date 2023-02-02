@@ -221,7 +221,8 @@ class DatabaseReaderLazyLoader implements Closeable {
         }
     }
 
-    private void doClose() throws IOException {
+    // Visible for Testing
+    protected void doClose() throws IOException {
         IOUtils.close(databaseReader.get());
         int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
         LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);

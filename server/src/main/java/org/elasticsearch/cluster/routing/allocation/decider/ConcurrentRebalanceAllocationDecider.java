@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * Similar to the {@link ClusterRebalanceAllocationDecider} this
@@ -44,13 +43,12 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     );
     private volatile int clusterConcurrentRebalance;
 
-    public ConcurrentRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.clusterConcurrentRebalance = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.get(settings);
-        logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
-        clusterSettings.addSettingsUpdateConsumer(
+    public ConcurrentRebalanceAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(
             CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
             this::setClusterConcurrentRebalance
         );
+        logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
     }
 
     private void setClusterConcurrentRebalance(int concurrentRebalance) {

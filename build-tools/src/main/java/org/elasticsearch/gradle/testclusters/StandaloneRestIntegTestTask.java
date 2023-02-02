@@ -71,11 +71,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     @Option(option = "debug-server-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebugServer(boolean enabled) {
         this.debugServer = enabled;
-    }
-
-    @Override
-    public int getMaxParallelForks() {
-        return 1;
+        systemProperty("tests.cluster.debug.enabled", Boolean.toString(enabled));
     }
 
     @Nested

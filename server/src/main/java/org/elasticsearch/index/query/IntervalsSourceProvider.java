@@ -13,7 +13,7 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -120,7 +120,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.ordered = in.readBoolean();
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
-            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
                 this.useField = in.readOptionalString();
             } else {
                 this.useField = null;
@@ -204,7 +204,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeBoolean(ordered);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
-            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
                 out.writeOptionalString(useField);
             }
         }

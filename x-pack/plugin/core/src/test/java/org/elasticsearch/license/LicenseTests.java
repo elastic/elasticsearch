@@ -252,7 +252,7 @@ public class LicenseTests extends ESTestCase {
 
     public void testMalformedSignatureFromXContent() throws Exception {
 
-        String licenseString = formatted("""
+        String licenseString = Strings.format("""
             {
               "license": {
                 "uid": "4056779d-b823-4c12-a9cb-efa4a8d8c422",

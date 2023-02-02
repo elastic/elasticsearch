@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
@@ -27,7 +28,12 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        CompositeFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        CompositeFieldScript.LeafFactory newFactory(
+            String fieldName,
+            Map<String, Object> params,
+            SearchLookup searchLookup,
+            OnScriptError onScriptError
+        );
     }
 
     public interface LeafFactory {
@@ -36,8 +42,14 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
 
     private final Map<String, List<Object>> fieldValues = new HashMap<>();
 
-    public CompositeFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+    public CompositeFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        OnScriptError onScriptError,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx, onScriptError);
     }
 
     /**

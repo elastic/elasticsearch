@@ -33,9 +33,8 @@ artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-testClusters.configureEach {
-  module ':modules:mapper-extras'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+dependencies {
+  clusterModules project(":modules:mapper-extras")
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

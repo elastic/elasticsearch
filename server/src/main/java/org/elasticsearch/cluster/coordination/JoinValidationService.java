@@ -308,7 +308,7 @@ public class JoinValidationService {
             transportService.sendRequest(
                 discoveryNode,
                 JOIN_VALIDATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, discoveryNode.getVersion()),
+                new BytesTransportRequest(bytes, discoveryNode.getVersion().transportVersion),
                 REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(
                     listener,

@@ -150,6 +150,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             transformConfigManager.expandTransformIds(
                 request.getId(),
                 new PageParams(0, 10_000),
+                request.getTimeout(),
                 request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {
                     validateTaskState(state, hitsAndIds.v2().v1(), request.isForce());

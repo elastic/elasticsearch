@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.DlsFlsFeatureTrackingIndicesAccessControlWrapper;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
@@ -130,6 +131,7 @@ public class AuthorizationService {
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final RestrictedIndices restrictedIndices;
+    private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -169,6 +171,7 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
+        this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
     }
 
     public void checkPrivileges(
@@ -209,10 +212,10 @@ public class AuthorizationService {
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        if (SystemUser.is(subject.getUser())) {
+        if (isInternal(subject.getUser())) {
             final String message = "the user ["
                 + subject.getUser().principal()
-                + "] is the system user and we should never try to retrieve its remote access roles descriptors";
+                + "] is an internal user and we should never try to retrieve its remote access roles descriptors";
             assert false : message;
             listener.onFailure(new IllegalArgumentException(message));
             return;
@@ -220,29 +223,20 @@ public class AuthorizationService {
 
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
         final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
-        if (authorizationInfo != null) {
-            authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
-                remoteClusterAlias,
-                authorizationInfo,
-                wrapPreservingContext(listener, threadContext)
-            );
-        } else {
-            assert isInternal(subject.getUser())
-                : "authorization info must be available in thread context for all users other than internal users";
-            authorizationEngine.resolveAuthorizationInfo(
-                subject,
-                wrapPreservingContext(
-                    listener.delegateFailure(
-                        (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
-                            remoteClusterAlias,
-                            resolvedAuthzInfo,
-                            wrapPreservingContext(delegatedLister, threadContext)
-                        )
-                    ),
-                    threadContext
-                )
-            );
-        }
+        assert authorizationInfo != null : "authorization info must be available in thread context";
+        authorizationEngine.resolveAuthorizationInfo(
+            subject,
+            wrapPreservingContext(
+                listener.delegateFailure(
+                    (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
+                        remoteClusterAlias,
+                        resolvedAuthzInfo,
+                        wrapPreservingContext(delegatedLister, threadContext)
+                    )
+                ),
+                threadContext
+            )
+        );
     }
 
     /**
@@ -521,7 +515,7 @@ public class AuthorizationService {
         final Metadata metadata,
         final ActionListener<Void> listener
     ) {
-        final IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
+        final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();

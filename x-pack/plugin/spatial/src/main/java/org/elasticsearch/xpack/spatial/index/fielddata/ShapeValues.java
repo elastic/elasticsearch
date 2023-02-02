@@ -155,7 +155,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
          * simple geometries, therefore it will fail if the LatLonGeometry is a {@link org.apache.lucene.geo.Rectangle}
          * that crosses the dateline.
          */
-        protected GeoRelation relate(Component2D component2D) throws IOException {
+        public GeoRelation relate(Component2D component2D) throws IOException {
             component2DRelationVisitor.reset(component2D);
             reader.visit(component2DRelationVisitor);
             return component2DRelationVisitor.relation();

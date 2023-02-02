@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -100,12 +100,12 @@ final class ServerTransportFilter {
             }
         }
 
-        final Version version = transportChannel.getVersion();
+        TransportVersion version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
-                    securityContext.executeAsSystemUser(version, original -> {
+                    securityContext.executeAsSystemUser(TransportVersion.fromId(version.id), original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);
                     });
@@ -116,5 +116,10 @@ final class ServerTransportFilter {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
         }, listener::onFailure));
+    }
+
+    // Package private for testing
+    boolean isExtractClientCert() {
+        return extractClientCert;
     }
 }

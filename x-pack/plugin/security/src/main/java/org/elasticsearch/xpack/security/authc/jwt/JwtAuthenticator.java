@@ -14,7 +14,6 @@ import com.nimbusds.jwt.SignedJWT;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import java.text.ParseException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,28 +65,11 @@ public class JwtAuthenticator implements Releasable {
 
     public void authenticate(JwtAuthenticationToken jwtAuthenticationToken, ActionListener<JWTClaimsSet> listener) {
         final String tokenPrincipal = jwtAuthenticationToken.principal();
-
         // JWT cache
-        final SecureString serializedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
-        final SignedJWT signedJWT;
-        try {
-            signedJWT = SignedJWT.parse(serializedJwt.toString());
-        } catch (ParseException e) {
-            // TODO: No point to continue to another realm since parsing failed
-            listener.onFailure(e);
-            return;
-        }
-
-        final JWTClaimsSet jwtClaimsSet;
-        try {
-            jwtClaimsSet = signedJWT.getJWTClaimsSet();
-        } catch (ParseException e) {
-            // TODO: No point to continue to another realm since get claimset failed
-            listener.onFailure(e);
-            return;
-        }
-
+        final SignedJWT signedJWT = jwtAuthenticationToken.getSignedJWT();
+        final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJWTClaimsSet();
         final JWSHeader jwsHeader = signedJWT.getHeader();
+
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "Realm [{}] successfully parsed JWT token [{}] with header [{}] and claimSet [{}]",

@@ -31,6 +31,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.TreeMap;
 
+@SuppressWarnings("checkstyle:linelength")
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA

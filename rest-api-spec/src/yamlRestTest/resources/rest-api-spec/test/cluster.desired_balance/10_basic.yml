@@ -30,24 +30,30 @@ setup:
       _internal.get_desired_balance: { }
 
   - is_true: 'cluster_balance_stats'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.total'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.min'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.max'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.average'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.std_dev'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.total'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.min'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.max'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.average'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.std_dev'
-  - is_true: 'cluster_balance_stats.data_content.shard_count'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.total'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.min'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.max'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.average'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.std_dev'
+  - is_true: 'cluster_balance_stats.tiers'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.total'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.min'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.max'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.average'
+  - is_true: 'cluster_balance_stats.tiers.data_content.shard_count.std_dev'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.total'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.min'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.max'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.average'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_write_load.std_dev'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.total'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.min'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.max'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.average'
+  - is_true: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.std_dev'
+  - is_true: 'cluster_balance_stats.nodes'
+  - is_true: 'cluster_balance_stats.nodes.test-cluster-0'
+  - gte: { 'cluster_balance_stats.nodes.test-cluster-0.shard_count' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.test-cluster-0.forecast_write_load': 0.0 }
+  - gte: { 'cluster_balance_stats.nodes.test-cluster-0.forecast_disk_usage_bytes' : 0 }
 
 ---
 "Test get desired balance for single shard":
@@ -81,8 +87,8 @@ setup:
   - is_true: 'routing_table.test.0.current.0.node_is_desired'
   - is_false: 'routing_table.test.0.current.0.relocating_node'
   - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
-  - is_false: 'routing_table.test.0.current.0.forecasted_write_load'
-  - is_false: 'routing_table.test.0.current.0.forecasted_shard_size_in_bytes'
+  - is_false: 'routing_table.test.0.current.0.forecast_write_load'
+  - is_false: 'routing_table.test.0.current.0.forecast_shard_size_in_bytes'
   - match: { routing_table.test.0.desired.total: 1 }
   - gte: { routing_table.test.0.desired.unassigned: 0 }
   - gte: { routing_table.test.0.desired.ignored: 0 }

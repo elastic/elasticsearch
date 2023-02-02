@@ -13,8 +13,6 @@ import groovy.lang.Closure;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
-import org.elasticsearch.gradle.ElasticsearchDistributionType;
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
@@ -60,8 +58,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_RUNTIME_JAVA_SYSPROP = "tests.runtime.java";
     private static final String DEFAULT_DISTRIBUTION_SYSPROP = "tests.default.distribution";
     private static final String INTEG_TEST_DISTRIBUTION_SYSPROP = "tests.integ-test.distribution";
-    private static final String BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX = "tests.snapshot.distribution.";
-    private static final String BWC_RELEASED_DISTRIBUTION_SYSPROP_PREFIX = "tests.release.distribution.";
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
     private static final String DEFAULT_REST_INTEG_TEST_DISTRO = "default_distro";
@@ -83,17 +79,16 @@ public class RestTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
 
         // Register integ-test and default distributions
-        ElasticsearchDistribution defaultDistro = createDistribution(
-            project,
-            DEFAULT_REST_INTEG_TEST_DISTRO,
-            VersionProperties.getElasticsearch()
-        );
-        ElasticsearchDistribution integTestDistro = createDistribution(
-            project,
-            INTEG_TEST_REST_INTEG_TEST_DISTRO,
-            VersionProperties.getElasticsearch(),
-            ElasticsearchDistributionTypes.INTEG_TEST_ZIP
-        );
+        NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
+        ElasticsearchDistribution defaultDistro = distributions.create(DEFAULT_REST_INTEG_TEST_DISTRO, distro -> {
+            distro.setVersion(VersionProperties.getElasticsearch());
+            distro.setArchitecture(Architecture.current());
+        });
+        ElasticsearchDistribution integTestDistro = distributions.create(INTEG_TEST_REST_INTEG_TEST_DISTRO, distro -> {
+            distro.setVersion(VersionProperties.getElasticsearch());
+            distro.setArchitecture(Architecture.current());
+            distro.setType(ElasticsearchDistributionTypes.INTEG_TEST_ZIP);
+        });
 
         // Create configures for module and plugin dependencies
         Configuration modulesConfiguration = createPluginConfiguration(project, MODULES_CONFIGURATION, true, false);
@@ -156,60 +151,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     return null;
                 }
             });
-
-            // Add `usesBwcDistribution(version)` extension method to test tasks to indicate they require a BWC distribution
-            task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
-                @Override
-                public Void call(Object... args) {
-                    if (args.length != 1 && args[0] instanceof Version == false) {
-                        throw new IllegalArgumentException("Expected exactly one argument of type org.elasticsearch.gradle.Version");
-                    }
-
-                    Version version = (Version) args[0];
-                    boolean isReleased = BuildParams.getBwcVersions().unreleasedInfo(version) == null;
-                    String versionString = version.toString();
-                    ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
-
-                    task.dependsOn(bwcDistro);
-                    registerDistributionInputs(task, bwcDistro);
-
-                    nonInputSystemProperties.systemProperty(
-                        (isReleased ? BWC_RELEASED_DISTRIBUTION_SYSPROP_PREFIX : BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX) + versionString,
-                        providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
-                    );
-
-                    if (version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
-                        // If we are upgrade testing older versions we also need to upgrade to 7.last
-                        this.call(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
-                    }
-                    return null;
-                }
-            });
         });
 
         project.getTasks()
             .named(JavaBasePlugin.CHECK_TASK_NAME)
             .configure(check -> check.dependsOn(project.getTasks().withType(StandaloneRestIntegTestTask.class)));
-    }
-
-    private ElasticsearchDistribution createDistribution(Project project, String name, String version) {
-        return createDistribution(project, name, version, null);
-    }
-
-    private ElasticsearchDistribution createDistribution(Project project, String name, String version, ElasticsearchDistributionType type) {
-        NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
-        ElasticsearchDistribution maybeDistro = distributions.findByName(name);
-        if (maybeDistro == null) {
-            return distributions.create(name, distro -> {
-                distro.setVersion(version);
-                distro.setArchitecture(Architecture.current());
-                if (type != null) {
-                    distro.setType(type);
-                }
-            });
-        } else {
-            return maybeDistro;
-        }
     }
 
     private FileTree getDistributionFiles(ElasticsearchDistribution distribution, Action<PatternFilterable> patternFilter) {

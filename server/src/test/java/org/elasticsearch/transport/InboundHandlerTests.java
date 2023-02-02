@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -305,7 +307,10 @@ public class InboundHandlerTests extends ESTestCase {
                 TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
                 remoteVersion
             );
-            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.empty(), () -> {
+            BytesStreamOutput byteData = new BytesStreamOutput();
+            TaskId.EMPTY_TASK_ID.writeTo(byteData);
+            TransportVersion.writeVersion(remoteVersion, byteData);
+            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(byteData.bytes()), () -> {
                 try {
                     TimeUnit.SECONDS.sleep(1L);
                 } catch (InterruptedException e) {

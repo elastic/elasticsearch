@@ -77,10 +77,11 @@ backing indices for these data streams.
 To view the `logs` policy in {kib}:
 
 . Open the menu and go to **Stack Management > Index Lifecycle Policies**.
+. Enable **Include managed system policies**
 . Select the `logs` policy.
 
 The `logs` policy uses the recommended rollover defaults: Start writing to a new
-index when the current write index reaches 50GB or becomes 30 days old.
+index when the current write index is 30 days old or any primary shard reaches 50 gigabytes.
 
 To view or change the rollover settings, click **Advanced settings** for the hot
 phase. Then disable **Use recommended defaults** to display the rollover

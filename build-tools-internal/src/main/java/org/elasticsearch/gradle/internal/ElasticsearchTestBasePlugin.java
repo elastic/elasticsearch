@@ -89,7 +89,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getJvmArgumentProviders().add(nonInputProperties);
             test.getExtensions().add("nonInputProperties", nonInputProperties);
 
-            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName().replace("#", "_")));
+            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName()));
             test.setMaxParallelForks(Integer.parseInt(System.getProperty("tests.jvms", BuildParams.getDefaultParallel().toString())));
 
             test.exclude("**/*$*.class");

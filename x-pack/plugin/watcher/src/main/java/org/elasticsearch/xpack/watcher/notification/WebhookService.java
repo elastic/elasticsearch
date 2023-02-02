@@ -176,9 +176,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
 
         @Override
         public String toString() {
-            return "WebhookAccount["
-                + this.hostTokenMap.keySet().stream().map(s -> s + "=********")
-                + "]";
+            return "WebhookAccount[" + this.hostTokenMap.keySet().stream().map(s -> s + "=********") + "]";
         }
     }
 }

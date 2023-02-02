@@ -7,7 +7,10 @@
  */
 
 package org.elasticsearch.index.codec.bloomfilter;
-
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.codecs.Codec;
@@ -51,37 +54,24 @@ public class ES87BloomFilterPostingsFormatTests extends BasePostingsFormatTestCa
     }
 
     public void testHashTermsV2() {
-        // Philosophical question: In past environments, the testing philosophy was that tests should not
-        // be brittle, e.g. test externally visible properties and not internal implementation details to
-        // keep code agility high. These tests (hardcoding specific hash values) seem to not follow that
-        // philosophy. I suspect the specificity of the tests is useful to catch compatibility issues in
-        // future version upgrades?
-        /*
+        // The following tests are "intentionally brittle" - the implementation of the hash function is relevant for backward-compatibility,
+        // therefore these tests test the *internals* of the hash function and not only the external interface.
         Map<String, List<Integer>> testStrings = Map.of(
-            "hello",
-            List.of(1380667438, 1968195860, 542183772, 1969437389, 1326608973, 1078019780, 359366295),
-            "elasticsearch",
-            List.of(2025674736, 650360721, 1781586794, 1829185816, 1226755340, 150188357, 1416753788),
             "elastic",
-            List.of(1079004764, 1505351228, 1620194778, 1739313494, 2026788108, 715216665, 1356494285),
-            "java",
-            List.of(196343046, 1006975080, 1322262268, 1938886024, 1681507783, 531099153, 475120638),
-            "lucene",
-            List.of(864732739, 510526233, 750187164, 2068544193, 1512399983, 1357188193, 1553243046),
+            List.of(924743812, 1179558664, 1689188368, 51334424, 1070593832, 1580223536, 451999296),
             "bloom_filter",
-            List.of(302304049, 1875625365, 1390636927, 1168830145, 1298058585, 1253768250, 1824320738),
-            "",
-            List.of(2013023607, 407056934, 1511252831, 132787567, 1845217193, 755076846, 1422621990)
+            List.of(1660214456, 1257667067, 452572289, 1794961159, 184771603, 1527160473, 2064454565)
         );
+
         for (Map.Entry<String, List<Integer>> e : testStrings.entrySet()) {
             String term = e.getKey();
-            List<Integer> hashValues = new ArrayList<>();
-            for (int seed : V2_HASH_SEEDS) {
-                final BytesRef bytesRef = randomBytesRef(term.getBytes(StandardCharsets.UTF_8));
-                hashValues.add(hashTermWithSeed(bytesRef, seed));
+            int[] hashes = new int[7];
+            final BytesRef bytesRef = randomBytesRef(term.getBytes(StandardCharsets.UTF_8));
+            hashTerm(bytesRef, hashes);
+            for (int i = 0; i < 7; ++i) {
+                assertThat("term=" + term, hashes[i], equalTo(e.getValue().get(i)));
             }
-            assertThat("term=" + term, hashValues, equalTo(e.getValue()));
-        }*/
+        }
 
         byte[] bytes = ESTestCase.randomByteArrayOfLength(ESTestCase.between(0, 1000));
         int[] hashes = { 0, 0, 0, 0, 0, 0, 0 };

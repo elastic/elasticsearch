@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,8 +21,10 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -38,6 +41,18 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  * <p>
  * If the 'secrets' directory or the 'secrets.json' file don't exist, the
  * SecureSettings implementation is loaded with empty settings map.
+ * <p>
+ * Example secrets.json format:
+ *         {
+ *              "metadata": {
+ *                  "version": "1",
+ *                  "compatibility": "8.7.0"
+ *              },
+ *              "secrets": {
+ *                  "secure.setting.key.one": "aaa",
+ *                  "secure.setting.key.two": "bbb"
+ *              }
+ *         }
  */
 public class LocallyMountedSecrets implements SecureSettings {
 
@@ -127,12 +142,14 @@ public class LocallyMountedSecrets implements SecureSettings {
 
     @Override
     public InputStream getFile(String setting) throws GeneralSecurityException {
-        return null;
+        assert isLoaded();
+        return new ByteArrayInputStream(getString(setting).toString().getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
     public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
-        return new byte[0];
+        assert isLoaded();
+        return MessageDigests.sha256().digest(getString(setting).toString().getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

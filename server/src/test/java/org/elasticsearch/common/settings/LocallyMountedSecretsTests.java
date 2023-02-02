@@ -14,13 +14,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class LocallyMountedSecretsTests extends ESTestCase {
@@ -63,6 +67,33 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
         assertEquals("bbb", secrets.getString("aaa").toString());
         assertEquals("ddd", secrets.getString("ccc").toString());
+    }
+
+    public void testSettingsGetFile() throws IOException, GeneralSecurityException {
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
+        assertTrue(secrets.isLoaded());
+        assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
+        try (InputStream stream = secrets.getFile("aaa")) {
+            for (int i = 0; i < 3; ++i) {
+                int got = stream.read();
+                if (got < 0) {
+                    fail("Expected 3 bytes but read " + i);
+                }
+                assertEquals('b', got);
+            }
+            assertEquals(-1, stream.read()); // nothing left
+        }
+    }
+
+    public void testSettingsSHADigest() throws IOException, GeneralSecurityException {
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
+        assertTrue(secrets.isLoaded());
+        assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
+
+        final byte[] stringSettingHash = MessageDigest.getInstance("SHA-256").digest("bbb".getBytes(StandardCharsets.UTF_8));
+        assertThat(secrets.getSHA256Digest("aaa"), equalTo(stringSettingHash));
     }
 
     public void testProcessBadSettingsFile() throws IOException {

@@ -7,14 +7,19 @@
 The Redact processor obscures portions of text in the input document
 matching the given Grok patterns. A Grok pattern is like a regular
 expression with a named capturing group, text that matches the regular
-expression is replaced with the capture name.
-
-{es} comes packaged with a number of useful predefined
-https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
+expression is replaced with the capture name. {es} comes packaged with
+a number of useful predefined https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns],
+if one of those does not suit your needs create a new pattern with a
+custom pattern definition. The Redact processor replaces every occurrence
+of a match, if there are multiple matches all will be replaced with the
+capture name.
 
 The Redact processor is compatible with {ecs-ref}/ecs-field-reference.html[Elastic Common Schema (ECS)]
 patterns, legacy Grok patterns are not supported.
 
+[[using-redact]]
+
+==== Using the Redact Processor in a Pipeline
 
 [[redact-options]]
 .Redact Options
@@ -32,7 +37,7 @@ include::common-options.asciidoc[]
 
 In this example the predefined `IP` Grok pattern is used to match
 and redact an IP addresses from the `message` text field. The pipeline
-is tested against the Simulate API.
+is tested using the Simulate API.
 
 [source,console]
 --------------------------------------------------
@@ -89,7 +94,7 @@ specified in the Grok pattern `%{IP:client}`. The `<` and `>` tokens which
 surround the pattern name are also configurable.
 
 The next example defines multiple patterns both of which are replaced
-with the word `REDACTED` and the prefix and suffix tokens are both set to `*`
+with the word `REDACTED` and the prefix and suffix tokens are set to `*`
 
 [source,console]
 --------------------------------------------------
@@ -149,13 +154,17 @@ have been replaced by `*REDACTED*`.
 [[redact-custom-patterns]]
 ==== Custom Patterns
 
-
+If one of the existing Grok https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
+does not fit your requirements extend the patterns with the `pattern_definitions` option.
+New patterns can be defined with a regular expression or combine
+Grok patterns from the base definitions to build complex patterns.
+Add new patterns to the processor configuration with the
+`pattern_definitions` option.
 
 [[grok-watchdog-redact]]
 ==== Grok watchdog
 
 The watchdog interrupts expressions that take too long to execute.
 When interrupted the Redact processor fails with an error.
-
-The same settings that control the Grok Watchdog apply to the Redact processor
-// TODO Link to [[grok-watchdog-options]]
+The same <<grok-watchdog-options, settings>> that control the
+Grok Watchdog timeout also apply to the Redact processor.

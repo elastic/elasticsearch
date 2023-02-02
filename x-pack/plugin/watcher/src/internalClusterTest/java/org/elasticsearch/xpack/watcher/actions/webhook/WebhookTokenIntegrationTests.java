@@ -69,8 +69,7 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         Settings.Builder builder = Settings.builder();
         builder.put(super.nodeSettings(nodeOrdinal, otherSettings));
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(WebhookService.SETTING_WEBHOOK_ADDITIONAL_TOKEN.getKey(), "oldToken");
-        secureSettings.setString(WebhookService.SETTING_WEBHOOK_TOKEN_HOSTS.getKey(), "localhost:0");
+        secureSettings.setString(WebhookService.SETTING_WEBHOOK_HOST_TOKEN_PAIRS.getKey(), "localhost:0=oldtoken");
         builder.setSecureSettings(secureSettings);
         return builder.build();
     }
@@ -90,8 +89,7 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         logger.info("--> updating keystore token hosts to: {}", localServer);
         Path configPath = internalCluster().configPaths().stream().findFirst().orElseThrow();
         try (KeyStoreWrapper ksw = KeyStoreWrapper.bootstrap(configPath, () -> new SecureString("".toCharArray()))) {
-            ksw.setString(WebhookService.SETTING_WEBHOOK_TOKEN_HOSTS.getKey(), localServer.toCharArray());
-            ksw.setString(WebhookService.SETTING_WEBHOOK_ADDITIONAL_TOKEN.getKey(), "token1234".toCharArray());
+            ksw.setString(WebhookService.SETTING_WEBHOOK_HOST_TOKEN_PAIRS.getKey(), (localServer + "=token1234").toCharArray());
             ksw.save(configPath, "".toCharArray());
         }
         // Reload the keystore to load the new settings

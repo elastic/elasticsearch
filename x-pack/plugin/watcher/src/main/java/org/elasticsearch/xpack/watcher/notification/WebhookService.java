@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -30,6 +29,8 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,15 +48,11 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
     private static final Logger logger = LogManager.getLogger(WebhookService.class);
 
     public static final String TOKEN_HEADER_NAME = "X-Elastic-App-Auth";
-    public static final Setting<SecureString> SETTING_WEBHOOK_ADDITIONAL_TOKEN = SecureSetting.secureString(
-        "xpack.notification.webhook.additional_token",
-        null
-    );
 
-    // Token URLs should be in the form of "example.com:8200,other.com:80",
-    // i.e., a list of comma-separated hosts and ports
-    public static final Setting<SecureString> SETTING_WEBHOOK_TOKEN_HOSTS = SecureSetting.secureString(
-        "xpack.notification.webhook.token_hosts",
+    // Token URLs should be in the form of "example.com:8200=<token>,other.com:80=<token>",
+    // i.e., a list of comma-separated <host>:<port>=<token> pairs
+    public static final Setting<SecureString> SETTING_WEBHOOK_HOST_TOKEN_PAIRS = SecureSetting.secureString(
+        "xpack.notification.webhook.host_token_pairs",
         null
     );
 
@@ -73,7 +70,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
     }
 
     private static List<Setting<?>> getSecureSettings() {
-        return List.of(SETTING_WEBHOOK_ADDITIONAL_TOKEN, SETTING_WEBHOOK_TOKEN_HOSTS);
+        return List.of(SETTING_WEBHOOK_HOST_TOKEN_PAIRS);
     }
 
     @Override
@@ -117,15 +114,15 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
         // If applicable, add the extra token to the headers
         boolean tokenAdded = false;
         WebhookAccount account = getAccount(NAME);
-        if (account.validTokenHosts.size() > 0 && Strings.hasText(account.token)) {
+        if (account.hostTokenMap.size() > 0) {
             // Generate a string like example.com:9200 to match against the list of hosts where the
             // additional token should be provided. The token will only be added to the headers if
             // the request matches the list.
             String reqHostAndPort = request.host() + ":" + request.port();
-            if (account.validTokenHosts.contains(reqHostAndPort)) {
+            if (Strings.hasText(account.hostTokenMap.get(reqHostAndPort))) {
                 // Add the additional token
                 tokenAdded = true;
-                request = request.copy().setHeader(TOKEN_HEADER_NAME, account.token).build();
+                request = request.copy().setHeader(TOKEN_HEADER_NAME, account.hostTokenMap.get(reqHostAndPort)).build();
             }
         }
 
@@ -148,28 +145,39 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
     }
 
     public static final class WebhookAccount {
-        @Nullable
-        private final String token;
-        private final Set<String> validTokenHosts;
+        private final Map<String, String> hostTokenMap;
 
         public WebhookAccount(Settings settings) {
-            SecureString validTokenHosts = SETTING_WEBHOOK_TOKEN_HOSTS.get(settings);
+            SecureString validTokenHosts = SETTING_WEBHOOK_HOST_TOKEN_PAIRS.get(settings);
             if (Strings.hasText(validTokenHosts)) {
-                SecureString tokenText = SETTING_WEBHOOK_ADDITIONAL_TOKEN.get(settings);
-                this.validTokenHosts = Strings.commaDelimitedListToSet(validTokenHosts.toString());
-                this.token = Strings.hasText(tokenText) ? tokenText.toString() : "";
+                Set<String> hostAndTokens = Strings.commaDelimitedListToSet(validTokenHosts.toString());
+                Map<String, String> hostAndPortToToken = new HashMap<>(hostAndTokens.size());
+                for (String hostPortToken : hostAndTokens) {
+                    int equalsIndex = hostPortToken.indexOf('=');
+                    if (equalsIndex == -1) {
+                        // This is an invalid format, and we can skip this token
+                        break;
+                    }
+                    if (equalsIndex + 1 == hostPortToken.length()) {
+                        // This is also invalid, because it ends in a trailing =
+                        break;
+                    }
+                    // The first part becomes the <host>:<port> pair
+                    String hostAndPort = hostPortToken.substring(0, equalsIndex);
+                    // The second part after the '=' is the <token>
+                    String token = hostPortToken.substring(equalsIndex + 1);
+                    hostAndPortToToken.put(hostAndPort, token);
+                }
+                this.hostTokenMap = Collections.unmodifiableMap(hostAndPortToToken);
             } else {
-                this.validTokenHosts = Set.of();
-                this.token = null;
+                this.hostTokenMap = Map.of();
             }
         }
 
         @Override
         public String toString() {
-            return "WebhookAccount[token="
-                + (token == null ? "<missing>" : "********")
-                + ",hosts="
-                + Strings.collectionToCommaDelimitedString(validTokenHosts)
+            return "WebhookAccount["
+                + this.hostTokenMap.keySet().stream().map(s -> s + "=********")
                 + "]";
         }
     }

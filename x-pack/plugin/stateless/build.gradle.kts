@@ -8,7 +8,7 @@ esplugin {
     name = "stateless"
     description = "Stateless module for Elasticsearch"
     classname = "co.elastic.elasticsearch.stateless.Stateless"
-    extendedPlugins = listOf("x-pack-core")
+    extendedPlugins = listOf("x-pack-core", "blob-cache")
 }
 
 configurations {
@@ -24,6 +24,7 @@ configurations {
 
 dependencies {
     compileOnly(xpackModule("core"))
+    compileOnly(xpackModule("blob-cache"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
     testImplementation("com.amazonaws:aws-java-sdk-core")
     testImplementation("org.elasticsearch.test:s3-fixture")

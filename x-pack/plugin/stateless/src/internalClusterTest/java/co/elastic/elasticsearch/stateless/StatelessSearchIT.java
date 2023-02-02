@@ -28,6 +28,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -102,7 +103,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockTransportService.TestPlugin.class, TestStateless.class);
+        return List.of(BlobCachePlugin.class, MockTransportService.TestPlugin.class, TestStateless.class);
     }
 
     private static int getNumberOfCreatedCommits() {

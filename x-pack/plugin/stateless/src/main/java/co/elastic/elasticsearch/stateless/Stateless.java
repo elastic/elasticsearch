@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
+import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
 
@@ -33,6 +34,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -46,6 +48,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -101,7 +104,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
+
+    private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
+
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
+
     private final Settings settings;
 
     private ObjectStoreService getObjectStoreService() {
@@ -135,9 +142,16 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     ) {
         var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, client);
         this.objectStoreService.set(objectStoreService);
+        var sharedBlobCache = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, settings, threadPool);
+        this.sharedBlobCacheService.set(sharedBlobCache);
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService::pushTranslogFile);
         this.translogReplicator.set(translogReplicator);
         return List.of(objectStoreService, translogReplicator);
+    }
+
+    @Override
+    public void close() throws IOException {
+        Releasables.close(sharedBlobCacheService.get());
     }
 
     @Override

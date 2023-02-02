@@ -34,9 +34,9 @@ to match. For example, if you use a `max` aggregation on a time field called
 descending order. Additional `composite` aggregation value sources are allowed, 
 such as `terms`.
 
-* The `size` parameter of the non-composite aggregations must be configured 
-properly to match the cardinality of your data. A greater value of the `size` 
-parameter increases the memory requirement of the aggregation.
+* The `size` parameter of the non-composite aggregations must match the 
+cardinality of your data. A greater value of the `size` parameter increases the 
+memory requirement of the aggregation.
 
 * If you set the `summary_count_field_name` property to a non-null value, the 
 {anomaly-job} expects to receive aggregated input. The property must be set to 

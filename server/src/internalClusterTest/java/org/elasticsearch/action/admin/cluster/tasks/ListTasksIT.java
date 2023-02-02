@@ -28,8 +28,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -63,7 +65,8 @@ public class ListTasksIT extends ESSingleNodeTestCase {
     }
 
     public void testWaitForCompletion() throws Exception {
-        final var threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
+        final var threadPool = getInstanceFromNode(ThreadPool.class);
+        final var threadContext = threadPool.getThreadContext();
 
         final var barrier = new CyclicBarrier(2);
         getInstanceFromNode(PluginsService.class).filterPlugins(TestPlugin.class).get(0).barrier = barrier;
@@ -82,30 +85,73 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         final var task = listTasksResponse.getTasks().get(0);
         assertEquals(TestTransportAction.NAME, task.action());
 
-        final var waitFuture = new PlainActionFuture<Void>();
+        final var listWaitFuture = new PlainActionFuture<Void>();
         client().admin()
             .cluster()
             .prepareListTasks()
             .setTargetTaskId(task.taskId())
             .setWaitForCompletion(true)
-            .execute(waitFuture.delegateFailure((l, waitResult) -> {
-                // cannot guarantee that waitResult contains the task (it may be allowed to complete before we start to wait)
-                // but the task must now be complete:
+            .execute(listWaitFuture.delegateFailure((l, listResult) -> {
+                assertEquals(1, listResult.getTasks().size());
+                assertEquals(task.taskId(), listResult.getTasks().get(0).taskId());
+                // the task must now be complete:
                 client().admin().cluster().prepareListTasks().setActions(TestTransportAction.NAME).execute(l.map(listAfterWaitResult -> {
                     assertThat(listAfterWaitResult.getTasks(), empty());
+                    assertThat(listAfterWaitResult.getNodeFailures(), empty());
+                    assertThat(listAfterWaitResult.getTaskFailures(), empty());
                     return null;
                 }));
                 // and we must not see its header:
                 assertNull(threadContext.getResponseHeaders().get(TestTransportAction.HEADER_NAME));
             }));
 
-        Thread.yield();
+        // briefly fill up the management pool so that (a) we know the wait has started and (b) we know it's not blocking
+        flushThreadPool(threadPool, ThreadPool.Names.MANAGEMENT);
 
-        assertFalse(waitFuture.isDone());
+        final var getWaitFuture = new PlainActionFuture<Void>();
+        client().admin()
+            .cluster()
+            .prepareGetTask(task.taskId())
+            .setWaitForCompletion(true)
+            .execute(getWaitFuture.delegateFailure((l, getResult) -> {
+                assertTrue(getResult.getTask().isCompleted());
+                assertEquals(task.taskId(), getResult.getTask().getTask().taskId());
+                // the task must now be complete:
+                client().admin().cluster().prepareListTasks().setActions(TestTransportAction.NAME).execute(l.map(listAfterWaitResult -> {
+                    assertThat(listAfterWaitResult.getTasks(), empty());
+                    assertThat(listAfterWaitResult.getNodeFailures(), empty());
+                    assertThat(listAfterWaitResult.getTaskFailures(), empty());
+                    return null;
+                }));
+                // and we must not see its header:
+                assertNull(threadContext.getResponseHeaders().get(TestTransportAction.HEADER_NAME));
+            }));
+
+        // briefly fill up the generic pool so that (a) we know the wait has started and (b) we know it's not blocking
+        // flushThreadPool(threadPool, ThreadPool.Names.GENERIC); // TODO it _is_ blocking right now!!
+
+        assertFalse(listWaitFuture.isDone());
         assertFalse(testActionFuture.isDone());
         barrier.await(10, TimeUnit.SECONDS);
         testActionFuture.get(10, TimeUnit.SECONDS);
-        waitFuture.get(10, TimeUnit.SECONDS);
+        listWaitFuture.get(10, TimeUnit.SECONDS);
+        getWaitFuture.get(10, TimeUnit.SECONDS);
+    }
+
+    private void flushThreadPool(ThreadPool threadPool, String executor) throws InterruptedException, BrokenBarrierException,
+        TimeoutException {
+        var maxThreads = threadPool.info(executor).getMax();
+        var barrier = new CyclicBarrier(maxThreads + 1);
+        for (int i = 0; i < maxThreads; i++) {
+            threadPool.executor(executor).execute(() -> {
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
+        barrier.await(10, TimeUnit.SECONDS);
     }
 
     @Override

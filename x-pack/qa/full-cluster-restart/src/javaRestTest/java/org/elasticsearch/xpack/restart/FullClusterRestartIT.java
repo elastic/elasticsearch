@@ -1085,6 +1085,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
     private RequestOptions.Builder systemIndexWarningHandlerOptions() {
         return RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(w -> w.size() > 0 && w.contains("this request accesses system indices") == false);
+            .setWarningsHandler(w -> w.size() > 0 && w.get(0).contains("this request accesses system indices") == false);
     }
 }

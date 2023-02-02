@@ -154,6 +154,8 @@ public final class IndexModule {
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
     private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
+
+    private final SetOnce<IndexStorePlugin.DirectoryFactory> defaultDirectoryFactory = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
@@ -374,6 +376,11 @@ public final class IndexModule {
         this.indexDirectoryWrapper.set(Objects.requireNonNull(wrapper));
     }
 
+    public void setDefaultDirectoryFactory(IndexStorePlugin.DirectoryFactory directoryFactory) {
+        ensureNotFrozen();
+        defaultDirectoryFactory.set(directoryFactory);
+    }
+
     public void setIndexCommitListener(Engine.IndexCommitListener listener) {
         ensureNotFrozen();
         this.indexCommitListener.set(Objects.requireNonNull(listener));
@@ -564,7 +571,9 @@ public final class IndexModule {
             throw new IllegalArgumentException("store type [" + storeType + "] is not allowed because mmap is disabled");
         }
         final IndexStorePlugin.DirectoryFactory factory;
-        if (storeType.isEmpty() || isBuiltinType(storeType)) {
+        if (storeType.isEmpty()) {
+            factory = Objects.requireNonNullElse(defaultDirectoryFactory.get(), DEFAULT_DIRECTORY_FACTORY);
+        } else if (isBuiltinType(storeType)) {
             factory = DEFAULT_DIRECTORY_FACTORY;
         } else {
             factory = indexStoreFactories.get(storeType);

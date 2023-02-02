@@ -607,6 +607,21 @@ public class IndexModuleTests extends ESTestCase {
         assertThat(e, hasToString(containsString("store type [" + storeType + "] is not allowed")));
     }
 
+    public void testRegisterCustomDefaultDirectoryFactory() throws IOException {
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo", "_na_"), Settings.EMPTY, Settings.EMPTY);
+        final IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
+        final IndexStorePlugin.DirectoryFactory factory = new IndexStorePlugin.DirectoryFactory() {
+            @Override
+            public Directory newDirectory(IndexSettings idxSettings, ShardPath shardPath) throws IOException {
+                throw new AssertionError("should never be called");
+            }
+        };
+        module.setDefaultDirectoryFactory(factory);
+        IndexService service = newIndexService(module);
+        assertSame(factory, service.getDirectoryFactory());
+        service.close("closing ...", true);
+    }
+
     public void testRegisterCustomRecoveryStateFactory() throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

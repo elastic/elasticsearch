@@ -184,7 +184,7 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
             randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         ).subAggregation(AggregationBuilders.avg("fieldA")));
 
-        assertEquals("Aggregator [fi] of type [frequent_items] cannot accept sub-aggregations", e.getMessage());
+        assertEquals("Aggregator [fi] of type [frequent_item_sets] cannot accept sub-aggregations", e.getMessage());
 
         e = expectThrows(
             IllegalArgumentException.class,
@@ -202,7 +202,7 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
             ).subAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("fieldA")))
         );
 
-        assertEquals("Aggregator [fi] of type [frequent_items] cannot accept sub-aggregations", e.getMessage());
+        assertEquals("Aggregator [fi] of type [frequent_item_sets] cannot accept sub-aggregations", e.getMessage());
 
         e = expectThrows(
             IllegalArgumentException.class,

@@ -57,9 +57,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
 
-    // TODO[wrb]: NEXT- move thread to FileWatchService
-    private Thread watcherThread;
-
     public static final String OPERATOR_DIRECTORY = "operator";
     private final List<FileSettingsChangedListener> eventListeners;
 

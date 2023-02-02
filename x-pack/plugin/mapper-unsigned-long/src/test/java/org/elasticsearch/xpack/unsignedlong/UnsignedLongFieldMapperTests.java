@@ -11,6 +11,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -32,6 +33,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
@@ -72,26 +74,16 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         {
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
             IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-            assertFalse(pointField.fieldType().stored());
-            assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-            assertEquals(9223372036854775807L, dvField.numericValue().longValue());
-            assertFalse(dvField.fieldType().stored());
+            assertEquals(1, fields.length);
+            assertEquals("LongField <field:9223372036854775807>", fields[0].toString());
         }
 
         // test indexing values as integer numbers
         {
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", 9223372036854775807L)));
             IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(-1L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(-1L, dvField.numericValue().longValue());
+            assertEquals(1, fields.length);
+            assertEquals("LongField <field:-1>", fields[0].toString());
         }
 
         // test that indexing values as number with decimal is not allowed
@@ -127,14 +119,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(9223372036854775807L, dvField.numericValue().longValue());
-        IndexableField storedField = fields[2];
+        assertEquals(2, fields.length);
+        assertEquals("LongField <field:9223372036854775807>", fields[0].toString());
+        IndexableField storedField = fields[1];
         assertTrue(storedField.fieldType().stored());
         assertEquals("18446744073709551615", storedField.stringValue());
     }
@@ -166,11 +153,8 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
             ;
             IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(9223372036854775807L, dvField.numericValue().longValue());
+            assertEquals(1, fields.length);
+            assertEquals("LongField <field:9223372036854775807>", fields[0].toString());
         }
     }
 
@@ -202,11 +186,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         }
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00", 100.0, 100.0f))));
         assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
-        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
 
         doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00", 0.0, 0.0f))));
         assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE));
-        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE));
     }
 
     public void testIndexingOutOfRangeValues() throws Exception {
@@ -372,11 +354,74 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        assumeFalse("unsigned_long doesn't support ignore_malformed with synthetic _source", ignoreMalformed);
+        return new NumberSyntheticSourceSupport();
     }
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            if (randomBoolean()) {
+                Tuple<Object, Object> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Object> outList = values.stream().map(Tuple::v2).sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Object, Object> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            long n = randomNonNegativeLong();
+            BigInteger b = BigInteger.valueOf(n);
+            if (b.signum() < 0) {
+                b = b.add(BigInteger.ONE.shiftLeft(64));
+            }
+            return Tuple.tuple(n, b);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            minimalMapping(b);
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("doc_values", false);
+                    }
+                ),
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("ignore_malformed", true);
+                    }
+                )
+            );
+        }
     }
 }

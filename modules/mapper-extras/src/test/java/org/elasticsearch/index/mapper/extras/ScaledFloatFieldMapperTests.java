@@ -94,15 +94,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(1230, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(1230, dvField.numericValue().longValue());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        assertEquals("LongField <field:1230>", fields[0].toString());
     }
 
     public void testMissingScalingFactor() {
@@ -175,13 +168,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertEquals(1230, pointField.numericValue().doubleValue(), 0d);
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        IndexableField storedField = fields[2];
+        assertEquals(2, fields.length);
+        assertEquals("LongField <field:1230>", fields[0].toString());
+        IndexableField storedField = fields[1];
         assertTrue(storedField.fieldType().stored());
         assertEquals(1230, storedField.numericValue().longValue());
     }
@@ -196,12 +185,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertEquals(1230, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(1, fields.length);
+        assertEquals("LongField <field:1230>", fields[0].toString());
 
         DocumentMapper mapper2 = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("coerce", false))
@@ -254,14 +239,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(25, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        assertEquals("LongField <field:25>", fields[0].toString());
     }
 
     /**

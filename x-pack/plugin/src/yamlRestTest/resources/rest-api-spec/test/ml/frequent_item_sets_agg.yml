@@ -93,7 +93,7 @@ setup:
 
 
 ---
-"Test frequent items array fields":
+"Test frequent item sets array fields":
 
   - do:
       search:
@@ -103,7 +103,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -123,7 +123,7 @@ setup:
   - match: { aggregations.fi.buckets.1.key.error_message: ["engine overheated"] }
 
 ---
-"Test frequent items date format":
+"Test frequent item sets date format":
 
   - do:
       search:
@@ -141,7 +141,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -159,7 +159,7 @@ setup:
 
 
 ---
-"Test frequent items date format 2":
+"Test frequent item sets date format 2":
 
   - do:
       search:
@@ -177,7 +177,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 2,
                   "minimum_support": 0.3,
                   "fields": [
@@ -195,7 +195,7 @@ setup:
   - match: { aggregations.fi.buckets.0.key.error_message: ["engine overheated"] }
 
 ---
-"Test frequent items array fields profile":
+"Test frequent item sets array fields profile":
 
   - do:
       search:
@@ -206,7 +206,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.2,
                   "fields": [
@@ -229,7 +229,7 @@ setup:
   - match: { aggregations.fi.profile.unique_items_after_prune: 11 }
 
 ---
-"Test frequent items flattened fields":
+"Test frequent item sets flattened fields":
 
   - do:
       search:
@@ -239,7 +239,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -259,7 +259,7 @@ setup:
   - match: { aggregations.fi.buckets.1.key.data\.error_message: ["engine overheated"] }
 
 ---
-"Test frequent items as subagg":
+"Test frequent item sets as subagg":
 
   - do:
       search:
@@ -276,7 +276,7 @@ setup:
                 },
                 "aggs": {
                   "fi": {
-                    "frequent_items": {
+                    "frequent_item_sets": {
                       "minimum_set_size": 3,
                       "minimum_support": 0.3,
                       "fields": [
@@ -298,7 +298,7 @@ setup:
   - match: { aggregations.filter_error.fi.buckets.0.key.error_message: ["compressor low pressure"] }
 
 ---
-"Test frequent items as multi-bucket subagg":
+"Test frequent item sets as multi-bucket subagg":
 
   - do:
       search:
@@ -314,7 +314,7 @@ setup:
                 },
                 "aggs": {
                   "fi": {
-                    "frequent_items": {
+                    "frequent_item_sets": {
                       "minimum_set_size": 3,
                       "minimum_support": 0.3,
                       "fields": [
@@ -335,7 +335,7 @@ setup:
   - match: { aggregations.weekly.buckets.2.fi.buckets.0.doc_count: 1 }
 
 ---
-"Test frequent items filter":
+"Test frequent item sets filter":
 
   - do:
       search:
@@ -345,7 +345,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -369,7 +369,7 @@ setup:
   - match: { aggregations.fi.buckets.0.key.error_message: ["compressor low pressure"] }
 
 ---
-"Test frequent items exclude":
+"Test frequent item sets exclude":
 
   - do:
       search:
@@ -379,7 +379,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -401,7 +401,7 @@ setup:
   - match: { aggregations.fi.buckets.1.support: 0.3 }
 
 ---
-"Test frequent items include":
+"Test frequent item sets include":
 
   - do:
       search:
@@ -411,7 +411,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -431,9 +431,9 @@ setup:
   - match: { aggregations.fi.buckets.0.key.error_message: ["engine overheated"] }
 
 ---
-"Test frequent items unsupported types":
+"Test frequent item sets unsupported types":
   - do:
-      catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_items\]/
+      catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_item_sets\]/
       search:
         index: store
         body: >
@@ -441,7 +441,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -454,7 +454,7 @@ setup:
             }
           }
   - do:
-      catch: /Field \[histogram\] of type \[histogram\] is not supported for aggregation \[frequent_items\]/
+      catch: /Field \[histogram\] of type \[histogram\] is not supported for aggregation \[frequent_item_sets\]/
       search:
         index: store
         body: >
@@ -462,7 +462,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -476,9 +476,9 @@ setup:
           }
 
 ---
-"Test frequent items unsupported subaggs":
+"Test frequent item sets unsupported subaggs":
   - do:
-      catch: /Aggregator \[fi\] of type \[frequent_items\] cannot accept sub-aggregations/
+      catch: /Aggregator \[fi\] of type \[frequent_item_sets\] cannot accept sub-aggregations/
       search:
         index: store
         body: >
@@ -486,7 +486,7 @@ setup:
             "size": 0,
             "aggs": {
               "fi": {
-                "frequent_items": {
+                "frequent_item_sets": {
                   "minimum_set_size": 3,
                   "minimum_support": 0.3,
                   "fields": [
@@ -504,3 +504,39 @@ setup:
             }
             }
           }
+
+---
+"Test deprecated frequent items":
+  - skip:
+      features:
+        - "allowed_warnings"
+
+  - do:
+      allowed_warnings:
+        - 'Deprecated field [frequent_items] used, expected [frequent_item_sets] instead'
+
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "error_message"}
+                  ]
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 4 }
+  - match: { aggregations.fi.buckets.0.doc_count: 5 }
+  - match: { aggregations.fi.buckets.0.support: 0.5 }
+  - match: { aggregations.fi.buckets.0.key.error_message: ["compressor low pressure"] }
+  - match: { aggregations.fi.buckets.1.doc_count: 4 }
+  - match: { aggregations.fi.buckets.1.support: 0.4 }
+  - match: { aggregations.fi.buckets.1.key.error_message: ["engine overheated"] }

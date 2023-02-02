@@ -20,7 +20,6 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
@@ -159,8 +158,11 @@ public class CollectionUtils {
 
     private static void addToAncestorsOrThrow(Object reference, Set<Object> ancestors, String messageHint) {
         if (ancestors.add(reference) == false) {
-            String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
-            throw new IllegalArgumentException("Iterable object is self-referencing itself" + suffix);
+            StringBuilder sb = new StringBuilder("Iterable object is self-referencing itself");
+            if (Strings.hasLength(messageHint)) {
+                sb.append(" (").append(messageHint).append(")");
+            }
+            throw new IllegalArgumentException(sb.toString());
         }
     }
 

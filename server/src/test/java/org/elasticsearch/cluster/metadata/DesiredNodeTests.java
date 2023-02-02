@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
@@ -201,8 +202,8 @@ public class DesiredNodeTests extends ESTestCase {
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
             );
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(false)));
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+            assertThat(desiredNode.isCompatibleWithVersion(TransportVersion.V_8_2_0), is(equalTo(false)));
+            assertThat(desiredNode.isCompatibleWithVersion(TransportVersion.V_8_3_0), is(equalTo(true)));
         }
 
         {
@@ -213,14 +214,14 @@ public class DesiredNodeTests extends ESTestCase {
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
             );
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(false)));
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+            assertThat(desiredNode.isCompatibleWithVersion(TransportVersion.V_8_2_0), is(equalTo(false)));
+            assertThat(desiredNode.isCompatibleWithVersion(TransportVersion.V_8_3_0), is(equalTo(true)));
         }
 
         {
             final var desiredNode = new DesiredNode(settings, 2.0f, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(true)));
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+            assertThat(desiredNode.isCompatibleWithVersion(TransportVersion.V_8_2_0), is(equalTo(true)));
+            assertThat(desiredNode.isCompatibleWithVersion(TransportVersion.V_8_3_0), is(equalTo(true)));
         }
     }
 

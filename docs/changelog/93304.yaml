@@ -1,0 +1,5 @@
+pr: 93304
+summary: Improve `frequent_items` performance using global ordinals
+area: Machine Learning
+type: enhancement
+issues: []

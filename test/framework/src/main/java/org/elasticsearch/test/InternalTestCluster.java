@@ -2512,9 +2512,9 @@ public final class InternalTestCluster extends TestCluster {
                                 "All incoming requests on node ["
                                     + nodeAndClient.name
                                     + "] should have finished. "
-                                    + "Expected 0 but got "
+                                    + "Expected 0 bytes for requests in-flight but got "
                                     + bytesUsed
-                                    + "; pending tasks ["
+                                    + " bytes; pending tasks ["
                                     + pendingTasks
                                     + "]"
                             );

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +31,49 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
     private static final int VECTOR_DIMENSION = 10;
+
+    public void testKnnSearchRemovedVector() throws IOException {
+        int numShards = 1 + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .startObject("text")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+
+        for (int doc = 0; doc < 10; doc++) {
+            client().prepareIndex("index").setId(Integer.toString(doc)).setSource("vector", randomVector(), "text", "hello world").get();
+            client().prepareIndex("index").setSource("text", "goodnight world").get();
+        }
+
+        client().admin().indices().prepareRefresh("index").get();
+        client().prepareUpdate("index", "0").setDoc("vector", (Object) null).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        float[] queryVector = randomVector();
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 20, 50).boost(5.0f);
+        SearchResponse response = client().prepareSearch("index")
+            .setKnnSearch(List.of(knnSearch))
+            .setQuery(QueryBuilders.matchQuery("text", "goodnight"))
+            .setSize(10)
+            .get();
+
+        // Originally indexed 20 documents, but deleted vector field with an update, so only 19 should be hit
+        assertHitCount(response, 19);
+        assertEquals(10, response.getHits().getHits().length);
+        // Make sure we still have 20 docs
+        assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true).get(), 20);
+    }
 
     public void testKnnWithQuery() throws IOException {
         int numShards = 1 + randomInt(3);

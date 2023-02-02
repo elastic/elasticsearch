@@ -887,7 +887,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.field("myfield", 2);
         }));
 
-        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(1));
         assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
         assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
         assertEquals(XContentHelper.stripWhitespace("""

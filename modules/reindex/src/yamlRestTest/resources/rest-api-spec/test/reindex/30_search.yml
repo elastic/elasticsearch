@@ -152,10 +152,6 @@
   - set: {task: task}
 
   - do:
-      # Inherits the warning from the previous task
-      warnings:
-        - The sort option in reindex is deprecated. Instead consider using query
-          filtering to find the desired subset of data.
       tasks.get:
         wait_for_completion: true
         task_id: $task

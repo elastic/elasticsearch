@@ -11,15 +11,17 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.EsqlTestUtils.Type;
+import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
+import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -36,11 +38,9 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -49,29 +49,23 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.After;
 import org.junit.Before;
-import org.supercsv.io.CsvListReader;
-import org.supercsv.prefs.CsvPreference;
 
-import java.io.IOException;
-import java.io.StringReader;
 import java.net.URL;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvValues;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPage;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadPage;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * CSV-based unit testing.
@@ -101,8 +95,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class CsvTests extends ESTestCase {
 
-    private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
-    private static final String NULL_VALUE = "null";
+    private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
 
     private final String fileName;
     private final String groupName;
@@ -126,7 +119,7 @@ public class CsvTests extends ESTestCase {
     private ThreadPool threadPool;
 
     private static IndexResolution loadIndexResolution() {
-        var mapping = new TreeMap<String, EsField>(EsqlTestUtils.loadMapping("mapping-default.json"));
+        var mapping = new TreeMap<String, EsField>(loadMapping("mapping-default.json"));
         return IndexResolution.valid(new EsIndex(TEST_INDEX_SIMPLE, mapping));
     }
 
@@ -159,11 +152,19 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeFalse("Test " + testName + " is not enabled", testName.endsWith("-Ignore"));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled());
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
+    }
+
+    public boolean isEnabled() {
+        return testName.endsWith("-Ignore") == false;
+    }
+
+    public boolean logResults() {
+        return false;
     }
 
     public void doTest() throws Throwable {
@@ -174,16 +175,17 @@ public class CsvTests extends ESTestCase {
             new TestPhysicalOperationProviders(testData.v1(), testData.v2())
         );
 
-        ActualResults actualResults = getActualResults(planner);
-        Tuple<List<Tuple<String, Type>>, List<List<Object>>> expected = expectedColumnsWithValues(testCase.expectedResults);
+        var actualResults = executePlan(planner);
+        var expected = loadCsvValues(testCase.expectedResults);
 
-        assertThat(actualResults.colunmTypes.size(), greaterThan(0));
+        var log = logResults() ? LOGGER : null;
+        assertResults(expected, actualResults, log);
+    }
 
-        for (Page p : actualResults.pages) {
-            assertColumns(expected.v1(), p, actualResults.columnNames);
-        }
-        // TODO we'd like to assert the results of each page individually
-        assertValues(expected.v2(), actualResults.pages, actualResults.colunmTypes);
+    protected void assertResults(ExpectedResults expected, ActualResults actual, Logger logger) {
+        CsvAssert.assertResults(expected, actual, logger);
+        // CsvTestUtils.logMetaData(actual, LOGGER);
+        // CsvTestUtils.logData(actual.values(), LOGGER);
     }
 
     private PhysicalPlan physicalPlan() {
@@ -194,14 +196,17 @@ public class CsvTests extends ESTestCase {
         return physicalPlanOptimizer.optimize(physicalPlan);
     }
 
-    record ActualResults(List<String> columnNames, List<DataType> colunmTypes, List<Page> pages) {}
-
-    private ActualResults getActualResults(LocalExecutionPlanner planner) {
+    private ActualResults executePlan(LocalExecutionPlanner planner) {
         PhysicalPlan physicalPlan = physicalPlan();
         List<Driver> drivers = new ArrayList<>();
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         List<String> columnNames = Expressions.names(physicalPlan.output());
-        List<DataType> columnTypes = physicalPlan.output().stream().map(Expression::dataType).toList();
+        List<DataType> dataTypes = new ArrayList<>(columnNames.size());
+        List<Type> columnTypes = physicalPlan.output()
+            .stream()
+            .peek(o -> dataTypes.add(o.dataType()))
+            .map(o -> Type.asType(o.dataType().name()))
+            .toList();
         try {
             LocalExecutionPlan localExecutionPlan = planner.plan(new OutputExec(physicalPlan, (l, p) -> { collectedPages.add(p); }));
             drivers.addAll(localExecutionPlan.createDrivers());
@@ -210,90 +215,7 @@ public class CsvTests extends ESTestCase {
         } finally {
             Releasables.close(drivers);
         }
-        return new ActualResults(columnNames, columnTypes, collectedPages);
-    }
-
-    private void assertColumns(List<Tuple<String, Type>> expectedColumns, Page actualResultsPage, List<String> columnNames) {
-        assertEquals(
-            format(null, "Unexpected number of columns; expected [{}] but actual was [{}]", expectedColumns.size(), columnNames.size()),
-            expectedColumns.size(),
-            columnNames.size()
-        );
-        List<Tuple<String, Type>> actualColumns = extractColumnsFromPage(
-            actualResultsPage,
-            columnNames,
-            expectedColumns.stream().map(Tuple::v2).collect(Collectors.toList())
-        );
-
-        for (int i = 0; i < expectedColumns.size(); i++) {
-            assertEquals(expectedColumns.get(i).v1(), actualColumns.get(i).v1());
-            Type expectedType = expectedColumns.get(i).v2();
-            // a returned Page can have a Block of a NULL type, whereas the type checked in the csv-spec cannot be null
-            if (expectedType != null && expectedType != Type.NULL) {
-                assertEquals("incorrect type for [" + expectedColumns.get(i).v1() + "]", expectedType, actualColumns.get(i).v2());
-            }
-        }
-    }
-
-    private List<Tuple<String, Type>> extractColumnsFromPage(Page page, List<String> columnNames, List<Type> expectedTypes) {
-        var blockCount = page.getBlockCount();
-        List<Tuple<String, Type>> result = new ArrayList<>(blockCount);
-        for (int i = 0; i < blockCount; i++) {
-            Block block = page.getBlock(i);
-            result.add(new Tuple<>(columnNames.get(i), Type.asType(block.elementType(), expectedTypes.get(i))));
-        }
-        return result;
-    }
-
-    private void assertValues(List<List<Object>> expectedValues, List<Page> actualResultsPages, List<DataType> columnTypes) {
-        var expectedRoWsCount = expectedValues.size();
-        var actualRowsCount = actualResultsPages.stream().mapToInt(Page::getPositionCount).sum();
-        assertEquals(
-            format(null, "Unexpected number of rows; expected [{}] but actual was [{}]", expectedRoWsCount, actualRowsCount),
-            expectedRoWsCount,
-            actualRowsCount
-        );
-
-        assertEquals(expectedValues, TransportEsqlQueryAction.pagesToValues(columnTypes, actualResultsPages));
-    }
-
-    private Tuple<List<Tuple<String, Type>>, List<List<Object>>> expectedColumnsWithValues(String csv) {
-        try (CsvListReader listReader = new CsvListReader(new StringReader(csv), CSV_SPEC_PREFERENCES)) {
-            String[] header = listReader.getHeader(true);
-            List<Tuple<String, Type>> columns = Arrays.stream(header).map(c -> {
-                String[] nameWithType = c.split(":");
-                String typeName = nameWithType[1].trim();
-                if (typeName.length() == 0) {
-                    throw new IllegalArgumentException("A type is always expected in the csv file; found " + nameWithType);
-                }
-                String name = nameWithType[0].trim();
-                Type type = Type.asType(typeName);
-                return Tuple.tuple(name, type);
-            }).toList();
-
-            List<List<Object>> values = new LinkedList<>();
-            List<String> row;
-            while ((row = listReader.read()) != null) {
-                List<Object> rowValues = new ArrayList<>(row.size());
-                for (int i = 0; i < row.size(); i++) {
-                    String value = row.get(i);
-                    if (value != null) {
-                        value = value.trim();
-                        if (value.equalsIgnoreCase(NULL_VALUE)) {
-                            value = null;
-                        }
-                    }
-                    Type type = columns.get(i).v2();
-                    Object val = type == Type.DATE ? value : type.convert(value);
-                    rowValues.add(val);
-                }
-                values.add(rowValues);
-            }
-
-            return Tuple.tuple(columns, values);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages);
     }
 
     private Throwable reworkException(Throwable th) {

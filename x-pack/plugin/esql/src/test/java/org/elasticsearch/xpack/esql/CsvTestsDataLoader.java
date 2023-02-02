@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -18,6 +17,8 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
@@ -38,6 +39,8 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class CsvTestsDataLoader {
     public static final String TEST_INDEX_SIMPLE = "test";
+
+    private static final Logger LOGGER = LogManager.getLogger(CsvTestsDataLoader.class);
 
     public static void main(String[] args) throws IOException {
         String protocol = "http";
@@ -198,18 +201,18 @@ public class CsvTestsDataLoader {
                 Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
                 Object errors = result.get("errors");
                 if (Boolean.FALSE.equals(errors)) {
-                    LogManager.getLogger(CsvTestsDataLoader.class).info("Data loading OK");
+                    LOGGER.info("Data loading OK");
                     request = new Request("POST", "/" + TEST_INDEX_SIMPLE + "/_forcemerge?max_num_segments=1");
                     response = client.performRequest(request);
                     if (response.getStatusLine().getStatusCode() != 200) {
-                        LogManager.getLogger(CsvTestsDataLoader.class).info("Force-merge to 1 segment failed: " + response.getStatusLine());
+                        LOGGER.info("Force-merge to 1 segment failed: " + response.getStatusLine());
                     }
                 } else {
-                    LogManager.getLogger(CsvTestsDataLoader.class).info("Data loading FAILED");
+                    LOGGER.info("Data loading FAILED");
                 }
             }
         } else {
-            LogManager.getLogger(CsvTestsDataLoader.class).info("Error loading data: " + response.getStatusLine());
+            LOGGER.info("Error loading data: " + response.getStatusLine());
         }
     }
 

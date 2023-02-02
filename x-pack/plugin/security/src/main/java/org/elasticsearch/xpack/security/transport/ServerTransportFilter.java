@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 /**
@@ -46,7 +46,7 @@ final class ServerTransportFilter {
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final RemoteClusterAuthenticationService remoteClusterAuthcService;
+    private final RemoteAccessAuthenticationService remoteAccessAuthcService;
     private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final ThreadContext threadContext;
     private final boolean extractClientCert;
@@ -82,7 +82,7 @@ final class ServerTransportFilter {
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
         this.transportFilterType = transportFilterType;
-        this.remoteClusterAuthcService = new RemoteClusterAuthenticationService(authcService);
+        this.remoteAccessAuthcService = new RemoteAccessAuthenticationService(authcService);
     }
 
     /**
@@ -155,7 +155,7 @@ final class ServerTransportFilter {
                     return;
                 }
                 // TODO allow anonymous access once we support it
-                remoteClusterAuthcService.authenticate(securityAction, request, false, authorizationStep);
+                remoteAccessAuthcService.authenticate(securityAction, request, false, authorizationStep);
             }
             default -> {
                 final String message = "unsupported profile type [" + transportFilterType + "]";

@@ -32,7 +32,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 
-public class RemoteClusterAuthenticationService {
+public class RemoteAccessAuthenticationService {
 
     private static final RoleDescriptor CROSS_CLUSTER_SEARCH_ROLE = new RoleDescriptor(
         "_cross_cluster_search",
@@ -45,11 +45,11 @@ public class RemoteClusterAuthenticationService {
         null,
         null
     );
-    private static final Logger logger = LogManager.getLogger(RemoteClusterAuthenticationService.class);
+    private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticationService.class);
 
     private final AuthenticationService authenticationService;
 
-    public RemoteClusterAuthenticationService(AuthenticationService authenticationService) {
+    public RemoteAccessAuthenticationService(AuthenticationService authenticationService) {
         this.authenticationService = authenticationService;
     }
 

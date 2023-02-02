@@ -17,14 +17,11 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
-import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Opts out of the query cache if field level security is active for the current request, and it is unsafe to cache.
@@ -71,7 +68,7 @@ public final class OptOutQueryCache extends IndexQueryCache {
             weight.getQuery().visit(new QueryVisitor() {
                 @Override
                 public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                    return this; //we want to use the same visitor for must_not clauses too
+                    return this; // we want to use the same visitor for must_not clauses too
                 }
 
                 @Override
@@ -83,7 +80,7 @@ public final class OptOutQueryCache extends IndexQueryCache {
                     return super.acceptField(field);
                 }
             });
-        } catch(UnsupportedOperationException e) {
+        } catch (UnsupportedOperationException e) {
             return false;
         }
         // we can cache, all fields are ok

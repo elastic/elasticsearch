@@ -1018,6 +1018,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public static Set<ProfileSettings> getProfileSettings(Settings settings) {
         HashSet<ProfileSettings> profiles = new HashSet<>();
+        // Process remote cluster port first so that errors are consistently reported if there
+        // is direct usage of the _remote_cluster profile
+        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
+        }
         boolean isDefaultSet = false;
         for (String profile : settings.getGroups("transport.profiles.", true).keySet()) {
             profiles.add(new ProfileSettings(settings, profile));
@@ -1027,9 +1032,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         if (isDefaultSet == false) {
             profiles.add(new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE));
-        }
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
-            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
         }
         // Add the remote access profile
         return Collections.unmodifiableSet(profiles);

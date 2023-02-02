@@ -62,8 +62,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
-
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
@@ -257,6 +255,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
     }
 
+    // Package private for testing
+    Map<String, ServerTransportFilter> getProfileFilters() {
+        return profileFilters;
+    }
+
     private AsyncSender interceptForRemoteAccessRequests(final AsyncSender sender) {
         return new AsyncSender() {
             @Override
@@ -435,21 +438,33 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, sslConfiguration);
+        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+
         final boolean remoteClusterPortEnabled = TcpTransport.isUntrustedRemoteClusterEnabled()
             && RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.get(settings);
+
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
+            final String profileName = entry.getKey();
             final SslConfiguration profileConfiguration = entry.getValue();
-            final boolean extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
-            final boolean isRemoteClusterProfile = remoteClusterPortEnabled
-                && entry.getKey().equals(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
+
+            final boolean useRemoteClusterProfile = remoteClusterPortEnabled
+                && profileName.equals(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
+
+            final boolean remoteClusterSSLEnabled = remoteClusterPortEnabled && XPackSettings.REMOTE_CLUSTER_SSL_ENABLED.get(settings);
+
+            final boolean extractClientCert;
+            if (remoteClusterPortEnabled && useRemoteClusterProfile) {
+                extractClientCert = remoteClusterSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+            } else {
+                extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+            }
+
             profileFilters.put(
-                entry.getKey(),
+                profileName,
                 new ServerTransportFilter(
                     authcService,
                     authzService,
@@ -457,7 +472,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     extractClientCert,
                     destructiveOperations,
                     securityContext,
-                    isRemoteClusterProfile ? ServerTransportFilter.Type.REMOTE_ACCESS : ServerTransportFilter.Type.DEFAULT
+                    useRemoteClusterProfile ? ServerTransportFilter.Type.REMOTE_ACCESS : ServerTransportFilter.Type.DEFAULT
                 )
             );
         }

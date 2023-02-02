@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -590,13 +591,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
         installMockTransportVerifications(routingTableWatcher);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
-        final AtomicInteger refreshUnpromotableActions = new AtomicInteger(0);
+        final AtomicInteger unpromotableRefreshActions = new AtomicInteger(0);
 
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
-                    refreshUnpromotableActions.incrementAndGet();
+                    unpromotableRefreshActions.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
@@ -620,11 +621,20 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             indexRandom(true, INDEX_NAME, randomIntBetween(1, 10));
 
-            // Each primary will send a TransportUnpromotableShardRefreshAction to each of the unpromotable replica shards
-            assertThat(
-                refreshUnpromotableActions.get(),
-                is(equalTo((routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1)) * routingTableWatcher.numShards))
-            );
+            int singleRefreshExpectedUnpromotableActions = (routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1))
+                * routingTableWatcher.numShards;
+            if (singleRefreshExpectedUnpromotableActions > 0) {
+                assertThat(
+                    "at least one refresh is expected where each primary sends an unpromotable refresh to each unpromotable replica shard.",
+                    unpromotableRefreshActions.get(),
+                    greaterThanOrEqualTo(singleRefreshExpectedUnpromotableActions)
+                );
+                assertThat(
+                    "the number of unpromotable refreshes seen is expected to be a multiple of the occurred refreshes",
+                    unpromotableRefreshActions.get() % singleRefreshExpectedUnpromotableActions,
+                    is(equalTo(0))
+                );
+            }
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }

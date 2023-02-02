@@ -27,6 +27,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -44,7 +45,9 @@ import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SSL_ENABLED;
 
 /**
  * Implementation of a transport that extends the {@link Netty4Transport} to add SSL and IP Filtering
@@ -56,7 +59,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final SSLService sslService;
     private final SslConfiguration sslConfiguration;
     private final Map<String, SslConfiguration> profileConfiguration;
-    private final boolean sslEnabled;
+    private final boolean transportSslEnabled;
+    private final boolean remoteClusterSslEnabled;
 
     public SecurityNetty4Transport(
         final Settings settings,
@@ -81,15 +85,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
         );
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
-        this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        if (sslEnabled) {
-            this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
-            Map<String, SslConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, sslConfiguration);
-            this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
-        } else {
-            this.profileConfiguration = Collections.emptyMap();
-            this.sslConfiguration = null;
-        }
+        this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        this.remoteClusterSslEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings) && REMOTE_CLUSTER_SSL_ENABLED.get(settings);
+
+        this.profileConfiguration = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
+        this.sslConfiguration = this.profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
     }
 
     @Override
@@ -99,7 +99,13 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     @Override
     public final ChannelHandler getServerChannelInitializer(String name) {
-        if (sslEnabled) {
+        if (remoteClusterSslEnabled && REMOTE_CLUSTER_PROFILE.equals(name)) {
+            final SslConfiguration remoteClusterSslConfiguration = profileConfiguration.get(name);
+            if (remoteClusterSslConfiguration == null) {
+                throw new IllegalStateException("remote cluster SSL is enabled but no configuration is found");
+            }
+            return getSslChannelInitializer(name, remoteClusterSslConfiguration);
+        } else if (transportSslEnabled) {
             SslConfiguration configuration = profileConfiguration.get(name);
             if (configuration == null) {
                 throw new IllegalStateException("unknown profile: " + name);
@@ -149,7 +155,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     @Override
     public boolean isSecure() {
-        return this.sslEnabled;
+        return this.transportSslEnabled;
     }
 
     private class SecurityClientChannelInitializer extends ClientChannelInitializer {
@@ -158,7 +164,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final SNIHostName serverName;
 
         SecurityClientChannelInitializer(DiscoveryNode node) {
-            this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+            this.hostnameVerificationEnabled = transportSslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
             String configuredServerName = node.getAttributes().get("server_name");
             if (configuredServerName != null) {
                 try {
@@ -174,7 +180,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            if (sslEnabled) {
+            if (transportSslEnabled) {
                 ch.pipeline()
                     .addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled, serverName));
             }

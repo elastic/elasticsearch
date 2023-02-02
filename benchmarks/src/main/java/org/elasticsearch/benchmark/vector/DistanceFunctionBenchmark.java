@@ -150,7 +150,7 @@ public class DistanceFunctionBenchmark {
 
     private abstract static class KnnByteBenchmarkFunction extends BenchmarkFunction {
 
-        final BytesRef docVector;
+        final byte[] docVector;
         final byte[] queryVector;
 
         final float queryMagnitude;
@@ -170,7 +170,7 @@ public class DistanceFunctionBenchmark {
                 queryMagnitude += (float) i;
             }
 
-            this.docVector = new BytesRef(docVector.array());
+            this.docVector = docVector.array();
             this.queryMagnitude = queryMagnitude / dims;
         }
     }

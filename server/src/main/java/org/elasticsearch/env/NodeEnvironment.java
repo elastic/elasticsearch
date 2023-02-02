@@ -951,12 +951,7 @@ public final class NodeEnvironment implements Closeable {
                 nextShardLockHotThreadsNanos = now + TimeUnit.SECONDS.toNanos(60);
                 final var hotThreads = new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect();
                 try (
-                    var stream = ChunkedLoggingStream.create(
-                        logger,
-                        Level.DEBUG,
-                        prefix,
-                        ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING
-                    );
+                    var stream = ChunkedLoggingStream.create(logger, Level.DEBUG, prefix, ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING);
                     var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
                 ) {
                     writer.write(hotThreads);

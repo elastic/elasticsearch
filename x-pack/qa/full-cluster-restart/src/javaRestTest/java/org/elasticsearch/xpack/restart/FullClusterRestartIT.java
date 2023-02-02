@@ -131,7 +131,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            getSettingsRequest.setOptions(systemIndexWarningHandlerOptions(".security-7"));
+            getSettingsRequest.setOptions(systemIndexWarningHandlerOptions(".security-6"));
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);

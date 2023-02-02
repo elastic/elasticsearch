@@ -646,26 +646,8 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
         public static long hash64(final byte[] data, final int offset, final int length) {
             // We hope that the C2 escape analysis prevents ths allocation from creating GC pressure.
             long[] hash128 = {0, 0};
-            hash128x64(data, offset, length, DEFAULT_SEED, hash128);
+            hash128x64Internal(data, offset, length, DEFAULT_SEED, hash128);
             return hash128[0];
-        }
-
-        /**
-         * Generates 128-bit hash from the byte array with the given offset, length and seed.
-         *
-         * <p>This is an implementation of the 128-bit hash function {@code MurmurHash3_x64_128}
-         * from Austin Appleby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-         *
-         * @param data The input byte array
-         * @param offset The first element of array
-         * @param length The length of array
-         * @param seed The initial seed value
-         * @return The 128-bit hash (2 longs)
-         * @since 1.14
-         */
-        public static long[] hash128x64(final byte[] data, final int offset, final int length, final int seed, final long[] result) {
-            // Use an unsigned 32-bit integer as the seed
-            return hash128x64Internal(data, offset, length, seed & 0xffffffffL, result);
         }
 
         /**

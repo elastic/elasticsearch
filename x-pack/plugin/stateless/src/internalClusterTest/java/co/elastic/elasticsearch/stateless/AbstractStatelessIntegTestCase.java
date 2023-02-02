@@ -18,8 +18,13 @@
 package co.elastic.elasticsearch.stateless;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.blobcache.BlobCachePlugin;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -41,8 +46,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean forceSingleDataPath() {
+        return true;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(Stateless.class);
+        return List.of(BlobCachePlugin.class, Stateless.class);
     }
 
     protected Settings.Builder nodeSettings() {
@@ -60,7 +70,18 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     protected String startSearchNode() {
         return internalCluster().startNode(
-            nodeSettings().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName()).build()
+            nodeSettings().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+                .put(
+                    SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                    rarely()
+                        ? randomBoolean()
+                            ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()
+                            : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
+                        : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
+                        // only use up to 0.1% disk to be friendly.
+                        : new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString()
+                )
+                .build()
         );
     }
 

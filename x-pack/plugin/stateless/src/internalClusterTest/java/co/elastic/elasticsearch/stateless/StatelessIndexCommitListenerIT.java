@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
@@ -153,7 +154,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestStateless.class);
+        return List.of(BlobCachePlugin.class, TestStateless.class);
     }
 
     private String indexNode;

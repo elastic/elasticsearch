@@ -21,24 +21,19 @@ for the plugin. If you need other resources, package them into a resources JAR.
 ==== The analysis plugin API
 
 Text analysis plugins can be written against the analysis plugin API. This API
-includes:
+consists of the following dependencies:
 
-* the entirety of the core Lucene module
-* the {es} `plugin-api`, which includes important annotations for the plugin 
+* `plugin-api`, which includes important annotations for the plugin 
 framework
 * `plugin-analysis-api`, which contains the classes that an analysis plugin can 
 implement.
+* `lucene-analysis-common`, the core Lucene module
 
 The advantage of using this API is that the resulting plugin is
 forward-compatible with new minor versions of {es}. While elements may be added
 to the API, existing element will not be changed or removed, except in a new
 major release. In other words, once you have a working artifact, you can re-use
 it when you upgrade {es} to a new bugfix or minor version.
-
-It's also possible to create text analysis plugins using the method described in
-<<creating-non-text-analysis-plugins>>. Howeverm plugins created using that 
-method are pinned to specific version of {es}. You will need to recompile them
-when upgrading{es}.
 
 A text analysis can implement four factory classes that are provided by the 
 analysis plugin API.
@@ -53,6 +48,11 @@ annotation. Many of {es}'s components have names that are used in
 configurations. For example, the keyword analyzer is referenced in configuration
 with the name `"keyword"`. Once your custom plugin is installed in your cluster,
 your named components may be referenced by name in these configurations as well.
+
+It's also possible to create text analysis plugins using the method described in
+<<creating-non-text-analysis-plugins>>. However, plugins created using that 
+method are pinned to specific version of {es}. You will need to recompile them
+when upgrading {es}.
 
 [discrete]
 ==== Development process

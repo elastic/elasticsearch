@@ -244,7 +244,7 @@ public class InboundHandlerTests extends ESTestCase {
 
             final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersion.fromId(0),
+                TransportVersionUtils.getFirstVersion(),
                 TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE)
             );
             final long requestId = randomNonNegativeLong();

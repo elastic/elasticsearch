@@ -63,6 +63,10 @@ public class TransportVersionUtils {
         }
     }
 
+    public static TransportVersion getFirstVersion() {
+        return ALL_VERSIONS.get(0);
+    }
+
     public static TransportVersion getPreviousVersion() {
         TransportVersion version = getPreviousVersion(TransportVersion.CURRENT);
         assert version.before(TransportVersion.CURRENT);

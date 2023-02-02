@@ -29,21 +29,33 @@ import java.util.stream.Stream;
 //   probably...
 public class FileWatchService extends AbstractLifecycleComponent {
 
-    private static final int REGISTER_RETRY_COUNT = 5;
     private static final Logger logger = LogManager.getLogger(FileWatchService.class);
+    // TODO[wrb]: add settings file name constant?
+    final String settingsFileName;
+    private static final int REGISTER_RETRY_COUNT = 5;
 
     final Path operatorSettingsDir;
-    final String settingsFileName;
-    FileSettingsService.FileUpdateState fileUpdateState;
+
     private WatchService watchService; // null;
-    WatchKey settingsDirWatchKey;
-    WatchKey configDirWatchKey; // there is only one config dir
-    private volatile boolean active = false;
     private Thread watcherThread;
+    // TODO[wrb]: move FileUpdateState to this class
+    FileSettingsService.FileUpdateState fileUpdateState;
+    WatchKey settingsDirWatchKey;
+    WatchKey configDirWatchKey;
+
+    private volatile boolean active = false;
 
     FileWatchService(Path operatorSettingsDir, String settingsFileName) {
         this.operatorSettingsDir = operatorSettingsDir;
         this.settingsFileName = settingsFileName;
+    }
+
+    public Path operatorSettingsDir() {
+        return operatorSettingsDir;
+    }
+
+    public Path operatorSettingsFile() {
+        return operatorSettingsDir.resolve(settingsFileName);
     }
 
     // platform independent way to tell if a file changed
@@ -65,6 +77,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
 
+    // TODO[wrb]: remove/inline
     WatchService watchService() {
         return this.watchService;
     }
@@ -85,7 +98,9 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-
+        this.active = false;
+        logger.debug("Stopping file settings service");
+        stopWatcher();
     }
 
     @Override
@@ -101,6 +116,10 @@ public class FileWatchService extends AbstractLifecycleComponent {
     // TODO[wrb]: remove when possible
     boolean isActive() {
         return active;
+    }
+
+    public boolean watching() {
+        return watcherThread != null;
     }
 
     synchronized void startWatcher(Runnable processOperation, Runnable listenOperation) {
@@ -143,70 +162,6 @@ public class FileWatchService extends AbstractLifecycleComponent {
         watcherThread.start();
     }
 
-    synchronized void stopWatcher() {
-        if (watching()) {
-            // TODO[wrb]: move thread handlinig into FileWatchService
-            logger.debug("stopping watcher ...");
-            // make sure watch service is closed whatever
-            // this will also close any outstanding keys
-            try (var ws = watchService()) {
-                watcherThread.interrupt();
-                watcherThread.join();
-
-                // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
-                if (configDirWatchKey != null) {
-                    configDirWatchKey.cancel();
-                }
-                if (settingsDirWatchKey != null) {
-                    settingsDirWatchKey.cancel();
-                }
-            } catch (IOException e) {
-                logger.warn("encountered exception while closing watch service", e);
-            } catch (InterruptedException interruptedException) {
-                logger.info("interrupted while closing the watch service", interruptedException);
-            } finally {
-                watcherThread = null;
-                settingsDirWatchKey = null;
-                configDirWatchKey = null;
-                logger.info("watcher service stopped");
-            }
-        } else {
-            logger.trace("file settings service already stopped");
-        }
-    }
-
-    // package private for testing
-    WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
-        if (previousKey != null) {
-            previousKey.cancel();
-        }
-        int retryCount = 0;
-
-        do {
-            try {
-                return settingsDir.register(
-                    watchService,
-                    StandardWatchEventKinds.ENTRY_MODIFY,
-                    StandardWatchEventKinds.ENTRY_CREATE,
-                    StandardWatchEventKinds.ENTRY_DELETE
-                );
-            } catch (IOException e) {
-                if (retryCount == REGISTER_RETRY_COUNT - 1) {
-                    throw e;
-                }
-                Thread.sleep(retryDelayMillis(retryCount));
-                retryCount++;
-            }
-        } while (true);
-    }
-
-    // package private for testing
-    long retryDelayMillis(int failedCount) {
-        assert failedCount < 31; // don't let the count overflow
-        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
-    }
-
-    // Get this thing down into FileWatchService somehow
     void watcherThread(Runnable processOperation, Runnable listenOperation) {
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
@@ -274,7 +229,65 @@ public class FileWatchService extends AbstractLifecycleComponent {
         }
     }
 
-    public boolean watching() {
-        return watcherThread != null;
+    synchronized void stopWatcher() {
+        if (watching()) {
+            logger.debug("stopping watcher ...");
+            // make sure watch service is closed whatever
+            // this will also close any outstanding keys
+            try (var ws = watchService()) {
+                watcherThread.interrupt();
+                watcherThread.join();
+
+                // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
+                if (configDirWatchKey != null) {
+                    configDirWatchKey.cancel();
+                }
+                if (settingsDirWatchKey != null) {
+                    settingsDirWatchKey.cancel();
+                }
+            } catch (IOException e) {
+                logger.warn("encountered exception while closing watch service", e);
+            } catch (InterruptedException interruptedException) {
+                logger.info("interrupted while closing the watch service", interruptedException);
+            } finally {
+                watcherThread = null;
+                settingsDirWatchKey = null;
+                configDirWatchKey = null;
+                logger.info("watcher service stopped");
+            }
+        } else {
+            logger.trace("file settings service already stopped");
+        }
+    }
+
+    // package private for testing
+    long retryDelayMillis(int failedCount) {
+        assert failedCount < 31; // don't let the count overflow
+        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
+    }
+
+    // package private for testing
+    WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
+        if (previousKey != null) {
+            previousKey.cancel();
+        }
+        int retryCount = 0;
+
+        do {
+            try {
+                return settingsDir.register(
+                    watchService,
+                    StandardWatchEventKinds.ENTRY_MODIFY,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_DELETE
+                );
+            } catch (IOException e) {
+                if (retryCount == REGISTER_RETRY_COUNT - 1) {
+                    throw e;
+                }
+                Thread.sleep(retryDelayMillis(retryCount));
+                retryCount++;
+            }
+        } while (true);
     }
 }

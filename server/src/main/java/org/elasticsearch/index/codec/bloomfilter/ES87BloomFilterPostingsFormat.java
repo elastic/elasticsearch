@@ -226,7 +226,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                 for (FieldsGroup group : fieldsGroups) {
                     group.writeTo(metaOut, state.fieldInfos);
                 }
-                // Write bloom filters
+                // Write bloom filters metadata
                 metaOut.writeVInt(bloomFilters.size());
                 for (BloomFilter bloomFilter : bloomFilters) {
                     bloomFilter.writeTo(metaOut, state.fieldInfos);
@@ -258,7 +258,6 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             out.writeVInt(fields.size());
             for (String field : fields) {
                 out.writeVInt(fieldInfos.fieldInfo(field).number);
-
             }
         }
 

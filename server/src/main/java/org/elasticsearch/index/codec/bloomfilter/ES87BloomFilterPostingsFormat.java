@@ -278,7 +278,6 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
         private final List<Closeable> toCloses = new ArrayList<>();
         private final Map<String, FieldsProducer> readerMap = new HashMap<>();
         private final IndexInput indexIn;
-        private final int version;
 
         FieldsReader(SegmentReadState state) throws IOException {
             boolean success = false;
@@ -288,32 +287,40 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                     IOContext.READONCE
                 )
             ) {
-                this.version = CodecUtil.checkIndexHeader(
-                    metaIn,
-                    BLOOM_CODEC_NAME,
-                    VERSION_START,
-                    VERSION_CURRENT,
-                    state.segmentInfo.getId(),
-                    state.segmentSuffix
-                );
-                // read postings formats
-                final int numFieldsGroups = metaIn.readVInt();
-                for (int i = 0; i < numFieldsGroups; i++) {
-                    final FieldsGroup group = FieldsGroup.readFrom(metaIn, state.fieldInfos);
-                    final FieldsProducer reader = group.postingsFormat.fieldsProducer(new SegmentReadState(state, group.suffix));
-                    toCloses.add(reader);
-                    for (String field : group.fields) {
-                        readerMap.put(field, reader);
+                Map<String, BloomFilter> bloomFilters = null;
+                Throwable priorE = null;
+                try {
+                    CodecUtil.checkIndexHeader(
+                        metaIn,
+                        BLOOM_CODEC_NAME,
+                        VERSION_START,
+                        VERSION_CURRENT,
+                        state.segmentInfo.getId(),
+                        state.segmentSuffix
+                    );
+                    // read postings formats
+                    final int numFieldsGroups = metaIn.readVInt();
+                    for (int i = 0; i < numFieldsGroups; i++) {
+                        final FieldsGroup group = FieldsGroup.readFrom(metaIn, state.fieldInfos);
+                        final FieldsProducer reader = group.postingsFormat.fieldsProducer(new SegmentReadState(state, group.suffix));
+                        toCloses.add(reader);
+                        for (String field : group.fields) {
+                            readerMap.put(field, reader);
+                        }
                     }
+                    // read bloom filters
+                    final int numBloomFilters = metaIn.readVInt();
+                    bloomFilters = new HashMap<>(numBloomFilters);
+                    for (int i = 0; i < numBloomFilters; i++) {
+                        final BloomFilter bloomFilter = BloomFilter.readFrom(metaIn, state.fieldInfos);
+                        bloomFilters.put(bloomFilter.field, bloomFilter);
+                    }
+                } catch (Throwable t) {
+                    priorE = t;
+                } finally {
+                    CodecUtil.checkFooter(metaIn, priorE);
                 }
-                // read bloom filters
-                final int numBloomFilters = metaIn.readVInt();
-                bloomFilters = new HashMap<>(numBloomFilters);
-                for (int i = 0; i < numBloomFilters; i++) {
-                    final BloomFilter bloomFilter = BloomFilter.readFrom(metaIn, state.fieldInfos);
-                    bloomFilters.put(bloomFilter.field, bloomFilter);
-                }
-                CodecUtil.checkFooter(metaIn);
+                this.bloomFilters = bloomFilters;
                 indexIn = state.directory.openInput(indexFile(state.segmentInfo, state.segmentSuffix), state.context);
                 toCloses.add(indexIn);
                 CodecUtil.checkIndexHeader(

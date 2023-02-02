@@ -164,33 +164,7 @@ public class FieldExtractorTests extends ESTestCase {
         assertEquals(0, fields.size());
     }
 
-    public void testUnsupported() {
-        Set<String> fields = new HashSet<>();
-        Query unsupported = new Query() {
-            @Override
-            public String toString(String field) {
-                return null;
-            }
-
-            @Override
-            public void visit(QueryVisitor visitor) {
-
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                return false;
-            }
-
-            @Override
-            public int hashCode() {
-                return 0;
-            }
-        };
-        expectThrows(UnsupportedOperationException.class, () -> FieldExtractor.extractFields(unsupported, fields));
-    }
-
-    public void testCustomSupportedQuery() {
+    public void testCustomQuery() {
         Set<String> fields = new HashSet<>();
         Query custom = new Query() {
             @Override

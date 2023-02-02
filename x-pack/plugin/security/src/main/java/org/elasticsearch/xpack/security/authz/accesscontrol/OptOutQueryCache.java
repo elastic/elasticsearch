@@ -64,11 +64,7 @@ public final class OptOutQueryCache extends IndexQueryCache {
     static boolean cachingIsSafe(Weight weight, IndicesAccessControl.IndexAccessControl permissions) {
         // support caching for common queries, by inspecting the field
         Set<String> fields = new HashSet<>();
-        try {
-            FieldExtractor.extractFields(weight.getQuery(), fields);
-        } catch (UnsupportedOperationException e) {
-            return false;
-        }
+        FieldExtractor.extractFields(weight.getQuery(), fields);
         // we successfully extracted the set of fields: check each one
         for (String field : fields) {
             // don't cache any internal fields (e.g. _field_names), these are complicated.
@@ -79,5 +75,4 @@ public final class OptOutQueryCache extends IndexQueryCache {
         // we can cache, all fields are ok
         return true;
     }
-
 }

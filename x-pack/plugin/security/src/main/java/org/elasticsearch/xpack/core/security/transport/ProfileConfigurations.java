@@ -81,6 +81,9 @@ public final class ProfileConfigurations {
             if (transportSslEnabled == false && remoteClusterSslEnabled == false) {
                 return profileConfigurations;
             } else if (transportSslEnabled == false) {
+                // The single TRANSPORT_SSL_ENABLED setting determines whether SSL is enabled for both
+                // the default transport profile and any custom transport profiles. That is, SSL is
+                // always either enabled or disabled together for default and custom transport profiles.
                 profileConfigurations.put(REMOTE_CLUSTER_PROFILE, sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
                 return profileConfigurations;
             } else if (remoteClusterSslEnabled == false) {

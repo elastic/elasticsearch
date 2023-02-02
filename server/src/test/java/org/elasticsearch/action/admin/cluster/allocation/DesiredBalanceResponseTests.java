@@ -182,7 +182,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         assertEquals(tiers.keySet(), response.getClusterBalanceStats().tiers().keySet());
         for (var entry : response.getClusterBalanceStats().tiers().entrySet()) {
             Map<String, Object> tierStats = (Map<String, Object>) tiers.get(entry.getKey());
-            assertEquals(Set.of("shard_count", "forecasted_write_load", "forecasted_disk_usage"), tierStats.keySet());
+            assertEquals(Set.of("shard_count", "forecast_write_load", "forecast_disk_usage"), tierStats.keySet());
 
             Map<String, Object> shardCountStats = (Map<String, Object>) tierStats.get("shard_count");
             assertEquals(Set.of("total", "average", "min", "max", "std_dev"), shardCountStats.keySet());
@@ -192,32 +192,32 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             assertEquals(shardCountStats.get("max"), entry.getValue().shardCount().max());
             assertEquals(shardCountStats.get("std_dev"), entry.getValue().shardCount().stdDev());
 
-            Map<String, Object> totalWriteLoadStats = (Map<String, Object>) tierStats.get("forecasted_write_load");
+            Map<String, Object> totalWriteLoadStats = (Map<String, Object>) tierStats.get("forecast_write_load");
             assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalWriteLoadStats.keySet());
-            assertEquals(totalWriteLoadStats.get("total"), entry.getValue().forecastedWriteLoad().total());
-            assertEquals(totalWriteLoadStats.get("average"), entry.getValue().forecastedWriteLoad().average());
-            assertEquals(totalWriteLoadStats.get("min"), entry.getValue().forecastedWriteLoad().min());
-            assertEquals(totalWriteLoadStats.get("max"), entry.getValue().forecastedWriteLoad().max());
-            assertEquals(totalWriteLoadStats.get("std_dev"), entry.getValue().forecastedWriteLoad().stdDev());
+            assertEquals(totalWriteLoadStats.get("total"), entry.getValue().forecastWriteLoad().total());
+            assertEquals(totalWriteLoadStats.get("average"), entry.getValue().forecastWriteLoad().average());
+            assertEquals(totalWriteLoadStats.get("min"), entry.getValue().forecastWriteLoad().min());
+            assertEquals(totalWriteLoadStats.get("max"), entry.getValue().forecastWriteLoad().max());
+            assertEquals(totalWriteLoadStats.get("std_dev"), entry.getValue().forecastWriteLoad().stdDev());
 
-            Map<String, Object> totalShardStats = (Map<String, Object>) tierStats.get("forecasted_disk_usage");
+            Map<String, Object> totalShardStats = (Map<String, Object>) tierStats.get("forecast_disk_usage");
             assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalShardStats.keySet());
-            assertEquals(totalShardStats.get("total"), entry.getValue().forecastedShardSize().total());
-            assertEquals(totalShardStats.get("average"), entry.getValue().forecastedShardSize().average());
-            assertEquals(totalShardStats.get("min"), entry.getValue().forecastedShardSize().min());
-            assertEquals(totalShardStats.get("max"), entry.getValue().forecastedShardSize().max());
-            assertEquals(totalShardStats.get("std_dev"), entry.getValue().forecastedShardSize().stdDev());
+            assertEquals(totalShardStats.get("total"), entry.getValue().forecastShardSize().total());
+            assertEquals(totalShardStats.get("average"), entry.getValue().forecastShardSize().average());
+            assertEquals(totalShardStats.get("min"), entry.getValue().forecastShardSize().min());
+            assertEquals(totalShardStats.get("max"), entry.getValue().forecastShardSize().max());
+            assertEquals(totalShardStats.get("std_dev"), entry.getValue().forecastShardSize().stdDev());
         }
         // node balance stats
         Map<String, Object> nodes = (Map<String, Object>) clusterBalanceStats.get("nodes");
         assertEquals(nodes.keySet(), response.getClusterBalanceStats().nodes().keySet());
         for (var entry : response.getClusterBalanceStats().nodes().entrySet()) {
             Map<String, Object> nodesStats = (Map<String, Object>) nodes.get(entry.getKey());
-            assertEquals(Set.of("shard_count", "forecasted_write_load", "forecasted_disk_usage_bytes"), nodesStats.keySet());
+            assertEquals(Set.of("shard_count", "forecast_write_load", "forecast_disk_usage_bytes"), nodesStats.keySet());
 
             assertEquals(nodesStats.get("shard_count"), entry.getValue().shards());
-            assertEquals(nodesStats.get("forecasted_write_load"), entry.getValue().forecastedWriteLoad());
-            assertEquals(nodesStats.get("forecasted_disk_usage_bytes"), entry.getValue().forecastedShardSize());
+            assertEquals(nodesStats.get("forecast_write_load"), entry.getValue().forecastWriteLoad());
+            assertEquals(nodesStats.get("forecast_disk_usage_bytes"), entry.getValue().forecastShardSize());
         }
 
         // routing table
@@ -245,8 +245,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("relocating_node_is_desired"), shardView.relocatingNodeIsDesired());
                     assertEquals(jsonShard.get("shard_id"), shardView.shardId());
                     assertEquals(jsonShard.get("index"), shardView.index());
-                    assertEquals(jsonShard.get("forecasted_write_load"), shardView.forecastedWriteLoad());
-                    assertEquals(jsonShard.get("forecasted_shard_size_in_bytes"), shardView.forecastedShardSizeInBytes());
+                    assertEquals(jsonShard.get("forecast_write_load"), shardView.forecastWriteLoad());
+                    assertEquals(jsonShard.get("forecast_shard_size_in_bytes"), shardView.forecastShardSizeInBytes());
                 }
 
                 Map<String, Object> jsonDesired = (Map<String, Object>) jsonDesiredShard.get("desired");

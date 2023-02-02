@@ -71,7 +71,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         return builder.startObject().field("tiers").map(tiers).field("nodes").map(nodes).endObject();
     }
 
-    public record TierBalanceStats(MetricStats shardCount, MetricStats forecastedWriteLoad, MetricStats forecastedShardSize)
+    public record TierBalanceStats(MetricStats shardCount, MetricStats forecastWriteLoad, MetricStats forecastShardSize)
         implements
             Writeable,
             ToXContentObject {
@@ -79,8 +79,8 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         private static TierBalanceStats createFrom(List<NodeBalanceStats> nodes) {
             return new TierBalanceStats(
                 MetricStats.createFrom(nodes, it -> it.shards),
-                MetricStats.createFrom(nodes, it -> it.forecastedWriteLoad),
-                MetricStats.createFrom(nodes, it -> it.forecastedShardSize)
+                MetricStats.createFrom(nodes, it -> it.forecastWriteLoad),
+                MetricStats.createFrom(nodes, it -> it.forecastShardSize)
             );
         }
 
@@ -91,16 +91,16 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardCount.writeTo(out);
-            forecastedWriteLoad.writeTo(out);
-            forecastedShardSize.writeTo(out);
+            forecastWriteLoad.writeTo(out);
+            forecastShardSize.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
                 .field("shard_count", shardCount)
-                .field("forecasted_write_load", forecastedWriteLoad)
-                .field("forecasted_disk_usage", forecastedShardSize)
+                .field("forecast_write_load", forecastWriteLoad)
+                .field("forecast_disk_usage", forecastShardSize)
                 .endObject();
         }
     }
@@ -155,10 +155,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         }
     }
 
-    public record NodeBalanceStats(int shards, double forecastedWriteLoad, long forecastedShardSize)
-        implements
-            Writeable,
-            ToXContentObject {
+    public record NodeBalanceStats(int shards, double forecastWriteLoad, long forecastShardSize) implements Writeable, ToXContentObject {
 
         private static NodeBalanceStats createFrom(RoutingNode routingNode, Metadata metadata, WriteLoadForecaster writeLoadForecaster) {
             double totalWriteLoad = 0.0;
@@ -181,16 +178,16 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(shards);
-            out.writeDouble(forecastedWriteLoad);
-            out.writeLong(forecastedShardSize);
+            out.writeDouble(forecastWriteLoad);
+            out.writeLong(forecastShardSize);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
                 .field("shard_count", shards)
-                .field("forecasted_write_load", forecastedWriteLoad)
-                .humanReadableField("forecasted_disk_usage_bytes", "forecasted_disk_usage", ByteSizeValue.ofBytes(forecastedShardSize))
+                .field("forecast_write_load", forecastWriteLoad)
+                .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
                 .endObject();
         }
     }

@@ -42,14 +42,14 @@ The API returns the following result:
           "average" : 2.3333333333333335,
           "std_dev" : 0.4714045207910317
         },
-        "forecasted_write_load" : {
+        "forecast_write_load" : {
           "total" : 21.0,
           "min" : 6.0,
           "max" : 8.5,
           "average" : 7.0,
           "std_dev" : 1.0801234497346435
         },
-        "forecasted_disk_usage" : {
+        "forecast_disk_usage" : {
           "total" : 36.0,
           "min" : 10.0,
           "max" : 16.0,
@@ -65,14 +65,14 @@ The API returns the following result:
           "average" : 1.0,
           "std_dev" : 0.0
         },
-        "forecasted_write_load" : {
+        "forecast_write_load" : {
           "total" : 0.0,
           "min" : 0.0,
           "max" : 0.0,
           "average" : 0.0,
           "std_dev" : 0.0
         },
-        "forecasted_disk_usage" : {
+        "forecast_disk_usage" : {
           "total" : 42.0,
           "min" : 12.0,
           "max" : 18.0,
@@ -84,18 +84,18 @@ The API returns the following result:
     "nodes": {
       "node-1": {
         "shard_count": 10,
-        "forecasted_write_load": 8.5,
-        "forecasted_disk_usage_bytes": 498435
+        "forecast_write_load": 8.5,
+        "forecast_disk_usage_bytes": 498435
       },
       "node-2": {
         "shard_count": 15,
-        "forecasted_write_load": 3.25,
-        "forecasted_disk_usage_bytes": 384935
+        "forecast_write_load": 3.25,
+        "forecast_disk_usage_bytes": 384935
       },
       "node-3": {
         "shard_count": 12,
-        "forecasted_write_load": 6.0,
-        "forecasted_disk_usage_bytes": 648766
+        "forecast_write_load": 6.0,
+        "forecast_disk_usage_bytes": 648766
       }
     }
   },
@@ -112,8 +112,8 @@ The API returns the following result:
             "relocating_node_is_desired": false,
             "shard_id": 0,
             "index": "test",
-            "forecasted_write_load": 8.0,
-            "forecasted_shard_size_in_bytes": 1024
+            "forecast_write_load": 8.0,
+            "forecast_shard_size_in_bytes": 1024
           }
         ],
         "desired": {
@@ -136,8 +136,8 @@ The API returns the following result:
             "relocating_node_is_desired": false,
             "shard_id": 1,
             "index": "test",
-            "forecasted_write_load": null,
-            "forecasted_shard_size_in_bytes": null
+            "forecast_write_load": null,
+            "forecast_shard_size_in_bytes": null
           }
         ],
         "desired": {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
@@ -253,7 +252,7 @@ public final class DocumentParser {
         }
 
         if (mapper.isNested()) {
-            context = nestedContext(context, (NestedObjectMapper) mapper);
+            context = context.createNestedContext((NestedObjectMapper) mapper);
         }
 
         // if we are at the end of the previous object, advance
@@ -368,32 +367,6 @@ public final class DocumentParser {
                 rootDoc.add(field);
             }
         }
-    }
-
-    private static DocumentParserContext nestedContext(DocumentParserContext context, NestedObjectMapper mapper) {
-        context = context.createNestedContext(mapper.fullPath());
-        LuceneDocument nestedDoc = context.doc();
-        LuceneDocument parentDoc = nestedDoc.getParent();
-
-        // We need to add the uid or id to this nested Lucene document too,
-        // If we do not do this then when a document gets deleted only the root Lucene document gets deleted and
-        // not the nested Lucene documents! Besides the fact that we would have zombie Lucene documents, the ordering of
-        // documents inside the Lucene index (document blocks) will be incorrect, as nested documents of different root
-        // documents are then aligned with other root documents. This will lead tothe nested query, sorting, aggregations
-        // and inner hits to fail or yield incorrect results.
-        IndexableField idField = parentDoc.getField(IdFieldMapper.NAME);
-        if (idField != null) {
-            // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
-            // delete it when the root document is deleted too.
-            // NOTE: we don't support nested fields in tsdb so it's safe to assume the standard id mapper.
-            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-        } else {
-            throw new IllegalStateException("The root document of a nested document should have an _id field");
-        }
-
-        Version version = context.indexSettings().getIndexVersionCreated();
-        nestedDoc.add(NestedPathFieldMapper.field(version, mapper.nestedTypePath()));
-        return context;
     }
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {

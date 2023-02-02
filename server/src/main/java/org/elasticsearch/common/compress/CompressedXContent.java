@@ -9,7 +9,7 @@
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -209,7 +209,7 @@ public final class CompressedXContent {
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         final String sha256;
         final byte[] compressedData;
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             sha256 = in.readString();
             compressedData = in.readByteArray();
         } else {
@@ -221,7 +221,7 @@ public final class CompressedXContent {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeString(sha256);
         } else {
             int crc32 = crc32FromCompressed(bytes);

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.support.RetryableAction;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -22,6 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class PendingReplicationActions implements Consumer<ReplicationGroup>, Releasable {
 
@@ -69,7 +73,16 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         if (isNewerVersion(replicationGroup)) {
             synchronized (this) {
                 if (isNewerVersion(replicationGroup)) {
-                    acceptNewTrackedAllocationIds(replicationGroup.getTrackedAllocationIds());
+                    Set<String> allocationIds = Stream.concat(
+                        replicationGroup.getTrackedAllocationIds().stream(),
+                        replicationGroup.getRoutingTable()
+                            .assignedShards()
+                            .stream()
+                            .filter(Predicate.not(ShardRouting::isPromotableToPrimary))
+                            .map(sr -> sr.allocationId().getId())
+                    ).collect(Collectors.toUnmodifiableSet());
+                    acceptNewTrackedAllocationIds(allocationIds);
+
                     replicationGroupVersion = replicationGroup.getVersion();
                 }
             }

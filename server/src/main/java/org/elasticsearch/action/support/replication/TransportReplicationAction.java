@@ -120,6 +120,7 @@ public abstract class TransportReplicationAction<
 
     // package private for testing
     protected final String transportReplicaAction;
+    protected final String transportUnpromotableReplicaAction;
     protected final String transportPrimaryAction;
 
     private final boolean syncGlobalCheckpointAfterOperation;
@@ -181,6 +182,7 @@ public abstract class TransportReplicationAction<
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
+        this.transportUnpromotableReplicaAction = actionName + "[u]";
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
@@ -205,6 +207,15 @@ public abstract class TransportReplicationAction<
             true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
             this::handleReplicaRequest
+        );
+
+        transportService.registerRequestHandler(
+            transportUnpromotableReplicaAction,
+            executor,
+            true,
+            true,
+            in -> new ConcreteShardRequest<>(replicaRequestReader, in),
+            this::handleUnpromotableReplicaRequest
         );
 
         this.transportOptions = transportOptions();
@@ -264,7 +275,7 @@ public abstract class TransportReplicationAction<
     );
 
     /**
-     * Execute the specified replica operation. This is done under a permit from
+     * Execute the specified replica operation. For promotable replica shards, this is done under a permit from
      * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)}.
      *
      * @param shardRequest the request to the replica shard
@@ -535,21 +546,35 @@ public abstract class TransportReplicationAction<
             ReplicationOperation.PrimaryResult<ReplicaRequest> {
         private final ReplicaRequest replicaRequest;
         public final Response replicationResponse;
+        private final ReplicationOperation.ReplicaForwardOptions replicaForwardOptions;
 
         /**
          * Result of executing a primary operation
          * expects <code>replicationResponse</code> to be not-null
          */
         public PrimaryResult(ReplicaRequest replicaRequest, Response replicationResponse) {
-            assert replicaRequest != null : "request is required";
+            this(replicaRequest, ReplicationOperation.ReplicaForwardOptions.PROMOTABLE_REPLICAS, replicationResponse);
+        }
+
+        public PrimaryResult(
+            ReplicaRequest replicaRequest,
+            ReplicationOperation.ReplicaForwardOptions replicaForwardOptions,
+            Response replicationResponse
+        ) {
             assert replicationResponse != null : "response is required";
             this.replicaRequest = replicaRequest;
             this.replicationResponse = replicationResponse;
+            this.replicaForwardOptions = replicaForwardOptions;
         }
 
         @Override
         public ReplicaRequest replicaRequest() {
             return replicaRequest;
+        }
+
+        @Override
+        public ReplicationOperation.ReplicaForwardOptions getReplicaForwardOptions() {
+            return replicaForwardOptions;
         }
 
         @Override
@@ -595,7 +620,25 @@ public abstract class TransportReplicationAction<
         );
 
         try {
-            new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
+            new AsyncPromotableReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
+        } catch (RuntimeException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    protected void handleUnpromotableReplicaRequest(
+        final ConcreteShardRequest<ReplicaRequest> unpromotableReplicaRequest,
+        final TransportChannel channel,
+        final Task task
+    ) {
+        ActionListener<ReplicaResponse> listener = new ChannelActionListener<>(
+            channel,
+            transportUnpromotableReplicaAction,
+            unpromotableReplicaRequest
+        );
+
+        try {
+            new AsyncUnpromotableReplicaAction(unpromotableReplicaRequest, listener, (ReplicationTask) task).run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }
@@ -617,7 +660,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    private final class AsyncReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
+    private abstract class AsyncReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
         private final ActionListener<ReplicaResponse> onCompletionListener;
         private final IndexShard replica;
         /**
@@ -627,10 +670,10 @@ public abstract class TransportReplicationAction<
         // important: we pass null as a timeout as failing a replica is
         // something we want to avoid at all costs
         private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-        private final ConcreteReplicaRequest<ReplicaRequest> replicaRequest;
+        private final ConcreteShardRequest<ReplicaRequest> replicaRequest;
 
         AsyncReplicaAction(
-            ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
+            ConcreteShardRequest<ReplicaRequest> replicaRequest,
             ActionListener<ReplicaResponse> onCompletionListener,
             ReplicationTask task
         ) {
@@ -642,14 +685,17 @@ public abstract class TransportReplicationAction<
             this.replica = getIndexShard(shardId);
         }
 
+        protected abstract void shardOperation(ReplicaRequest request, ActionListener<ReplicaResult> listener);
+
+        public IndexShard getReplica() {
+            return this.replica;
+        }
+
         @Override
         public void onResponse(Releasable releasable) {
-            assert replica.getActiveOperationsCount() != 0 : "must perform shard operation under a permit";
             try {
-                shardOperationOnReplica(
-                    replicaRequest.getRequest(),
-                    replica,
-                    ActionListener.wrap((replicaResult) -> replicaResult.runPostReplicaActions(ActionListener.wrap(r -> {
+                ActionListener<ReplicaResult> listener = ActionListener.wrap(
+                    (replicaResult) -> replicaResult.runPostReplicaActions(ActionListener.wrap(r -> {
                         final ReplicaResponse response = new ReplicaResponse(
                             replica.getLocalCheckpoint(),
                             replica.getLastSyncedGlobalCheckpoint()
@@ -668,11 +714,14 @@ public abstract class TransportReplicationAction<
                     }, e -> {
                         Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                         responseWithFailure(e);
-                    })), e -> {
+                    })),
+                    e -> {
                         Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                         AsyncReplicaAction.this.onFailure(e);
-                    })
+                    }
                 );
+
+                shardOperation(replicaRequest.getRequest(), listener);
                 // TODO: Evaluate if we still need to catch this exception
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
@@ -737,14 +786,64 @@ public abstract class TransportReplicationAction<
                     actualAllocationId
                 );
             }
+        }
+    }
+
+    private final class AsyncPromotableReplicaAction extends AsyncReplicaAction {
+        private final ConcreteReplicaRequest<ReplicaRequest> replicaRequest;
+
+        AsyncPromotableReplicaAction(
+            ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
+            ActionListener<ReplicaResponse> onCompletionListener,
+            ReplicationTask task
+        ) {
+            super(replicaRequest, onCompletionListener, task);
+            this.replicaRequest = replicaRequest;
+            assert getReplica().routingEntry().isPromotableToPrimary();
+        }
+
+        @Override
+        protected void shardOperation(ReplicaRequest request, ActionListener<ReplicaResult> listener) {
+            assert getReplica().getActiveOperationsCount() != 0 : "must perform shard operation under a permit";
+            shardOperationOnReplica(replicaRequest.getRequest(), getReplica(), listener);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            super.doRun();
             acquireReplicaOperationPermit(
-                replica,
+                getIndexShard(replicaRequest.getRequest().shardId()),
                 replicaRequest.getRequest(),
                 this,
                 replicaRequest.getPrimaryTerm(),
                 replicaRequest.getGlobalCheckpoint(),
                 replicaRequest.getMaxSeqNoOfUpdatesOrDeletes()
             );
+        }
+    }
+
+    private final class AsyncUnpromotableReplicaAction extends AsyncReplicaAction {
+        private final ConcreteShardRequest<ReplicaRequest> replicaRequest;
+
+        AsyncUnpromotableReplicaAction(
+            ConcreteShardRequest<ReplicaRequest> replicaRequest,
+            ActionListener<ReplicaResponse> onCompletionListener,
+            ReplicationTask task
+        ) {
+            super(replicaRequest, onCompletionListener, task);
+            this.replicaRequest = replicaRequest;
+            assert getReplica().routingEntry().isPromotableToPrimary() == false;
+        }
+
+        @Override
+        protected void shardOperation(ReplicaRequest request, ActionListener<ReplicaResult> listener) {
+            shardOperationOnReplica(replicaRequest.getRequest(), getReplica(), listener);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            super.doRun();
+            this.onResponse(() -> {});
         }
     }
 
@@ -1247,18 +1346,27 @@ public abstract class TransportReplicationAction<
                 listener.onFailure(new NoNodeAvailableException("unknown node [" + nodeId + "]"));
                 return;
             }
-            final ConcreteReplicaRequest<ReplicaRequest> replicaRequest = new ConcreteReplicaRequest<>(
-                request,
-                replica.allocationId().getId(),
-                primaryTerm,
-                globalCheckpoint,
-                maxSeqNoOfUpdatesOrDeletes
-            );
             final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(
                 listener,
                 ReplicaResponse::new
             );
-            transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, handler);
+            if (replica.isPromotableToPrimary()) {
+                final ConcreteReplicaRequest<ReplicaRequest> replicaRequest = new ConcreteReplicaRequest<>(
+                    request,
+                    replica.allocationId().getId(),
+                    primaryTerm,
+                    globalCheckpoint,
+                    maxSeqNoOfUpdatesOrDeletes
+                );
+                transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, handler);
+            } else {
+                final ConcreteShardRequest<ReplicaRequest> replicaRequest = new ConcreteShardRequest<>(
+                    request,
+                    replica.allocationId().getId(),
+                    primaryTerm
+                );
+                transportService.sendRequest(node, transportUnpromotableReplicaAction, replicaRequest, transportOptions, handler);
+            }
         }
 
         @Override

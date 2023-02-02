@@ -652,6 +652,11 @@ public class ReplicationOperationTests extends ESTestCase {
             }
 
             @Override
+            public ReplicationOperation.ReplicaForwardOptions getReplicaForwardOptions() {
+                return ReplicationOperation.ReplicaForwardOptions.PROMOTABLE_REPLICAS;
+            }
+
+            @Override
             public void setShardInfo(ShardInfo shardInfo) {
                 this.shardInfo = shardInfo;
             }

@@ -378,6 +378,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         }
 
         @Override
+        public ReplicationOperation.ReplicaForwardOptions getReplicaForwardOptions() {
+            return ReplicationOperation.ReplicaForwardOptions.PROMOTABLE_REPLICAS;
+        }
+
+        @Override
         public void setShardInfo(ReplicationResponse.ShardInfo shardInfo) {
             this.shardInfo.set(shardInfo);
         }

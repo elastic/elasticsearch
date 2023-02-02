@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
@@ -41,8 +40,11 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class ReplicationOperation<
     Request extends ReplicationRequest<Request>,
@@ -144,11 +146,35 @@ public class ReplicationOperation<
             // max_seq_no_of_updates on replica when this request is executed is at least the value on the primary when it was executed
             // on.
             final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
-            assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
-            final ReplicationGroup replicationGroup = primary.getReplicationGroup();
+            assert maxSeqNoOfUpdatesOrDeletes != UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
             final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
-            markUnavailableShardsAsStale(replicaRequest, replicationGroup);
-            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup, pendingReplicationActions);
+
+            if (primaryResult.getReplicaForwardOptions().forwardToPromotableReplicas()) {
+                final ReplicationGroup replicationGroup = primary.getReplicationGroup();
+                markUnavailableShardsAsStale(replicaRequest, replicationGroup);
+                performOnPromotableReplicas(
+                    replicaRequest,
+                    globalCheckpoint,
+                    maxSeqNoOfUpdatesOrDeletes,
+                    replicationGroup,
+                    pendingReplicationActions
+                );
+            }
+
+            if (primaryResult.getReplicaForwardOptions().forwardToUnpromotableReplicas()) {
+                Stream<ShardRouting> unpromotableReplicas = primary.getReplicationGroup()
+                    .getRoutingTable()
+                    .assignedShards()
+                    .stream()
+                    .filter(Predicate.not(ShardRouting::isPromotableToPrimary));
+                performOnUnpromotableReplicas(
+                    replicaRequest,
+                    globalCheckpoint,
+                    maxSeqNoOfUpdatesOrDeletes,
+                    unpromotableReplicas,
+                    pendingReplicationActions
+                );
+            }
         }
         primaryResult.runPostReplicationActions(new ActionListener<>() {
 
@@ -186,7 +212,7 @@ public class ReplicationOperation<
         }
     }
 
-    private void performOnReplicas(
+    private void performOnPromotableReplicas(
         final ReplicaRequest replicaRequest,
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes,
@@ -199,11 +225,24 @@ public class ReplicationOperation<
 
         final ShardRouting primaryRouting = primary.routingEntry();
 
-        for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
-            if (shard.isSameAllocation(primaryRouting) == false) {
-                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
-            }
-        }
+        replicationGroup.getReplicationTargets()
+            .stream()
+            .filter(sr -> sr.isSameAllocation(primaryRouting) == false)
+            .forEach(
+                sr -> { performOnReplica(sr, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions); }
+            );
+    }
+
+    private void performOnUnpromotableReplicas(
+        final ReplicaRequest replicaRequest,
+        final long globalCheckpoint,
+        final long maxSeqNoOfUpdatesOrDeletes,
+        final Stream<ShardRouting> replicas,
+        final PendingReplicationActions pendingReplicationActions
+    ) {
+        replicas.forEach(
+            shard -> { performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions); }
+        );
     }
 
     private void performOnReplica(
@@ -213,7 +252,6 @@ public class ReplicationOperation<
         final long maxSeqNoOfUpdatesOrDeletes,
         final PendingReplicationActions pendingReplicationActions
     ) {
-        assert shard.isPromotableToPrimary() : "only promotable shards should receive replication requests";
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
@@ -308,8 +346,10 @@ public class ReplicationOperation<
     ) {
         boolean forked = false;
         try {
-            primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
-            primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
+            if (shard.isPromotableToPrimary()) {
+                primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
+                primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
+            }
         } catch (final AlreadyClosedException e) {
             // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
         } catch (final Exception e) {
@@ -604,7 +644,7 @@ public class ReplicationOperation<
     }
 
     /**
-     * An interface to encapsulate the metadata needed from replica shards when they respond to operations performed on them.
+     * An interface to encapsulate the metadata needed from promotable replica shards when they respond to operations performed on them.
      */
     public interface ReplicaResponse {
 
@@ -639,6 +679,29 @@ public class ReplicationOperation<
         }
     }
 
+    public enum ReplicaForwardOptions {
+
+        PROMOTABLE_REPLICAS(true, false),
+        UNPROMOTABLE_REPLICAS(false, true),
+        PROMOTABLE_AND_UNPROMOTABLE_REPLICAS(true, true);
+
+        private final boolean forwardToPromotableReplicas;
+        private final boolean forwardToUnpromotableReplicas;
+
+        ReplicaForwardOptions(boolean forwardToPromotableReplicas, boolean forwardToUnpromotableReplicas) {
+            this.forwardToPromotableReplicas = forwardToPromotableReplicas;
+            this.forwardToUnpromotableReplicas = forwardToUnpromotableReplicas;
+        }
+
+        public boolean forwardToPromotableReplicas() {
+            return forwardToPromotableReplicas;
+        }
+
+        public boolean forwardToUnpromotableReplicas() {
+            return forwardToUnpromotableReplicas;
+        }
+    }
+
     public interface PrimaryResult<RequestT extends ReplicationRequest<RequestT>> {
 
         /**
@@ -647,6 +710,8 @@ public class ReplicationOperation<
          */
         @Nullable
         RequestT replicaRequest();
+
+        ReplicaForwardOptions getReplicaForwardOptions();
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
 

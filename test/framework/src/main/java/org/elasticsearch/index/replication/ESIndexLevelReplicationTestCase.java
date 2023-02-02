@@ -831,6 +831,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
+            public ReplicationOperation.ReplicaForwardOptions getReplicaForwardOptions() {
+                return ReplicationOperation.ReplicaForwardOptions.PROMOTABLE_REPLICAS;
+            }
+
+            @Override
             public void setShardInfo(ReplicationResponse.ShardInfo shardInfo) {
                 finalResponse.setShardInfo(shardInfo);
             }

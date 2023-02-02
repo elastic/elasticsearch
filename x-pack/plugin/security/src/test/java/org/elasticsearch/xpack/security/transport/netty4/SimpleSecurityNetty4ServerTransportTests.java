@@ -521,7 +521,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             );
 
             // 1. Connection will fail because FC server certificate is not trusted by default
-            final Settings qcSettings1 = Settings.builder().put("remote_cluster.enabled", "true").build();
+            final Settings qcSettings1 = Settings.builder().build();
             try (MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings1)) {
                 final ConnectTransportException e = expectThrows(
                     ConnectTransportException.class,
@@ -531,10 +531,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             }
 
             // 2. Connection will success because QC does not verify FC server certificate
-            final Settings qcSettings2 = Settings.builder()
-                .put("remote_cluster.enabled", "true")
-                .put("xpack.security.remote_cluster.ssl.verification_mode", "none")
-                .build();
+            final Settings qcSettings2 = Settings.builder().put("xpack.security.remote_cluster.ssl.verification_mode", "none").build();
             try (
                 MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings2);
                 Transport.Connection connection = openConnection(qcService, node, connectionProfile)
@@ -556,7 +553,6 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
 
             // 3. Connection will success because QC is explicitly configured to trust FC server certificate
             final Settings qcSettings3 = Settings.builder()
-                .put("remote_cluster.enabled", "true")
                 .put("xpack.security.remote_cluster.ssl.certificate_authorities", testnodeCert)
                 .put("xpack.security.remote_cluster.ssl.verification_mode", "full")
                 .build();

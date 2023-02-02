@@ -603,7 +603,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             try {
                 ProcessUtils.exec(
                     input,
-                    workingDir,
+                    distributionDir,
                     distributionDir.resolve("bin")
                         .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
                     getEnvironmentVariables(),

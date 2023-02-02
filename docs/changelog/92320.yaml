@@ -1,5 +1,0 @@
-pr: 92320
-summary: Port lucene fix github-11986 to Elasticsearch 7.17
-area: Geo
-type: bug
-issues: []

@@ -1,0 +1,46 @@
+---
+constant_keyword:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+                value: wow such constant
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: {columns.1.name: kind}
+  - match: {columns.1.type: keyword}
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: wow such constant}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval l=length(kind) | project l'
+
+  - match: {columns.0.name: l}
+  - match: {columns.0.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 17}

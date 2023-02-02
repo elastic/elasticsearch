@@ -115,20 +115,6 @@ public class AuthenticationService {
         );
     }
 
-    public Authenticator.Context newContext(final String action, final TransportRequest request, final boolean allowAnonymous) {
-        return new Authenticator.Context(
-            threadContext,
-            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
-            null,
-            allowAnonymous,
-            realms
-        );
-    }
-
-    public void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
-        authenticatorChain.authenticateAsync(context, listener);
-    }
-
     /**
      * Authenticates the user that is associated with the given request. If the user was authenticated successfully (i.e.
      * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
@@ -160,7 +146,7 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
-        authenticatorChain.authenticateAsync(context, authenticationListener);
+        authenticate(context, authenticationListener);
     }
 
     /**
@@ -181,7 +167,7 @@ public class AuthenticationService {
             false,
             realms
         );
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticate(context, listener);
     }
 
     /**
@@ -209,7 +195,7 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticate(context, listener);
     }
 
     /**
@@ -258,6 +244,20 @@ public class AuthenticationService {
                 expireAll();
             }
         }
+    }
+
+    Authenticator.Context newContext(final String action, final TransportRequest request, final boolean allowAnonymous) {
+        return new Authenticator.Context(
+            threadContext,
+            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
+            null,
+            allowAnonymous,
+            realms
+        );
+    }
+
+    void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
+        authenticatorChain.authenticateAsync(context, listener);
     }
 
     // pkg private method for testing

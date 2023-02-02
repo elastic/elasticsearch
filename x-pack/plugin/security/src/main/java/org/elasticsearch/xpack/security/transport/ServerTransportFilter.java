@@ -37,9 +37,9 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
  */
 final class ServerTransportFilter {
 
-    enum ProfileType {
-        TRANSPORT,
-        REMOTE_CLUSTER,
+    enum Type {
+        DEFAULT,
+        REMOTE_ACCESS,
     }
 
     private static final Logger logger = LogManager.getLogger(ServerTransportFilter.class);
@@ -53,7 +53,7 @@ final class ServerTransportFilter {
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
 
-    private final ProfileType profileType;
+    private final Type transportFilterType;
 
     ServerTransportFilter(
         AuthenticationService authcService,
@@ -63,7 +63,7 @@ final class ServerTransportFilter {
         DestructiveOperations destructiveOperations,
         SecurityContext securityContext
     ) {
-        this(authcService, authzService, threadContext, extractClientCert, destructiveOperations, securityContext, ProfileType.TRANSPORT);
+        this(authcService, authzService, threadContext, extractClientCert, destructiveOperations, securityContext, Type.DEFAULT);
     }
 
     ServerTransportFilter(
@@ -73,7 +73,7 @@ final class ServerTransportFilter {
         boolean extractClientCert,
         DestructiveOperations destructiveOperations,
         SecurityContext securityContext,
-        ProfileType profileType
+        Type transportFilterType
     ) {
         this.authcService = authcService;
         this.authzService = authzService;
@@ -81,7 +81,7 @@ final class ServerTransportFilter {
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
-        this.profileType = profileType;
+        this.transportFilterType = transportFilterType;
         this.remoteClusterAuthcService = new RemoteClusterAuthenticationService(authcService);
     }
 
@@ -145,9 +145,9 @@ final class ServerTransportFilter {
             return;
         }
 
-        switch (profileType) {
-            case TRANSPORT -> authcService.authenticate(securityAction, request, true, authorizationStep);
-            case REMOTE_CLUSTER -> {
+        switch (transportFilterType) {
+            case DEFAULT -> authcService.authenticate(securityAction, request, true, authorizationStep);
+            case REMOTE_ACCESS -> {
                 if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
                     listener.onFailure(
                         new IllegalArgumentException("action [" + action + "] is not allow-listed for cross cluster requests")
@@ -157,7 +157,11 @@ final class ServerTransportFilter {
                 // TODO allow anonymous access once we support it
                 remoteClusterAuthcService.authenticate(securityAction, request, false, authorizationStep);
             }
-            default -> listener.onFailure(new IllegalStateException("unsupported profile type: " + profileType));
+            default -> {
+                final String message = "unsupported profile type [" + transportFilterType + "]";
+                assert false : message;
+                listener.onFailure(new IllegalStateException(message));
+            }
         }
     }
 }

@@ -88,6 +88,7 @@ public class Constants {
         "cluster:admin/transform/reset",
         "cluster:admin/transform/start",
         "cluster:admin/transform/stop",
+        "cluster:admin/transform/schedule_now",
         "cluster:admin/transform/update",
         "cluster:admin/transform/upgrade",
         "cluster:admin/transform/validate",

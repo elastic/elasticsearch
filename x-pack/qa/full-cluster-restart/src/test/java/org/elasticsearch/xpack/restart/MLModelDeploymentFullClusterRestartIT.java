@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.restart;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -17,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
 
@@ -34,7 +32,7 @@ import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
+public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     // See PyTorchModelIT for how this model was created
     static final String BASE_64_ENCODED_MODEL =
@@ -63,10 +61,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
-    }
-
-    public MLModelDeploymentFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
-        super(upgradeStatus);
     }
 
     @Before

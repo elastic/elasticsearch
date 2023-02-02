@@ -499,15 +499,17 @@ public class IndexShardRoutingTable {
         return null;
     }
 
-    public Set<String> getAllAllocationIds() {
+    public Set<String> getPromotableAllocationIds() {
         assert MasterService.assertNotMasterUpdateThread("not using this on the master thread so we don't have to pre-compute this");
         Set<String> allAllocationIds = new HashSet<>();
         for (ShardRouting shard : shards) {
-            if (shard.relocating()) {
-                allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
-            }
-            if (shard.assignedToNode()) {
-                allAllocationIds.add(shard.allocationId().getId());
+            if (shard.isPromotableToPrimary()) {
+                if (shard.relocating()) {
+                    allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
+                }
+                if (shard.assignedToNode()) {
+                    allAllocationIds.add(shard.allocationId().getId());
+                }
             }
         }
         return allAllocationIds;

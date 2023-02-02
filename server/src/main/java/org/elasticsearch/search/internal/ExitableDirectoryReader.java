@@ -14,13 +14,13 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FilterVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
@@ -137,7 +137,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
             if (queryCancellation.isEnabled() == false) {
                 return in.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
             }
@@ -167,12 +167,12 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public VectorValues getVectorValues(String field) throws IOException {
-            VectorValues vectorValues = in.getVectorValues(field);
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            FloatVectorValues vectorValues = in.getFloatVectorValues(field);
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableVectorValues(vectorValues, queryCancellation) : vectorValues;
+            return queryCancellation.isEnabled() ? new ExitableFloatVectorValues(vectorValues, queryCancellation) : vectorValues;
         }
 
         @Override
@@ -494,7 +494,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public BytesRef vectorValue() throws IOException {
+        public byte[] vectorValue() throws IOException {
             return in.vectorValue();
         }
 
@@ -524,11 +524,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableVectorValues extends FilterVectorValues {
+    private static class ExitableFloatVectorValues extends FilterVectorValues {
         private int calls;
         private final QueryCancellation queryCancellation;
 
-        ExitableVectorValues(VectorValues vectorValues, QueryCancellation queryCancellation) {
+        ExitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
             super(vectorValues);
             this.queryCancellation = queryCancellation;
             this.queryCancellation.checkCancelled();
@@ -557,11 +557,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public float[] vectorValue() throws IOException {
             return in.vectorValue();
-        }
-
-        @Override
-        public BytesRef binaryValue() throws IOException {
-            return in.binaryValue();
         }
     }
 }

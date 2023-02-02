@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,49 +29,58 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.ToDoubleFunction;
 
-public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implements Writeable, ToXContentObject {
+public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<String, NodeBalanceStats> nodes)
+    implements
+        Writeable,
+        ToXContentObject {
 
-    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(Map.of());
+    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(Map.of(), Map.of());
 
     public static ClusterBalanceStats createFrom(ClusterState clusterState, WriteLoadForecaster writeLoadForecaster) {
-        var tierToNodeStats = new HashMap<String, List<NodeStats>>();
+        var tierToNodeStats = new HashMap<String, List<NodeBalanceStats>>();
+        var nodes = new HashMap<String, NodeBalanceStats>();
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
             var dataRoles = routingNode.node().getRoles().stream().filter(DiscoveryNodeRole::canContainData).toList();
             if (dataRoles.isEmpty()) {
                 continue;
             }
-            var nodeStats = NodeStats.createFrom(routingNode, clusterState.metadata(), writeLoadForecaster);
+            var nodeStats = NodeBalanceStats.createFrom(routingNode, clusterState.metadata(), writeLoadForecaster);
+            nodes.put(routingNode.node().getName(), nodeStats);
             for (DiscoveryNodeRole role : dataRoles) {
                 tierToNodeStats.computeIfAbsent(role.roleName(), ignored -> new ArrayList<>()).add(nodeStats);
             }
         }
-        return new ClusterBalanceStats(Maps.transformValues(tierToNodeStats, TierBalanceStats::createFrom));
+        return new ClusterBalanceStats(Maps.transformValues(tierToNodeStats, TierBalanceStats::createFrom), nodes);
     }
 
     public static ClusterBalanceStats readFrom(StreamInput in) throws IOException {
-        return new ClusterBalanceStats(in.readImmutableMap(StreamInput::readString, TierBalanceStats::readFrom));
+        return new ClusterBalanceStats(
+            in.readImmutableMap(StreamInput::readString, TierBalanceStats::readFrom),
+            in.readImmutableMap(StreamInput::readString, NodeBalanceStats::readFrom)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(tiers, StreamOutput::writeString, StreamOutput::writeWriteable);
+        out.writeMap(nodes, StreamOutput::writeString, StreamOutput::writeWriteable);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.map(tiers);
+        return builder.startObject().field("tiers").map(tiers).field("nodes").map(nodes).endObject();
     }
 
-    public record TierBalanceStats(MetricStats shardCount, MetricStats totalWriteLoad, MetricStats totalShardSize)
+    public record TierBalanceStats(MetricStats shardCount, MetricStats forecastWriteLoad, MetricStats forecastShardSize)
         implements
             Writeable,
             ToXContentObject {
 
-        private static TierBalanceStats createFrom(List<NodeStats> nodes) {
+        private static TierBalanceStats createFrom(List<NodeBalanceStats> nodes) {
             return new TierBalanceStats(
                 MetricStats.createFrom(nodes, it -> it.shards),
-                MetricStats.createFrom(nodes, it -> it.totalWriteLoad),
-                MetricStats.createFrom(nodes, it -> it.totalShardSize)
+                MetricStats.createFrom(nodes, it -> it.forecastWriteLoad),
+                MetricStats.createFrom(nodes, it -> it.forecastShardSize)
             );
         }
 
@@ -81,30 +91,30 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardCount.writeTo(out);
-            totalWriteLoad.writeTo(out);
-            totalShardSize.writeTo(out);
+            forecastWriteLoad.writeTo(out);
+            forecastShardSize.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
                 .field("shard_count", shardCount)
-                .field("total_write_load", totalWriteLoad)
-                .field("total_shard_size", totalShardSize)
+                .field("forecast_write_load", forecastWriteLoad)
+                .field("forecast_disk_usage", forecastShardSize)
                 .endObject();
         }
     }
 
     public record MetricStats(double total, double min, double max, double average, double stdDev) implements Writeable, ToXContentObject {
 
-        private static MetricStats createFrom(List<NodeStats> nodes, ToDoubleFunction<NodeStats> metricExtractor) {
+        private static MetricStats createFrom(List<NodeBalanceStats> nodes, ToDoubleFunction<NodeBalanceStats> metricExtractor) {
             assert nodes.isEmpty() == false : "Stats must be created from non empty nodes";
             double total = 0.0;
             double total2 = 0.0;
             double min = Double.POSITIVE_INFINITY;
             double max = Double.NEGATIVE_INFINITY;
             int count = 0;
-            for (NodeStats node : nodes) {
+            for (NodeBalanceStats node : nodes) {
                 var metric = metricExtractor.applyAsDouble(node);
                 if (Double.isNaN(metric)) {
                     continue;
@@ -145,9 +155,9 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
         }
     }
 
-    private record NodeStats(int shards, double totalWriteLoad, long totalShardSize) {
+    public record NodeBalanceStats(int shards, double forecastWriteLoad, long forecastShardSize) implements Writeable, ToXContentObject {
 
-        private static NodeStats createFrom(RoutingNode routingNode, Metadata metadata, WriteLoadForecaster writeLoadForecaster) {
+        private static NodeBalanceStats createFrom(RoutingNode routingNode, Metadata metadata, WriteLoadForecaster writeLoadForecaster) {
             double totalWriteLoad = 0.0;
             long totalShardSize = 0L;
 
@@ -158,7 +168,27 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
                 totalShardSize += indexMetadata.getForecastedShardSizeInBytes().orElse(0);
             }
 
-            return new NodeStats(routingNode.size(), totalWriteLoad, totalShardSize);
+            return new NodeBalanceStats(routingNode.size(), totalWriteLoad, totalShardSize);
+        }
+
+        public static NodeBalanceStats readFrom(StreamInput in) throws IOException {
+            return new NodeBalanceStats(in.readInt(), in.readDouble(), in.readLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(shards);
+            out.writeDouble(forecastWriteLoad);
+            out.writeLong(forecastShardSize);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject()
+                .field("shard_count", shards)
+                .field("forecast_write_load", forecastWriteLoad)
+                .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
+                .endObject();
         }
     }
 }

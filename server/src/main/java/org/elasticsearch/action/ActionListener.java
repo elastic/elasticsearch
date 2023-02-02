@@ -309,11 +309,7 @@ public interface ActionListener<Response> {
         return new ActionListener<>() {
             @Override
             public void onResponse(Response response) {
-                try {
-                    delegate.onResponse(response);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
+                ActionListener.run(delegate, l -> l.onResponse(response));
             }
 
             @Override
@@ -563,6 +559,14 @@ public interface ActionListener<Response> {
             };
         } else {
             return delegate;
+        }
+    }
+
+    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, Exception> action) {
+        try {
+            action.accept(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

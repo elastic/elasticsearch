@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -54,7 +54,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             if (in.readBoolean()) {
                 state = decode(in);
             } else {
@@ -83,7 +83,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             if (this.state != null) {
                 out.writeBoolean(true);
                 encode(this.state, out);

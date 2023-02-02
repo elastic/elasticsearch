@@ -17,8 +17,11 @@ filters, character filters, and tokenizers.
 Plugins that provide custom authentication, authorization, or scoring
 mechanisms, for example.
 
+:plugin-type: analysis
 include::development/creating-text-analysis-plugins.asciidoc[]
-
 include::development/example-text-analysis-plugin.asciidoc[]
+:!plugin-type:
 
+:plugin-type: other
 include::development/creating-non-text-analysis-plugins.asciidoc[]
+:!plugin-type:

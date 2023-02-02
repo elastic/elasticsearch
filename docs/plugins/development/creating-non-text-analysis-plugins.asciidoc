@@ -18,7 +18,7 @@ plugins with the incorrect `elasticsearch.version`.
 [discrete]
 ==== Plugin file structure
 
-Plugins are ZIP files composed of JAR files and <<plugin-descriptor.properties,a
+Plugins are ZIP files composed of JAR files and <<plugin-descriptor-file-other,a
 metadata file called `plugin-descriptor.properties`>>, a Java properties file
 that describes the plugin.
 
@@ -87,9 +87,7 @@ AccessController.doPrivileged(
 See https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
 for more information.
 
-[discrete]
-[[plugin-descriptor.properties]]
-==== The `plugin-descriptor.properties` file
+[[plugin-descriptor-file-other]]
+==== The plugin descriptor file
 
-:stable-plugin: false
 include::plugin-descriptor-file.asciidoc[]

@@ -1,12 +1,20 @@
-["source","properties"]
+The plugin descriptor file is a Java properties file called
+ifeval::["{plugin-type}" ==  "analysis"]
+`stable-plugin-descriptor.properties`
+endif::[]
+ifeval::["{plugin-type}" == "other"]
+`plugin-descriptor.properties`
+endif::[]
+that describes the plugin. The file will be automatically created if you are 
+using {es}'s Gradle build system. If you're not using the gradle plugin, you 
+can create it manually using the following template.
+
+[source,properties]
 :plugin-properties-files: {elasticsearch-root}/build-tools/src/main/resources
 [source,yaml]
 ----
 include::{plugin-properties-files}/plugin-descriptor.properties[]
 ----
-
-Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
-can fill in the necessary values in the `build.gradle` file for your plugin.
 
 [discrete]
 ==== Mandatory elements for plugins
@@ -21,17 +29,17 @@ can fill in the necessary values in the `build.gradle` file for your plugin.
 |`version`                  |String  | plugin's version
 
 |`name`                     |String  | the plugin name
-ifeval::[{stable-plugin} ==  true]
+ifeval::["{plugin-type}" ==  "analysis"]
 |`classname`                |String  | this property is for non-text analysis 
 plugins. Do not include this property.
 endif::[]
-ifeval::[{stable-plugin} == false]
+ifeval::["{plugin-type}" == "other"]
 |`classname`                |String  | the name of the class to load, fully-qualified.
 endif::[]
 |`java.version`             |String  | version of java the code is built against.
 Use the system property `java.specification.version`. Version string must be a sequence
 of nonnegative decimal integers separated by "."'s and may have leading zeros.
 
-|`elasticsearch.version`    |String  | version of Elasticsearch compiled against.
+|`elasticsearch.version`    |String  | version of {es} compiled against.
 
 |=======================================================================

@@ -10,7 +10,7 @@ analyzers, token filters, character filters, and tokenizers].
 Plugins are ZIP files composed of JAR files and two metadata files:
 
 * `stable-plugin-descriptor.properties` - a Java properties file that describes 
-the plugin. Refer to <<stable-plugin-descriptor.properties>>.
+the plugin. Refer to <<plugin-descriptor-file-{plugin-type}>>.
 * `named_components.json` - a JSON file mapping interfaces to key-value pairs 
 of component names and implementation classes.
 
@@ -85,7 +85,9 @@ variables to the top of the file. You can find these versions in the
 `build-tools-internal/version.properties` file in the {es-repo}[Elasticsearch 
 Github repository].
 ** Edit the `name` and `description` in the `esplugin` section of the build 
-script.
+script. This will create the plugin descriptor file. If you're not using the 
+`elasticsearch.stable-esplugin` gradle plugin, refer to 
+<<plugin-descriptor-file-analysis>> to create the file manually.
 ** Add module information.
 ** Ensure you have declared the following compile-time dependencies. These 
 dependencies are compile-time only because {es} will provide these libraries at 
@@ -121,9 +123,7 @@ extend `ESClientYamlSuiteTestCase`.
 * The YAML tests themselves should be defined under 
 `src/yamlRestTest/resources/test/`.
 
-[discrete]
-[[stable-plugin-descriptor.properties]]
-==== The `stable-plugin-descriptor.properties` file
+[[plugin-descriptor-file-analysis]]
+==== The plugin descriptor file
 
-:stable-plugin: true
 include::plugin-descriptor-file.asciidoc[]

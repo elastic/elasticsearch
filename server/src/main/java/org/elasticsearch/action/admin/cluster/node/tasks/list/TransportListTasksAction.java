@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
@@ -126,19 +127,21 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 // No tasks to wait, we can run nodeOperation in the management pool
                 allMatchedTasksRemovedListener.onResponse(null);
             } else {
+                final var threadPool = clusterService.threadPool();
                 future.addListener(
                     new ThreadedActionListener<>(
-                        clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT),
-                        false,
-                        allMatchedTasksRemovedListener
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                        new ContextPreservingActionListener<>(
+                            threadPool.getThreadContext().newRestorableContext(false),
+                            allMatchedTasksRemovedListener
+                        )
                     )
                 );
-                var cancellable = clusterService.threadPool()
-                    .schedule(
-                        () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")),
-                        requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
-                        ThreadPool.Names.SAME
-                    );
+                var cancellable = threadPool.schedule(
+                    () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")),
+                    requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
+                    ThreadPool.Names.SAME
+                );
                 future.addListener(ActionListener.wrap(cancellable::cancel));
             }
         } else {

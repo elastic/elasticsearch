@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.restart;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -15,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
@@ -31,14 +29,10 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
+public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private static final String OLD_CLUSTER_JOB_ID = "ml-config-mappings-old-cluster-job";
     private static final String NEW_CLUSTER_JOB_ID = "ml-config-mappings-new-cluster-job";
-
-    public MlConfigIndexMappingsFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
-        super(upgradeStatus);
-    }
 
     @Override
     protected Settings restClientSettings() {

@@ -408,6 +408,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardCount == 0 ? 0 : (totalSizeInBytes / shardCount) * numberOfCopies(indexMetadata);
         }
 
+        private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
+            return indexMetadata.getForecastedShardSizeInBytes().orElseGet(() -> clusterInfo.getShardSize(shardRouting, 0L));
+        }
+
         private static int numberOfCopies(IndexMetadata indexMetadata) {
             return indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
         }
@@ -962,7 +966,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private Map<String, ModelNode> buildModelFromAssigned() {
             Map<String, ModelNode> nodes = Maps.newMapWithExpectedSize(routingNodes.size());
             for (RoutingNode rn : routingNodes) {
-                ModelNode node = new ModelNode(writeLoadForecaster, metadata, rn);
+                ModelNode node = new ModelNode(writeLoadForecaster, metadata, allocation.clusterInfo(), rn);
                 nodes.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
@@ -1254,12 +1258,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private double diskUsageInBytes = 0.0;
         private final WriteLoadForecaster writeLoadForecaster;
         private final Metadata metadata;
+        private final ClusterInfo clusterInfo;
         private final RoutingNode routingNode;
         private final Map<String, ModelIndex> indices;
 
-        ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, RoutingNode routingNode) {
+        ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
+            this.clusterInfo = clusterInfo;
             this.routingNode = routingNode;
             this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
         }
@@ -1305,7 +1311,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
             IndexMetadata indexMetadata = metadata.index(shard.index());
             writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            diskUsageInBytes += indexMetadata.getForecastedShardSizeInBytes().orElse(0);
+            diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards++;
         }
 
@@ -1319,7 +1325,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             IndexMetadata indexMetadata = metadata.index(shard.index());
             writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            diskUsageInBytes -= indexMetadata.getForecastedShardSizeInBytes().orElse(0);
+            diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards--;
         }
 

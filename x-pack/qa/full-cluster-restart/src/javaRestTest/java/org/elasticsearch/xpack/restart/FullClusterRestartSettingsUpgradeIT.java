@@ -16,6 +16,9 @@ import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class FullClusterRestartSettingsUpgradeIT extends org.elasticsearch.upgrades.FullClusterRestartSettingsUpgradeIT {
 
@@ -26,7 +29,14 @@ public class FullClusterRestartSettingsUpgradeIT extends org.elasticsearch.upgra
             .setting("xpack.security.transport.ssl.certificate", "testnode.crt")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.watcher.encrypt_sensitive_data", "true")
-            .setting("xpack.security.authc.api_key.enabled", "true")
+            .settings(n -> {
+                if (n.getVersion().onOrAfter("6.7.0")) {
+                    Map<String, String> settings = new HashMap<>();
+                    settings.put("xpack.security.authc.api_key.enabled", "true");
+                    return settings;
+                }
+                return Collections.emptyMap();
+            })
             .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
             .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))

@@ -131,7 +131,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            getSettingsRequest.setOptions(systemIndexWarningHandlerOptions(".security-6"));
+            getSettingsRequest.setOptions(systemIndexWarningHandlerOptions());
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
@@ -1083,16 +1083,8 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         client.performRequest(createIndexTemplateRequest);
     }
 
-    private RequestOptions.Builder systemIndexWarningHandlerOptions(String index) {
+    private RequestOptions.Builder systemIndexWarningHandlerOptions() {
         return RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(
-                w -> w.size() > 0
-                    && w.contains(
-                        "this request accesses system indices: ["
-                            + index
-                            + "], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    ) == false
-            );
+            .setWarningsHandler(w -> w.size() > 0 && w.contains("this request accesses system indices") == false);
     }
 }

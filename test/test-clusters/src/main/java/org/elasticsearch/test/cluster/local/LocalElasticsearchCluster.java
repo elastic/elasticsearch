@@ -10,21 +10,18 @@ package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolver;
-import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionResolver;
-import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import java.nio.file.Path;
 
 public class LocalElasticsearchCluster implements ElasticsearchCluster {
-    private final DefaultLocalClusterSpecBuilder builder;
-    private LocalClusterSpec spec;
+    private final LocalClusterSpec spec;
     private LocalClusterHandle handle;
 
-    public LocalElasticsearchCluster(DefaultLocalClusterSpecBuilder builder) {
-        this.builder = builder;
+    public LocalElasticsearchCluster(LocalClusterSpec spec) {
+        this.spec = spec;
     }
 
     @Override
@@ -33,10 +30,9 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
             @Override
             public void evaluate() throws Throwable {
                 try {
-                    spec = builder.buildClusterSpec();
                     handle = new LocalClusterFactory(
                         Path.of(System.getProperty("java.io.tmpdir")).resolve(description.getDisplayName()).toAbsolutePath(),
-                        new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
+                        new LocalDistributionResolver(new SnapshotDistributionResolver())
                     ).create(spec);
                     handle.start();
                     base.evaluate();
@@ -99,18 +95,6 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
     public String getTransportEndpoint(int index) {
         checkHandle();
         return handle.getTransportEndpoint(index);
-    }
-
-    @Override
-    public void upgradeNodeToVersion(int index, Version version) {
-        checkHandle();
-        handle.upgradeNodeToVersion(index, version);
-    }
-
-    @Override
-    public void upgradeToVersion(Version version) {
-        checkHandle();
-        handle.upgradeToVersion(version);
     }
 
     private void checkHandle() {

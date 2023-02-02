@@ -331,11 +331,11 @@ public class ServerCliTests extends CommandTestCase {
 
     public void testSecureSettingsLoaderWithPassword() throws Exception {
         var loader = setupMockKeystoreLoader();
-        assertKeystorePassword("aaa");
+        assertKeystorePassword("aaaaaaaaaaaaaaaaaa");
         assertTrue(loader.loaded);
         assertTrue(loader.bootstrapped);
         // the password we read should match what we passed in
-        assertEquals("aaa", loader.password);
+        assertEquals("aaaaaaaaaaaaaaaaaa", loader.password);
         // after the command the secrets password is closed
         assertEquals(
             "SecureString has already been closed",

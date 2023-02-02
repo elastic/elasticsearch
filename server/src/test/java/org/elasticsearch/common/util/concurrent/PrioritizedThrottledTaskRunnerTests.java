@@ -39,7 +39,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         maxThreads = between(1, 10);
-        executor = EsExecutors.newScaling("test", 1, maxThreads, 0, TimeUnit.MILLISECONDS, false, threadFactory, threadContext);
+        executor = EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.NANOSECONDS, false, threadFactory, threadContext);
     }
 
     @Override

@@ -346,7 +346,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 );
 
                 if (spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()) {
-                    ProcessUtils.exec(workingDir, executable, getEnvironmentVariables(), false, "-v", "create").waitFor();
+                    ProcessUtils.exec("", workingDir, executable, getEnvironmentVariables(), false, "-v", "create").waitFor();
                 } else {
                     ProcessUtils.exec(
                         spec.getKeystorePassword() + "\n" + spec.getKeystorePassword(),
@@ -434,9 +434,19 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 LOGGER.info("Creating users for node '{}'", spec.getName());
                 for (User user : spec.getUsers()) {
                     try {
+                        String executable;
+                        if (spec.getVersion().onOrAfter("6.3.0")) {
+                            executable = OS.conditional(
+                                c -> c.onWindows(() -> "elasticsearch-users.bat").onUnix(() -> "elasticsearch-users")
+                            );
+                        } else {
+                            executable = OS.conditional(
+                                c -> c.onWindows(() -> "x-pack/users.bat").onUnix(() -> "x-pack/users")
+                            );
+                        }
                         ProcessUtils.exec(
                             workingDir,
-                            distributionDir.resolve("bin").resolve("elasticsearch-users"),
+                            distributionDir.resolve("bin").resolve(executable),
                             getEnvironmentVariables(),
                             false,
                             "useradd",
@@ -454,41 +464,47 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private void installPlugins() {
-            if (spec.getPlugins().isEmpty() == false) {
+            List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
+                .map(Path::of)
+                .toList();
+
+            List<String> toInstall = spec.getPlugins()
+                .stream()
+                .map(
+                    pluginName -> pluginPaths.stream()
+                        .map(path -> Pair.of(BUNDLE_ARTIFACT_PATTERN.matcher(path.getFileName().toString()), path))
+                        .filter(pair -> pair.left.matches())
+                        .map(p -> p.right.getParent().resolve(p.left.group(1)))
+                        .findFirst()
+                        .orElseThrow(() -> {
+                            String taskPath = System.getProperty("tests.task");
+                            String project = taskPath.substring(0, taskPath.lastIndexOf(':'));
+
+                            throw new RuntimeException(
+                                "Unable to locate plugin '"
+                                    + pluginName
+                                    + "'. Ensure you've added the following to the build script for project '"
+                                    + project
+                                    + "':\n\n"
+                                    + "dependencies {\n"
+                                    + "  clusterPlugins "
+                                    + "project(':plugins:"
+                                    + pluginName
+                                    + "')"
+                                    + "\n}"
+                            );
+                        })
+                )
+                .map(p -> p.toUri().toString())
+                .collect(Collectors.toList());
+
+            if (spec.getVersion().before("6.3.0")) {
+                // X-pack was not bundled by default prior to 6.3.0
+                toInstall.add("x-pack");
+            }
+
+            if (toInstall.isEmpty() == false) {
                 LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), spec.getName());
-                List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
-                    .map(Path::of)
-                    .toList();
-
-                List<String> toInstall = spec.getPlugins()
-                    .stream()
-                    .map(
-                        pluginName -> pluginPaths.stream()
-                            .map(path -> Pair.of(BUNDLE_ARTIFACT_PATTERN.matcher(path.getFileName().toString()), path))
-                            .filter(pair -> pair.left.matches())
-                            .map(p -> p.right.getParent().resolve(p.left.group(1)))
-                            .findFirst()
-                            .orElseThrow(() -> {
-                                String taskPath = System.getProperty("tests.task");
-                                String project = taskPath.substring(0, taskPath.lastIndexOf(':'));
-
-                                throw new RuntimeException(
-                                    "Unable to locate plugin '"
-                                        + pluginName
-                                        + "'. Ensure you've added the following to the build script for project '"
-                                        + project
-                                        + "':\n\n"
-                                        + "dependencies {\n"
-                                        + "  clusterPlugins "
-                                        + "project(':plugins:"
-                                        + pluginName
-                                        + "')"
-                                        + "\n}"
-                                );
-                            })
-                    )
-                    .map(p -> p.toUri().toString())
-                    .toList();
 
                 Path pluginCommand = OS.conditional(
                     c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-plugin.bat"))

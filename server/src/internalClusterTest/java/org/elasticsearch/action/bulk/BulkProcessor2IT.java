@@ -234,7 +234,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
                 new IndexRequest("test").id(Integer.toString(i))
                     .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
             );
-            multiGetRequestBuilder.add("test", Integer.toString(i));
+            multiGetRequestBuilder.add("test", "_doc", Integer.toString(i));
         }
         return multiGetRequestBuilder;
     }

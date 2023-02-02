@@ -112,6 +112,12 @@ public final class MergePolicyConfig {
     public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
+    /**
+     * Time-based data generally gets rolled over, so there is not much value in enforcing a maximum segment size, which has the side effect
+     * of merging fewer segments together than the merge factor, which in-turn increases write amplification. So we set an arbitrarily high
+     * roof that serves as a protection that we expect to never hit.
+     */
+    public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = new ByteSizeValue(100, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     /**
      * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 16. This default value differs from the Lucene default of 10 in
@@ -212,7 +218,8 @@ public final class MergePolicyConfig {
     );
     public static final Setting<ByteSizeValue> INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "index.merge.policy.max_merged_segment",
-        DEFAULT_MAX_MERGED_SEGMENT,
+        // We're not using DEFAULT_MAX_MERGED_SEGMENT here as we want different defaults for time-based data vs. non-time based
+        new ByteSizeValue(0, ByteSizeUnit.BYTES),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -298,8 +305,14 @@ public final class MergePolicyConfig {
     }
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
-        tieredMergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
-        logByteSizeMergePolicy.setMaxMergeMB(maxMergedSegment.getMbFrac());
+        // We use 0 as a placeholder for "unset".
+        if (maxMergedSegment.getBytes() == 0) {
+            tieredMergePolicy.setMaxMergedSegmentMB(DEFAULT_MAX_MERGED_SEGMENT.getMbFrac());
+            logByteSizeMergePolicy.setMaxMergeMB(DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT.getMbFrac());
+        } else {
+            tieredMergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
+            logByteSizeMergePolicy.setMaxMergeMB(maxMergedSegment.getMbFrac());
+        }
     }
 
     void setMaxMergesAtOnce(int maxMergeAtOnce) {

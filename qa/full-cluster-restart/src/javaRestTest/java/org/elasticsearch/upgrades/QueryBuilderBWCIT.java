@@ -8,6 +8,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -32,7 +34,11 @@ import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -54,9 +60,28 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * The queries to test are specified in json format, which turns out to work because we tend break here rarely. If the
  * json format of a query being tested here then feel free to change this.
  */
-public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
-
+public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
     private static final List<Object[]> CANDIDATES = new ArrayList<>();
+
+    protected static LocalClusterConfigProvider clusterConfig = c -> {};
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(2)
+        .setting("xpack.security.enabled", "false")
+        .apply(() -> clusterConfig)
+        .build();
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
+    public QueryBuilderBWCIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
 
     static {
         addCandidate("""

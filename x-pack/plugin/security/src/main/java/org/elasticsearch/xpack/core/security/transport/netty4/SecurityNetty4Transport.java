@@ -177,9 +177,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
         SecurityClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
             final String transportProfile = connectionProfile.getTransportProfile();
+            logger.trace("initiating security client channel with transport profile [{}]", transportProfile);
             if (REMOTE_CLUSTER_PROFILE.equals(transportProfile)) {
                 this.channelSslConfiguration = remoteClusterClientSslConfiguration;
             } else {
+                assert TransportSettings.DEFAULT_PROFILE.equals(transportProfile);
                 this.channelSslConfiguration = defaultSslConfiguration;
             }
             if (this.channelSslConfiguration != null) {

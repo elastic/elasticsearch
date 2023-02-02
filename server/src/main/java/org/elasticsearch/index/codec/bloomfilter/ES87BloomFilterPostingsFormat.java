@@ -77,6 +77,10 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
     static final int VERSION_CURRENT = VERSION_START;
     static final String BLOOM_FILTER_META_FILE = "bfm";
     static final String BLOOM_FILTER_INDEX_FILE = "bfi";
+    /** Bloom filters target 10% saturation, ie. 10 bits per entry. */
+    private static final int BITS_PER_ENTRY = 10;
+    /** The optimal number of hash functions for a bloom filter is approximately 0.7 times the number of bits per entry. */
+    private static final int NUM_HASH_FUNCTIONS = 7;
 
     private Function<String, PostingsFormat> postingsFormats;
     private BigArrays bigArrays;
@@ -125,7 +129,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
         private final List<FieldsGroup> fieldsGroups = new ArrayList<>();
         private final List<Closeable> toCloses = new ArrayList<>();
         private boolean closed;
-        private final int[] hashes = new int[7];
+        private final int[] hashes = new int[NUM_HASH_FUNCTIONS];
 
         FieldsWriter(SegmentWriteState state) throws IOException {
             this.state = state;
@@ -524,7 +528,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             throw new IllegalStateException("maxDocs must be greater than or equal to 1, got " + maxDocs);
         }
         // 10% saturation (i.e., 10 bits for each term)
-        long numBits = maxDocs * 10L;
+        long numBits = maxDocs * (long) BITS_PER_ENTRY;
         // Round to the next number of 8 since we can only store whole bytes
         numBits = ((numBits - 1) | 0x07L) + 1;
         if (numBits > Integer.MAX_VALUE) {

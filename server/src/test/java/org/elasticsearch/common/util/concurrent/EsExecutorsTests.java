@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -20,6 +21,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -504,6 +506,82 @@ public class EsExecutorsTests extends ESTestCase {
         {
             final Settings settings = Settings.builder().put(processorsSetting.getKey(), -1.5).build();
             expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
+    }
+
+    public void testSubmitAtTimeout() {
+        final var maxThreads = between(1, 4);
+        final var coreThreads = between(0, maxThreads);
+        final var executor = EsExecutors.newScaling(
+            "test",
+            coreThreads,
+            maxThreads,
+            0,
+            TimeUnit.SECONDS,
+            false,
+            EsExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
+
+        try {
+            final var barrier = new CyclicBarrier(maxThreads + 1);
+            final var awaitBarrier = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        barrier.await(10, TimeUnit.SECONDS);
+                        Thread.yield();
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "awaitBarrier";
+                }
+            };
+
+            logger.info("--> core threads [{}], max threads [{}]", coreThreads, maxThreads);
+
+            for (int i = 0; i < 10000; i++) {
+                for (int t = 0; t < maxThreads; t++) {
+                    executor.execute(awaitBarrier);
+                }
+
+                final var iteration = i;
+                final var hotThreads = new Thread(() -> {
+                    try {
+                        Thread.sleep(5000);
+                        logger.info(
+                            "--> queue after 5s in iteration {}:\n{}",
+                            iteration,
+                            executor.getTasks().map(Object::toString).collect(Collectors.joining("\n"))
+                        );
+                        logger.info("--> {}", new HotThreads().busiestThreads(1000).ignoreIdleThreads(false).detect());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } catch (Exception e) {
+                        throw new AssertionError("unexpected", e);
+                    }
+                }, Thread.currentThread().getName() + "-hot-threads");
+                hotThreads.start();
+
+                try {
+                    awaitBarrier.run();
+                    Thread.yield();
+                } finally {
+                    try {
+                        hotThreads.interrupt();
+                        hotThreads.join();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError("unexpected", e);
+                    }
+                }
+            }
+        } finally {
+            terminate(executor);
         }
     }
 

@@ -1,8 +1,8 @@
 [[creating-text-analysis-plugins]]
 === Creating text analysis plugins
 
-Text analysis plugins provide {es} with custom Lucene analyzers, token filters, 
-character filters, and tokenizers. 
+Text analysis plugins provide {es} with custom {ref}/analysis.html[Lucene 
+analyzers, token filters, character filters, and tokenizers]. 
 
 [discrete]
 ==== Plugin file structure

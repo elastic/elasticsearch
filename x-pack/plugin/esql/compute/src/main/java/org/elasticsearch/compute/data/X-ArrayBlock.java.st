@@ -70,18 +70,6 @@ $endif$
         return ElementType.$TYPE$;
     }
 
-$if(int)$
-    @Override
-    public LongBlock asLongBlock() {  // copy rather than view, for now
-        final int positions = getPositionCount();
-        long[] longValues = new long[positions];
-        for (int i = 0; i < positions; i++) {
-            longValues[i] = values[i];
-        }
-        return new LongArrayBlock(longValues, getPositionCount(), firstValueIndexes, nullsMask);
-    }
-$endif$
-
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Block that) {

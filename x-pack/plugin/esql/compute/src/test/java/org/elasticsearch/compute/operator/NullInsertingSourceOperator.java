@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -36,6 +37,9 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
             switch (elementType) {
                 case LONG:
                     builders[b] = LongBlock.newBlockBuilder(page.getPositionCount());
+                    break;
+                case INT:
+                    builders[b] = IntBlock.newBlockBuilder(page.getPositionCount());
                     break;
                 case DOUBLE:
                     builders[b] = DoubleBlock.newBlockBuilder(page.getPositionCount());
@@ -87,6 +91,9 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
         switch (elementType) {
             case LONG:
                 ((LongBlock.Builder) into).appendLong(((LongBlock) from).getLong(valueIndex));
+                break;
+            case INT:
+                ((IntBlock.Builder) into).appendInt(((IntBlock) from).getInt(valueIndex));
                 break;
             case DOUBLE:
                 ((DoubleBlock.Builder) into).appendDouble(((DoubleBlock) from).getDouble(valueIndex));

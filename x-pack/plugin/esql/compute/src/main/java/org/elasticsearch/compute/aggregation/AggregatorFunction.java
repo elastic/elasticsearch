@@ -23,6 +23,7 @@ import static org.elasticsearch.compute.aggregation.AggregationName.min;
 import static org.elasticsearch.compute.aggregation.AggregationName.sum;
 import static org.elasticsearch.compute.aggregation.AggregationType.agnostic;
 import static org.elasticsearch.compute.aggregation.AggregationType.doubles;
+import static org.elasticsearch.compute.aggregation.AggregationType.ints;
 import static org.elasticsearch.compute.aggregation.AggregationType.longs;
 
 @Experimental
@@ -53,6 +54,15 @@ public interface AggregatorFunction {
                     case count -> COUNT;
                     default -> throw new IllegalArgumentException("unknown " + name + ", type:" + type);
                 };
+            case ints -> switch (name) {
+                    case avg -> AVG_INTS;
+                    case count -> COUNT;
+                    case max -> MAX_INTS;
+                    case median -> MEDIAN_INTS;
+                    case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_INTS;
+                    case min -> MIN_INTS;
+                    case sum -> SUM_INTS;
+                };
             case longs -> switch (name) {
                     case avg -> AVG_LONGS;
                     case count -> COUNT;
@@ -76,14 +86,17 @@ public interface AggregatorFunction {
 
     Factory AVG_DOUBLES = new Factory(avg, doubles, AvgDoubleAggregatorFunction::create);
     Factory AVG_LONGS = new Factory(avg, longs, AvgLongAggregatorFunction::create);
+    Factory AVG_INTS = new Factory(avg, ints, AvgIntAggregatorFunction::create);
 
     Factory COUNT = new Factory(count, agnostic, CountAggregatorFunction::create);
 
     Factory MAX_DOUBLES = new Factory(max, doubles, MaxDoubleAggregatorFunction::create);
     Factory MAX_LONGS = new Factory(max, longs, MaxLongAggregatorFunction::create);
+    Factory MAX_INTS = new Factory(max, ints, MaxIntAggregatorFunction::create);
 
     Factory MEDIAN_DOUBLES = new Factory(median, doubles, MedianDoubleAggregatorFunction::create);
     Factory MEDIAN_LONGS = new Factory(median, longs, MedianLongAggregatorFunction::create);
+    Factory MEDIAN_INTS = new Factory(median, ints, MedianIntAggregatorFunction::create);
 
     Factory MEDIAN_ABSOLUTE_DEVIATION_DOUBLES = new Factory(
         median_absolute_deviation,
@@ -95,10 +108,17 @@ public interface AggregatorFunction {
         longs,
         MedianAbsoluteDeviationLongAggregatorFunction::create
     );
+    Factory MEDIAN_ABSOLUTE_DEVIATION_INTS = new Factory(
+        median_absolute_deviation,
+        ints,
+        MedianAbsoluteDeviationIntAggregatorFunction::create
+    );
 
     Factory MIN_DOUBLES = new Factory(min, doubles, MinDoubleAggregatorFunction::create);
     Factory MIN_LONGS = new Factory(min, longs, MinLongAggregatorFunction::create);
+    Factory MIN_INTS = new Factory(min, ints, MinIntAggregatorFunction::create);
 
     Factory SUM_DOUBLES = new Factory(sum, doubles, SumDoubleAggregatorFunction::create);
     Factory SUM_LONGS = new Factory(sum, longs, SumLongAggregatorFunction::create);
+    Factory SUM_INTS = new Factory(sum, ints, SumIntAggregatorFunction::create);
 }

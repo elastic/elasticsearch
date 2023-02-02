@@ -206,16 +206,16 @@ avg:double | min(x):integer | max(x):integer | count(x):long | avg(x):double | a
 rowWithMultipleStatsOverNull
 row x=1, y=2 | eval tot = null + y + x | stats c=count(tot), a=avg(tot), mi=min(tot), ma=max(tot), s=sum(tot);
 
-c:long | a:double |            mi:integer |           ma:integer | s:long
-     0 |      NaN |   9223372036854775807 | -9223372036854775808 |      0
+c:long | a:double |   mi:integer |  ma:integer | s:long
+     0 |      NaN |   2147483647 | -2147483648 |      0
 ;
 
 
 min
 row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats min(l), min(d), min(ln), min(dn);
 
-min(l):integer | min(d):double |     min(ln):integer | min(dn):double
-             1 |           1.0 | 9223372036854775807 |       Infinity
+min(l):integer | min(d):double | min(ln):integer | min(dn):double
+             1 |           1.0 |      2147483647 |       Infinity
 ;
 
 

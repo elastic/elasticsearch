@@ -39,13 +39,6 @@ $else$
 $endif$
     }
 
-$if(int)$
-    @Override
-    public LongBlock asLongBlock() {
-        return new FilterLongBlock(block.asLongBlock(), positions);
-    }
-$endif$
-
     @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;

@@ -24,14 +24,14 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 
+import static org.elasticsearch.compute.gen.AggregatorImplementer.valueBlockType;
+import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorType;
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
-import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
-import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
@@ -86,33 +86,6 @@ public class GroupingAggregatorImplementer {
         String head = initReturn.toString().substring(0, 1).toUpperCase(Locale.ROOT);
         String tail = initReturn.toString().substring(1);
         return ClassName.get("org.elasticsearch.compute.aggregation", head + tail + "ArrayState");
-    }
-
-    private String primitiveType() {
-        String initReturn = declarationType.toString().toLowerCase(Locale.ROOT);
-        if (initReturn.contains("double")) {
-            return "double";
-        } else if (initReturn.contains("long")) {
-            return "long";
-        } else {
-            throw new IllegalArgumentException("unknown primitive type for " + initReturn);
-        }
-    }
-
-    private ClassName valueBlockType() {
-        return switch (primitiveType()) {
-            case "double" -> DOUBLE_BLOCK;
-            case "long" -> LONG_BLOCK;
-            default -> throw new IllegalArgumentException("unknown block type for " + primitiveType());
-        };
-    }
-
-    private ClassName valueVectorType() {
-        return switch (primitiveType()) {
-            case "double" -> DOUBLE_VECTOR;
-            case "long" -> LONG_VECTOR;
-            default -> throw new IllegalArgumentException("unknown vector type for " + primitiveType());
-        };
     }
 
     public JavaFile sourceFile() {
@@ -179,8 +152,8 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(LONG_VECTOR, "groups").addParameter(PAGE, "page");
-        builder.addStatement("$T valuesBlock = page.getBlock(channel)", valueBlockType());
-        builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType());
+        builder.addStatement("$T valuesBlock = page.getBlock(channel)", valueBlockType(init, combine));
+        builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (valuesVector != null)");
         {
             builder.addStatement("int positions = groups.getPositionCount()");
@@ -203,7 +176,7 @@ public class GroupingAggregatorImplementer {
     private MethodSpec addRawInputWithBlockValues() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInputWithBlockValues");
         builder.addModifiers(Modifier.PRIVATE);
-        builder.addParameter(LONG_VECTOR, "groups").addParameter(valueBlockType(), "valuesBlock");
+        builder.addParameter(LONG_VECTOR, "groups").addParameter(valueBlockType(init, combine), "valuesBlock");
         builder.addStatement("int positions = groups.getPositionCount()");
         builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
@@ -227,8 +200,8 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(LONG_BLOCK, "groups").addParameter(PAGE, "page");
         builder.addStatement("assert channel >= 0");
-        builder.addStatement("$T valuesBlock = page.getBlock(channel)", valueBlockType());
-        builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType());
+        builder.addStatement("$T valuesBlock = page.getBlock(channel)", valueBlockType(init, combine));
+        builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType(init, combine));
         builder.addStatement("int positions = groups.getPositionCount()");
         builder.beginControlFlow("if (valuesVector != null)");
         {

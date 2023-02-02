@@ -12,9 +12,7 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -142,7 +140,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         @Override
         public void addInput(Page page) {
-            Block block = maybeConvertToLongBlock(extractBlockForColumn(page, columnName));
+            Block block = extractBlockForColumn(page, columnName);
             lastPage = page.appendBlock(block);
         }
 
@@ -254,22 +252,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 + aggregators.stream().map(Describable::describe).collect(joining(", "))
                 + ")";
         }
-    }
-
-    private Block maybeConvertToLongBlock(Block block) {
-        int positionCount = block.getPositionCount();
-        if (block.elementType() == ElementType.INT) {
-            LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-            for (int i = 0; i < positionCount; i++) {
-                if (block.isNull(i)) {
-                    builder.appendNull();
-                } else {
-                    builder.appendLong(((IntBlock) block).getInt(i));
-                }
-            }
-            return builder.build();
-        }
-        return block;
     }
 
     private Block extractBlockForColumn(Page page, String columnName) {

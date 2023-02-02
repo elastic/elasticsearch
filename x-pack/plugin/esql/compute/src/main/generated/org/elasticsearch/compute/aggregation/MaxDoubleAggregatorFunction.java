@@ -9,7 +9,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -89,7 +88,7 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
 
   @Override
   public Block evaluateFinal() {
-    return new DoubleArrayVector(new double[] { state.doubleValue() }, 1).asBlock();
+    return DoubleBlock.newConstantBlockWith(state.doubleValue(), 1);
   }
 
   @Override

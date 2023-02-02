@@ -49,17 +49,6 @@ $endif$
         return vector.elementType();
     }
 
-$if(int)$
-    public LongBlock asLongBlock() {  // copy rather than view, for now
-        final int positions = getPositionCount();
-        long[] longValues = new long[positions];
-        for (int i = 0; i < positions; i++) {
-            longValues[i] = vector.getInt(i);
-        }
-        return new LongArrayVector(longValues, getPositionCount()).asBlock();
-    }
-$endif$
-
     @Override
     public $Type$Block getRow(int position) {
         return filter(position);

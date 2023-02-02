@@ -33,8 +33,6 @@ public sealed interface IntBlock extends Block permits FilterIntBlock,IntArrayBl
     @Override
     IntBlock filter(int... positions);
 
-    LongBlock asLongBlock();
-
     /**
      * Compares the given object with this block for equality. Returns {@code true} if and only if the
      * given object is a IntBlock, and both blocks are {@link #equals(IntBlock, IntBlock) equal}.

@@ -45,10 +45,6 @@ $endif$
     @Override
     $Type$Block filter(int... positions);
 
-$if(int)$
-    LongBlock asLongBlock();
-$endif$
-
     /**
      * Compares the given object with this block for equality. Returns {@code true} if and only if the
      * given object is a $Type$Block, and both blocks are {@link #equals($Type$Block, $Type$Block) equal}.

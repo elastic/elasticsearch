@@ -12,8 +12,8 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
@@ -84,11 +84,11 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
     Block toValuesBlock() {
         final int positions = largestIndex + 1;
         if (nonNulls == null) {
-            final long[] vs = new long[positions];
+            LongVector.Builder builder = LongVector.newVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
-                vs[i] = values.get(i);
+                builder.appendLong(values.get(i));
             }
-            return new LongArrayVector(vs, positions).asBlock();
+            return builder.build().asBlock();
         } else {
             final LongBlock.Builder builder = LongBlock.newBlockBuilder(positions);
             for (int i = 0; i < positions; i++) {

@@ -12,8 +12,8 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
@@ -85,11 +85,11 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
     Block toValuesBlock() {
         final int positions = largestIndex + 1;
         if (nonNulls == null) {
-            final double[] vs = new double[positions];
+            DoubleVector.Builder builder = DoubleVector.newVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
-                vs[i] = values.get(i);
+                builder.appendDouble(values.get(i));
             }
-            return new DoubleArrayVector(vs, positions).asBlock();
+            return builder.build().asBlock();
         } else {
             final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
             for (int i = 0; i < positions; i++) {

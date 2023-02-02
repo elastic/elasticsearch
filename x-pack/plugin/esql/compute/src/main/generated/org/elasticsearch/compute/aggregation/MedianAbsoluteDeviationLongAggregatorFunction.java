@@ -10,7 +10,6 @@ import java.lang.StringBuilder;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -42,12 +41,7 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
     if (type == ElementType.NULL) {
       return;
     }
-    LongBlock block;
-    if (type == ElementType.INT) {
-      block = page.<IntBlock>getBlock(channel).asLongBlock();
-    } else {
-      block = page.getBlock(channel);
-    }
+    LongBlock block = page.getBlock(channel);
     LongVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);

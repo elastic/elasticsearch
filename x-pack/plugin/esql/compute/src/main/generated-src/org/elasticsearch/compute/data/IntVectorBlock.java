@@ -40,15 +40,6 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
         return vector.elementType();
     }
 
-    public LongBlock asLongBlock() {  // copy rather than view, for now
-        final int positions = getPositionCount();
-        long[] longValues = new long[positions];
-        for (int i = 0; i < positions; i++) {
-            longValues[i] = vector.getInt(i);
-        }
-        return new LongArrayVector(longValues, getPositionCount()).asBlock();
-    }
-
     @Override
     public IntBlock getRow(int position) {
         return filter(position);

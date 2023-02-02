@@ -12,6 +12,8 @@ public enum AggregationType {
 
     agnostic,
 
+    ints,
+
     longs,
 
     doubles

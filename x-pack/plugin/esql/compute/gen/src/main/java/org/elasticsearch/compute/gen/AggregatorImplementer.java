@@ -30,12 +30,11 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
-import static org.elasticsearch.compute.gen.Types.DOUBLE_ARRAY_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
-import static org.elasticsearch.compute.gen.Types.LONG_ARRAY_VECTOR;
+import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
@@ -91,30 +90,39 @@ public class AggregatorImplementer {
         return ClassName.get("org.elasticsearch.compute.aggregation", firstUpper(initReturn.toString()) + "State");
     }
 
-    private String primitiveType() {
-        String initReturn = declarationType.toString().toLowerCase(Locale.ROOT);
-        if (initReturn.contains("double")) {
-            return "double";
-        } else if (initReturn.contains("long")) {
-            return "long";
-        } else {
-            throw new IllegalArgumentException("unknown primitive type for " + initReturn);
+    static String primitiveType(ExecutableElement init, ExecutableElement combine) {
+        if (combine != null) {
+            // If there's an explicit combine function it's final parameter is the type of the value.
+            return combine.getParameters().get(combine.getParameters().size() - 1).asType().toString();
+        }
+        String initReturn = init.getReturnType().toString();
+        switch (initReturn) {
+            case "double":
+                return "double";
+            case "long":
+                return "long";
+            case "int":
+                return "int";
+            default:
+                throw new IllegalArgumentException("unknown primitive type for " + initReturn);
         }
     }
 
-    private ClassName valueBlockType() {
-        return switch (primitiveType()) {
+    static ClassName valueBlockType(ExecutableElement init, ExecutableElement combine) {
+        return switch (primitiveType(init, combine)) {
             case "double" -> DOUBLE_BLOCK;
             case "long" -> LONG_BLOCK;
-            default -> throw new IllegalArgumentException("unknown block type for " + primitiveType());
+            case "int" -> INT_BLOCK;
+            default -> throw new IllegalArgumentException("unknown block type for " + primitiveType(init, combine));
         };
     }
 
-    private ClassName valueVectorType() {
-        return switch (primitiveType()) {
+    static ClassName valueVectorType(ExecutableElement init, ExecutableElement combine) {
+        return switch (primitiveType(init, combine)) {
             case "double" -> DOUBLE_VECTOR;
             case "long" -> LONG_VECTOR;
-            default -> throw new IllegalArgumentException("unknown vector type for " + primitiveType());
+            case "int" -> INT_VECTOR;
+            default -> throw new IllegalArgumentException("unknown vector type for " + primitiveType(init, combine));
         };
     }
 
@@ -187,15 +195,8 @@ public class AggregatorImplementer {
         builder.addStatement("assert channel >= 0");
         builder.addStatement("$T type = page.getBlock(channel).elementType()", ELEMENT_TYPE);
         builder.beginControlFlow("if (type == $T.NULL)", ELEMENT_TYPE).addStatement("return").endControlFlow();
-        if (primitiveType().equals("double")) {
-            builder.addStatement("$T block = page.getBlock(channel)", valueBlockType());
-        } else { // long
-            builder.addStatement("$T block", valueBlockType());
-            builder.beginControlFlow("if (type == $T.INT)", ELEMENT_TYPE) // explicit cast, for now
-                .addStatement("block = page.<$T>getBlock(channel).asLongBlock()", INT_BLOCK);
-            builder.nextControlFlow("else").addStatement("block = page.getBlock(channel)").endControlFlow();
-        }
-        builder.addStatement("$T vector = block.asVector()", valueVectorType());
+        builder.addStatement("$T block = page.getBlock(channel)", valueBlockType(init, combine));
+        builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector)");
         builder.nextControlFlow("else").addStatement("addRawBlock(block)").endControlFlow();
         return builder.build();
@@ -203,7 +204,7 @@ public class AggregatorImplementer {
 
     private MethodSpec addRawVector() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(valueVectorType(), "vector");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(valueVectorType(init, combine), "vector");
         builder.beginControlFlow("for (int i = 0; i < vector.getPositionCount(); i++)");
         {
             combineRawInput(builder, "vector");
@@ -217,7 +218,7 @@ public class AggregatorImplementer {
 
     private MethodSpec addRawBlock() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(valueBlockType(), "block");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(valueBlockType(init, combine), "block");
         builder.beginControlFlow("for (int i = 0; i < block.getTotalValueCount(); i++)");
         {
             builder.beginControlFlow("if (block.isNull(i) == false)");
@@ -296,6 +297,8 @@ public class AggregatorImplementer {
 
     private String primitiveStateMethod() {
         switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.IntState":
+                return "intValue";
             case "org.elasticsearch.compute.aggregation.LongState":
                 return "longValue";
             case "org.elasticsearch.compute.aggregation.DoubleState":
@@ -339,11 +342,14 @@ public class AggregatorImplementer {
 
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.IntState":
+                builder.addStatement("return $T.newConstantBlockWith(state.intValue(), 1)", INT_BLOCK);
+                return;
             case "org.elasticsearch.compute.aggregation.LongState":
-                builder.addStatement("return new $T(new long[] { state.longValue() }, 1).asBlock()", LONG_ARRAY_VECTOR);
+                builder.addStatement("return $T.newConstantBlockWith(state.longValue(), 1)", LONG_BLOCK);
                 return;
             case "org.elasticsearch.compute.aggregation.DoubleState":
-                builder.addStatement("return new $T(new double[] { state.doubleValue() }, 1).asBlock()", DOUBLE_ARRAY_VECTOR);
+                builder.addStatement("return $T.newConstantBlockWith(state.doubleValue(), 1)", DOUBLE_BLOCK);
                 return;
             default:
                 throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);

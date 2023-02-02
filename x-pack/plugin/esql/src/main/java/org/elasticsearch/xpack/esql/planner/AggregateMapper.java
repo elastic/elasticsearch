@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.aggregation.AggregationName;
 import org.elasticsearch.compute.aggregation.AggregationType;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Locale;
 
@@ -19,7 +20,17 @@ import java.util.Locale;
 class AggregateMapper {
 
     static AggregationType mapToType(AggregateFunction aggregateFunction) {
-        return aggregateFunction.field().dataType().isRational() ? AggregationType.doubles : AggregationType.longs;
+        if (aggregateFunction.field().dataType() == DataTypes.LONG) {
+            return AggregationType.longs;
+        }
+        if (aggregateFunction.field().dataType() == DataTypes.INTEGER) {
+            return AggregationType.ints;
+        }
+        if (aggregateFunction.field().dataType() == DataTypes.DOUBLE) {
+            return AggregationType.doubles;
+        }
+        // agnostic here means "only works if the aggregation doesn't care about type".
+        return AggregationType.agnostic;
     }
 
     static AggregationName mapToName(AggregateFunction aggregateFunction) {

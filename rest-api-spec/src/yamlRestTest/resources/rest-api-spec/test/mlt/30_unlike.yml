@@ -26,10 +26,6 @@
       indices.refresh: {}
 
   - do:
-      cluster.health:
-           wait_for_status: green
-
-  - do:
       search:
           rest_total_hits_as_int: true
           index:   test_1

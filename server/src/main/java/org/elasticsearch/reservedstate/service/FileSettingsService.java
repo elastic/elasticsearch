@@ -29,8 +29,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 
@@ -65,9 +63,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     public static final String OPERATOR_DIRECTORY = "operator";
     private final List<FileSettingsChangedListener> eventListeners;
 
-    // TODO[wrb]: NEXT: Remove fileSettingsMap
-    Map<String, FileWatchService> fileSettingsMap = new ConcurrentHashMap<>();
-
     private final FileWatchService fileWatchService;
 
     /**
@@ -88,22 +83,21 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // TODO[wrb] this state should go in the file watch service
         Path operatorSettings = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
         fileWatchService = new FileWatchService(operatorSettings, SETTINGS_FILE_NAME);
-        fileSettingsMap.put(OPERATOR_DIRECTORY, fileWatchService);
     }
 
     // TODO[wrb]: update for testing
     public Path operatorSettingsDir() {
-        return fileSettingsMap.get(OPERATOR_DIRECTORY).operatorSettingsDir;
+        return fileWatchService.operatorSettingsDir;
     }
 
-    // TODO[wrb]: refactor to interface
+    // TODO[wrb]: move to fileWatchService
     public Path operatorSettingsFile() {
-        FileWatchService operator = fileSettingsMap.get(OPERATOR_DIRECTORY);
-        return operator.operatorSettingsDir.resolve(operator.settingsFileName);
+        return fileWatchService.operatorSettingsDir.resolve(fileWatchService.settingsFileName);
     }
 
+    // TODO[wrb]: rework usages to get rid of this
     public List<Path> operatorSettingsFiles() {
-        return fileSettingsMap.values().stream().map(v -> v.operatorSettingsDir.resolve(v.settingsFileName)).toList();
+        return List.of(operatorSettingsFile());
     }
 
     // TODO[wrb]: inline/remove?

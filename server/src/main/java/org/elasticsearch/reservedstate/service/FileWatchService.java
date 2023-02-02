@@ -110,7 +110,6 @@ public class FileWatchService extends AbstractLifecycleComponent {
          */
         try {
             // TODO[wrb]: can we assume that all our settings are on the same filesystem? for now throw error if this isn't the case
-            // TODO[wrb]: delegate this down to the file watch service
             List<Path> settingsDirPathList = List.of(operatorSettingsDir);
             assert settingsDirPathList.stream().map(Path::getParent).map(Path::getFileSystem).distinct().count() == 1;
             Path settingsDirPath = settingsDirPathList.stream().findAny().orElseThrow();

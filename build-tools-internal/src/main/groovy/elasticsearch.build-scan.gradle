@@ -100,8 +100,11 @@ buildScan {
       }
     } else {
 
-      URL buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? new URL(System.getenv('BUILDKITE_BUILD_URL')) : null
+      URL buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
       if(buildKiteUrl) {
+        // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+        uploadInBackground = false
+
         def branch = System.getenv('BUILDKITE_BRANCH')
         tag 'CI'
         link 'CI Build', buildKiteUrl

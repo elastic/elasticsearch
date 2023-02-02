@@ -117,4 +117,9 @@ final class ServerTransportFilter {
             }
         }, listener::onFailure));
     }
+
+    // Package private for testing
+    boolean isExtractClientCert() {
+        return extractClientCert;
+    }
 }

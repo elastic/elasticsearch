@@ -164,6 +164,13 @@ public interface Role {
         FieldPermissionsCache fieldPermissionsCache
     );
 
+    /**
+     * Returns the intersection of role descriptors defined for a remote cluster with the given alias.
+     *
+     * @param remoteClusterAlias the remote cluster alias for which to return a role descriptors intersection
+     * @return an intersection of defined role descriptors for the remote access to a given cluster,
+     *         otherwise an empty intersection if remote privileges are not defined
+     */
     RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(String remoteClusterAlias);
 
     /***

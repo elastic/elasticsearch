@@ -35,25 +35,17 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
  * The server transport filter that should be used in nodes as it ensures that an incoming
  * request is properly authenticated and authorized
  */
-final class ServerTransportFilter {
-
-    enum Type {
-        DEFAULT,
-        REMOTE_ACCESS,
-    }
+class ServerTransportFilter {
 
     private static final Logger logger = LogManager.getLogger(ServerTransportFilter.class);
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final RemoteAccessAuthenticationService remoteAccessAuthcService;
     private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final ThreadContext threadContext;
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
-
-    private final Type transportFilterType;
 
     ServerTransportFilter(
         AuthenticationService authcService,
@@ -63,26 +55,13 @@ final class ServerTransportFilter {
         DestructiveOperations destructiveOperations,
         SecurityContext securityContext
     ) {
-        this(authcService, authzService, threadContext, extractClientCert, destructiveOperations, securityContext, Type.DEFAULT);
-    }
-
-    ServerTransportFilter(
-        AuthenticationService authcService,
-        AuthorizationService authzService,
-        ThreadContext threadContext,
-        boolean extractClientCert,
-        DestructiveOperations destructiveOperations,
-        SecurityContext securityContext,
-        Type transportFilterType
-    ) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.threadContext = threadContext;
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
-        this.transportFilterType = transportFilterType;
-        this.remoteAccessAuthcService = new RemoteAccessAuthenticationService(authcService);
+        RemoteAccessAuthenticationService remoteAccessAuthcService = new RemoteAccessAuthenticationService(authcService);
     }
 
     /**
@@ -124,7 +103,7 @@ final class ServerTransportFilter {
         }
 
         TransportVersion version = transportChannel.getVersion();
-        final ActionListener<Authentication> authorizationStep = ActionListener.wrap((authentication) -> {
+        authenticate(securityAction, request, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
@@ -138,31 +117,15 @@ final class ServerTransportFilter {
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
-        }, listener::onFailure);
+        }, listener::onFailure));
+    }
 
-        if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
-            authcService.authenticate(securityAction, request, true, authorizationStep);
-            return;
-        }
-
-        switch (transportFilterType) {
-            case DEFAULT -> authcService.authenticate(securityAction, request, true, authorizationStep);
-            case REMOTE_ACCESS -> {
-                if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
-                    listener.onFailure(
-                        new IllegalArgumentException("action [" + action + "] is not allow-listed for cross cluster requests")
-                    );
-                    return;
-                }
-                // TODO allow anonymous access once we support it
-                remoteAccessAuthcService.authenticate(securityAction, request, false, authorizationStep);
-            }
-            default -> {
-                final String message = "unsupported profile type [" + transportFilterType + "]";
-                assert false : message;
-                listener.onFailure(new IllegalStateException(message));
-            }
-        }
+    protected void authenticate(
+        final String securityAction,
+        final TransportRequest request,
+        final ActionListener<Authentication> authenticationListener
+    ) {
+        authcService.authenticate(securityAction, request, true, authenticationListener);
     }
 
     // Package private for testing

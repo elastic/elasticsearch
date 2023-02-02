@@ -451,28 +451,32 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
             final String profileName = entry.getKey();
-
             final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
-
-            final boolean extractClientCert;
             if (useRemoteClusterProfile) {
-                extractClientCert = remoteClusterSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+                profileFilters.put(
+                    profileName,
+                    new RemoteAccessServerTransportFilter(
+                        authcService,
+                        authzService,
+                        threadPool.getThreadContext(),
+                        remoteClusterSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                        destructiveOperations,
+                        securityContext
+                    )
+                );
             } else {
-                extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+                profileFilters.put(
+                    profileName,
+                    new ServerTransportFilter(
+                        authcService,
+                        authzService,
+                        threadPool.getThreadContext(),
+                        transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                        destructiveOperations,
+                        securityContext
+                    )
+                );
             }
-
-            profileFilters.put(
-                profileName,
-                new ServerTransportFilter(
-                    authcService,
-                    authzService,
-                    threadPool.getThreadContext(),
-                    extractClientCert,
-                    destructiveOperations,
-                    securityContext,
-                    useRemoteClusterProfile ? ServerTransportFilter.Type.REMOTE_ACCESS : ServerTransportFilter.Type.DEFAULT
-                )
-            );
         }
 
         return Collections.unmodifiableMap(profileFilters);

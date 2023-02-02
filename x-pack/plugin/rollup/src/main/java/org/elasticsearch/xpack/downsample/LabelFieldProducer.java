@@ -163,7 +163,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
                     values.add(histogramValue.value());
                     counts.add(histogramValue.count());
                 }
-                builder.startObject(name()).field("counts", counts.toArray()).field("values", values.toArray()).endObject();
+                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
             }
         }
     }

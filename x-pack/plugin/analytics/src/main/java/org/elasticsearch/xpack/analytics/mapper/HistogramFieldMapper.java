@@ -50,9 +50,9 @@ import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -216,16 +216,12 @@ public class HistogramFieldMapper extends FieldMapper {
 
                                     @Override
                                     public Object nextValue() throws IOException {
-                                        try {
-                                            value.reset(values.binaryValue());
-                                            return value;
-                                        } catch (IOException e) {
-                                            throw new IOException("Cannot load doc value", e);
-                                        }
+                                        value.reset(values.binaryValue());
+                                        return value;
                                     }
                                 };
                             } catch (IOException e) {
-                                throw new NoSuchElementException("Unable to loead histogram doc values");
+                                throw new UncheckedIOException("Unable to loead histogram doc values", e);
                             }
                         }
 

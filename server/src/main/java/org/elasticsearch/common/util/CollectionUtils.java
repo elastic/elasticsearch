@@ -114,6 +114,7 @@ public class CollectionUtils {
         } else if ((value instanceof Iterable<?> i) && (value instanceof Path == false)) {
             ensureNoSelfReferences(i, i, ancestors, messageHint);
         } else if (value instanceof Object[]) {
+            // note: the iterable and reference arguments are different
             ensureNoSelfReferences(Arrays.asList((Object[]) value), value, ancestors, messageHint);
         }
     }

@@ -16,10 +16,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
@@ -497,7 +499,7 @@ public abstract class TransportBroadcastByNodeAction<
         }
     }
 
-    class NodeRequest extends TransportRequest {
+    class NodeRequest extends TransportRequest implements IndicesRequest {
         private final Request indicesLevelRequest;
         private final List<ShardRouting> shards;
         private final String nodeId;
@@ -525,6 +527,16 @@ public abstract class TransportBroadcastByNodeAction<
 
         Request getIndicesLevelRequest() {
             return indicesLevelRequest;
+        }
+
+        @Override
+        public String[] indices() {
+            return indicesLevelRequest.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return indicesLevelRequest.indicesOptions();
         }
 
         @Override

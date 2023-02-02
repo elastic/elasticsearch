@@ -125,8 +125,6 @@ public class LimitedRoleTests extends ESTestCase {
             .build();
 
         Role role = baseRole.limitedBy(limitedByRole1.limitedBy(limitedByRole2));
-        RoleDescriptorsIntersection intersection = role.getRemoteAccessRoleDescriptorsIntersection("remote-cluster-a");
-
         RoleDescriptorsIntersection expected = new RoleDescriptorsIntersection(
             List.of(
                 Set.of(
@@ -183,8 +181,14 @@ public class LimitedRoleTests extends ESTestCase {
             )
         );
 
-        assertThat(intersection.roleDescriptorsList().isEmpty(), equalTo(false));
-        assertThat(intersection, equalTo(expected));
+        // for the existing remote cluster alias, check that the result is equal to the expected intersection
+        assertThat(role.getRemoteAccessRoleDescriptorsIntersection("remote-cluster-a"), equalTo(expected));
+
+        // and for a random cluster alias, check that it returns empty intersection
+        assertThat(
+            role.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(4, 6)),
+            equalTo(RoleDescriptorsIntersection.EMPTY)
+        );
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionReturnsEmpty() {

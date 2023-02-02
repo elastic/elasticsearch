@@ -1,14 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[schedule-now-transform]]
-= Trigger {transform} API
+= Schedule Now {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Trigger {transform}</titleabbrev>
+<titleabbrev>Shedule Now {transform}</titleabbrev>
 ++++
 
-Triggers a {transform}.
+Schedules now a {transform}.
 
 [[schedule-now-transform-request]]
 == {api-request-title}

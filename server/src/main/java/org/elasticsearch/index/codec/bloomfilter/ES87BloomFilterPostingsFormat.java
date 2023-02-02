@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifications copyright (C) 2022 Elasticsearch B.V.
+ * Modifications copyright (C) 2023 Elasticsearch B.V.
  */
 package org.elasticsearch.index.codec.bloomfilter;
 
@@ -406,7 +406,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
     private static class BloomFilterTerms extends FilterLeafReader.FilterTerms {
         private final RandomAccessInput data;
         private final int bloomFilterSize;
-        private final int[] hashes = new int[7];
+        private final int[] hashes = new int[NUM_HASH_FUNCTIONS];
 
         BloomFilterTerms(Terms in, RandomAccessInput data, int bloomFilterSize) {
             super(in);
@@ -543,14 +543,10 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
 
     // Uses MurmurHash3-128 to generate a 64-bit hash value, then picks 7 subsets of 31 bits each and returns the values in the
     // outputs array. This provides us with 7 reasonably independent hashes of the data for the cost of one MurmurHash3 calculation.
-    // Note: We really only need a 64-bit value, but we are getting a 128-bit value back. We are discarding the 2nd value in this code.
-    // In theory, we could fold it into the hash functions, too, but it is not evident if it'd make a measurable difference.
-    // The extra allocation of a long[] is worrysome, we have to rely on either the JVM escape analysis or the nursery GCs to keep
-    // overhead in check here.
     static int[] hashTerm(BytesRef br, int[] outputs) {
-        final long hash_v2 = MurmurHash3.hash128(br.bytes, br.offset, br.length)[0];
-        final int upperHalf = (int) (hash_v2 >> 32);
-        final int lowerHalf = (int) hash_v2;
+        final long hash64 = MurmurHash3.hash64(br.bytes, br.offset, br.length);
+        final int upperHalf = (int) (hash64 >> 32);
+        final int lowerHalf = (int) hash64;
         // Derive 7 hash outputs by combining the two 64-bit halves, adding the upper half multiplied with different small constants
         // without common gcd.
         outputs[0] = (lowerHalf + 2 * upperHalf) & 0x7FFF_FFFF;
@@ -618,14 +614,6 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
      */
     public static final class MurmurHash3 {
         /**
-         * A random number to use for a hash code.
-         *
-         * @deprecated This is not used internally and will be removed in a future release.
-         */
-        @Deprecated
-        public static final long NULL_HASHCODE = 2862933555777941757L;
-
-        /**
          * A default seed to use for the murmur hash algorithm.
          * Has the value {@code 104729}.
          */
@@ -645,28 +633,21 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
         private MurmurHash3() {}
 
         /**
-         * Generates 128-bit hash from the byte array with the given offset, length and seed.
-         *
-         * <p>This is an implementation of the 128-bit hash function {@code MurmurHash3_x64_128}
-         * from Austin Appleby's original MurmurHash3 {@code c++} code in SMHasher.</p>
+         * Generates 64-bit hash from the byte array with the given offset, length and seed by discarding the second value of the 128-bit
+         * hash.
          *
          * This version uses the default seed.
          *
          * @param data The input byte array
          * @param offset The first element of array
          * @param length The length of array
-         * @return The 128-bit hash (2 longs)
-         * @deprecated Use {@link #hash128x64(byte[], int, int, int)}. This corrects the seed initialization.
+         * @return The sum of the two 64-bit hashes that make up the hash128
          */
-        @Deprecated
-        public static long[] hash128(final byte[] data, final int offset, final int length) {
-            // ************
-            // Note: This deliberately fails to apply masking using 0xffffffffL to the seed
-            // to maintain behavioral compatibility with the original version.
-            // The implicit conversion to a long will extend a negative sign
-            // bit through the upper 32-bits of the long seed. These should be zero.
-            // ************
-            return hash128x64Internal(data, offset, length, DEFAULT_SEED);
+        public static long hash64(final byte[] data, final int offset, final int length) {
+            // We hope that the C2 escape analysis prevents ths allocation from creating GC pressure.
+            long[] hash128 = {0, 0};
+            hash128x64(data, offset, length, DEFAULT_SEED, hash128);
+            return hash128[0];
         }
 
         /**
@@ -682,9 +663,9 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
          * @return The 128-bit hash (2 longs)
          * @since 1.14
          */
-        public static long[] hash128x64(final byte[] data, final int offset, final int length, final int seed) {
+        public static long[] hash128x64(final byte[] data, final int offset, final int length, final int seed, final long[] result) {
             // Use an unsigned 32-bit integer as the seed
-            return hash128x64Internal(data, offset, length, seed & 0xffffffffL);
+            return hash128x64Internal(data, offset, length, seed & 0xffffffffL, result);
         }
 
         /**
@@ -700,7 +681,8 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
          * @return The 128-bit hash (2 longs)
          */
         @SuppressWarnings("fallthrough")
-        private static long[] hash128x64Internal(final byte[] data, final int offset, final int length, final long seed) {
+        private static long[] hash128x64Internal(final byte[] data, final int offset, final int length, final long seed,
+                                                 final long[] result) {
             long h1 = seed;
             long h2 = seed;
             final int nblocks = length >> 4;
@@ -789,7 +771,9 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             h1 += h2;
             h2 += h1;
 
-            return new long[] { h1, h2 };
+            result[0] = h1;
+            result[1] = h2;
+            return result;
         }
 
         /**

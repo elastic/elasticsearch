@@ -81,13 +81,21 @@ public class TransportVersionUtils {
         return ALL_VERSIONS.get(place - 1);
     }
 
+    public static boolean isCompatible(TransportVersion version1, TransportVersion version2) {
+        return version1.onOrAfter(minimumCompatibilityVersion(version2)) && version2.onOrAfter(minimumCompatibilityVersion(version1));
+    }
+
+    public static TransportVersion minimumCompatibilityVersion(TransportVersion version) {
+        return VersionUtils.findVersion(version).minimumCompatibilityVersion().transportVersion;
+    }
+
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
     public static TransportVersion randomCompatibleVersion(Random random, TransportVersion version) {
-        final List<TransportVersion> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
+        final List<TransportVersion> compatible = ALL_VERSIONS.stream().filter(v -> isCompatible(v, version)).toList();
         return compatible.get(random.nextInt(compatible.size()));
     }
 
     public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
-        return randomVersionBetween(random, version.calculateMinimumCompatVersion(), getPreviousVersion(version));
+        return randomVersionBetween(random, minimumCompatibilityVersion(version), getPreviousVersion(version));
     }
 }

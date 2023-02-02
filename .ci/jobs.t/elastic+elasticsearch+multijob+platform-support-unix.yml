@@ -5,6 +5,7 @@
     description: "Elasticsearch %BRANCH% unix compatibility testing.\n"
     project-type: matrix
     node: master
+    child-workspace: "/var/lib/jenkins/workspace/elastic+elasticsearch+%BRANCH%+multijob+platform-support-unix"
     scm:
       - git:
           wipe-workspace: false

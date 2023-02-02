@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 /**
@@ -61,7 +60,6 @@ class ServerTransportFilter {
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
-        RemoteAccessAuthenticationService remoteAccessAuthcService = new RemoteAccessAuthenticationService(authcService);
     }
 
     /**

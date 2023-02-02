@@ -773,7 +773,8 @@ public class Node implements Closeable {
                 systemIndices,
                 tracer,
                 clusterService,
-                reservedStateHandlers
+                reservedStateHandlers,
+                Settings.builder().loadFromPath(environment.configFile().resolve("serverless_api_mappings.yml")).build()
             );
             modules.add(actionModule);
 

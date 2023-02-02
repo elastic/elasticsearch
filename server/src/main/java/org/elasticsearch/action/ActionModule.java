@@ -479,7 +479,8 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
+        Settings serverlessApiMappings
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -530,7 +531,8 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
-        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer,
+            serverlessApiMappings);
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 

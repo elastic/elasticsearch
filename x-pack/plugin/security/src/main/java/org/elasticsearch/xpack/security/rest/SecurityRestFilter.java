@@ -162,6 +162,11 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
+    public String getName() {
+        return restHandler.getName();
+    }
+
+    @Override
     public boolean supportsContentStream() {
         return restHandler.supportsContentStream();
     }

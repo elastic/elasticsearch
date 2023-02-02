@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -39,6 +40,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -97,6 +100,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
     private final Tracer tracer;
+    private final Map<String, String> handlerToProtectionLevelMap;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
@@ -104,7 +108,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        Tracer tracer,
+        Settings serverlessApiMappings
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -115,12 +120,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        this.handlerToProtectionLevelMap = createHandlerToProtectionLevelMap(serverlessApiMappings);
         registerHandlerNoWrap(
             RestRequest.Method.GET,
             "/favicon.ico",
             RestApiVersion.current(),
             (request, channel, clnt) -> channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
         );
+    }
+
+    private Map<String, String> createHandlerToProtectionLevelMap(Settings serverlessApiMappings) {
+        Map<String, String> handlerToProtectionLevelMap = new HashMap<>();
+        for (String protectionLevel : serverlessApiMappings.names()) {
+            for (String handler : serverlessApiMappings.getAsList(protectionLevel)) {
+                handlerToProtectionLevelMap.put(handler, protectionLevel);
+            }
+        }
+        return Collections.unmodifiableMap(handlerToProtectionLevelMap);
     }
 
     /**
@@ -371,6 +387,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
+        String handlerName = handler.getName();
+        final String internalOrigin = request.header("X-elastic-internal-origin");
+        boolean internalRequest = internalOrigin != null;
+        String protectionLevel = handlerToProtectionLevelMap.get(handlerName);
+        if (protectionLevel == null) {
+            responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+        } else if (protectionLevel.equals("internal")) {
+            if (internalRequest == false) {
+                responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+            }
+        } else if (protectionLevel.equals("public") == false) {
+            responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+        }
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");

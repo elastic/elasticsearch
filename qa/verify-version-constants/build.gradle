@@ -14,7 +14,7 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
-BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
       version = bwcVersion.toString()
       setting 'http.content_type.required', 'true'

@@ -352,11 +352,11 @@ public class BwcVersions {
             .collect(Collectors.toList());
     }
 
-    public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {
+    public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
         getIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
-    public void withIndexCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+    public void withIndexCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
         getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 

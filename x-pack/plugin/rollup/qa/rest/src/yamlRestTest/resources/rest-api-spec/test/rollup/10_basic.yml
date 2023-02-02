@@ -117,6 +117,8 @@ setup:
                         type: keyword
                       latency:
                         type: histogram
+                      empty-histogram:
+                        type: histogram
                       network:
                         properties:
                           tx:
@@ -571,6 +573,8 @@ setup:
   - match: { rollup-test-histogram.mappings.properties.@timestamp.meta.time_zone: UTC }
   - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.latency.type: histogram }
   - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.latency.time_series_metric: null }
+  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.empty-histogram.type: histogram }
+  - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.empty-histogram.time_series_metric: null }
   - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
   - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
   - match: { rollup-test-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.type: aggregate_metric_double }

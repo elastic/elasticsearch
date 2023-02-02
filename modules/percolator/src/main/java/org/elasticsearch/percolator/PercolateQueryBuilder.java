@@ -33,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -216,12 +217,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         super(in);
         field = in.readString();
         name = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String documentType = in.readOptionalString();
             assert documentType == null;
         }
         indexedDocumentIndex = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String indexedDocumentType = in.readOptionalString();
             assert indexedDocumentType == null;
         }
@@ -258,12 +259,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         out.writeString(field);
         out.writeOptionalString(name);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null documentType values
             out.writeOptionalString(null);
         }
         out.writeOptionalString(indexedDocumentIndex);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null indexedDocumentType values
             out.writeOptionalString(null);
         }
@@ -660,7 +661,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

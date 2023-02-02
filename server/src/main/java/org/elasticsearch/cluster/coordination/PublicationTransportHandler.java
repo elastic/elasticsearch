@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -85,7 +86,7 @@ public class PublicationTransportHandler {
         TransportRequestOptions.Type.STATE
     );
 
-    public static final Version INCLUDES_LAST_COMMITTED_DATA_VERSION = Version.V_8_6_0;
+    public static final TransportVersion INCLUDES_LAST_COMMITTED_DATA_VERSION = TransportVersion.V_8_6_0;
 
     private final SerializationStatsTracker serializationStatsTracker = new SerializationStatsTracker();
 
@@ -125,7 +126,7 @@ public class PublicationTransportHandler {
                 in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
             }
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
-            in.setVersion(request.version());
+            in.setTransportVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
                 final ClusterState incomingState;
@@ -226,7 +227,7 @@ public class PublicationTransportHandler {
     }
 
     private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node) {
-        final Version nodeVersion = node.getVersion();
+        final TransportVersion serializeVersion = node.getVersion().transportVersion;
         final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
         try {
@@ -236,7 +237,7 @@ public class PublicationTransportHandler {
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
                 )
             ) {
-                stream.setVersion(nodeVersion);
+                stream.setTransportVersion(serializeVersion);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
                 uncompressedBytes = stream.position();
@@ -246,9 +247,9 @@ public class PublicationTransportHandler {
             final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             serializationStatsTracker.serializedFullState(uncompressedBytes, result.length());
             logger.trace(
-                "serialized full cluster state version [{}] for node version [{}] with size [{}]",
+                "serialized full cluster state version [{}] using transport version [{}] with size [{}]",
                 clusterState.version(),
-                nodeVersion,
+                serializeVersion,
                 result.length()
             );
             success = true;
@@ -262,7 +263,7 @@ public class PublicationTransportHandler {
 
     private ReleasableBytesReference serializeDiffClusterState(ClusterState newState, Diff<ClusterState> diff, DiscoveryNode node) {
         final long clusterStateVersion = newState.version();
-        final Version nodeVersion = node.getVersion();
+        final TransportVersion serializeVersion = node.getVersion().transportVersion;
         final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
         try {
@@ -272,10 +273,10 @@ public class PublicationTransportHandler {
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
                 )
             ) {
-                stream.setVersion(nodeVersion);
+                stream.setTransportVersion(serializeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
-                if (nodeVersion.onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION)) {
+                if (serializeVersion.onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION)) {
                     stream.writeBoolean(newState.metadata().clusterUUIDCommitted());
                     newState.getLastCommittedConfiguration().writeTo(stream);
                 }
@@ -286,9 +287,9 @@ public class PublicationTransportHandler {
             final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             serializationStatsTracker.serializedDiff(uncompressedBytes, result.length());
             logger.trace(
-                "serialized cluster state diff for version [{}] for node version [{}] with size [{}]",
+                "serialized cluster state diff for version [{}] using transport version [{}] with size [{}]",
                 clusterStateVersion,
-                nodeVersion,
+                serializeVersion,
                 result.length()
             );
             success = true;
@@ -466,7 +467,7 @@ public class PublicationTransportHandler {
             transportService.sendChildRequest(
                 destination,
                 PUBLISH_STATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, destination.getVersion()),
+                new BytesTransportRequest(bytes, destination.getVersion().transportVersion),
                 task,
                 STATE_REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(listener, PublishWithJoinResponse::new, ThreadPool.Names.CLUSTER_COORDINATION, bytes::decRef)

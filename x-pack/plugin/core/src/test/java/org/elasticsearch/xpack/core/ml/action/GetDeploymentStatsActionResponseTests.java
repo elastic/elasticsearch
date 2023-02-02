@@ -28,6 +28,11 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
         return createRandom();
     }
 
+    @Override
+    protected GetDeploymentStatsAction.Response mutateInstance(GetDeploymentStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static GetDeploymentStatsAction.Response createRandom() {
         int numStats = randomIntBetween(0, 2);
         var stats = new ArrayList<AssignmentStats>(numStats);

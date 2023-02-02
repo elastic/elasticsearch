@@ -21,10 +21,14 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -70,6 +74,165 @@ public class LimitedRoleTests extends ESTestCase {
 
         NullPointerException npe = expectThrows(NullPointerException.class, () -> fromRole.limitedBy(null));
         assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersection() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "base-role")
+            .addRemoteGroup(
+                Set.of("remote-cluster-a"),
+                FieldPermissions.DEFAULT,
+                null,
+                IndexPrivilege.READ,
+                true,
+                "remote-index-a-1",
+                "remote-index-a-2"
+            )
+            // This privilege should be ignored
+            .addRemoteGroup(
+                Set.of("remote-cluster-b"),
+                FieldPermissions.DEFAULT,
+                null,
+                IndexPrivilege.READ,
+                false,
+                "remote-index-b-1",
+                "remote-index-b-2"
+            )
+            .build();
+        Role limitedByRole1 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-1")
+            .addRemoteGroup(
+                Set.of("remote-cluster-*", randomAlphaOfLength(6)),
+                FieldPermissions.DEFAULT,
+                null,
+                IndexPrivilege.READ,
+                true,
+                "remote-index-a-*",
+                "remote-index-b-*"
+            )
+            // This privilege should be ignored
+            .addRemoteGroup(
+                Set.of(randomAlphaOfLength(8)),
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { randomAlphaOfLength(5) }, null)),
+                null,
+                IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names()))),
+                randomBoolean(),
+                randomAlphaOfLength(9)
+            )
+            .build();
+        Role limitedByRole2 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-2")
+            .addRemoteGroup(Set.of("remote-*-a"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, true, "remote-index-a-2")
+            .build();
+
+        Role role = baseRole.limitedBy(limitedByRole1.limitedBy(limitedByRole2));
+        RoleDescriptorsIntersection intersection = role.getRemoteAccessRoleDescriptorsIntersection("remote-cluster-a");
+
+        RoleDescriptorsIntersection expected = new RoleDescriptorsIntersection(
+            List.of(
+                Set.of(
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(IndexPrivilege.READ.name())
+                                .indices("remote-index-a-1", "remote-index-a-2")
+                                .allowRestrictedIndices(true)
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                ),
+                Set.of(
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(IndexPrivilege.READ.name())
+                                .indices("remote-index-a-*", "remote-index-b-*")
+                                .allowRestrictedIndices(true)
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                ),
+                Set.of(
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(IndexPrivilege.READ.name())
+                                .indices("remote-index-a-2")
+                                .allowRestrictedIndices(true)
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                )
+            )
+        );
+
+        assertThat(intersection.roleDescriptorsList().isEmpty(), equalTo(false));
+        assertThat(intersection, equalTo(expected));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionReturnsEmpty() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        boolean includeRemoteIndicesPermission = randomBoolean();
+        String remoteClusterAlias = randomAlphaOfLengthBetween(5, 8);
+        Role.Builder baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "base-role");
+        Role.Builder limitedByRole1 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-1");
+        Role.Builder limitedByRole2 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-2");
+
+        if (includeRemoteIndicesPermission) {
+            boolean includeInBaseRole = randomBoolean();
+            if (includeInBaseRole) {
+                baseRole.addRemoteGroup(
+                    Set.of(remoteClusterAlias),
+                    FieldPermissions.DEFAULT,
+                    null,
+                    IndexPrivilege.READ,
+                    randomBoolean(),
+                    randomAlphaOfLength(5)
+                );
+            } else {
+                if (randomBoolean()) {
+                    limitedByRole1.addRemoteGroup(
+                        Set.of(remoteClusterAlias),
+                        FieldPermissions.DEFAULT,
+                        null,
+                        IndexPrivilege.READ,
+                        randomBoolean(),
+                        randomAlphaOfLength(5)
+                    );
+                } else {
+                    limitedByRole2.addRemoteGroup(
+                        Set.of(remoteClusterAlias),
+                        FieldPermissions.DEFAULT,
+                        null,
+                        IndexPrivilege.READ,
+                        randomBoolean(),
+                        randomAlphaOfLength(5)
+                    );
+                }
+            }
+        }
+
+        Role role = baseRole.build().limitedBy(limitedByRole1.build().limitedBy(limitedByRole2.build()));
+        RoleDescriptorsIntersection intersection = role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias);
+        assertThat(intersection.roleDescriptorsList().isEmpty(), equalTo(true));
     }
 
     public void testAuthorize() {

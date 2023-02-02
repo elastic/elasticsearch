@@ -52,20 +52,20 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
 public class FileSettingsService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
-    // TODO[wrb]: don't hardcode these
+    // TODO[wrb]: settings file may be moved for initialization logic
     public static final String SETTINGS_FILE_NAME = "settings.json";
-    public static final String NAMESPACE = "file_settings"; // TODO[wrb]: do we need multiple namespaces? Seems that one should do
+    public static final String NAMESPACE = "file_settings";
 
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
 
+    // TODO[wrb]: move to FileWatchService
     private Thread watcherThread;
-    // TODO[wrb]: parameterize
-    // private WatchKey settingsDirWatchKey;
 
     public static final String OPERATOR_DIRECTORY = "operator";
     private final List<FileSettingsChangedListener> eventListeners;
 
+    // TODO[wrb]: NEXT: Remove fileSettingsMap
     Map<String, FileWatchService> fileSettingsMap = new ConcurrentHashMap<>();
 
     private final FileWatchService fileWatchService;
@@ -89,17 +89,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         Path operatorSettings = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
         fileWatchService = new FileWatchService(operatorSettings, SETTINGS_FILE_NAME);
         fileSettingsMap.put(OPERATOR_DIRECTORY, fileWatchService);
-
-        // move all thread management to file settings watcher
     }
 
     // TODO[wrb]: update for testing
     public Path operatorSettingsDir() {
         return fileSettingsMap.get(OPERATOR_DIRECTORY).operatorSettingsDir;
-    }
-
-    public List<Path> operatorSettingsDirs() {
-        return fileSettingsMap.values().stream().map(v -> v.operatorSettingsDir).distinct().toList();
     }
 
     // TODO[wrb]: refactor to interface
@@ -112,9 +106,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return fileSettingsMap.values().stream().map(v -> v.operatorSettingsDir.resolve(v.settingsFileName)).toList();
     }
 
-    // TODO[wrb]: inline/remove
+    // TODO[wrb]: inline/remove?
     boolean watchedFileChanged(Path path) throws IOException {
-        return fileWatchService.watchedFileChanged(path);
+        return this.fileWatchService().watchedFileChanged(path);
     }
 
     // visible for testing
@@ -277,6 +271,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     // need to stop all the watchers
     synchronized void stopWatcher() {
         if (watching()) {
+            // TODO[wrb]: move thread handlinig into FileWatchService
             logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever
             // this will also close any outstanding keys

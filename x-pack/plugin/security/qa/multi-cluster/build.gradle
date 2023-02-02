@@ -12,23 +12,6 @@ import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-configurations {
-  signedCerts
-  rootCert
-}
-
-dependencies {
-  signedCerts project(path: ':x-pack:plugin:core', configuration: 'signedCerts')
-  rootCert project(path: ':x-pack:plugin:core', configuration: 'rootCert')
-}
-
-tasks.register("copyCerts", Sync) {
-  dependsOn configurations.signedCerts
-  from(configurations.signedCerts)
-  from(configurations.rootCert)
-  into "${buildDir}/certs"
-}
-
 restResources {
   restApi {
     // TODO remove unneeded resources
@@ -95,9 +78,6 @@ def queryingCluster = testClusters.register('querying-cluster') {
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
-
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.connections_per_cluster', "1"
 
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

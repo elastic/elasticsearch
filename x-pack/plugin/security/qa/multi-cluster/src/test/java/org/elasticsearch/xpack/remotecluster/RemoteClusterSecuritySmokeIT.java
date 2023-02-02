@@ -34,12 +34,6 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
     private static final String REMOTE_SEARCH_ROLE = "remote_search";
 
     @Override
-    protected Settings restClientSettings() {
-        final String token = basicAuthHeaderValue(USER, PASS);
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }
@@ -47,6 +41,12 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
     @Override
     protected boolean preserveDataStreamsUponCompletion() {
         return true;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        final String token = basicAuthHeaderValue(USER, PASS);
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private boolean isFulfillingCluster() {

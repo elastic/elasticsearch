@@ -123,7 +123,7 @@ final class ServerTransportFilter {
             }
         }
 
-        final TransportVersion version = transportChannel.getVersion();
+        TransportVersion version = transportChannel.getVersion();
         final ActionListener<Authentication> authorizationStep = ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)

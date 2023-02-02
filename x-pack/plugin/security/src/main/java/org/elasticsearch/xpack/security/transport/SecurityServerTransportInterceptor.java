@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
@@ -61,6 +60,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
@@ -443,21 +445,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-
-        final boolean remoteClusterPortEnabled = TcpTransport.isUntrustedRemoteClusterEnabled()
-            && RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.get(settings);
+        final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);
+        final boolean remoteClusterSSLEnabled = remoteClusterPortEnabled && XPackSettings.REMOTE_CLUSTER_SSL_ENABLED.get(settings);
 
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
-            final String profileName = entry.getKey();
             final SslConfiguration profileConfiguration = entry.getValue();
+            final String profileName = entry.getKey();
 
-            final boolean useRemoteClusterProfile = remoteClusterPortEnabled
-                && profileName.equals(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
-
-            final boolean remoteClusterSSLEnabled = remoteClusterPortEnabled && XPackSettings.REMOTE_CLUSTER_SSL_ENABLED.get(settings);
+            final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
 
             final boolean extractClientCert;
-            if (remoteClusterPortEnabled && useRemoteClusterProfile) {
+            if (useRemoteClusterProfile) {
                 extractClientCert = remoteClusterSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
             } else {
                 extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);

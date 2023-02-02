@@ -15,6 +15,7 @@ import org.elasticsearch.common.ssl.EmptyKeyConfig;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslKeyConfig;
@@ -88,6 +89,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(sslConfiguration.trustConfig().getClass().getSimpleName(), is("DefaultJdkTrustConfig"));
         assertThat(sslConfiguration.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
         assertThat(sslConfiguration.supportedProtocols(), not(hasItem("TLSv1")));
+        assertThat(sslConfiguration.clientAuth(), is(SslClientAuthenticationMode.NONE));
     }
 
     /**
@@ -104,12 +106,14 @@ public class SslSettingsLoaderTests extends ESTestCase {
             .put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
             .put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_PATH, path)
             .putList(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.PROTOCOLS, "TLSv1.3", "TLSv1.2")
+            .put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.CLIENT_AUTH, "required")
             .setSecureSettings(secureSettings)
             .build();
         Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
         assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
         SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
         assertThat(sslConfiguration.supportedProtocols(), contains("TLSv1.3", "TLSv1.2"));
+        assertThat(sslConfiguration.clientAuth(), is(SslClientAuthenticationMode.REQUIRED));
 
         SslKeyConfig keyStore = sslConfiguration.keyConfig();
         assertThat(keyStore.getDependentFiles(), contains(path));

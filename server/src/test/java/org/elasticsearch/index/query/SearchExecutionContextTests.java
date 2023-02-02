@@ -398,7 +398,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     public void testSyntheticSourceScriptLoading() throws IOException {
 
         // Build a mapping using synthetic source
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder().setSynthetic().build();
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(true));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
         MappingLookup lookup = MappingLookup.fromMapping(mapping);

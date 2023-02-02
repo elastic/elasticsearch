@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -33,12 +34,12 @@ class AvgDoubleAggregator {
     }
 
     public static void combineStates(AvgState current, AvgState state) {
-        current.add(state.value, state.delta);
+        current.add(state.value(), state.delta());
         current.count += state.count;
     }
 
     public static Block evaluateFinal(AvgState state) {
-        double result = state.value / state.count;
+        double result = state.value() / state.count;
         return DoubleBlock.newConstantBlockWith(result, 1);
     }
 
@@ -74,10 +75,7 @@ class AvgDoubleAggregator {
     }
 
     // @SerializedSize(value = Double.BYTES + Double.BYTES + Long.BYTES)
-    static class AvgState implements AggregatorState<AvgDoubleAggregator.AvgState> {
-
-        private double value;
-        private double delta;
+    static class AvgState extends CompensatedSum implements AggregatorState<AvgState> {
 
         private long count;
 
@@ -88,29 +86,9 @@ class AvgDoubleAggregator {
         }
 
         AvgState(double value, double delta, long count) {
-            this.value = value;
-            this.delta = delta;
+            super(value, delta);
             this.count = count;
             this.serializer = new AvgDoubleAggregator.AvgStateSerializer();
-        }
-
-        void add(double valueToAdd) {
-            add(valueToAdd, 0d);
-        }
-
-        void add(double valueToAdd, double deltaToAdd) {
-            // If the value is Inf or NaN, just add it to the running tally to "convert" to
-            // Inf/NaN. This keeps the behavior bwc from before kahan summing
-            if (Double.isFinite(valueToAdd) == false) {
-                value = valueToAdd + value;
-            }
-
-            if (Double.isFinite(value)) {
-                double correctedSum = valueToAdd + (delta + deltaToAdd);
-                double updatedValue = value + correctedSum;
-                delta = correctedSum - (updatedValue - value);
-                value = updatedValue;
-            }
         }
 
         @Override
@@ -122,7 +100,7 @@ class AvgDoubleAggregator {
         public void close() {}
 
         @Override
-        public AggregatorStateSerializer<AvgDoubleAggregator.AvgState> serializer() {
+        public AggregatorStateSerializer<AvgState> serializer() {
             return serializer;
         }
     }
@@ -144,8 +122,8 @@ class AvgDoubleAggregator {
 
         @Override
         public int serialize(AvgDoubleAggregator.AvgState value, byte[] ba, int offset) {
-            doubleHandle.set(ba, offset, value.value);
-            doubleHandle.set(ba, offset + 8, value.delta);
+            doubleHandle.set(ba, offset, value.value());
+            doubleHandle.set(ba, offset + 8, value.delta());
             longHandle.set(ba, offset + 16, value.count);
             return BYTES_SIZE; // number of bytes written
         }
@@ -158,8 +136,7 @@ class AvgDoubleAggregator {
             double kdelta = (double) doubleHandle.get(ba, offset + 8);
             long count = (long) longHandle.get(ba, offset + 16);
 
-            value.value = kvalue;
-            value.delta = kdelta;
+            value.reset(kvalue, kdelta);
             value.count = count;
         }
     }

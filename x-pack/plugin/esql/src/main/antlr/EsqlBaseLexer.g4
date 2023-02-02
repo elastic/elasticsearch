@@ -5,6 +5,7 @@ EXPLAIN : 'explain' -> pushMode(EXPRESSION);
 FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
 ROW : 'row' -> pushMode(EXPRESSION);
 STATS : 'stats' -> pushMode(EXPRESSION);
+INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);

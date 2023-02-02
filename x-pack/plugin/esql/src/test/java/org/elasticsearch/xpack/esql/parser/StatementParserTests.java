@@ -11,6 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -164,6 +165,37 @@ public class StatementParserTests extends ESTestCase {
                 )
             ),
             processingCommand("stats min(a), c = 1")
+        );
+    }
+
+    public void testInlineStatsWithGroups() {
+        assertEquals(
+            new InlineStats(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                List.of(attribute("c"), attribute("d.e")),
+                List.of(
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    attribute("c"),
+                    attribute("d.e")
+                )
+            ),
+            processingCommand("inlinestats b = min(a) by c, d.e")
+        );
+    }
+
+    public void testInlineStatsWithoutGroups() {
+        assertEquals(
+            new InlineStats(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                List.of(),
+                List.of(
+                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "c", integer(1))
+                )
+            ),
+            processingCommand("inlinestats min(a), c = 1")
         );
     }
 

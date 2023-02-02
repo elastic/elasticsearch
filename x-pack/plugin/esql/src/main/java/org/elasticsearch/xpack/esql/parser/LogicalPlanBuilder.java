@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -80,6 +81,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> groupings = visitQualifiedNames(ctx.qualifiedNames());
         aggregates.addAll(groupings);
         return input -> new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
+    }
+
+    @Override
+    public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
+        List<NamedExpression> aggregates = visitFields(ctx.fields());
+        List<NamedExpression> groupings = visitQualifiedNames(ctx.qualifiedNames());
+        aggregates.addAll(groupings);
+        return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
 
     @Override

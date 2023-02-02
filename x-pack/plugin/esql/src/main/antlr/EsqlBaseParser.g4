@@ -27,6 +27,7 @@ sourceCommand
 
 processingCommand
     : evalCommand
+    | inlinestatsCommand
     | limitCommand
     | projectCommand
     | sortCommand
@@ -87,6 +88,10 @@ evalCommand
 
 statsCommand
     : STATS fields (BY qualifiedNames)?
+    ;
+
+inlinestatsCommand
+    : INLINESTATS fields (BY qualifiedNames)?
     ;
 
 sourceIdentifier

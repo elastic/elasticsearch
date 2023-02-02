@@ -20,6 +20,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -44,6 +45,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.FIPS_MODE_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TOKEN_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
 
@@ -188,6 +190,9 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             Map<String, Object> map = Maps.newMapWithExpectedSize(2);
             map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
             map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
+            if (RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+                map.put("remote_cluster", singletonMap("enabled", REMOTE_CLUSTER_SSL_ENABLED.get(settings)));
+            }
             return map;
         } else {
             return Collections.emptyMap();

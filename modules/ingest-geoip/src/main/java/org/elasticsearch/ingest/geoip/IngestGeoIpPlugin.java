@@ -85,9 +85,10 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             CACHE_SIZE,
+            GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
+            GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloader.POLL_INTERVAL_SETTING,
-            GeoIpDownloaderTaskExecutor.ENABLED_SETTING
+            GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING
         );
     }
 
@@ -97,9 +98,15 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
         long cacheSize = CACHE_SIZE.get(parameters.env.settings());
         GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
-        DatabaseNodeService registry = new DatabaseNodeService(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
+        DatabaseNodeService registry = new DatabaseNodeService(
+            parameters.env,
+            parameters.client,
+            geoIpCache,
+            parameters.genericExecutor,
+            parameters.ingestService.getClusterService()
+        );
         databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry, parameters.ingestService.getClusterService()));
+        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
     }
 
     @Override
@@ -120,12 +127,13 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     ) {
         try {
             String nodeId = nodeEnvironment.nodeId();
-            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get(), clusterService);
+            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
         geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
+        geoIpDownloaderTaskExecutor.init();
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }
 

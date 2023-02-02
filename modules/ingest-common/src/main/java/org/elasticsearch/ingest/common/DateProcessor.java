@@ -9,8 +9,10 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -19,6 +21,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
+import java.lang.ref.SoftReference;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -26,7 +29,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class DateProcessor extends AbstractProcessor {
 
@@ -72,9 +77,17 @@ public final class DateProcessor extends AbstractProcessor {
         this.targetField = targetField;
         this.formats = formats;
         this.dateParsers = new ArrayList<>(this.formats.size());
+
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
-            dateParsers.add((params) -> dateFormat.getFunction(format, newDateTimeZone(params), newLocale(params)));
+            dateParsers.add((params) -> {
+                var documentZoneId = newDateTimeZone(params);
+                var documentLocale = newLocale(params);
+                return Cache.INSTANCE.getOrCompute(
+                    new Cache.Key(format, documentZoneId, documentLocale),
+                    () -> dateFormat.getFunction(format, documentZoneId, documentLocale)
+                );
+            });
         }
         this.outputFormat = outputFormat;
         formatter = DateFormatter.forPattern(this.outputFormat);
@@ -197,5 +210,51 @@ public final class DateProcessor extends AbstractProcessor {
                 outputFormat
             );
         }
+    }
+
+    /**
+     * An ad-hoc cache class that just throws away the cached values once it's full because we don't want to affect the performance
+     * while applying eviction policies when adding new values or retrieving them.
+     */
+    static final class Cache {
+
+        private static final String CACHE_CAPACITY_SETTING = "es.ingest.date_processor.cache_capacity";
+        static final Cache INSTANCE;
+
+        static {
+            var cacheSizeStr = System.getProperty(CACHE_CAPACITY_SETTING, "256");
+            try {
+                INSTANCE = new Cache(Integer.parseInt(cacheSizeStr));
+            } catch (NumberFormatException e) {
+                throw new SettingsException("{} must be a valid number but was [{}]", CACHE_CAPACITY_SETTING, cacheSizeStr);
+            }
+        }
+        private final ConcurrentMap<Key, SoftReference<Function<String, ZonedDateTime>>> map;
+        private final int capacity;
+
+        Cache(int capacity) {
+            if (capacity <= 0) {
+                throw new IllegalArgumentException("cache capacity must be a value greater than 0 but was " + capacity);
+            }
+            this.capacity = capacity;
+            this.map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(this.capacity);
+        }
+
+        Function<String, ZonedDateTime> getOrCompute(Key key, Supplier<Function<String, ZonedDateTime>> supplier) {
+            Function<String, ZonedDateTime> fn;
+            var element = map.get(key);
+            // element exist and wasn't GCed
+            if (element != null && (fn = element.get()) != null) {
+                return fn;
+            }
+            if (map.size() >= capacity) {
+                map.clear();
+            }
+            fn = supplier.get();
+            map.put(key, new SoftReference<>(fn));
+            return fn;
+        }
+
+        record Key(String format, ZoneId zoneId, Locale locale) {}
     }
 }

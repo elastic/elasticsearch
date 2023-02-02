@@ -41,7 +41,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.core.Strings.format;
@@ -287,7 +287,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         return bytesRead;
     }
 
-    protected void writeCacheFile(final FileChannel fc, final long start, final long end, final Consumer<Long> progressUpdater)
+    protected void writeCacheFile(final FileChannel fc, final long start, final long end, final LongConsumer progressUpdater)
         throws IOException {
         assert assertFileChannelOpen(fc);
         assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);

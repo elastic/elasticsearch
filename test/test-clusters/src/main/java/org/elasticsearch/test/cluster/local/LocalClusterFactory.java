@@ -398,7 +398,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                         Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
                     );
                 } else {
-                    toInstall.forEach(plugin -> runToolScript("elasticsearch-plugin", "install", "--batch", plugin));
+                    toInstall.forEach(plugin -> runToolScript("elasticsearch-plugin", null, "install", "--batch", plugin));
                 }
             }
         }

@@ -6,76 +6,88 @@
  */
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-configurations {
-  signedCerts
-  rootCert
-}
-
-dependencies {
-  signedCerts project(path: ':x-pack:plugin:core', configuration: 'signedCerts')
-  rootCert project(path: ':x-pack:plugin:core', configuration: 'rootCert')
-}
-
-tasks.register("copyCerts", Sync) {
-  dependsOn configurations.signedCerts
-  from(configurations.signedCerts)
-  from(configurations.rootCert)
-  into "${buildDir}/certs"
-}
-
-
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'remote_cluster.enabled', 'true'
   setting 'remote_cluster.port', '0'
 
-  extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c1.key")
-  extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c1.crt")
-  extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
+  extraConfigFile 'transport.key', file("src/test/resources/ssl/transport.key")
+  extraConfigFile 'transport.cert', file("src/test/resources/ssl/transport.crt")
+  extraConfigFile 'transport.ca', file("src/test/resources/ssl/transport-ca.crt")
 
-  setting 'xpack.security.transport.ssl.enabled', 'true'
+  // Transport SSL can be enabled or disabled. It is independent from the remote cluster server SSL
+  if (BuildParams.random.nextBoolean()) {
+    setting 'xpack.security.transport.ssl.enabled', 'true'
+  } else {
+    setting 'xpack.security.transport.ssl.enabled', 'false'
+  }
   setting 'xpack.security.transport.ssl.key', 'transport.key'
   setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
+  setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
   setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
   setting 'xpack.security.transport.ssl.client_authentication', 'required'
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
 
-  // It is intentionally to use none for both verification_mode and client_authentication.
-  // Because SSL is not wired up properly on the client (QC) side. These settings
-  // just test that they can be configured.
-  // Once SSL is all wired up, we will need (1) proper SSL verification and
-  // (2) different set of key and cert than the ones used for the transport interface.
-  setting 'xpack.security.remote_cluster.ssl.key', 'transport.key'
-  setting 'xpack.security.remote_cluster.ssl.certificate', 'transport.cert'
-  setting 'xpack.security.remote_cluster.ssl.verification_mode', 'none'
-  setting 'xpack.security.remote_cluster.ssl.client_authentication', 'none'
+  // Server side SSL configuration for remote cluster
+  extraConfigFile 'remote-cluster.key', file("src/test/resources/ssl/remote_cluster.key")
+  extraConfigFile 'remote-cluster.cert', file("src/test/resources/ssl/remote_cluster.crt")
+  extraConfigFile 'remote-cluster.ca', file("src/test/resources/ssl/remote-cluster-ca.crt")
+
+  setting 'xpack.security.remote_cluster.ssl.enabled', 'true'
+  setting 'xpack.security.remote_cluster.ssl.key', 'remote-cluster.key'
+  setting 'xpack.security.remote_cluster.ssl.certificate', 'remote-cluster.cert'
+  keystore 'xpack.security.remote_cluster.ssl.secure_key_passphrase', 'remote-cluster-password'
+  // client auth defaults to none for remote_cluster
+  if (BuildParams.random.nextBoolean()) {
+    setting 'xpack.security.remote_cluster.ssl.client_authentication', 'none'
+  }
+
+  user username: "test_user", password: "x-pack-test-password"
 }
 
 def queryingCluster = testClusters.register('querying-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'cluster.remote.connections_per_cluster', "1"
 
+  // TODO: For now, the client SSL configuration on the query cluster side is shared between
+  //       the default transport and remote_cluster profiles.
+  //       Therefore we cannot configure them separately. This will be separated once we add the support.
+  extraConfigFile 'transport.key', file("src/test/resources/ssl/remote_cluster.key")
+  extraConfigFile 'transport.cert', file("src/test/resources/ssl/remote_cluster.crt")
+  extraConfigFile 'transport.ca', file("src/test/resources/ssl/remote-cluster-ca.crt")
+
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.key', 'transport.key'
+  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
+  setting 'xpack.security.transport.ssl.key_passphrase', 'remote-cluster-password'
+  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+  setting 'xpack.security.transport.ssl.client_authentication', 'required'
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+
   setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
   setting 'cluster.remote.my_remote_cluster.proxy_address', {
-    "\"${fulfillingCluster.get().getAllRemoteAccessPortURI() .get(0)}\""
+    "\"${fulfillingCluster.get().getAllRemoteAccessPortURI().get(0)}\""
   }
+
+  user username: "test_user", password: "x-pack-test-password"
 }
 
 tasks.register('fulfilling-cluster', RestIntegTestTask) {
-  dependsOn 'copyCerts'
   useCluster fulfillingCluster
   systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
 
 tasks.register('querying-cluster', RestIntegTestTask) {
-  dependsOn 'copyCerts'
   dependsOn 'fulfilling-cluster'
   useCluster queryingCluster
   useCluster fulfillingCluster
@@ -84,7 +96,6 @@ tasks.register('querying-cluster', RestIntegTestTask) {
 
 // runs the fulfilling-cluster cluster tests then the querying-cluster tests
 tasks.register("integTest") {
-  dependsOn 'copyCerts'
   dependsOn 'querying-cluster'
 }
 

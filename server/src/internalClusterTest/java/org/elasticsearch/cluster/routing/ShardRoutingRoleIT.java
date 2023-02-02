@@ -10,8 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -44,6 +43,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -260,13 +260,10 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
-            mockTransportService.addRequestHandlingBehavior(
-                TransportUnpromotableShardRefreshAction.NAME,
-                (handler, request, channel, task) -> {
-                    // Skip handling the request and send an immediate empty response
-                    channel.sendResponse(ActionResponse.Empty.INSTANCE);
-                }
-            );
+            mockTransportService.addRequestHandlingBehavior(TransportShardRefreshAction.NAME + "[u]", (handler, request, channel, task) -> {
+                // Skip handling the request and send an immediate empty response
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            });
         }
     }
 
@@ -596,7 +593,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
+                if (action.startsWith(TransportShardRefreshAction.NAME + "[u]")) {
                     unpromotableRefreshActions.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);

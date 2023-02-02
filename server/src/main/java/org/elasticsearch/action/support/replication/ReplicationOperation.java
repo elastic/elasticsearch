@@ -32,6 +32,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,6 +42,8 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -145,10 +148,46 @@ public class ReplicationOperation<
             // on.
             final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
             assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
-            final ReplicationGroup replicationGroup = primary.getReplicationGroup();
             final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
-            markUnavailableShardsAsStale(replicaRequest, replicationGroup);
-            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup, pendingReplicationActions);
+
+            if (replicasProxy.getReplicaForwardOptions().forwardToPromotableReplicas()) {
+                final ReplicationGroup replicationGroup = primary.getReplicationGroup();
+                markUnavailableShardsAsStale(replicaRequest, replicationGroup);
+                performOnReplicas(
+                    replicaRequest,
+                    globalCheckpoint,
+                    maxSeqNoOfUpdatesOrDeletes,
+                    replicationGroup,
+                    pendingReplicationActions
+                );
+            }
+
+            if (replicasProxy.getReplicaForwardOptions().forwardToUnpromotableReplicas()) {
+                Stream<ShardRouting> unpromotableReplicas = primary.getReplicationGroup()
+                    .getRoutingTable()
+                    .assignedShards()
+                    .stream()
+                    .filter(Predicate.not(ShardRouting::isPromotableToPrimary));
+                unpromotableReplicas.forEach(shard -> {
+                    assert shard.isPromotableToPrimary() == false;
+                    final ActionListener<TransportResponse.Empty> listener = ActionListener.wrap(ignored -> {}, replicaException -> {
+                        if (TransportActions.isShardNotAvailableException(replicaException) == false) {
+                            RestStatus restStatus = ExceptionsHelper.status(replicaException);
+                            shardReplicaFailures.add(
+                                new ReplicationResponse.ShardInfo.Failure(
+                                    shard.shardId(),
+                                    shard.currentNodeId(),
+                                    replicaException,
+                                    restStatus,
+                                    false
+                                )
+                            );
+                        }
+                    });
+                    replicasProxy.performOnUnpromotable(shard, replicaRequest, listener);
+
+                });
+            }
         }
         primaryResult.runPostReplicationActions(new ActionListener<>() {
 
@@ -552,6 +591,29 @@ public class ReplicationOperation<
         PendingReplicationActions getPendingReplicationActions();
     }
 
+    public enum ReplicaForwardOptions {
+
+        PROMOTABLE_REPLICAS(true, false),
+        UNPROMOTABLE_REPLICAS(false, true),
+        PROMOTABLE_AND_UNPROMOTABLE_REPLICAS(true, true);
+
+        private final boolean forwardToPromotableReplicas;
+        private final boolean forwardToUnpromotableReplicas;
+
+        ReplicaForwardOptions(boolean forwardToPromotableReplicas, boolean forwardToUnpromotableReplicas) {
+            this.forwardToPromotableReplicas = forwardToPromotableReplicas;
+            this.forwardToUnpromotableReplicas = forwardToUnpromotableReplicas;
+        }
+
+        public boolean forwardToPromotableReplicas() {
+            return forwardToPromotableReplicas;
+        }
+
+        public boolean forwardToUnpromotableReplicas() {
+            return forwardToUnpromotableReplicas;
+        }
+    }
+
     /**
      * An encapsulation of an operation that will be executed on the replica shards, if present.
      */
@@ -601,6 +663,28 @@ public class ReplicationOperation<
          * @param listener     a listener that will be notified when the failing shard has been removed from the in-sync set
          */
         void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, ActionListener<Void> listener);
+
+        /**
+         * Returns whether to send the replica request to promotable and/or unpromotable replica shards.
+         */
+        default ReplicaForwardOptions getReplicaForwardOptions() {
+            return ReplicaForwardOptions.PROMOTABLE_REPLICAS;
+        }
+
+        /**
+         * Performs the specified request on the specified unpromotable replica.
+         *
+         * @param replica                    the unpromotable shard this request should be executed on
+         * @param replicaRequest             the operation to perform
+         * @param listener                   callback for handling the response or failure
+         */
+        default void performOnUnpromotable(
+            ShardRouting replica,
+            RequestT replicaRequest,
+            ActionListener<TransportResponse.Empty> listener
+        ) {
+            throw new UnsupportedOperationException("not implemented");
+        }
     }
 
     /**

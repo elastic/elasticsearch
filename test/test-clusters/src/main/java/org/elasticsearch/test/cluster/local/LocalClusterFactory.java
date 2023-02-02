@@ -340,7 +340,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void createKeystore() {
             if (spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()) {
-                runToolScript("elasticsearch-keystore", null, "-v", "create");
+                runToolScript("elasticsearch-keystore", "", "-v", "create");
             } else {
                 runToolScript("elasticsearch-keystore", spec.getKeystorePassword() + "\n" + spec.getKeystorePassword(), "create", "-p");
             }
@@ -456,8 +456,10 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                         null,
                         Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
                     );
+                } else if (spec.getVersion().onOrAfter("6.3.0")) {
+                    toInstall.forEach(plugin -> runToolScript("elasticsearch-plugin", "", "install", "--batch", plugin));
                 } else {
-                    toInstall.forEach(plugin -> runToolScript("elasticsearch-plugin", "install", "--batch", plugin));
+                    toInstall.forEach(plugin -> runToolScript("elasticsearch-plugin", "", "install", plugin));
                 }
             }
         }

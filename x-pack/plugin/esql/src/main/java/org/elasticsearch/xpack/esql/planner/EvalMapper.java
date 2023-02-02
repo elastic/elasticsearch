@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -49,7 +51,8 @@ final class EvalMapper {
         new Attributes(),
         new Literals(),
         new RoundFunction(),
-        new LengthFunction()
+        new LengthFunction(),
+        new DateFormatFunction()
     );
 
     private EvalMapper() {}
@@ -152,7 +155,7 @@ final class EvalMapper {
                 }
                 return new Doubles(channel);
             }
-            if (attr.dataType() == DataTypes.LONG) {
+            if (attr.dataType() == DataTypes.LONG || attr.dataType() == DataTypes.DATETIME) {
                 record Longs(int channel) implements ExpressionEvaluator {
                     @Override
                     public Object computeRow(Page page, int pos) {
@@ -255,6 +258,37 @@ final class EvalMapper {
                 }
             }
             return new LengthFunctionExpressionEvaluator(toEvaluator(length.field(), layout));
+        }
+    }
+
+    public static class DateFormatFunction extends ExpressionMapper<DateFormat> {
+        @Override
+        public ExpressionEvaluator map(DateFormat df, Layout layout) {
+            record DateFormatEvaluator(ExpressionEvaluator exp, ExpressionEvaluator formatEvaluator) implements ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    Object format = formatEvaluator != null ? formatEvaluator.computeRow(page, pos) : null;
+                    return DateFormat.process(((Long) exp.computeRow(page, pos)), toFormatter(format));
+                }
+            }
+
+            record ConstantDateFormatEvaluator(ExpressionEvaluator exp, DateFormatter formatter) implements ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    return DateFormat.process(((Long) exp.computeRow(page, pos)), formatter);
+                }
+            }
+
+            ExpressionEvaluator fieldEvaluator = toEvaluator(df.field(), layout);
+            Expression format = df.format();
+            if (format == null || format.foldable()) {
+                return new ConstantDateFormatEvaluator(fieldEvaluator, toFormatter(format == null ? null : format.fold()));
+            }
+            return new DateFormatEvaluator(fieldEvaluator, toEvaluator(format, layout));
+        }
+
+        private static DateFormatter toFormatter(Object format) {
+            return format == null ? DateFormat.DEFAULT_DATE_FORMATTER : DateFormatter.forPattern(format.toString());
         }
     }
 }

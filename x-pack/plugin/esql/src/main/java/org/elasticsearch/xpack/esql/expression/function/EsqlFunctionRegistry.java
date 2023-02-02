@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
@@ -44,7 +45,9 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             // math
             new FunctionDefinition[] { def(Round.class, Round::new, "round") },
             // string
-            new FunctionDefinition[] { def(Length.class, Length::new, "length") } };
+            new FunctionDefinition[] { def(Length.class, Length::new, "length") },
+            // date
+            new FunctionDefinition[] { def(DateFormat.class, DateFormat::new, "date_format") } };
     }
 
     @Override

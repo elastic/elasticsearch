@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -42,6 +43,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat.DEFAULT_DATE_FORMATTER;
 import static org.elasticsearch.xpack.ql.TestUtils.of;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -244,6 +246,7 @@ public final class EsqlTestUtils {
         LONG(Long::parseLong),
         DOUBLE(Double::parseDouble),
         KEYWORD(Object::toString),
+        DATE(x -> x == null ? null : DateFormatters.from(DEFAULT_DATE_FORMATTER.parse(x)).toInstant().toEpochMilli()),
         NULL(s -> null);
 
         private final Function<String, Object> converter;
@@ -260,10 +263,10 @@ public final class EsqlTestUtils {
             return valueOf(Type.class, name);
         }
 
-        public static Type asType(ElementType elementType) {
+        public static Type asType(ElementType elementType, Type expected) {
             return switch (elementType) {
                 case INT -> INTEGER;
-                case LONG -> LONG;
+                case LONG -> expected == DATE ? DATE : LONG;
                 case DOUBLE -> DOUBLE;
                 case NULL -> NULL;
                 case BYTES_REF -> KEYWORD;

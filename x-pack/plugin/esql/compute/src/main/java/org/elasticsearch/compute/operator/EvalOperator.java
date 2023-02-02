@@ -7,8 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -70,6 +72,18 @@ public class EvalOperator implements Operator {
                         blockBuilder.appendNull();
                     } else {
                         blockBuilder.appendInt(result.intValue());
+                    }
+                }
+                yield blockBuilder.build();
+            }
+            case BYTES_REF -> {
+                var blockBuilder = BytesRefBlock.newBlockBuilder(rowsCount);
+                for (int i = 0; i < lastInput.getPositionCount(); i++) {
+                    Object result = evaluator.computeRow(lastInput, i);
+                    if (result == null) {
+                        blockBuilder.appendNull();
+                    } else {
+                        blockBuilder.appendBytesRef(result instanceof BytesRef br ? br : new BytesRef(result.toString()));
                     }
                 }
                 yield blockBuilder.build();

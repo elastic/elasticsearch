@@ -21,6 +21,7 @@ import java.util.TreeMap;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -44,6 +45,7 @@ public final class EsqlDataTypes {
         DOUBLE,
         FLOAT,
         KEYWORD,
+        DATETIME,
         DATE_PERIOD,
         TIME_DURATION
     ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();

@@ -1,0 +1,84 @@
+simple
+from employee | sort emp_no | project emp_no, hire_date | limit 1;
+
+emp_no:integer | hire_date:date 
+10001          | 1986-06-26T00:00:00.000Z            
+;
+
+
+sort
+from employee | sort hire_date | project emp_no, hire_date | limit 5; 
+
+emp_no:integer | hire_date:date
+10009          | 1985-02-18T00:00:00.000Z            
+10048          | 1985-02-24T00:00:00.000Z                  
+10098          | 1985-05-13T00:00:00.000Z                  
+10076          | 1985-07-09T00:00:00.000Z                  
+10061          | 1985-09-17T00:00:00.000Z                  
+;
+
+
+
+sortDesc
+from employee | sort hire_date desc | project emp_no, hire_date | limit 5; 
+
+emp_no:integer | hire_date:date
+10019          | 1999-04-30T00:00:00.000Z            
+10024          | 1997-05-19T00:00:00.000Z                  
+10093          | 1996-11-05T00:00:00.000Z                  
+10084          | 1995-12-15T00:00:00.000Z                  
+10022          | 1995-08-22T00:00:00.000Z                  
+;
+
+
+projectRename
+from employee | sort hire_date | project emp_no, x = hire_date | limit 5;
+
+emp_no:integer | x:date
+10009          | 1985-02-18T00:00:00.000Z            
+10048          | 1985-02-24T00:00:00.000Z                  
+10098          | 1985-05-13T00:00:00.000Z                  
+10076          | 1985-07-09T00:00:00.000Z                  
+10061          | 1985-09-17T00:00:00.000Z                  
+;
+
+
+evalAssign
+from employee | sort hire_date | eval x = hire_date | project emp_no, x | limit 5;
+
+emp_no:integer | x:date
+10009          | 1985-02-18T00:00:00.000Z            
+10048          | 1985-02-24T00:00:00.000Z                  
+10098          | 1985-05-13T00:00:00.000Z                  
+10076          | 1985-07-09T00:00:00.000Z                  
+10061          | 1985-09-17T00:00:00.000Z                  
+;
+
+
+
+evalDateFormat
+from employee | sort hire_date | eval x = date_format(hire_date), y = date_format(hire_date, "YYYY-MM-dd") | project emp_no, x, y | limit 5;
+
+emp_no:integer | x:keyword                     | y:keyword
+10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18            
+10048          | 1985-02-24T00:00:00.000Z      | 1985-02-24                  
+10098          | 1985-05-13T00:00:00.000Z      | 1985-05-13                  
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-09                 
+10061          | 1985-09-17T00:00:00.000Z      | 1985-09-17                  
+;
+
+
+nullDate
+from employee | where emp_no == 10040 | eval x = date_format(birth_date) | project emp_no, birth_date, hire_date, x;
+
+emp_no:integer | birth_date:date                     | hire_date:date             | x
+10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
+;
+
+// not supported yet
+minMax-Ignore
+from employee | stats min = min(hire_date), max = max(hire_date);
+
+min:date                  | max:date
+1985-02-18T00:00:00.000Z  | 1999-04-30T00:00:00.000Z
+;

@@ -51,6 +51,7 @@ import static org.junit.Assert.assertThat;
  */
 public class DataLoader {
     public static final String TEST_INDEX_SIMPLE = "simple";
+    public static final String TEST_INDEX_EMPLOYEE = "employee";
 
     /**
      * <p>
@@ -109,6 +110,7 @@ public class DataLoader {
     public static void loadDatasetIntoEs(RestClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
         throws IOException {
         load(client, TEST_INDEX_SIMPLE, null, null, p);
+        load(client, TEST_INDEX_EMPLOYEE, null, null, p);
     }
 
     private static void load(

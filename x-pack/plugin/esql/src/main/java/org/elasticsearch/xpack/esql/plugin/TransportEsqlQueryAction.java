@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -129,6 +130,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     }
                     if (dataTypes.get(b) == DataTypes.KEYWORD) {
                         row.add(((BytesRefBlock) block).getBytesRef(p, scratch).utf8ToString());
+                        continue;
+                    }
+                    if (dataTypes.get(b) == DataTypes.DATETIME) {
+                        long longVal = ((LongBlock) block).getLong(p);
+                        row.add(DateFormat.DEFAULT_DATE_FORMATTER.formatMillis(longVal));
                         continue;
                     }
                     throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(b) + "]");

@@ -63,6 +63,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
@@ -218,7 +219,11 @@ public class CsvTests extends ESTestCase {
             expectedColumns.size(),
             columnNames.size()
         );
-        List<Tuple<String, Type>> actualColumns = extractColumnsFromPage(actualResultsPage, columnNames);
+        List<Tuple<String, Type>> actualColumns = extractColumnsFromPage(
+            actualResultsPage,
+            columnNames,
+            expectedColumns.stream().map(Tuple::v2).collect(Collectors.toList())
+        );
 
         for (int i = 0; i < expectedColumns.size(); i++) {
             assertEquals(expectedColumns.get(i).v1(), actualColumns.get(i).v1());
@@ -230,12 +235,12 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    private List<Tuple<String, Type>> extractColumnsFromPage(Page page, List<String> columnNames) {
+    private List<Tuple<String, Type>> extractColumnsFromPage(Page page, List<String> columnNames, List<Type> expectedTypes) {
         var blockCount = page.getBlockCount();
         List<Tuple<String, Type>> result = new ArrayList<>(blockCount);
         for (int i = 0; i < blockCount; i++) {
             Block block = page.getBlock(i);
-            result.add(new Tuple<>(columnNames.get(i), Type.asType(block.elementType())));
+            result.add(new Tuple<>(columnNames.get(i), Type.asType(block.elementType(), expectedTypes.get(i))));
         }
         return result;
     }
@@ -278,7 +283,9 @@ public class CsvTests extends ESTestCase {
                             value = null;
                         }
                     }
-                    rowValues.add(columns.get(i).v2().convert(value));
+                    Type type = columns.get(i).v2();
+                    Object val = type == Type.DATE ? value : type.convert(value);
+                    rowValues.add(val);
                 }
                 values.add(rowValues);
             }

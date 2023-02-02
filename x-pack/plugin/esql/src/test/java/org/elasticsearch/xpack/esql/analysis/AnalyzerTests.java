@@ -346,12 +346,10 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | project bool, unsigned_long, text, date, date_nanos, unsupported, point, shape, version
                 """,
-            "Found 9 problems\n"
+            "Found 7 problems\n"
                 + "line 2:11: Unknown column [bool]\n"
                 + "line 2:17: Unknown column [unsigned_long]\n"
                 + "line 2:32: Unknown column [text]\n"
-                + "line 2:38: Unknown column [date]\n"
-                + "line 2:44: Unknown column [date_nanos]\n"
                 + "line 2:56: Unknown column [unsupported]\n"
                 + "line 2:69: Unknown column [point], did you mean [int]?\n"
                 + "line 2:76: Unknown column [shape]\n"
@@ -453,6 +451,8 @@ public class AnalyzerTests extends ESTestCase {
                 | project -some.dotted.field
                 """,
             new StringBuilder("mapping-multi-field-variation.json"),
+            "date",
+            "date_nanos",
             "float",
             "int",
             "keyword",
@@ -468,6 +468,8 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(
             "from test",
             new StringBuilder("mapping-multi-field-with-nested.json"),
+            "date",
+            "date_nanos",
             "int",
             "keyword",
             "some.ambiguous.normalized",
@@ -486,6 +488,8 @@ public class AnalyzerTests extends ESTestCase {
                 | project -some.ambiguous.*
                 """,
             new StringBuilder("mapping-multi-field-with-nested.json"),
+            "date",
+            "date_nanos",
             "int",
             "keyword",
             "some.dotted.field",
@@ -498,7 +502,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project -some.*
-            """, new StringBuilder("mapping-multi-field-with-nested.json"), "int", "keyword");
+            """, new StringBuilder("mapping-multi-field-with-nested.json"), "date", "date_nanos", "int", "keyword");
     }
 
     public void testProjectOrderPatternWithDottedFields() {
@@ -510,6 +514,8 @@ public class AnalyzerTests extends ESTestCase {
             new StringBuilder("mapping-multi-field-with-nested.json"),
             "some.string.normalized",
             "some.string.typical",
+            "date",
+            "date_nanos",
             "int",
             "some.ambiguous.normalized",
             "some.ambiguous.one",
@@ -551,6 +557,41 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
         as(project.child(), EsRelation.class);
+    }
+
+    public void testDateFormatOnInt() {
+        verifyUnsupported("""
+            from test
+            | eval date_format(int)
+            """, "first argument of [date_format(int)] must be [datetime], found value [int] type [integer]");
+    }
+
+    public void testDateFormatOnFloat() {
+        verifyUnsupported("""
+            from test
+            | eval date_format(float)
+            """, "first argument of [date_format(float)] must be [datetime], found value [float] type [float]");
+    }
+
+    public void testDateFormatOnText() {
+        verifyUnsupported("""
+            from test
+            | eval date_format(keyword)
+            """, "first argument of [date_format(keyword)] must be [datetime], found value [keyword] type [keyword]");
+    }
+
+    public void testDateFormatWithNumericFormat() {
+        verifyUnsupported("""
+            from test
+            | eval date_format(date, 1)
+            """, "second argument of [date_format(date, 1)] must be [string], found value [1] type [integer]");
+    }
+
+    public void testDateFormatWithDateFormat() {
+        verifyUnsupported("""
+            from test
+            | eval date_format(date, date)
+            """, "second argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

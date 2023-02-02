@@ -149,7 +149,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
     }
 
     public static class HistogramLastLabelFieldProducer extends LabelLastValueFieldProducer {
-        public HistogramLastLabelFieldProducer(String name) {
+        HistogramLastLabelFieldProducer(String name) {
             super(name);
         }
 

@@ -35,8 +35,8 @@ to the API, existing element will not be changed or removed, except in a new
 major release. In other words, once you have a working artifact, you can re-use
 it when you upgrade {es} to a new bugfix or minor version.
 
-A text analysis can implement four factory classes that are provided by the 
-analysis plugin API.
+A text analysis plugin can implement four factory classes that are provided by
+the analysis plugin API.
 
 * `AnalyzerFactory` to create a Lucene analyzer
 * `CharFilterFactory` to create a character character filter
@@ -51,7 +51,7 @@ your named components may be referenced by name in these configurations as well.
 
 It's also possible to create text analysis plugins using the method described in
 <<creating-non-text-analysis-plugins>>. However, plugins created using that 
-method are pinned to specific version of {es}. You will need to recompile them
+method are pinned to a specific version of {es}. You will need to recompile them
 when upgrading {es}.
 
 [discrete]

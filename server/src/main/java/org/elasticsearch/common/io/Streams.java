@@ -136,10 +136,6 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(InputStream reader, byte[] dest) throws IOException {
-        return org.elasticsearch.core.Streams.readFully(reader, dest, 0, dest.length);
-    }
-
     /**
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */

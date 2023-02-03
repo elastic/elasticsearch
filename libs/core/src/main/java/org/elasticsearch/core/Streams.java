@@ -119,6 +119,10 @@ public class Streams {
         return totalRead;
     }
 
+    public static int readFully(InputStream reader, byte[] dest) throws IOException {
+        return readFully(reader, dest, 0, dest.length);
+    }
+
     public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
         int read = 0;
         while (read < len) {

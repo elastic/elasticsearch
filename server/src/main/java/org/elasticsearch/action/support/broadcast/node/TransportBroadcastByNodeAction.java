@@ -415,7 +415,6 @@ public abstract class TransportBroadcastByNodeAction<
     ) {
         logger.trace("[{}] executing operation on [{}] shards", actionName, shards.size());
 
-        final var mutex = new Object();
         final var results = new ArrayList<ShardOperationResult>(shards.size());
         final var exceptions = new ArrayList<BroadcastShardOperationFailedException>(0);
 
@@ -452,7 +451,7 @@ public abstract class TransportBroadcastByNodeAction<
                     @Override
                     public void onResponse(ShardOperationResult shardOperationResult) {
                         logger.trace(() -> format("[%s] completed operation for shard [%s]", actionName, shardRouting.shortSummary()));
-                        synchronized (mutex) {
+                        synchronized (results) {
                             results.add(shardOperationResult);
                         }
                     }
@@ -468,7 +467,7 @@ public abstract class TransportBroadcastByNodeAction<
                             e
                         );
                         if (TransportActions.isShardNotAvailableException(e) == false) {
-                            synchronized (mutex) {
+                            synchronized (exceptions) {
                                 exceptions.add(
                                     new BroadcastShardOperationFailedException(
                                         shardRouting.shardId(),

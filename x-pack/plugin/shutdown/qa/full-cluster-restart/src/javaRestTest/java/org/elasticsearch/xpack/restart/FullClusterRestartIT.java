@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -13,10 +15,17 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -33,7 +42,37 @@ import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(2)
+        // some tests rely on the translog not being flushed
+        .setting("indices.memory.shard_inactive_time", "60m")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.key", "testnode.pem")
+        .setting("xpack.security.transport.ssl.certificate", "testnode.crt")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.watcher.encrypt_sensitive_data", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+        .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+        .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
+        .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
+
+    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
 
     @Override
     protected Settings restClientSettings() {
@@ -47,10 +86,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             .build();
     }
 
+    @BeforeClass
+    public static void checkClusterVersion() {
+        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
+    }
+
     @SuppressWarnings("unchecked")
     public void testNodeShutdown() throws Exception {
-        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
-
         if (isRunningAgainstOldCluster()) {
             final Request getNodesReq = new Request("GET", "_nodes");
             final Response getNodesResp = adminClient().performRequest(getNodesReq);
@@ -64,7 +106,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     // Use the types available from as early as possible
                     final String type = randomFrom("restart", "remove");
                     putBody.field("type", type);
-                    putBody.field("reason", this.getTestName());
+                    putBody.field("reason", getRootTestName());
                 }
                 putBody.endObject();
                 putShutdownRequest.setJsonEntity(Strings.toString(putBody));
@@ -81,7 +123,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat("there should be exactly one shutdown registered", shutdowns, hasSize(1));
             final Map<String, Object> shutdown = shutdowns.get(0);
             assertThat(shutdown.get("node_id"), notNullValue()); // Since we randomly determine the node ID, we can't check it
-            assertThat(shutdown.get("reason"), equalTo(this.getTestName()));
+            assertThat(shutdown.get("reason"), equalTo(getRootTestName()));
             assertThat(
                 (String) shutdown.get("status"),
                 anyOf(

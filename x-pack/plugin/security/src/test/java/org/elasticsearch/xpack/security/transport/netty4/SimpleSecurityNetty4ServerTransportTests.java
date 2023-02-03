@@ -82,6 +82,7 @@ import javax.net.ssl.SSLSocket;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -527,7 +528,10 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     ConnectTransportException.class,
                     () -> openConnection(qcService, node, connectionProfile)
                 );
-                assertThat(e.getRootCause().getMessage(), containsString("unable to find valid certification path"));
+                assertThat(
+                    e.getRootCause().getMessage(),
+                    anyOf(containsString("unable to find valid certification path"), containsString("Unable to find certificate chain"))
+                );
             }
 
             // 2. Connection will success because QC does not verify FC server certificate

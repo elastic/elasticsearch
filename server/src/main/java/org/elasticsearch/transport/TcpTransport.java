@@ -807,6 +807,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * Initiate a single tcp socket channel.
      *
      * @param node for the initiated connection
+     * @param connectionProfile the connection profile to use when connecting to the node
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */

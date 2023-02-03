@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +31,49 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
     private static final int VECTOR_DIMENSION = 10;
+
+    public void testKnnSearchRemovedVector() throws IOException {
+        int numShards = 1 + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .startObject("text")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+
+        for (int doc = 0; doc < 10; doc++) {
+            client().prepareIndex("index").setId(Integer.toString(doc)).setSource("vector", randomVector(), "text", "hello world").get();
+            client().prepareIndex("index").setSource("text", "goodnight world").get();
+        }
+
+        client().admin().indices().prepareRefresh("index").get();
+        client().prepareUpdate("index", "0").setDoc("vector", (Object) null).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        float[] queryVector = randomVector();
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 20, 50).boost(5.0f);
+        SearchResponse response = client().prepareSearch("index")
+            .setKnnSearch(List.of(knnSearch))
+            .setQuery(QueryBuilders.matchQuery("text", "goodnight"))
+            .setSize(10)
+            .get();
+
+        // Originally indexed 20 documents, but deleted vector field with an update, so only 19 should be hit
+        assertHitCount(response, 19);
+        assertEquals(10, response.getHits().getHits().length);
+        // Make sure we still have 20 docs
+        assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true).get(), 20);
+    }
 
     public void testKnnWithQuery() throws IOException {
         int numShards = 1 + randomInt(3);
@@ -186,13 +230,13 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setSource("vector", randomVector(), "text", "hello world", "number", 1).get();
-            client().prepareIndex("index").setSource("vector_2", randomVector(), "text", "hello world", "number", 2).get();
+            client().prepareIndex("index").setSource("vector", randomVector(1.0f, 2.0f), "text", "hello world", "number", 1).get();
+            client().prepareIndex("index").setSource("vector_2", randomVector(20f, 21f), "text", "hello world", "number", 2).get();
             client().prepareIndex("index").setSource("text", "goodnight world", "number", 3).get();
         }
         client().admin().indices().prepareRefresh("index").get();
 
-        float[] queryVector = randomVector();
+        float[] queryVector = randomVector(20f, 21f);
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50).boost(5.0f);
         KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50).boost(10.0f);
         SearchResponse response = client().prepareSearch("index")
@@ -213,7 +257,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(agg.getAvg(), equalTo(2.25));
         assertThat(agg.getSum(), equalTo(45.0));
 
-        // Because of the boost, vector_2 results should appear first
+        // Because of the boost & vector distributions, vector_2 results should appear first
         assertNotNull(response.getHits().getAt(0).field("vector_2"));
     }
 
@@ -369,6 +413,14 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] vector = new float[VECTOR_DIMENSION];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();
+        }
+        return vector;
+    }
+
+    private float[] randomVector(float dimLower, float dimUpper) {
+        float[] vector = new float[VECTOR_DIMENSION];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = (float) randomDoubleBetween(dimLower, dimUpper, true);
         }
         return vector;
     }

@@ -79,7 +79,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     }
 
     @Override
-    protected RolloverAction mutateInstance(RolloverAction instance) throws IOException {
+    protected RolloverAction mutateInstance(RolloverAction instance) {
         ByteSizeValue maxSize = instance.getMaxSize();
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();

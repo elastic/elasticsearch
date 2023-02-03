@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -161,7 +161,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
-                    in.getVersion().onOrAfter(Version.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
+                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
                 );
             }
 
@@ -194,7 +194,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
                 }
             }

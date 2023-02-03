@@ -30,7 +30,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * A query that matches the provided docs with their scores.
  *
  * Note: this query was adapted from Lucene's DocAndScoreQuery from the class
- * {@link org.apache.lucene.search.KnnVectorQuery}, which is package-private.
+ * {@link org.apache.lucene.search.KnnFloatVectorQuery}, which is package-private.
  * There are no changes to the behavior, just some renames.
  */
 class KnnScoreDocQuery extends Query {

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -61,12 +61,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
-    private static final Version VERSION_REMOTE_ACCESS_HEADERS = Version.V_8_7_0;
+    private static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
@@ -207,7 +208,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     ) {
         // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
         // ourselves otherwise we wind up using a version newer than what we can actually send
-        final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+        final TransportVersion minVersion = TransportVersion.min(connection.getTransportVersion(), TransportVersion.CURRENT);
 
         // Sometimes a system action gets executed like a internal create index request or update mappings request
         // which means that the user is copied over to system actions so we need to change the user
@@ -238,7 +239,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 )
             );
         } else if (securityContext.getAuthentication() != null
-            && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
+            && securityContext.getAuthentication().getEffectiveSubject().getTransportVersion().equals(minVersion) == false) {
                 // re-write the authentication since we want the authentication version to match the version of the connection
                 securityContext.executeAfterRewritingAuthentication(
                     original -> sendWithUser(
@@ -254,6 +255,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             } else {
                 sendWithUser(connection, action, request, options, handler, sender);
             }
+    }
+
+    // Package private for testing
+    Map<String, ServerTransportFilter> getProfileFilters() {
+        return profileFilters;
     }
 
     private AsyncSender interceptForRemoteAccessRequests(final AsyncSender sender) {
@@ -328,12 +334,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportResponseHandler<T> handler
             ) {
                 final String remoteClusterAlias = remoteAccessCredentials.clusterAlias();
-                if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
+                if (connection.getTransportVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["
                             + remoteClusterAlias
                             + "] indicate remote access headers should be sent but target cluster version ["
-                            + connection.getVersion()
+                            + connection.getTransportVersion()
                             + "] does not support receiving them"
                     );
                 }
@@ -434,17 +440,25 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, sslConfiguration);
+        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);
+        final boolean remoteClusterSSLEnabled = remoteClusterPortEnabled && XPackSettings.REMOTE_CLUSTER_SSL_ENABLED.get(settings);
+
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
-            final boolean extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+            final String profileName = entry.getKey();
+            final boolean extractClientCert;
+            if (remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(profileName)) {
+                extractClientCert = remoteClusterSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+            } else {
+                extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+            }
             profileFilters.put(
-                entry.getKey(),
+                profileName,
                 new ServerTransportFilter(
                     authcService,
                     authzService,

@@ -37,7 +37,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         maxThreads = between(1, 10);
-        executor = EsExecutors.newScaling("test", 1, maxThreads, 0, TimeUnit.MILLISECONDS, false, threadFactory, threadContext);
+        executor = EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.NANOSECONDS, false, threadFactory, threadContext);
     }
 
     @Override
@@ -47,7 +47,6 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     }
 
     static class TestTask extends AbstractRunnable implements Comparable<TestTask> {
-
         private final Runnable runnable;
         private final int priority;
 
@@ -79,6 +78,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var threadBlocker = new CyclicBarrier(enqueued);
         final var executedCountDown = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             new Thread(() -> {
                 awaitBarrier(threadBlocker);
                 taskRunner.enqueueTask(new TestTask(() -> {
@@ -119,6 +119,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var enqueuedBarrier = new CyclicBarrier(enqueued + 1);
         final var executedCountDown = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             final int priority = getRandomPriority();
             taskPriorities.add(priority);
             new Thread(() -> {
@@ -154,6 +155,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         CountDownLatch executedCountDown = new CountDownLatch(enqueued + newTasks);
         PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>("test", maxTasks, executor);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             taskRunner.enqueueTask(new TestTask(() -> {
                 try {
                     taskBlocker.await();
@@ -166,6 +168,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         }
         // Enqueueing one or more new tasks would create only one new running task
         for (int i = 0; i < newTasks; i++) {
+            final int taskId = i;
             taskRunner.enqueueTask(new TestTask(() -> {
                 try {
                     taskBlocker.await();
@@ -186,7 +189,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
     public void testFailsTasksOnRejectionOrShutdown() throws Exception {
         final var executor = randomBoolean()
-            ? EsExecutors.newScaling("test", 1, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
+            ? EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
             : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, false);
         final var taskRunner = new PrioritizedThrottledTaskRunner<TestTask>("test", between(1, maxThreads * 2), executor);
         final var totalPermits = between(1, maxThreads * 2);
@@ -231,14 +234,9 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     }
 
     private void assertNoRunningTasks(PrioritizedThrottledTaskRunner<TestTask> taskRunner) {
-        logger.info("--> ensure that there are no running tasks in the executor. Max number of threads [{}]", maxThreads);
         final var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            executor.execute(() -> {
-                logger.info("--> await until barrier is released");
-                awaitBarrier(barrier);
-                logger.info("--> the barrier is released");
-            });
+            executor.execute(() -> { awaitBarrier(barrier); });
         }
         awaitBarrier(barrier);
         assertThat(taskRunner.runningTasks(), equalTo(0));

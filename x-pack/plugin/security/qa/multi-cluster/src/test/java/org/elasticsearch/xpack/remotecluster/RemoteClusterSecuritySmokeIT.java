@@ -93,7 +93,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             indexDocRequest3.setJsonEntity("{\"bar\": \"foo\"}");
             assertOK(client().performRequest(indexDocRequest3));
         } else {
-            getRemoteAccessAndStoreInSettings();
+            getRemoteAccessApiKeyAndStoreInSettings();
 
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
@@ -159,7 +159,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
         }
     }
 
-    private void getRemoteAccessAndStoreInSettings() throws IOException {
+    private void getRemoteAccessApiKeyAndStoreInSettings() throws IOException {
         try (var fulfillingClusterClient = buildClient(System.getProperty("tests.fulfilling_cluster_host"))) {
             final var request = new Request("GET", "/apikey/_search");
             request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
@@ -179,8 +179,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
         final var indexDocRequest = new Request("POST", "/apikey/_doc");
         // Store API key credential so that QC can fetch and use it for authentication
         indexDocRequest.setJsonEntity("{\"apikey\": \"" + encodedRemoteAccessApiKey + "\"}");
-        final Response response = adminClient().performRequest(indexDocRequest);
-        assertOK(response);
+        assertOK(adminClient().performRequest(indexDocRequest));
     }
 
     private RestClient buildClient(final String url) throws IOException {

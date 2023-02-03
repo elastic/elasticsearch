@@ -8,12 +8,15 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import fixture.geoip.GeoIpHttpFixture;
+
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.StreamsUtils;
+import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -25,6 +28,15 @@ import java.util.Collection;
 import java.util.List;
 
 public abstract class AbstractGeoIpIT extends ESIntegTestCase {
+    private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == false;
+
+    @ClassRule
+    public static final GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
+
+    protected String getEndpoint() {
+        return useFixture ? fixture.getAddress() : null;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);

@@ -57,7 +57,7 @@ public class ScriptMethodInfoSerializingTests extends AbstractXContentSerializin
     }
 
     @Override
-    protected ScriptMethodInfo mutateInstance(ScriptMethodInfo instance) throws IOException {
+    protected ScriptMethodInfo mutateInstance(ScriptMethodInfo instance) {
         return mutate(instance);
     }
 

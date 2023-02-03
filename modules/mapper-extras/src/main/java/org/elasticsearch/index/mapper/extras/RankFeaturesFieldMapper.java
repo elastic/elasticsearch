@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -26,6 +27,8 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
@@ -77,17 +80,13 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        public boolean positiveScoreImpact() {
-            return positiveScoreImpact;
         }
 
         @Override
@@ -107,7 +106,14 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Queries on [rank_features] fields are not supported");
+            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
+        }
+
+        private static String indexedValueForSearch(Object value) {
+            if (value instanceof BytesRef) {
+                return ((BytesRef) value).utf8ToString();
+            }
+            return value.toString();
         }
     }
 

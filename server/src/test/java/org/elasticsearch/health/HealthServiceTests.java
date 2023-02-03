@@ -88,6 +88,7 @@ public class HealthServiceTests extends ESTestCase {
             client,
             indicatorName,
             false,
+            1000,
             getExpectedHealthIndicatorResultsActionListener(onResponseCalled, expectedHealthIndicatorResults)
         );
         assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
@@ -138,11 +139,24 @@ public class HealthServiceTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    public void testValidateSize() {
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
+
+        var service = new HealthService(Collections.emptyList(), List.of(createMockHealthIndicatorService(shardsAvailable)), threadPool);
+        NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.getHealth(client, null, true, -1, ActionListener.NOOP)
+        );
+        assertThat(illegalArgumentException.getMessage(), is("The max number of resources must be a positive integer"));
+    }
+
     private <T extends Throwable> void assertGetHealthThrowsException(
         HealthService service,
         NodeClient client,
         String indicatorName,
-        boolean explain,
+        boolean verbose,
         Class<T> expectedType,
         String expectedMessage,
         boolean expectOnFailCalled
@@ -154,7 +168,7 @@ public class HealthServiceTests extends ESTestCase {
             expectedMessage
         );
         try {
-            service.getHealth(client, indicatorName, explain, listener);
+            service.getHealth(client, indicatorName, verbose, 1000, listener);
         } catch (Throwable t) {
             if (expectOnFailCalled || (expectedType.isInstance(t) == false)) {
                 throw new RuntimeException("Unexpected throwable", t);
@@ -325,7 +339,7 @@ public class HealthServiceTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         };
-        service.getHealth(client, indicatorName, false, listener);
+        service.getHealth(client, indicatorName, false, 1000, listener);
         assertBusy(() -> assertNotNull(resultReference.get()));
         return resultReference.get();
     }
@@ -366,7 +380,7 @@ public class HealthServiceTests extends ESTestCase {
             }
 
             @Override
-            public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+            public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
                 if (expectedHealthInfo != null) {
                     assertThat(healthInfo, equalTo(expectedHealthInfo));
                 }

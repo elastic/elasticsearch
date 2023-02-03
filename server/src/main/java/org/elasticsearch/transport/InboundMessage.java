@@ -86,7 +86,7 @@ public class InboundMessage extends AbstractRefCounted {
         assert hasReferences();
         if (streamInput == null) {
             streamInput = content.streamInput();
-            streamInput.setVersion(header.getVersion());
+            streamInput.setTransportVersion(header.getVersion());
         }
         return streamInput;
     }

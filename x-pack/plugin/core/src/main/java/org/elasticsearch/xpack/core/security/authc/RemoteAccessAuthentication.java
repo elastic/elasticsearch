@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +29,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -63,6 +67,34 @@ public final class RemoteAccessAuthentication {
         return roleDescriptorsBytesList;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteAccessAuthentication that = (RemoteAccessAuthentication) o;
+
+        if (false == authentication.equals(that.authentication)) return false;
+        return roleDescriptorsBytesList.equals(that.roleDescriptorsBytesList);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = authentication.hashCode();
+        result = 31 * result + roleDescriptorsBytesList.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "RemoteAccessAuthentication{"
+            + "authentication="
+            + authentication
+            + ", roleDescriptorsBytesList="
+            + roleDescriptorsBytesList
+            + '}';
+    }
+
     private static List<RoleDescriptorsBytes> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
@@ -76,27 +108,49 @@ public final class RemoteAccessAuthentication {
         return roleDescriptorsBytesList;
     }
 
-    private String encode() throws IOException {
+    public String encode() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(authentication.getEffectiveSubject().getVersion());
-        Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
+        out.setTransportVersion(authentication.getEffectiveSubject().getTransportVersion());
+        TransportVersion.writeVersion(authentication.getEffectiveSubject().getTransportVersion(), out);
         authentication.writeTo(out);
         out.writeCollection(roleDescriptorsBytesList, StreamOutput::writeBytesReference);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    private static RemoteAccessAuthentication decode(final String header) throws IOException {
+    public static RemoteAccessAuthentication decode(final String header) throws IOException {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);
-        final Version version = Version.readVersion(in);
-        in.setVersion(version);
+        final TransportVersion version = TransportVersion.readVersion(in);
+        in.setTransportVersion(version);
         final Authentication authentication = new Authentication(in);
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
     }
 
+    /**
+     * Returns a copy of the passed-in metadata map, with the relevant remote access fields included. Does not modify the original map.
+     */
+    public Map<String, Object> copyWithRemoteAccessEntries(final Map<String, Object> authenticationMetadata) {
+        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] entry";
+        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)
+            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
+        assert false == getAuthentication().isRemoteAccess()
+            : "authentication included in remote access header cannot itself be remote access";
+        final Map<String, Object> copy = new HashMap<>(authenticationMetadata);
+        try {
+            copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, getAuthentication().encode());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        copy.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
+        return Collections.unmodifiableMap(copy);
+    }
+
     public static final class RoleDescriptorsBytes extends AbstractBytesReference {
+
+        public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
         private final BytesReference rawBytes;
 
         public RoleDescriptorsBytes(BytesReference rawBytes) {

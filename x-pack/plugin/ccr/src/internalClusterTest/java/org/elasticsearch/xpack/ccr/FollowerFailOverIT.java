@@ -140,7 +140,8 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
-                final String source = formatted("{\"f\":%d}", counter++);
+                Object[] args = new Object[] { counter++ };
+                final String source = Strings.format("{\"f\":%d}", args);
                 IndexResponse indexResp = leaderClient().prepareIndex("index1")
                     .setSource(source, XContentType.JSON)
                     .setTimeout(TimeValue.timeValueSeconds(1))

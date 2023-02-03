@@ -8,14 +8,19 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.Assertions;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -252,6 +257,13 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Creates a listener which releases the given resource on completion (whether success or failure)
+     */
+    static <Response> ActionListener<Response> releasing(Releasable releasable) {
+        return assertOnce(wrap(runnableFromReleasable(releasable)));
+    }
+
+    /**
      * Creates a listener that listens for a response (or failure) and executes the
      * corresponding runnable when the response (or failure) is received.
      *
@@ -285,6 +297,29 @@ public interface ActionListener<Response> {
             @Override
             public String toString() {
                 return "RunnableWrappingActionListener{" + runnable + "}";
+            }
+        };
+    }
+
+    /**
+     * Adds a wrapper around a listener which catches exceptions thrown by its {@link #onResponse} method and feeds them to its
+     * {@link #onFailure}.
+     */
+    static <DelegateResponse, Response extends DelegateResponse> ActionListener<Response> wrap(ActionListener<DelegateResponse> delegate) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                ActionListener.run(delegate, l -> l.onResponse(response));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                delegate.onFailure(e);
+            }
+
+            @Override
+            public String toString() {
+                return "wrapped{" + delegate + "}";
             }
         };
     }
@@ -331,7 +366,15 @@ public interface ActionListener<Response> {
      * callback when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
     static <Response> ActionListener<Response> runAfter(ActionListener<Response> delegate, Runnable runAfter) {
-        return new RunAfterActionListener<>(delegate, runAfter);
+        return assertOnce(new RunAfterActionListener<>(delegate, runAfter));
+    }
+
+    /**
+     * Wraps a given listener and returns a new listener which releases the provided {@code releaseAfter}
+     * resource when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
+     */
+    static <Response> ActionListener<Response> releaseAfter(ActionListener<Response> delegate, Releasable releaseAfter) {
+        return assertOnce(new RunAfterActionListener<>(delegate, runnableFromReleasable(releaseAfter)));
     }
 
     final class RunAfterActionListener<T> extends Delegating<T, T> {
@@ -374,7 +417,7 @@ public interface ActionListener<Response> {
      * not be executed.
      */
     static <Response> ActionListener<Response> runBefore(ActionListener<Response> delegate, CheckedRunnable<?> runBefore) {
-        return new RunBeforeActionListener<>(delegate, runBefore);
+        return assertOnce(new RunBeforeActionListener<>(delegate, runBefore));
     }
 
     final class RunBeforeActionListener<T> extends Delegating<T, T> {
@@ -418,15 +461,27 @@ public interface ActionListener<Response> {
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
     static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
-        return new NotifyOnceListener<Response>() {
+        final var delegateRef = new AtomicReference<>(delegate);
+        return new ActionListener<>() {
             @Override
-            protected void innerOnResponse(Response response) {
-                delegate.onResponse(response);
+            public void onResponse(Response response) {
+                final var acquired = delegateRef.getAndSet(null);
+                if (acquired != null) {
+                    acquired.onResponse(response);
+                }
             }
 
             @Override
-            protected void innerOnFailure(Exception e) {
-                delegate.onFailure(e);
+            public void onFailure(Exception e) {
+                final var acquired = delegateRef.getAndSet(null);
+                if (acquired != null) {
+                    acquired.onFailure(e);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "notifyOnce[" + delegateRef.get() + "]";
             }
         };
     }
@@ -458,4 +513,61 @@ public interface ActionListener<Response> {
             throw ex;
         }
     }
+
+    private static Runnable runnableFromReleasable(Releasable releasable) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Releasables.closeExpectNoException(releasable);
+            }
+
+            @Override
+            public String toString() {
+                return "release[" + releasable + "]";
+            }
+        };
+    }
+
+    static <Response> ActionListener<Response> assertOnce(ActionListener<Response> delegate) {
+        if (Assertions.ENABLED) {
+            return new ActionListener<>() {
+
+                // if complete, records the stack trace which first completed it
+                private final AtomicReference<ElasticsearchException> firstCompletion = new AtomicReference<>();
+
+                private void assertFirstRun() {
+                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException(delegate.toString()));
+                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                }
+
+                @Override
+                public void onResponse(Response response) {
+                    assertFirstRun();
+                    delegate.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertFirstRun();
+                    delegate.onFailure(e);
+                }
+
+                @Override
+                public String toString() {
+                    return delegate.toString();
+                }
+            };
+        } else {
+            return delegate;
+        }
+    }
+
+    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, Exception> action) {
+        try {
+            action.accept(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
 }

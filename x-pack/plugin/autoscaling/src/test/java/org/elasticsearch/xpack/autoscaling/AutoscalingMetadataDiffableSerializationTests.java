@@ -77,9 +77,4 @@ public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXCon
     protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
         return AutoscalingMetadata.AutoscalingMetadataDiff::new;
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

@@ -53,6 +53,11 @@ public class QuestionAnsweringConfigTests extends InferenceConfigItemTestCase<Qu
     }
 
     @Override
+    protected QuestionAnsweringConfig mutateInstance(QuestionAnsweringConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected QuestionAnsweringConfig mutateInstanceForVersion(QuestionAnsweringConfig instance, Version version) {
         return mutateForVersion(instance, version);
     }

@@ -937,7 +937,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
-            String expected = formatted("""
+            String expected = Strings.format("""
                 Setting "%s" cannot be used with the configured "cluster.remote.cluster_name.mode" \
                 [required=SNIFF, configured=PROXY]\
                 """, concreteSetting.getKey());

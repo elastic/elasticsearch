@@ -16,7 +16,7 @@ import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterPa
 
 public class EqlSampleIT extends EqlSampleTestCase {
 
-    public EqlSampleIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
-        super(remoteClusterPattern(TEST_SAMPLE), query, name, eventIds, joinKeys, size);
+    public EqlSampleIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
+        super(remoteClusterPattern(TEST_SAMPLE), query, name, eventIds, joinKeys, size, maxSamplesPerKey);
     }
 }

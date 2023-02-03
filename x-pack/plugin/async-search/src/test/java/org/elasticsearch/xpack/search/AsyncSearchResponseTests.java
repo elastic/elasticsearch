@@ -145,7 +145,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals(formatted("""
+            assertEquals(Strings.format("""
                 {
                   "id" : "id",
                   "is_partial" : true,
@@ -160,7 +160,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             builder.humanReadable(true);
             asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
             assertEquals(
-                formatted(
+                Strings.format(
                     """
                         {
                           "id" : "id",

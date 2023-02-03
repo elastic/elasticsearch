@@ -37,9 +37,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -304,7 +306,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             runnable.run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
         apiKeyService = new ApiKeyService(
             settings,

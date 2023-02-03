@@ -39,6 +39,7 @@ import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
@@ -72,6 +73,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -158,6 +160,9 @@ import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -802,6 +807,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
+    public static IntStream randomInts() {
+        return random().ints();
+    }
+
+    public static IntStream randomInts(long streamSize) {
+        return random().ints(streamSize);
+    }
+
     /**
      * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */
@@ -816,6 +829,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static double randomDouble() {
         return random().nextDouble();
+    }
+
+    public static DoubleStream randomDoubles() {
+        return random().doubles();
+    }
+
+    public static DoubleStream randomDoubles(long streamSize) {
+        return random().doubles(streamSize);
     }
 
     /**
@@ -849,6 +870,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    public static LongStream randomLongs() {
+        return random().longs();
+    }
+
+    public static LongStream randomLongs(long streamSize) {
+        return random().longs(streamSize);
     }
 
     /**
@@ -909,6 +938,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
+    }
+
+    /**
+     * Creates a valid random identifier such as node id or index name
+     */
+    public static String randomIdentifier() {
+        return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
     }
 
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -1436,18 +1472,32 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader
     ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, Version.CURRENT);
+        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.CURRENT);
     }
 
     /**
      * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
      * a {@link Version} argument which will be used to write and read back the object.
      */
+    @Deprecated
     public static <T extends Writeable> T copyWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader,
         Version version
+    ) throws IOException {
+        return copyWriteable(original, namedWriteableRegistry, reader, version.transportVersion);
+    }
+
+    /**
+     * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
+     * a {@link TransportVersion} argument which will be used to write and read back the object.
+     */
+    public static <T extends Writeable> T copyWriteable(
+        T original,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Writeable.Reader<T> reader,
+        TransportVersion version
     ) throws IOException {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
     }
@@ -1461,7 +1511,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass
     ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, Version.CURRENT);
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.CURRENT);
     }
 
     /**
@@ -1470,11 +1520,27 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Deprecated
     public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass,
         Version version
+    ) throws IOException {
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, version.transportVersion);
+    }
+
+    /**
+     * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
+     * a {@link TransportVersion} argument which will be used to write and read back the object.
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
+        T original,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Class<C> categoryClass,
+        TransportVersion version
     ) throws IOException {
         return copyInstance(
             original,
@@ -1485,6 +1551,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
+    @Deprecated
     protected static <T> T copyInstance(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -1492,11 +1559,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         Writeable.Reader<T> reader,
         Version version
     ) throws IOException {
+        return copyInstance(original, namedWriteableRegistry, writer, reader, version.transportVersion);
+    }
+
+    protected static <T> T copyInstance(
+        T original,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Writeable.Writer<T> writer,
+        Writeable.Reader<T> reader,
+        TransportVersion version
+    ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
+            output.setTransportVersion(version);
             writer.write(output, original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 return reader.read(in);
             }
         }
@@ -1730,7 +1807,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Defines the maximum port that test workers should use. See also [NOTE: Port ranges for tests].
      */
-    private static final int MAX_PRIVATE_PORT = 36600;
+    private static final int MAX_PRIVATE_PORT = 32767;
 
     /**
      * Wrap around after reaching this worker ID.
@@ -1812,12 +1889,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s: %s", level.name(), message);
+            return Strings.format("%s: %s", level.name(), message);
         }
-    }
-
-    protected static String formatted(String string, Object... args) {
-        return String.format(Locale.ROOT, string, args);
     }
 
     /**

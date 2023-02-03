@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,7 +34,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
     }
 
     @Override
-    protected ClusterInfo mutateInstance(ClusterInfo instance) throws IOException {
+    protected ClusterInfo mutateInstance(ClusterInfo instance) {
         return createTestInstance();
     }
 
@@ -44,12 +43,13 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         Map<String, DiskUsage> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
+            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
             DiskUsage diskUsage = new DiskUsage(
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomIntBetween(0, Integer.MAX_VALUE)
+                totalBytes,
+                randomIntBetween(0, totalBytes)
             );
             builder.put(key, diskUsage);
         }

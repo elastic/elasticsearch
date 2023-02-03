@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -23,7 +27,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
@@ -35,12 +38,13 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
  * Searchable snapshots index input that supports fully caching metadata files as well as header/footer information for each file,
@@ -52,6 +56,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
 
     protected final CacheFileReference cacheFileReference;
 
+    protected final SearchableSnapshotDirectory directory;
+
     /**
      * If > 0, represents a logical file within a compound (CFS) file or is a slice thereof represents the offset of the logical
      * compound file within the physical CFS file
@@ -62,9 +68,21 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     protected final int recoveryRangeSize;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
-    protected long lastReadPosition;
+    private long lastReadPosition;
     // last seek position is kept around in order to detect forward/backward seeks for stats
-    protected long lastSeekPosition;
+    private long lastSeekPosition;
+
+    /**
+     * Range of bytes that should be cached in the blob cache for the current index input's header.
+     */
+    protected final ByteRange headerBlobCacheByteRange;
+
+    /**
+     * Range of bytes that should be cached in the blob cache for the current index input's footer. This footer byte range should only be
+     * required for slices of CFS files; regular files already have their footers extracted from the
+     * {@link BlobStoreIndexShardSnapshot.FileInfo} (see method {@link BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo}).
+     */
+    protected final ByteRange footerBlobCacheByteRange;
 
     public MetadataCachingIndexInput(
         Logger logger,
@@ -82,13 +100,16 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         ByteRange headerBlobCacheByteRange,
         ByteRange footerBlobCacheByteRange
     ) {
-        super(logger, name, directory, fileInfo, context, stats, offset, length, headerBlobCacheByteRange, footerBlobCacheByteRange);
+        super(logger, name, directory.blobContainer(), fileInfo, context, stats, offset, length);
+        this.directory = Objects.requireNonNull(directory);
         this.cacheFileReference = cacheFileReference;
         this.compoundFileOffset = compoundFileOffset;
         this.defaultRangeSize = defaultRangeSize;
         this.recoveryRangeSize = recoveryRangeSize;
         this.lastReadPosition = offset;
         this.lastSeekPosition = offset;
+        this.headerBlobCacheByteRange = Objects.requireNonNull(headerBlobCacheByteRange);
+        this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
         assert offset >= compoundFileOffset;
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
     }
@@ -118,6 +139,16 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     }
 
     protected abstract void readWithoutBlobCache(ByteBuffer b) throws Exception;
+
+    private ByteRange rangeToReadFromBlobCache(long position, int readLength) {
+        final long end = position + readLength;
+        if (headerBlobCacheByteRange.contains(position, end)) {
+            return headerBlobCacheByteRange;
+        } else if (footerBlobCacheByteRange.contains(position, end)) {
+            return footerBlobCacheByteRange;
+        }
+        return ByteRange.EMPTY;
+    }
 
     private void readWithBlobCache(ByteBuffer b, ByteRange blobCacheByteRange) throws Exception {
         final long position = getAbsolutePosition();
@@ -149,18 +180,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
 
             // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
             // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
-            final ByteRange rangeToWrite = blobCacheByteRange;
-            final ByteRange rangeToRead = ByteRange.of(position, position + length);
-            assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
-            assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
-
-            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
-                rangeToWrite,
-                rangeToRead,
-                channel -> readCacheFile(channel, position, b),
-                this::writeCacheFile,
-                directory.cacheFetchAsyncExecutor()
-            );
+            final Future<Integer> populateCacheFuture = populateAndRead(b, position, length, cacheFile, blobCacheByteRange);
 
             fillIndexCache(cacheFile, blobCacheByteRange);
             if (compoundFileOffset > 0L
@@ -229,6 +249,20 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         }
     }
 
+    protected Future<Integer> populateAndRead(ByteBuffer b, long position, int length, CacheFile cacheFile, ByteRange rangeToWrite) {
+        final ByteRange rangeToRead = ByteRange.of(position, position + length);
+        assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
+        assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
+
+        return cacheFile.populateAndRead(
+            rangeToWrite,
+            rangeToRead,
+            channel -> readCacheFile(channel, position, b),
+            this::writeCacheFile,
+            directory.cacheFetchAsyncExecutor()
+        );
+    }
+
     private void readComplete(long position, int length) {
         stats.incrementBytesRead(lastReadPosition, position, length);
         lastReadPosition = position + length;
@@ -253,7 +287,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         return bytesRead;
     }
 
-    protected void writeCacheFile(final FileChannel fc, final long start, final long end, final Consumer<Long> progressUpdater)
+    protected void writeCacheFile(final FileChannel fc, final long start, final long end, final LongConsumer progressUpdater)
         throws IOException {
         assert assertFileChannelOpen(fc);
         assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -326,7 +360,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         long rangeStart,
         long rangeEnd,
         long remaining,
-        CacheFileReference cacheFileReference
+        Object cacheFileReference
     ) throws IOException {
         final int len = (remaining < copyBuffer.length) ? toIntBytes(remaining) : copyBuffer.length;
         final int bytesRead = inputStream.read(copyBuffer, 0, len);
@@ -423,6 +457,67 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         stats.incrementSeeks(lastSeekPosition, position);
         lastSeekPosition = position;
     }
+
+    @Override
+    public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
+        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceName
+                    + " out of bounds: offset="
+                    + sliceOffset
+                    + ",length="
+                    + sliceLength
+                    + ",fileLength="
+                    + length()
+                    + ": "
+                    + this
+            );
+        }
+
+        // Are we creating a slice from a CFS file?
+        final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
+            && IndexFileNames.getExtension(sliceName) != null
+            && compoundFileOffset == 0L // not already a compound file
+            && isClone == false; // tests aggressively clone and slice
+
+        final ByteRange sliceHeaderByteRange;
+        final ByteRange sliceFooterByteRange;
+        final long sliceCompoundFileOffset;
+
+        if (sliceCompoundFile) {
+            sliceCompoundFileOffset = this.offset + sliceOffset;
+            sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
+            if (sliceHeaderByteRange.isEmpty() == false && sliceHeaderByteRange.length() < sliceLength) {
+                sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
+            } else {
+                sliceFooterByteRange = ByteRange.EMPTY;
+            }
+        } else {
+            sliceCompoundFileOffset = this.compoundFileOffset;
+            sliceHeaderByteRange = ByteRange.EMPTY;
+            sliceFooterByteRange = ByteRange.EMPTY;
+        }
+        final MetadataCachingIndexInput slice = doSlice(
+            sliceName,
+            sliceOffset,
+            sliceLength,
+            sliceHeaderByteRange,
+            sliceFooterByteRange,
+            sliceCompoundFileOffset
+        );
+        slice.isClone = true;
+        return slice;
+    }
+
+    protected abstract MetadataCachingIndexInput doSlice(
+        String sliceName,
+        long sliceOffset,
+        long sliceLength,
+        ByteRange sliceHeaderByteRange,
+        ByteRange sliceFooterByteRange,
+        long sliceCompoundFileOffset
+    );
 
     @Override
     public void doClose() {

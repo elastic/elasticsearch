@@ -15,6 +15,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -27,8 +28,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder.EXECUTION_HINT_ALLOWED_MODES;
 import static org.hamcrest.Matchers.hasSize;
 
 public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSerializingTestCase<FrequentItemSetsAggregationBuilder> {
@@ -47,6 +50,10 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
                 field.setMissing(randomAlphaOfLength(5));
             }
 
+            if (randomBoolean()) {
+                field.setIncludeExclude(randomIncludeExclude());
+            }
+
             return field.build();
         }).collect(Collectors.toList());
 
@@ -56,7 +63,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
             randomDoubleBetween(0.0, 1.0, false),
             randomIntBetween(1, 20),
             randomIntBetween(1, 20),
-            randomBoolean() ? QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null
+            randomBoolean() ? QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
     }
 
@@ -81,6 +89,11 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
     @Override
     protected FrequentItemSetsAggregationBuilder createTestInstance() {
         return randomFrequentItemsSetsAggregationBuilder();
+    }
+
+    @Override
+    protected FrequentItemSetsAggregationBuilder mutateInstance(FrequentItemSetsAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -114,7 +127,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
                 1.2,
                 randomIntBetween(1, 20),
                 randomIntBetween(1, 20),
-                null
+                null,
+                randomFrom(EXECUTION_HINT_ALLOWED_MODES)
             )
         );
         assertEquals("[minimum_support] must be greater than 0 and less or equal to 1. Found [1.2] in [fi]", e.getMessage());
@@ -130,7 +144,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
                 randomDoubleBetween(0.0, 1.0, false),
                 -4,
                 randomIntBetween(1, 20),
-                null
+                null,
+                randomFrom(EXECUTION_HINT_ALLOWED_MODES)
             )
         );
 
@@ -147,7 +162,8 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
                 randomDoubleBetween(0.0, 1.0, false),
                 randomIntBetween(1, 20),
                 -2,
-                null
+                null,
+                randomFrom(EXECUTION_HINT_ALLOWED_MODES)
             )
         );
 
@@ -164,26 +180,72 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
             randomDoubleBetween(0.0, 1.0, false),
             randomIntBetween(1, 20),
             randomIntBetween(1, 20),
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         ).subAggregation(AggregationBuilders.avg("fieldA")));
 
-        assertEquals("Aggregator [fi] of type [frequent_items] cannot accept sub-aggregations", e.getMessage());
+        assertEquals("Aggregator [fi] of type [frequent_item_sets] cannot accept sub-aggregations", e.getMessage());
 
-        e = expectThrows(IllegalArgumentException.class, () ->
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FrequentItemSetsAggregationBuilder(
+                "fi",
+                List.of(
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldA").build(),
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldB").build()
+                ),
+                randomDoubleBetween(0.0, 1.0, false),
+                randomIntBetween(1, 20),
+                randomIntBetween(1, 20),
+                null,
+                randomFrom(EXECUTION_HINT_ALLOWED_MODES)
+            ).subAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("fieldA")))
+        );
 
-        new FrequentItemSetsAggregationBuilder(
-            "fi",
-            List.of(
-                new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldA").build(),
-                new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldB").build()
-            ),
-            randomDoubleBetween(0.0, 1.0, false),
-            randomIntBetween(1, 20),
-            randomIntBetween(1, 20),
-            null
-        ).subAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("fieldA"))));
+        assertEquals("Aggregator [fi] of type [frequent_item_sets] cannot accept sub-aggregations", e.getMessage());
 
-        assertEquals("Aggregator [fi] of type [frequent_items] cannot accept sub-aggregations", e.getMessage());
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FrequentItemSetsAggregationBuilder(
+                "fi",
+                List.of(
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldA").build(),
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldB").build()
+                ),
+                randomDoubleBetween(0.0, 1.0, false),
+                randomIntBetween(1, 20),
+                randomIntBetween(1, 20),
+                null,
+                "wrong-execution-mode"
+            )
+        );
+
+        assertEquals("[execution_hint] must be one of [global_ordinals,map]. Found [wrong-execution-mode]", e.getMessage());
     }
 
+    private static IncludeExclude randomIncludeExclude() {
+        switch (randomInt(7)) {
+            case 0:
+                return new IncludeExclude("incl*de", null, null, null);
+            case 1:
+                return new IncludeExclude("incl*de", "excl*de", null, null);
+            case 2:
+                return new IncludeExclude("incl*de", null, null, new TreeSet<>(Set.of(newBytesRef("exclude"))));
+            case 3:
+                return new IncludeExclude(null, "excl*de", null, null);
+            case 4:
+                return new IncludeExclude(null, "excl*de", new TreeSet<>(Set.of(newBytesRef("include"))), null);
+            case 5:
+                return new IncludeExclude(null, null, new TreeSet<>(Set.of(newBytesRef("include"))), null);
+            case 6:
+                return new IncludeExclude(
+                    null,
+                    null,
+                    new TreeSet<>(Set.of(newBytesRef("include"))),
+                    new TreeSet<>(Set.of(newBytesRef("exclude")))
+                );
+            default:
+                return new IncludeExclude(null, null, null, new TreeSet<>(Set.of(newBytesRef("exclude"))));
+        }
+    }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.serialization;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -57,7 +59,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(newNode("node1"))
@@ -94,7 +98,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).build();
 
@@ -204,7 +210,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .build();
         Metadata metadata = Metadata.builder().put(indexMetadata, true).put(indexTemplateMetadata).build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         ClusterState clusterState1 = ClusterState.builder(new ClusterName("clusterName1"))
             .metadata(metadata)
@@ -305,8 +313,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
 
     }
@@ -348,8 +356,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT.minimumCompatibilityVersion();
         }
 
     }

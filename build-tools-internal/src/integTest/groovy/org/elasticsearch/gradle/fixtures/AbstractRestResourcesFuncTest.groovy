@@ -13,6 +13,7 @@ abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
+        subProject(":test:test-clusters") << "apply plugin: 'elasticsearch.java'"
         subProject(":test:yaml-rest-runner") << "apply plugin: 'elasticsearch.java'"
 
         subProject(":rest-api-spec") << """

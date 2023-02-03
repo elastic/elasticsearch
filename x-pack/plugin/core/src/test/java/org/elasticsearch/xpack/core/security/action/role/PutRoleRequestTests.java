@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -160,17 +160,17 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
             logger.info("Serializing with version {}", version);
-            out.setVersion(version);
+            out.setTransportVersion(version);
         }
-        final boolean mayIncludeRemoteIndices = out.getVersion().onOrAfter(Version.V_8_6_0);
+        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0);
         final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        in.setVersion(out.getVersion());
+        in.setTransportVersion(out.getTransportVersion());
         final PutRoleRequest copy = new PutRoleRequest(in);
 
         final RoleDescriptor actual = copy.roleDescriptor();
@@ -180,13 +180,13 @@ public class PutRoleRequestTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
-        final Version version = VersionUtils.randomVersionBetween(
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_6_0);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices.calculateMinimumCompatVersion(),
             versionBeforeRemoteIndices
         );
-        out.setVersion(version);
+        out.setTransportVersion(version);
 
         final PutRoleRequest original = buildRandomRequest(randomBoolean());
         if (original.hasRemoteIndicesPrivileges()) {
@@ -194,7 +194,7 @@ public class PutRoleRequestTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )
@@ -203,7 +203,7 @@ public class PutRoleRequestTests extends ESTestCase {
             original.writeTo(out);
             final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-            in.setVersion(out.getVersion());
+            in.setTransportVersion(out.getTransportVersion());
             final PutRoleRequest copy = new PutRoleRequest(in);
             assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
         }

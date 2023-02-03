@@ -51,6 +51,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
      * any negative value means undefined (ie. no "size" will be passed to the query)
      */
     private final int size;
+    private final int maxSamplesPerKey;
 
     @Before
     public void setup() throws Exception {
@@ -102,13 +103,23 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 name = "" + (counter);
             }
 
-            results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys(), spec.size() });
+            results.add(
+                new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys(), spec.size(), spec.maxSamplesPerKey() }
+            );
         }
 
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
+    BaseEqlSpecTestCase(
+        String index,
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey
+    ) {
         this.index = index;
 
         this.query = query;
@@ -116,6 +127,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         this.eventIds = eventIds;
         this.joinKeys = joinKeys;
         this.size = size == null ? -1 : size;
+        this.maxSamplesPerKey = maxSamplesPerKey == null ? -1 : maxSamplesPerKey;
     }
 
     public void test() throws Exception {
@@ -148,6 +160,9 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         builder.field("size", this.size < 0 ? requestSize() : this.size);
         builder.field("fetch_size", requestFetchSize());
         builder.field("result_position", requestResultPosition());
+        if (maxSamplesPerKey > 0) {
+            builder.field("max_samples_per_key", maxSamplesPerKey);
+        }
         builder.endObject();
 
         Request request = new Request("POST", "/" + index + "/_eql/search");

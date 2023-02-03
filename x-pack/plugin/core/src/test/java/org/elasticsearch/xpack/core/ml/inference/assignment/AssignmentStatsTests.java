@@ -212,4 +212,9 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
     protected AssignmentStats createTestInstance() {
         return randomDeploymentStats();
     }
+
+    @Override
+    protected AssignmentStats mutateInstance(AssignmentStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

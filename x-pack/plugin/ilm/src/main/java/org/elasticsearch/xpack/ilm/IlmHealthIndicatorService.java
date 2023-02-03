@@ -66,7 +66,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         final ClusterState currentState = clusterService.state();
         var ilmMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         final OperationMode currentMode = currentILMMode(currentState);

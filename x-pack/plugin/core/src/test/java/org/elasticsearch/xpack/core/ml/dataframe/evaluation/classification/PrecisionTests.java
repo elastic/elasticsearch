@@ -44,6 +44,11 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
     }
 
     @Override
+    protected Precision mutateInstance(Precision instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Precision> instanceReader() {
         return Precision::new;
     }

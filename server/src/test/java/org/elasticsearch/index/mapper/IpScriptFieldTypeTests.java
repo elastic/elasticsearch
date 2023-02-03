@@ -66,7 +66,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                IpScriptFieldType ft = build("append_param", Map.of("param", ".1"));
+                IpScriptFieldType ft = build("append_param", Map.of("param", ".1"), OnScriptError.FAIL);
                 BinaryScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 DocValueFormat format = ft.docValueFormat(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
@@ -198,7 +198,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                IpScriptFieldType fieldType = build("append_param", Map.of("param", ".1"));
+                IpScriptFieldType fieldType = build("append_param", Map.of("param", ".1"), OnScriptError.FAIL);
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.1", mockContext())), equalTo(1));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.7", mockContext())), equalTo(0));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.0/16", mockContext())), equalTo(2));
@@ -240,12 +240,12 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
     @Override
     protected IpScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of());
+        return build("read_foo", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -253,38 +253,63 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
         return "ip";
     }
 
-    private static IpScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected IpScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new IpScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
     private static IpFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
+            case "read_foo" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new IpFieldScript(
+                fieldName,
+                params,
+                lookup,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit(foo.toString());
                     }
                 }
             };
-            case "append_param" -> (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
+            case "append_param" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new IpFieldScript(
+                fieldName,
+                params,
+                lookup,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit(foo.toString() + getParams().get("param"));
                     }
                 }
             };
-            case "loop" -> (fieldName, params, lookup) -> {
+            case "loop" -> (fieldName, params, lookup, onScriptError) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
-                throw new IllegalStateException("shoud have thrown on the line above");
+                throw new IllegalStateException("should have thrown on the line above");
+            };
+            case "error" -> (fieldName, params, lookup, onScriptError) -> ctx -> new IpFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    throw new RuntimeException("test error");
+                }
             };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
-    }
-
-    private static IpScriptFieldType build(Script script) {
-        return new IpScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

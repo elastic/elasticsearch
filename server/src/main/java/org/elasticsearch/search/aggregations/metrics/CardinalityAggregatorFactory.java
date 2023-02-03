@@ -157,7 +157,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
                 if (valuesSourceConfig.hasValues()) {
                     if (valuesSourceConfig.getValuesSource()instanceof final ValuesSource.Bytes.WithOrdinals source) {
                         if (executionMode.useGlobalOrdinals(context, source, precision)) {
-                            final long maxOrd = source.globalMaxOrd(context.searcher());
+                            final long maxOrd = source.globalMaxOrd(context.searcher().getIndexReader());
                             return new GlobalOrdCardinalityAggregator(
                                 name,
                                 source,

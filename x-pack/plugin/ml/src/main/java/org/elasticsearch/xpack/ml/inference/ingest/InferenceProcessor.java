@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
@@ -150,7 +152,7 @@ public class InferenceProcessor extends AbstractProcessor {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return new InferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
+        return InferModelAction.Request.forDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -306,6 +308,9 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 return RegressionConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(SlimConfig.NAME)) {
+                checkNlpSupported(SlimConfig.NAME);
+                return SlimConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
                 checkNlpSupported(TextClassificationConfig.NAME);
                 return TextClassificationConfigUpdate.fromMap(valueMap);
@@ -350,12 +355,12 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         void checkSupportedVersion(InferenceConfig config) {
-            if (config.getMinimalSupportedVersion().after(minNodeVersion)) {
+            if (config.getMinimalSupportedVersion().after(minNodeVersion.transportVersion)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
                         config.getName(),
-                        config.getMinimalSupportedVersion(),
+                        config.getMinimalSupportedNodeVersion(),
                         minNodeVersion
                     )
                 );

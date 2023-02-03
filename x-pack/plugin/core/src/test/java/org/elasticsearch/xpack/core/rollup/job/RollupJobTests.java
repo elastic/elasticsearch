@@ -48,6 +48,11 @@ public class RollupJobTests extends SimpleDiffableSerializationTestCase<RollupJo
     }
 
     @Override
+    protected RollupJob mutateInstance(RollupJob instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected RollupJob makeTestChanges(RollupJob other) {
         if (randomBoolean()) {
             if (other.getHeaders().isEmpty()) {

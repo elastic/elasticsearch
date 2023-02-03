@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -264,7 +265,7 @@ public class TasksIT extends ESIntegTestCase {
         // we will have as many [s][p] and [s][r] tasks as we have primary and replica shards
         assertEquals(numberOfShards.totalNumShards, numberOfEvents(RefreshAction.NAME + "[s][*]", Tuple::v1));
 
-        // we the [s][p] and [s][r] tasks should have a corresponding [s] task on the same node as a parent
+        // the [s][p] and [s][r] tasks should have a corresponding [s] task on the same node as a parent
         List<TaskInfo> spEvents = findEvents(RefreshAction.NAME + "[s][*]", Tuple::v1);
         for (TaskInfo taskInfo : spEvents) {
             List<TaskInfo> sTask;
@@ -272,17 +273,17 @@ public class TasksIT extends ESIntegTestCase {
                 // A [s][p] level task should have a corresponding [s] level task on the same node
                 sTask = findEvents(
                     RefreshAction.NAME + "[s]",
-                    event -> event.v1()
-                        && taskInfo.taskId().getNodeId().equals(event.v2().taskId().getNodeId())
-                        && taskInfo.description().equals(event.v2().description())
+                    event -> event.v1() // task registration event
+                        && event.v2().taskId().equals(taskInfo.parentTaskId())
+                        && event.v2().taskId().getNodeId().equals(taskInfo.taskId().getNodeId())
                 );
             } else {
-                // A [s][r] level task should have a corresponding [s] level task on the a different node (where primary is located)
+                // A [s][r] level task should have a corresponding [s] level task on a different node (where primary is located)
                 sTask = findEvents(
                     RefreshAction.NAME + "[s]",
-                    event -> event.v1()
-                        && taskInfo.parentTaskId().getNodeId().equals(event.v2().taskId().getNodeId())
-                        && taskInfo.description().equals(event.v2().description())
+                    event -> event.v1() // task registration event
+                        && event.v2().taskId().equals(taskInfo.parentTaskId())
+                        && event.v2().taskId().getNodeId().equals(taskInfo.taskId().getNodeId()) == false
                 );
             }
             // There should be only one parent task
@@ -636,6 +637,11 @@ public class TasksIT extends ESIntegTestCase {
 
                     @Override
                     public void onTaskUnregistered(Task task) {}
+
+                    @Override
+                    public void subscribeForRemovedTasks(RemovedTaskListener removedTaskListener) {
+                        waitForWaitingToStart.countDown();
+                    }
                 });
             }
 

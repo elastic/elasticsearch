@@ -53,6 +53,11 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
     }
 
     @Override
+    protected BertTokenization mutateInstance(BertTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected BertTokenization mutateInstanceForVersion(BertTokenization instance, Version version) {
         return mutateForVersion(instance, version);
     }

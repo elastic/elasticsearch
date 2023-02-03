@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -25,7 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -61,10 +63,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
     public static final int UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION = 6;
     public static final int SECURITY_EXPECTED_INDEX_FORMAT_VERSION = 6;
+
+    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
 
     @Override
     protected Settings restClientSettings() {
@@ -103,12 +109,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            getSettingsRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
-                )
-            );
+            getSettingsRequest.setOptions(systemIndexWarningHandlerOptions(".security-7"));
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
@@ -390,12 +391,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                       "doc_type": "foo"
                     }""");
                 if (getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
-                    indexRequest.setOptions(
-                        expectWarnings(
-                            "this request accesses system indices: [.security-7], but in a future major "
-                                + "version, direct access to system indices will be prevented by default"
-                        ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-                    );
+                    indexRequest.setOptions(systemIndexWarningHandlerOptions(".security-7").addHeader("Authorization", apiKeyAuthHeader));
                 } else {
                     indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
                 }
@@ -409,12 +405,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // read is ok
             final Request searchRequest = new Request("GET", ".security/_search");
-            searchRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
-                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-            );
+            searchRequest.setOptions(systemIndexWarningHandlerOptions(".security-7").addHeader("Authorization", apiKeyAuthHeader));
             assertOK(client().performRequest(searchRequest));
 
             // write must not be allowed
@@ -423,12 +414,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 {
                   "doc_type": "foo"
                 }""");
-            indexRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
-                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-            );
+            indexRequest.setOptions(systemIndexWarningHandlerOptions(".security-7").addHeader("Authorization", apiKeyAuthHeader));
             final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("is unauthorized"));
@@ -994,5 +980,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);
+    }
+
+    private RequestOptions.Builder systemIndexWarningHandlerOptions(String index) {
+        return RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(
+                w -> w.size() > 0
+                    && w.contains(
+                        "this request accesses system indices: ["
+                            + index
+                            + "], but in a future major "
+                            + "version, direct access to system indices will be prevented by default"
+                    ) == false
+            );
     }
 }

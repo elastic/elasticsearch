@@ -160,7 +160,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
     }
 
     private void getRemoteAccessAndStoreInSettings() throws IOException {
-        try (var fulfillingClusterClient = buildClient(System.getProperty("tests.fulfilling_cluster_host"), Settings.EMPTY)) {
+        try (var fulfillingClusterClient = buildClient(System.getProperty("tests.fulfilling_cluster_host"))) {
             final var request = new Request("GET", "/apikey/_search");
             request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
             final SearchResponse apiKeyResponse = SearchResponse.fromXContent(
@@ -183,13 +183,13 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
         assertOK(response);
     }
 
-    private RestClient buildClient(final String url, final Settings settings) throws IOException {
-        int portSeparator = url.lastIndexOf(':');
-        HttpHost httpHost = new HttpHost(
+    private RestClient buildClient(final String url) throws IOException {
+        final int portSeparator = url.lastIndexOf(':');
+        final var httpHost = new HttpHost(
             url.substring(0, portSeparator),
             Integer.parseInt(url.substring(portSeparator + 1)),
             getProtocol()
         );
-        return buildClient(settings, new HttpHost[] { httpHost });
+        return buildClient(Settings.EMPTY, new HttpHost[] { httpHost });
     }
 }

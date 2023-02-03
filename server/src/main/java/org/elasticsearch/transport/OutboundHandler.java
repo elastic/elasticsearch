@@ -22,6 +22,7 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -135,13 +136,21 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        sendMessage(channel, message, () -> {
-            try {
-                messageListener.onResponseSent(requestId, action, response);
-            } finally {
-                response.decRef();
+        try {
+            sendMessage(channel, message, () -> {
+                try {
+                    messageListener.onResponseSent(requestId, action, response);
+                } finally {
+                    response.decRef();
+                }
+            });
+        } catch (Exception e) {
+            if ( e instanceof MsgTooBigException) {
+                sendErrorResponse(nodeVersion, channel, requestId, action, e);
+            } else {
+                throw e;
             }
-        });
+        }
     }
 
     /**
@@ -176,6 +185,13 @@ final class OutboundHandler {
         boolean serializeSuccess = false;
         try {
             message = networkMessage.serialize(byteStreamOutput);
+            if (networkMessage.isResponse() && !networkMessage.isError()) {
+                final int messageLength = message.getInt(TcpHeader.MARKER_BYTES_SIZE);
+                if (messageLength > TcpTransport.THIRTY_PER_HEAP_SIZE) {
+                    throw new MsgTooBigException("illegal transport message of size [" + ByteSizeValue.ofBytes(messageLength) +
+                        "] which exceeds 30% of this node's heap size [" + ByteSizeValue.ofBytes(TcpTransport.THIRTY_PER_HEAP_SIZE) + "]");
+                }
+            }
             serializeSuccess = true;
         } catch (Exception e) {
             logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);

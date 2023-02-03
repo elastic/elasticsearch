@@ -44,7 +44,7 @@ dependencies {
   api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
   api 'com.google.auth:google-auth-library-credentials:1.11.0'
   api 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
-  api 'com.google.oauth-client:google-oauth-client:1.34.1'
+  api "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
   api 'com.google.api-client:google-api-client:2.1.1'
   api 'com.google.http-client:google-http-client:1.42.3'
   api 'com.google.http-client:google-http-client-gson:1.42.3'

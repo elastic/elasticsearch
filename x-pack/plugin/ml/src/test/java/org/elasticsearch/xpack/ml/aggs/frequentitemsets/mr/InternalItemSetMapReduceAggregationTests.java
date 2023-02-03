@@ -149,7 +149,7 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
         }
 
         @Override
-        protected WordCounts mapFinalize(WordCounts mapReduceContext) {
+        protected WordCounts mapFinalize(WordCounts mapReduceContext, List<OrdinalLookupFunction> ordinalLookup) {
             return mapReduceContext;
         }
 

@@ -21,7 +21,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -458,7 +458,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_13_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_13_0;
     }
 }

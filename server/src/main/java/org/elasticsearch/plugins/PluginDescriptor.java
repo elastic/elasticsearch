@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,9 +46,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
-    private static final Version MODULE_NAME_SUPPORT = Version.V_8_3_0;
-    private static final Version BOOTSTRAP_SUPPORT_REMOVED = Version.V_8_4_0;
+    private static final TransportVersion LICENSED_PLUGINS_SUPPORT = TransportVersion.V_7_11_0;
+    private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersion.V_8_3_0;
+    private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersion.V_8_4_0;
 
     private final String name;
     private final String description;
@@ -118,7 +119,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         elasticsearchVersion = Version.readVersion(in);
         javaVersion = in.readString();
         this.classname = in.readString();
-        if (in.getVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+        if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             this.moduleName = in.readOptionalString();
         } else {
             this.moduleName = null;
@@ -126,8 +127,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
 
-        if (in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            if (in.getVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+        if (in.getTransportVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
+            if (in.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
                 in.readString(); // plugin type
                 in.readOptionalString(); // java opts
             }
@@ -136,7 +137,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             isLicensed = false;
         }
 
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             isModular = in.readBoolean();
             isStable = in.readBoolean();
         } else {
@@ -153,20 +154,20 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         Version.writeVersion(elasticsearchVersion, out);
         out.writeString(javaVersion);
         out.writeString(classname);
-        if (out.getVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+        if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             out.writeOptionalString(moduleName);
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
 
-        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            if (out.getVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+        if (out.getTransportVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
+            if (out.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
                 out.writeString("ISOLATED");
                 out.writeOptionalString(null);
             }
             out.writeBoolean(isLicensed);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeBoolean(isModular);
             out.writeBoolean(isStable);
         }

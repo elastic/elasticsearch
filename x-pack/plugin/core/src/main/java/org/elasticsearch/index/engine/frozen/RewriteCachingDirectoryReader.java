@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafMetaData;
@@ -26,11 +27,9 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -216,7 +215,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public VectorValues getVectorValues(String field) throws IOException {
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -231,7 +230,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
             throw new UnsupportedOperationException();
         }
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.codec.bloomfilter;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;

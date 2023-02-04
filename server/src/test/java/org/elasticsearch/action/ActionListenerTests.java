@@ -12,6 +12,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
@@ -459,26 +460,26 @@ public class ActionListenerTests extends ESTestCase {
 
     public void testRunBeforeThrowsAssertionErrorIfExecutedMoreThanOnce() {
         assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
-        var count = new AtomicInteger();
-        final ActionListener<Void> runBefore = ActionListener.runBefore(ActionListener.noop(), count::incrementAndGet);
+        final String description = randomAlphaOfLength(10);
+        final ActionListener<Void> runBefore = ActionListener.runBefore(ActionListener.noop(), makeCheckedRunnable(description));
 
         completeListener(randomBoolean(), runBefore);
 
         var error = expectThrows(AssertionError.class, () -> completeListener(true, runBefore));
-        assertThat(error.getMessage(), equalTo("already executed: " + runBefore));
+        assertThat(error.getMessage(), containsString(description));
     }
 
     public void testRunAfterThrowsAssertionErrorIfExecutedMoreThanOnce() {
         assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
-        var count = new AtomicInteger();
+        final String description = randomAlphaOfLength(10);
         final ActionListener<Void> runAfter = randomBoolean()
-            ? ActionListener.runAfter(ActionListener.noop(), count::incrementAndGet)
-            : ActionListener.releaseAfter(ActionListener.noop(), count::incrementAndGet);
+            ? ActionListener.runAfter(ActionListener.noop(), makeRunnable(description))
+            : ActionListener.releaseAfter(ActionListener.noop(), makeReleasable(description, new AtomicBoolean()));
 
         completeListener(randomBoolean(), runAfter);
 
         var error = expectThrows(AssertionError.class, () -> completeListener(true, runAfter));
-        assertThat(error.getMessage(), equalTo("already executed: " + runAfter));
+        assertThat(error.getMessage(), containsString(description));
     }
 
     public void testWrappedRunBeforeOrAfterThrowsAssertionErrorIfExecutedMoreThanOnce() {
@@ -495,10 +496,10 @@ public class ActionListenerTests extends ESTestCase {
             }
         };
 
-        var count = new AtomicInteger();
+        final String description = randomAlphaOfLength(10);
         final ActionListener<Void> runBeforeOrAfterListener = randomBoolean()
-            ? ActionListener.runBefore(throwingListener, count::incrementAndGet)
-            : ActionListener.runAfter(throwingListener, count::incrementAndGet);
+            ? ActionListener.runBefore(throwingListener, makeCheckedRunnable(description))
+            : ActionListener.runAfter(throwingListener, makeRunnable(description));
 
         final ActionListener<Void> wrappedListener = ActionListener.wrap(new AbstractRunnable() {
             @Override
@@ -513,7 +514,7 @@ public class ActionListenerTests extends ESTestCase {
         });
 
         var error = expectThrows(AssertionError.class, () -> completeListener(true, wrappedListener));
-        assertThat(error.getMessage(), equalTo("already executed: " + runBeforeOrAfterListener));
+        assertThat(error.getMessage(), containsString(description));
     }
 
     public void testReleasing() {
@@ -523,8 +524,9 @@ public class ActionListenerTests extends ESTestCase {
 
     private static void runReleasingTest(boolean successResponse) {
         final AtomicBoolean releasedFlag = new AtomicBoolean();
-        final ActionListener<Void> l = ActionListener.releasing(makeReleasable(releasedFlag));
-        assertThat(l.toString(), containsString("release[test releasable]}"));
+        final String description = randomAlphaOfLength(10);
+        final ActionListener<Void> l = ActionListener.releasing(makeReleasable(description, releasedFlag));
+        assertThat(l.toString(), containsString("release[" + description + "]}"));
         completeListener(successResponse, l);
         assertTrue(releasedFlag.get());
     }
@@ -549,6 +551,7 @@ public class ActionListenerTests extends ESTestCase {
 
     private static void runReleaseAfterTest(boolean successResponse, final boolean throwFromOnResponse) {
         final AtomicBoolean released = new AtomicBoolean();
+        final String description = randomAlphaOfLength(10);
         final ActionListener<Void> l = ActionListener.releaseAfter(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -566,8 +569,8 @@ public class ActionListenerTests extends ESTestCase {
             public String toString() {
                 return "test listener";
             }
-        }, makeReleasable(released));
-        assertThat(l.toString(), containsString("test listener/release[test releasable]"));
+        }, makeReleasable(description, released));
+        assertThat(l.toString(), containsString("test listener/release[" + description + "]"));
 
         if (successResponse) {
             try {
@@ -582,7 +585,7 @@ public class ActionListenerTests extends ESTestCase {
         assertTrue(released.get());
     }
 
-    private static Releasable makeReleasable(AtomicBoolean releasedFlag) {
+    private static Releasable makeReleasable(String description, AtomicBoolean releasedFlag) {
         return new Releasable() {
             @Override
             public void close() {
@@ -591,9 +594,32 @@ public class ActionListenerTests extends ESTestCase {
 
             @Override
             public String toString() {
-                return "test releasable";
+                return description;
             }
         };
     }
 
+    private static Runnable makeRunnable(String description) {
+        return new Runnable() {
+            @Override
+            public void run() {}
+
+            @Override
+            public String toString() {
+                return description;
+            }
+        };
+    }
+
+    private static CheckedRunnable<?> makeCheckedRunnable(String description) {
+        return new CheckedRunnable<>() {
+            @Override
+            public void run() {}
+
+            @Override
+            public String toString() {
+                return description;
+            }
+        };
+    }
 }

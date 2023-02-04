@@ -638,7 +638,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
          */
         public static long hash64(final byte[] data, final int offset, final int length) {
             // We hope that the C2 escape analysis prevents ths allocation from creating GC pressure.
-            long[] hash128 = {0, 0};
+            long[] hash128 = { 0, 0 };
             hash128x64Internal(data, offset, length, DEFAULT_SEED, hash128);
             return hash128[0];
         }
@@ -656,8 +656,13 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
          * @return The 128-bit hash (2 longs)
          */
         @SuppressWarnings("fallthrough")
-        private static long[] hash128x64Internal(final byte[] data, final int offset, final int length, final long seed,
-                                                 final long[] result) {
+        private static long[] hash128x64Internal(
+            final byte[] data,
+            final int offset,
+            final int length,
+            final long seed,
+            final long[] result
+        ) {
             long h1 = seed;
             long h2 = seed;
             final int nblocks = length >> 4;
@@ -666,7 +671,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             for (int i = 0; i < nblocks; i++) {
                 final int index = offset + (i << 4);
                 long k1 = ByteUtils.readLongLE(data, index);
-                long k2 = ByteUtils.readLongLE(data, index+8);
+                long k2 = ByteUtils.readLongLE(data, index + 8);
 
                 // mix functions for k1
                 k1 *= C1;

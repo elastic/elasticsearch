@@ -7,9 +7,7 @@
  */
 
 package org.elasticsearch.index.codec.bloomfilter;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
+
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.codecs.Codec;
@@ -23,6 +21,10 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat.hashTerm;
 import static org.hamcrest.Matchers.equalTo;

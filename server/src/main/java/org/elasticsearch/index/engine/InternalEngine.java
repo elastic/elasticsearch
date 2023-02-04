@@ -193,6 +193,8 @@ public class InternalEngine extends Engine {
 
     private final LongSupplier relativeTimeInNanosSupplier;
 
+    private volatile long lastFlushTimestamp;
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -201,6 +203,7 @@ public class InternalEngine extends Engine {
         super(engineConfig);
         this.maxDocs = maxDocs;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
+        this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -1906,6 +1909,14 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
+        final long flushThresholdSizeInBytes = config().getIndexSettings().getFlushThresholdSize().getBytes();
+        final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos();
+        // If we're already halfway through the flush thresholds, then we do a flush. This will save us from writing segments twice
+        // independently in a short period of time, once to reclaim IndexWriter buffer memory and then to reclaim the translog.
+        if (flush(false, false, flushThresholdSizeInBytes / 2, flushThresholdAgeInNanos / 2)) {
+            return;
+        }
+
         // TODO: revise https://github.com/elastic/elasticsearch/pull/34553 to use IndexWriter.flushNextBuffer to flush only the largest
         // pending DWPT. Note that benchmarking this PR with a heavy update user case (geonames) and a small heap (1GB) caused OOM.
         refresh("write indexing buffer", SearcherScope.INTERNAL, false);
@@ -1913,6 +1924,12 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean shouldPeriodicallyFlush() {
+        final long flushThresholdSizeInBytes = config().getIndexSettings().getFlushThresholdSize().getBytes();
+        final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos();
+        return shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos);
+    }
+
+    private boolean shouldPeriodicallyFlush(long flushThresholdSizeInBytes, long flushThresholdAgeInNanos) {
         ensureOpen();
         if (shouldPeriodicallyFlushAfterBigMerge.get()) {
             return true;
@@ -1923,8 +1940,7 @@ public class InternalEngine extends Engine {
         final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
             localCheckpointOfLastCommit + 1
         ).translogFileGeneration;
-        final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
+        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThresholdSizeInBytes && System.nanoTime() - lastFlushTimestamp < flushThresholdAgeInNanos) {
             return false;
         }
         /*
@@ -1951,6 +1967,12 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        final long flushThresholdSizeInBytes = config().getIndexSettings().getFlushThresholdSize().getBytes();
+        final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos();
+        return flush(force, waitIfOngoing, flushThresholdSizeInBytes, flushThresholdAgeInNanos);
+    }
+
+    private boolean flush(boolean force, boolean waitIfOngoing, long flushThresholdSizeInBytes, long flushThresholdAgeInNanos) {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -1958,6 +1980,7 @@ public class InternalEngine extends Engine {
                 "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing
             );
         }
+        boolean flushed = false;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (flushLock.tryLock() == false) {
@@ -1979,7 +2002,7 @@ public class InternalEngine extends Engine {
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
                 if (hasUncommittedChanges
                     || force
-                    || shouldPeriodicallyFlush()
+                    || shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)
                     || getProcessedLocalCheckpoint() > Long.parseLong(
                         lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                     )) {
@@ -1992,6 +2015,8 @@ public class InternalEngine extends Engine {
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();
+                        lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
+                        flushed = true;
                     } catch (AlreadyClosedException e) {
                         failOnTragicEvent(e);
                         throw e;
@@ -2014,7 +2039,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
-        return true;
+        return flushed;
     }
 
     private void refreshLastCommittedSegmentInfos() {

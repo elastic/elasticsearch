@@ -64,13 +64,7 @@ abstract class AbstractBlock implements Block {
 
     /** Gets the number of values for the given position, possibly 0. */
     public int getValueCount(int position) {
-        return firstValueIndexes == null ? 1 :
-
-        // if (position == positionCount - 1) {
-        // return positionCount - firstValueIndexes[position] - 1;
-        // } else {
-            firstValueIndexes[position + 1] - firstValueIndexes[position]; // TODO: check for overflow
-        // }
+        return isNull(position) ? 0 : firstValueIndexes == null ? 1 : firstValueIndexes[position + 1] - firstValueIndexes[position];
     }
 
     @Override

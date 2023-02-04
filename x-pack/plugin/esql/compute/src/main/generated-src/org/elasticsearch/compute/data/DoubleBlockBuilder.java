@@ -64,16 +64,13 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
-        if (hasNonNullValue && positionCount == 1) {
+        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantDoubleVector(values[0], 1).asBlock();
         } else {
             // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
                 return new DoubleArrayVector(values, positionCount).asBlock();
             } else {
-                if (firstValueIndexes != null) {
-                    firstValueIndexes[positionCount] = valueCount;
-                }
                 return new DoubleArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.BitSet;
 import java.util.List;
+import java.util.stream.IntStream;
 
 public class LongBlockEqualityTests extends ESTestCase {
 
@@ -144,6 +145,59 @@ public class LongBlockEqualityTests extends ESTestCase {
             LongBlock.newBlockBuilder(3).appendLong(1).beginPositionEntry().appendLong(2).appendLong(3).build()
         );
         assertAllNotEquals(notEqualBlocks);
+    }
+
+    public void testSimpleBlockWithSingleNull() {
+        List<LongBlock> blocks = List.of(
+            LongBlock.newBlockBuilder(1).appendLong(1).appendNull().appendLong(3).build(),
+            LongBlock.newBlockBuilder(1).appendLong(1).appendNull().appendLong(3).build()
+        );
+        assertEquals(3, blocks.get(0).getPositionCount());
+        assertTrue(blocks.get(0).isNull(1));
+        assertTrue(blocks.get(0).asVector() == null);
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithManyNulls() {
+        int positions = randomIntBetween(1, 256);
+        boolean grow = randomBoolean();
+        var builder = LongBlock.newBlockBuilder(grow ? 0 : positions);
+        IntStream.range(0, positions).forEach(i -> builder.appendNull());
+        LongBlock block1 = builder.build();
+        LongBlock block2 = builder.build();
+        assertEquals(positions, block1.getPositionCount());
+        assertTrue(block1.mayHaveNulls());
+        assertTrue(block1.isNull(0));
+
+        List<LongBlock> blocks = List.of(block1, block2);
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithSingleMultiValue() {
+        List<LongBlock> blocks = List.of(
+            LongBlock.newBlockBuilder(1).beginPositionEntry().appendLong(1).appendLong(2).build(),
+            LongBlock.newBlockBuilder(1).beginPositionEntry().appendLong(1).appendLong(2).build()
+        );
+        assertEquals(1, blocks.get(0).getPositionCount());
+        assertEquals(2, blocks.get(0).getValueCount(0));
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithManyMultiValues() {
+        int positions = randomIntBetween(1, 256);
+        boolean grow = randomBoolean();
+        var builder = LongBlock.newBlockBuilder(grow ? 0 : positions);
+        for (int pos = 0; pos < positions; pos++) {
+            builder.beginPositionEntry();
+            int values = randomIntBetween(1, 16);
+            IntStream.range(0, values).forEach(i -> builder.appendLong(randomLong()));
+        }
+        LongBlock block1 = builder.build();
+        LongBlock block2 = builder.build();
+        LongBlock block3 = builder.build();
+
+        assertEquals(positions, block1.getPositionCount());
+        assertAllEquals(List.of(block1, block2, block3));
     }
 
     static void assertAllEquals(List<?> objs) {

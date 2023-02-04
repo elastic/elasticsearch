@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.BitSet;
 import java.util.List;
+import java.util.stream.IntStream;
 
 public class DoubleBlockEqualityTests extends ESTestCase {
 
@@ -174,10 +175,62 @@ public class DoubleBlockEqualityTests extends ESTestCase {
         assertAllNotEquals(notEqualBlocks);
     }
 
+    public void testSimpleBlockWithSingleNull() {
+        List<DoubleBlock> blocks = List.of(
+            DoubleBlock.newBlockBuilder(3).appendDouble(1.1).appendNull().appendDouble(3.1).build(),
+            DoubleBlock.newBlockBuilder(3).appendDouble(1.1).appendNull().appendDouble(3.1).build()
+        );
+        assertEquals(3, blocks.get(0).getPositionCount());
+        assertTrue(blocks.get(0).isNull(1));
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithManyNulls() {
+        int positions = randomIntBetween(1, 256);
+        boolean grow = randomBoolean();
+        var builder = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
+        IntStream.range(0, positions).forEach(i -> builder.appendNull());
+        DoubleBlock block1 = builder.build();
+        DoubleBlock block2 = builder.build();
+        assertEquals(positions, block1.getPositionCount());
+        assertTrue(block1.mayHaveNulls());
+        assertTrue(block1.isNull(0));
+
+        List<DoubleBlock> blocks = List.of(block1, block2);
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithSingleMultiValue() {
+        List<DoubleBlock> blocks = List.of(
+            DoubleBlock.newBlockBuilder(1).beginPositionEntry().appendDouble(1.1).appendDouble(2.2).build(),
+            DoubleBlock.newBlockBuilder(1).beginPositionEntry().appendDouble(1.1).appendDouble(2.2).build()
+        );
+        assert blocks.get(0).getPositionCount() == 1 && blocks.get(0).getValueCount(0) == 2;
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithManyMultiValues() {
+        int positions = randomIntBetween(1, 256);
+        boolean grow = randomBoolean();
+        var builder = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
+        for (int pos = 0; pos < positions; pos++) {
+            builder.beginPositionEntry();
+            int values = randomIntBetween(1, 16);
+            IntStream.range(0, values).forEach(i -> builder.appendDouble(randomDouble()));
+        }
+        DoubleBlock block1 = builder.build();
+        DoubleBlock block2 = builder.build();
+        DoubleBlock block3 = builder.build();
+
+        assertEquals(positions, block1.getPositionCount());
+        assertAllEquals(List.of(block1, block2, block3));
+    }
+
     static void assertAllEquals(List<?> objs) {
         for (Object obj1 : objs) {
             for (Object obj2 : objs) {
                 assertEquals(obj1, obj2);
+                assertEquals(obj2, obj1);
                 // equal objects must generate the same hash code
                 assertEquals(obj1.hashCode(), obj2.hashCode());
             }
@@ -191,6 +244,7 @@ public class DoubleBlockEqualityTests extends ESTestCase {
                     continue; // skip self
                 }
                 assertNotEquals(obj1, obj2);
+                assertNotEquals(obj2, obj1);
                 // unequal objects SHOULD generate the different hash code
                 assertNotEquals(obj1.hashCode(), obj2.hashCode());
             }

@@ -59,19 +59,22 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
             return false;
         }
         for (int pos = 0; pos < positions; pos++) {
-            if ((block1.isNull(pos) && block2.isNull(pos) == false) || (block2.isNull(pos) && block1.isNull(pos) == false)) {
-                return false;
-            }
-            final int valueCount = block1.getValueCount(pos);
-            if (valueCount != block2.getValueCount(pos)) {
-                return false;
-            }
-            final int b1ValueIdx = block1.getFirstValueIndex(pos);
-            final int b2ValueIdx = block2.getFirstValueIndex(pos);
-            for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                if (block1.getBytesRef(b1ValueIdx + valueIndex, new BytesRef())
-                    .equals(block2.getBytesRef(b2ValueIdx + valueIndex, new BytesRef())) == false) {
+            if (block1.isNull(pos) || block2.isNull(pos)) {
+                if (block1.isNull(pos) != block2.isNull(pos)) {
                     return false;
+                }
+            } else {
+                final int valueCount = block1.getValueCount(pos);
+                if (valueCount != block2.getValueCount(pos)) {
+                    return false;
+                }
+                final int b1ValueIdx = block1.getFirstValueIndex(pos);
+                final int b2ValueIdx = block2.getFirstValueIndex(pos);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    if (block1.getBytesRef(b1ValueIdx + valueIndex, new BytesRef())
+                        .equals(block2.getBytesRef(b2ValueIdx + valueIndex, new BytesRef())) == false) {
+                        return false;
+                    }
                 }
             }
         }

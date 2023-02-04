@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
+import java.util.stream.IntStream;
 
 public class BytesRefBlockEqualityTests extends ESTestCase {
 
@@ -282,6 +283,66 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
         }
     }
 
+    public void testSimpleBlockWithSingleNull() {
+        List<BytesRefBlock> blocks = List.of(
+            BytesRefBlock.newBlockBuilder(3).appendBytesRef(new BytesRef("1")).appendNull().appendBytesRef(new BytesRef("3")).build(),
+            BytesRefBlock.newBlockBuilder(3).appendBytesRef(new BytesRef("1")).appendNull().appendBytesRef(new BytesRef("3")).build()
+        );
+        assertEquals(3, blocks.get(0).getPositionCount());
+        assertTrue(blocks.get(0).isNull(1));
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithManyNulls() {
+        int positions = randomIntBetween(1, 256);
+        boolean grow = randomBoolean();
+        var builder = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
+        IntStream.range(0, positions).forEach(i -> builder.appendNull());
+        BytesRefBlock block1 = builder.build();
+        BytesRefBlock block2 = builder.build();
+        assertEquals(positions, block1.getPositionCount());
+        assertTrue(block1.mayHaveNulls());
+        assertTrue(block1.isNull(0));
+
+        List<BytesRefBlock> blocks = List.of(block1, block2);
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithSingleMultiValue() {
+        List<BytesRefBlock> blocks = List.of(
+            BytesRefBlock.newBlockBuilder(1)
+                .beginPositionEntry()
+                .appendBytesRef(new BytesRef("1a"))
+                .appendBytesRef(new BytesRef("2b"))
+                .build(),
+            BytesRefBlock.newBlockBuilder(1)
+                .beginPositionEntry()
+                .appendBytesRef(new BytesRef("1a"))
+                .appendBytesRef(new BytesRef("2b"))
+                .build()
+        );
+        assertEquals(1, blocks.get(0).getPositionCount());
+        assertEquals(2, blocks.get(0).getValueCount(0));
+        assertAllEquals(blocks);
+    }
+
+    public void testSimpleBlockWithManyMultiValues() {
+        int positions = randomIntBetween(1, 256);
+        boolean grow = randomBoolean();
+        var builder = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
+        for (int pos = 0; pos < positions; pos++) {
+            builder.beginPositionEntry();
+            int values = randomIntBetween(1, 16);
+            IntStream.range(0, values).forEach(i -> builder.appendBytesRef(new BytesRef(Integer.toHexString(randomInt()))));
+        }
+        BytesRefBlock block1 = builder.build();
+        BytesRefBlock block2 = builder.build();
+        BytesRefBlock block3 = builder.build();
+
+        assertEquals(positions, block1.getPositionCount());
+        assertAllEquals(List.of(block1, block2, block3));
+    }
+
     BytesRefArray arrayOf(String... values) {
         var array = new BytesRefArray(values.length, bigArrays);
         Arrays.stream(values).map(BytesRef::new).forEach(array::append);
@@ -292,6 +353,7 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
         for (Object obj1 : objs) {
             for (Object obj2 : objs) {
                 assertEquals(obj1, obj2);
+                assertEquals(obj2, obj1);
                 // equal objects must generate the same hash code
                 assertEquals(obj1.hashCode(), obj2.hashCode());
             }
@@ -305,6 +367,7 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
                     continue; // skip self
                 }
                 assertNotEquals(obj1, obj2);
+                assertNotEquals(obj2, obj1);
                 // unequal objects SHOULD generate the different hash code
                 assertNotEquals(obj1.hashCode(), obj2.hashCode());
             }

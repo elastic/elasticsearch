@@ -29,10 +29,8 @@ public final class LongArrayBlock extends AbstractBlock implements LongBlock {
     }
 
     @Override
-    public long getLong(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
-        return values[position];
+    public long getLong(int valueIndex) {
+        return values[valueIndex];
     }
 
     @Override

@@ -9,7 +9,12 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MultiValueBlockTests extends ESTestCase {
 
@@ -70,19 +75,139 @@ public class MultiValueBlockTests extends ESTestCase {
         assertNull(block.asVector());
     }
 
-    public void testIntBlock() {
-        final int totalLen = randomIntBetween(1, 1000000);
-        final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
-        // IntArray array = bigArrays.newIntArray(startLen, randomBoolean());
-        // int[] ref = new int[totalLen];
-        // for (int i = 0; i < totalLen; ++i) {
-        // ref[i] = randomInt();
-        // array = bigArrays.grow(array, i + 1);
-        // array.set(i, ref[i]);
-        // }
-        // for (int i = 0; i < totalLen; ++i) {
-        // assertEquals(ref[i], array.get(i));
-        // }
-        // array.close();
+    public void testEmpty() {
+        for (int initialSize : new int[] { 0, 10, 100, randomInt(512) }) {
+            IntBlock intBlock = IntBlock.newBlockBuilder(initialSize).build();
+            assertThat(intBlock.getPositionCount(), is(0));
+            assertThat(intBlock.asVector(), is(notNullValue()));
+
+            LongBlock longBlock = LongBlock.newBlockBuilder(initialSize).build();
+            assertThat(longBlock.getPositionCount(), is(0));
+            assertThat(longBlock.asVector(), is(notNullValue()));
+
+            DoubleBlock doubleBlock = DoubleBlock.newBlockBuilder(initialSize).build();
+            assertThat(doubleBlock.getPositionCount(), is(0));
+            assertThat(doubleBlock.asVector(), is(notNullValue()));
+
+            BytesRefBlock bytesRefBlock = BytesRefBlock.newBlockBuilder(initialSize).build();
+            assertThat(bytesRefBlock.getPositionCount(), is(0));
+            assertThat(bytesRefBlock.asVector(), is(notNullValue()));
+        }
+    }
+
+    public void testNullOnly() {
+        for (int initialSize : new int[] { 0, 10, 100, randomInt(512) }) {
+            IntBlock intBlock = IntBlock.newBlockBuilder(initialSize).appendNull().build();
+            assertThat(intBlock.getPositionCount(), is(1));
+            assertThat(intBlock.getValueCount(0), is(0));
+            assertNull(intBlock.asVector());
+
+            LongBlock longBlock = LongBlock.newBlockBuilder(initialSize).appendNull().build();
+            assertThat(longBlock.getPositionCount(), is(1));
+            assertThat(longBlock.getValueCount(0), is(0));
+            assertNull(longBlock.asVector());
+
+            DoubleBlock doubleBlock = DoubleBlock.newBlockBuilder(initialSize).appendNull().build();
+            assertThat(doubleBlock.getPositionCount(), is(1));
+            assertThat(doubleBlock.getValueCount(0), is(0));
+            assertNull(doubleBlock.asVector());
+
+            BytesRefBlock byesRefBlock = BytesRefBlock.newBlockBuilder(initialSize).appendNull().build();
+            assertThat(byesRefBlock.getPositionCount(), is(1));
+            assertThat(byesRefBlock.getValueCount(0), is(0));
+            assertNull(byesRefBlock.asVector());
+        }
+    }
+
+    public void testNullsFollowedByValues() {
+        List<List<Object>> blockValues = List.of(
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(1),
+            List.of(2)
+        );
+
+        Block intBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.INT);
+        assertThat(intBlock.elementType(), is(equalTo(ElementType.INT)));
+        BlockValueAsserter.assertBlockValues(intBlock, blockValues);
+
+        Block longBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.LONG);
+        assertThat(longBlock.elementType(), is(equalTo(ElementType.LONG)));
+        BlockValueAsserter.assertBlockValues(longBlock, blockValues);
+
+        Block doubleBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.DOUBLE);
+        assertThat(doubleBlock.elementType(), is(equalTo(ElementType.DOUBLE)));
+        BlockValueAsserter.assertBlockValues(doubleBlock, blockValues);
+
+        Block bytesRefBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.BYTES_REF);
+        assertThat(bytesRefBlock.elementType(), is(equalTo(ElementType.BYTES_REF)));
+        BlockValueAsserter.assertBlockValues(bytesRefBlock, blockValues);
+    }
+
+    public void testMultiValuesAndNullsSmall() {
+        List<List<Object>> blockValues = List.of(
+            List.of(100),
+            List.of(),
+            List.of(20, 21, 22),
+            List.of(),
+            List.of(),
+            List.of(50),
+            List.of(61, 62, 63)
+        );
+
+        Block intBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.INT);
+        assertThat(intBlock.elementType(), is(equalTo(ElementType.INT)));
+        BlockValueAsserter.assertBlockValues(intBlock, blockValues);
+
+        Block longBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.LONG);
+        assertThat(longBlock.elementType(), is(equalTo(ElementType.LONG)));
+        BlockValueAsserter.assertBlockValues(longBlock, blockValues);
+
+        Block doubleBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.DOUBLE);
+        assertThat(doubleBlock.elementType(), is(equalTo(ElementType.DOUBLE)));
+        BlockValueAsserter.assertBlockValues(doubleBlock, blockValues);
+
+        Block bytesRefBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.BYTES_REF);
+        assertThat(bytesRefBlock.elementType(), is(equalTo(ElementType.BYTES_REF)));
+        BlockValueAsserter.assertBlockValues(bytesRefBlock, blockValues);
+    }
+
+    public void testMultiValuesAndNulls() {
+        List<List<Object>> blockValues = new ArrayList<>();
+        int positions = randomInt(512);
+        for (int i = 0; i < positions; i++) {
+            boolean isNull = randomBoolean();
+            if (isNull) {
+                blockValues.add(List.of()); // empty / null
+            } else {
+                int rowValueCount = randomInt(16);
+                List<Object> row = new ArrayList<>();
+                randomInts(rowValueCount).forEach(row::add);
+                blockValues.add(row);
+            }
+        }
+
+        Block intBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.INT);
+        assertThat(intBlock.elementType(), is(equalTo(ElementType.INT)));
+        BlockValueAsserter.assertBlockValues(intBlock, blockValues);
+
+        Block longBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.LONG);
+        assertThat(longBlock.elementType(), is(equalTo(ElementType.LONG)));
+        BlockValueAsserter.assertBlockValues(longBlock, blockValues);
+
+        Block doubleBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.DOUBLE);
+        assertThat(doubleBlock.elementType(), is(equalTo(ElementType.DOUBLE)));
+        BlockValueAsserter.assertBlockValues(doubleBlock, blockValues);
+
+        Block bytesRefBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.BYTES_REF);
+        assertThat(bytesRefBlock.elementType(), is(equalTo(ElementType.BYTES_REF)));
+        BlockValueAsserter.assertBlockValues(bytesRefBlock, blockValues);
     }
 }

@@ -29,10 +29,8 @@ public final class IntArrayBlock extends AbstractBlock implements IntBlock {
     }
 
     @Override
-    public int getInt(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
-        return values[position];
+    public int getInt(int valueIndex) {
+        return values[valueIndex];
     }
 
     @Override

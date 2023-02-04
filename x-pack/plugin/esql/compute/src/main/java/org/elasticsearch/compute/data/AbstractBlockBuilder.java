@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.stream.IntStream;
 
@@ -27,14 +28,20 @@ abstract class AbstractBlockBuilder {
     protected AbstractBlockBuilder() {}
 
     public AbstractBlockBuilder appendNull() {
+        if (positionEntryIsOpen) {
+            endPositionEntry();
+        }
         ensureCapacity();
         if (nullsMask == null) {
             nullsMask = new BitSet();
         }
-        nullsMask.set(valueCount);
+        nullsMask.set(positionCount);
+        if (firstValueIndexes != null) {
+            setFirstValue(positionCount, valueCount);
+        }
+        positionCount++;
         writeNullValue();
         valueCount++;
-        updatePosition();
         return this;
     }
 
@@ -45,16 +52,20 @@ abstract class AbstractBlockBuilder {
 
     public AbstractBlockBuilder beginPositionEntry() {
         if (firstValueIndexes == null) {
-            firstValueIndexes = new int[valuesLength()];
+            firstValueIndexes = new int[positionCount + 1];
             IntStream.range(0, positionCount).forEach(i -> firstValueIndexes[i] = i);
         }
+        if (positionEntryIsOpen) {
+            endPositionEntry();
+        }
         positionEntryIsOpen = true;
-        firstValueIndexes[positionCount] = valueCount;
+        setFirstValue(positionCount, valueCount);
         return this;
     }
 
     public AbstractBlockBuilder endPositionEntry() {
         positionCount++;
+        setFirstValue(positionCount, valueCount);
         positionEntryIsOpen = false;
         return this;
     }
@@ -68,7 +79,7 @@ abstract class AbstractBlockBuilder {
     }
 
     protected final void updatePosition() {
-        if (firstValueIndexes == null) {
+        if (positionEntryIsOpen == false) {
             positionCount++;
         }
     }
@@ -87,5 +98,12 @@ abstract class AbstractBlockBuilder {
     static int calculateNewArraySize(int currentSize) {
         // trivially, grows array by 50%
         return currentSize + (currentSize >> 1);
+    }
+
+    private void setFirstValue(int position, int value) {
+        if (position >= firstValueIndexes.length) {
+            firstValueIndexes = Arrays.copyOf(firstValueIndexes, position + 1);
+        }
+        firstValueIndexes[position] = value;
     }
 }

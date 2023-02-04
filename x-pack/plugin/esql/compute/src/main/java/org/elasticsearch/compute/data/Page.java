@@ -134,7 +134,8 @@ public final class Page {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Page page = (Page) o;
-        return positionCount == page.positionCount && Arrays.equals(blocks, 0, positionCount, page.blocks, 0, positionCount);
+        return positionCount == page.positionCount
+            && (positionCount == 0 || Arrays.equals(blocks, 0, blocks.length, page.blocks, 0, page.blocks.length));
     }
 
     @Override

@@ -105,7 +105,7 @@ $endif$
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
-        if (hasNonNullValue && positionCount == 1) {
+        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
 $if(BytesRef)$
             return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
 $else$
@@ -116,9 +116,6 @@ $endif$
             if (isDense() && singleValued()) {
                 return new $Type$ArrayVector(values, positionCount).asBlock();
             } else {
-                if (firstValueIndexes != null) {
-                    firstValueIndexes[positionCount] = valueCount;
-                }
                 return new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }
         }

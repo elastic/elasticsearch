@@ -29,10 +29,8 @@ public final class DoubleArrayBlock extends AbstractBlock implements DoubleBlock
     }
 
     @Override
-    public double getDouble(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
-        return values[position];
+    public double getDouble(int valueIndex) {
+        return values[valueIndex];
     }
 
     @Override

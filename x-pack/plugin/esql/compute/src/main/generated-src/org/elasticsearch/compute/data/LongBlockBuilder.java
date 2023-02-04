@@ -64,16 +64,13 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
-        if (hasNonNullValue && positionCount == 1) {
+        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantLongVector(values[0], 1).asBlock();
         } else {
             // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
                 return new LongArrayVector(values, positionCount).asBlock();
             } else {
-                if (firstValueIndexes != null) {
-                    firstValueIndexes[positionCount] = valueCount;
-                }
                 return new LongArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }
         }

@@ -48,10 +48,8 @@ $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return values.get(valueIndex, dest);
 $else$
-    public $type$ get$Type$(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
-        return values[position];
+    public $type$ get$Type$(int valueIndex) {
+        return values[valueIndex];
 $endif$
     }
 

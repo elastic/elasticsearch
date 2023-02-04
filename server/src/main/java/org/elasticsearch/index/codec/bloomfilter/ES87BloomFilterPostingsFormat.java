@@ -216,9 +216,11 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             if (closed) {
                 return;
             }
+            final long indexFileLength;
             closed = true;
             try {
                 CodecUtil.writeFooter(indexOut);
+                indexFileLength = indexOut.getFilePointer();
             } finally {
                 IOUtils.close(toCloses);
             }
@@ -234,6 +236,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                 for (BloomFilter bloomFilter : bloomFilters) {
                     bloomFilter.writeTo(metaOut, state.fieldInfos);
                 }
+                metaOut.writeVLong(indexFileLength);
                 CodecUtil.writeFooter(metaOut);
             }
         }
@@ -292,6 +295,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             ) {
                 Map<String, BloomFilter> bloomFilters = null;
                 Throwable priorE = null;
+                long indexFileLength = 0;
                 try {
                     CodecUtil.checkIndexHeader(
                         metaIn,
@@ -318,6 +322,8 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                         final BloomFilter bloomFilter = BloomFilter.readFrom(metaIn, state.fieldInfos);
                         bloomFilters.put(bloomFilter.field, bloomFilter);
                     }
+
+                    indexFileLength = metaIn.readVLong();
                 } catch (Throwable t) {
                     priorE = t;
                 } finally {
@@ -334,7 +340,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                CodecUtil.retrieveChecksum(indexIn);
+                CodecUtil.retrieveChecksum(indexIn, indexFileLength);
                 assert assertBloomFilterSizes(state.segmentInfo);
                 success = true;
             } finally {

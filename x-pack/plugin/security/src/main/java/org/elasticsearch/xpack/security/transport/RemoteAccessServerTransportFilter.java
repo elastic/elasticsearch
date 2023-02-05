@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
-public class RemoteAccessServerTransportFilter extends ServerTransportFilter {
+final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
     private final RemoteAccessAuthenticationService remoteAccessAuthcService;
 
     RemoteAccessServerTransportFilter(

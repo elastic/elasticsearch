@@ -30,6 +30,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     protected final BytesKeyedBucketOrds bucketOrds;
     private final boolean keyed;
+    private final int size;
 
     public TimeSeriesAggregator(
         String name,
@@ -38,11 +39,13 @@ public class TimeSeriesAggregator extends BucketsAggregator {
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        int size
     ) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.keyed = keyed;
         bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), bucketCardinality);
+        this.size = size;
     }
 
     @Override
@@ -53,6 +56,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
             List<InternalTimeSeries.InternalBucket> buckets = new ArrayList<>();
             BytesRef prev = null;
+            int count = 0;
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
                 ordsEnum.readValue(spare);
@@ -66,6 +70,9 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 );
                 bucket.bucketOrd = ordsEnum.ord();
                 buckets.add(bucket);
+                if (++count >= size) {
+                    break;
+                }
             }
             allBucketsPerOrd[ordIdx] = buckets.toArray(new InternalTimeSeries.InternalBucket[0]);
         }

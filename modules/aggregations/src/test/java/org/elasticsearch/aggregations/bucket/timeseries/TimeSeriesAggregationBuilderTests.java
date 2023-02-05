@@ -14,7 +14,7 @@ public class TimeSeriesAggregationBuilderTests extends AggregationBuilderTestCas
 
     @Override
     protected TimeSeriesAggregationBuilder createTestAggregatorBuilder() {
-        return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean());
+        return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean(), 10000);
     }
 
 }

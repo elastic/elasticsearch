@@ -107,7 +107,7 @@ The role definition might be missing or invalid.
 
 |======================
 
-To help track down these possibilities, enable additional logging to troubleshoot further. 
+To help track down these possibilities, enable additional logging to troubleshoot further.
 You can enable debug logging by configuring the following persistent setting:
 
 [source, console]
@@ -120,7 +120,7 @@ PUT /_cluster/settings
 }
 ----
 
-Alternatively, you can add the following lines to the end of 
+Alternatively, you can add the following lines to the end of
 the `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 
 [source,properties]
@@ -710,6 +710,25 @@ If you want your users to be able to use local credentials to authenticate to
 {kib} in addition to using the SAML realm for Single Sign-On, you must enable
 the `basic` `authProvider` in {kib}. The process is documented in the
 <<saml-kibana-basic, SAML Guide>>
+
+--
+
+. *Symptoms:*
++
+--
+No response ID values are being passed from {kib} to {es}
+
+....
+Caused by org.elasticsearch.ElasticsearchSecurityException: SAML content is in-response-to [_A1B2C3D4E5F6G8H9I0] but expected one of []
+....
+
+*Resolution:*
+
+Verify in your {kib} configuration that `xpack.security.sameSiteCookies` is not set to `Strict`.
+Depending on your configuration, you may be able to rely on the default value or explicitly set the value to `None`.
+
+For further information,
+please read https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite[MDN SameSite cookies]
 --
 
 *Logging:*

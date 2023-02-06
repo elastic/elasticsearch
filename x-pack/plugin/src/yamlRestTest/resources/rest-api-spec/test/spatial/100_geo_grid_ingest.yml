@@ -171,7 +171,7 @@ teardown:
                   "target_field": "shape",
                   "parent_field": "parent",
                   "children_field": "children",
-                  "depth_field": "depth"
+                  "precision_field": "precision"
                 }
               },
               {
@@ -215,7 +215,7 @@ teardown:
         geocell: "4/8/5"
         shape: "BBOX (0.0, 22.5, 55.77657301866769, 40.979898069620134)"
         parent: "3/4/2"
-        depth: 4
+        precision: 4
         children: [ "5/16/10", "5/17/10", "5/16/11", "5/17/11" ]
         childrenShapes:
           - "BBOX (0.0, 11.25, 55.77657301866769, 48.922499263758255)"
@@ -240,7 +240,7 @@ teardown:
                   "target_field": "shape",
                   "parent_field": "parent",
                   "children_field": "children",
-                  "depth_field": "depth"
+                  "precision_field": "precision"
                 }
               },
               {
@@ -284,7 +284,7 @@ teardown:
         geocell: "u0"
         shape: "BBOX (0.0, 11.25, 50.625, 45.0)"
         parent: "u"
-        depth: 2
+        precision: 2
         children:
           - "u00"
           - "u01"
@@ -370,7 +370,7 @@ teardown:
                   "parent_field": "parent",
                   "children_field": "children",
                   "non_children_field": "nonChildren",
-                  "depth_field": "depth"
+                  "precision_field": "precision"
                 }
               },
               {
@@ -432,7 +432,7 @@ teardown:
         geocell: "811fbffffffffff"
         shape: "POLYGON ((1.1885095294564962 49.470279179513454, 2.0265689212828875 45.18424864858389, 7.509948452934623 43.786609335802495, 12.6773177459836 46.40695743262768, 12.345747342333198 50.55427505169064, 6.259687012061477 51.964770150370896, 3.6300085578113794 50.610463307239115, 1.1885095294564962 49.470279179513454))"
         parent: "801ffffffffffff"
-        depth: 1
+        precision: 1
         children:
           - "821f87fffffffff"
           - "821f8ffffffffff"

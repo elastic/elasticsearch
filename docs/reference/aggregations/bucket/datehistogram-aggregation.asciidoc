@@ -579,10 +579,10 @@ For example, the offset of `+19d` will result in buckets with names like `2022-0
 --------------------------------------------------
 // TESTRESPONSE[skip:no setup made for this example yet]
 
-If we increase the offset to `+20d`, each document will appear in a bucket for the previous month,
+Increasing the offset to `+20d`, each document will appear in a bucket for the previous month,
 with all bucket keys ending with the same day of the month, as normal.
-However, if we further increase to `+28d`,
-we will find that what used to be a February bucket has now become `"2022-03-01"`.
+However, further increasing to `+28d`, 
+what used to be a February bucket has now become `"2022-03-01"`.
 
 [source,console,id=datehistogram-aggregation-offset-example-28d]
 --------------------------------------------------

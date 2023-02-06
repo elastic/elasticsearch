@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -194,6 +195,7 @@ public interface TransformConfigManager {
     void putOrUpdateTransformStoredDoc(
         TransformStoredDoc storedDoc,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+        WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<SeqNoPrimaryTermAndIndex> listener
     );
 

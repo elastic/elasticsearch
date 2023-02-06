@@ -17,6 +17,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
@@ -169,7 +170,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener);
 
-    abstract void persistState(TransformState state, ActionListener<Void> listener);
+    abstract void persistState(TransformState state, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<Void> listener);
 
     abstract void validate(ActionListener<Void> listener);
 
@@ -737,8 +738,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
+        WriteRequest.RefreshPolicy refreshPolicy = indexerState.equals(IndexerState.INDEXING) ? WriteRequest.RefreshPolicy.NONE
+            : indexerState.equals(IndexerState.STARTED) ? WriteRequest.RefreshPolicy.WAIT_UNTIL
+            : WriteRequest.RefreshPolicy.IMMEDIATE;
+
         // we might need to call the save state listeners, but do not want to stop rolling
-        persistStateWithAutoStop(state, ActionListener.wrap(r -> {
+        persistStateWithAutoStop(state, refreshPolicy, ActionListener.wrap(r -> {
             try {
                 if (saveStateListenersAtTheMomentOfCalling != null) {
                     ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
@@ -764,8 +769,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }));
     }
 
-    private void persistStateWithAutoStop(TransformState state, ActionListener<Void> listener) {
-        persistState(state, ActionListener.runBefore(listener, () -> {
+    private void persistStateWithAutoStop(TransformState state, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<Void> listener) {
+        persistState(state, refreshPolicy, ActionListener.runBefore(listener, () -> {
             if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
                 context.shutdown();
             }
@@ -853,7 +858,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 CountDownLatch latch = new CountDownLatch(1);
                 logger.debug("[{}] persisting stop at checkpoint", getJobId());
 
-                persistState(newTransformState, ActionListener.wrap(() -> latch.countDown()));
+                persistState(newTransformState, WriteRequest.RefreshPolicy.IMMEDIATE, ActionListener.wrap(() -> latch.countDown()));
 
                 if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                     logger.error(

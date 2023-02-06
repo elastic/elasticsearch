@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -272,7 +273,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        protected void persistState(TransformState state, ActionListener<Void> listener) {
+        protected void persistState(TransformState state, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
     }

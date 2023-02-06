@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -289,7 +290,7 @@ class ClientTransformIndexer extends TransformIndexer {
      * Runs the persistence part of state storage
      */
     @Override
-    protected void persistState(TransformState state, ActionListener<Void> listener) {
+    protected void persistState(TransformState state, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<Void> listener) {
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();
 
@@ -299,6 +300,7 @@ class ClientTransformIndexer extends TransformIndexer {
         transformsConfigManager.putOrUpdateTransformStoredDoc(
             new TransformStoredDoc(getJobId(), state, getStats()),
             seqNoPrimaryTermAndIndex,
+            refreshPolicy,
             ActionListener.wrap(r -> {
                 updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
                 context.resetStatePersistenceFailureCount();

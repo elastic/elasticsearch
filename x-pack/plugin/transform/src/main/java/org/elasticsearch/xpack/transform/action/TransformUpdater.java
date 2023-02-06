@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -237,7 +238,8 @@ public class TransformUpdater {
             // else: the state is on an old index, update by persisting it to the latest index
             transformConfigManager.putOrUpdateTransformStoredDoc(
                 currentState.v1(),
-                null, // set seqNoPrimaryTermAndIndex to `null` to force optype `create`, gh#80073
+                null,
+                WriteRequest.RefreshPolicy.IMMEDIATE, // set seqNoPrimaryTermAndIndex to `null` to force optype `create`, gh#80073
                 ActionListener.wrap(r -> listener.onResponse(lastCheckpoint), e -> {
                     if (org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // if a version conflict occurs a new state has been written between us reading and writing.

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -325,6 +326,7 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     public void putOrUpdateTransformStoredDoc(
         TransformStoredDoc storedDoc,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+        WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<SeqNoPrimaryTermAndIndex> listener
     ) {
         // for now we ignore seqNoPrimaryTermAndIndex

@@ -682,14 +682,15 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     public void putOrUpdateTransformStoredDoc(
         TransformStoredDoc storedDoc,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+        WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<SeqNoPrimaryTermAndIndex> listener
     ) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = storedDoc.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(
-                WriteRequest.RefreshPolicy.IMMEDIATE
-            ).id(TransformStoredDoc.documentId(storedDoc.getId())).source(source);
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(refreshPolicy)
+                .id(TransformStoredDoc.documentId(storedDoc.getId()))
+                .source(source);
             if (seqNoPrimaryTermAndIndex != null) {
                 // if seqNoPrimaryTermAndIndex is set, use optype index even if not on the latest index, because the upgrader
                 // could have been called, see gh#80073

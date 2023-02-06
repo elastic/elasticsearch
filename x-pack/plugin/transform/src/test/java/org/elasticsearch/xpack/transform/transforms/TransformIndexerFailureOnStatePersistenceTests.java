@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -116,12 +117,13 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         public void putOrUpdateTransformStoredDoc(
             TransformStoredDoc storedDoc,
             SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+            WriteRequest.RefreshPolicy refreshPolicy,
             ActionListener<SeqNoPrimaryTermAndIndex> listener
         ) {
             if (failAt.contains(persistenceCallCount++)) {
                 listener.onFailure(exception);
             } else {
-                super.putOrUpdateTransformStoredDoc(storedDoc, seqNoPrimaryTermAndIndex, listener);
+                super.putOrUpdateTransformStoredDoc(storedDoc, seqNoPrimaryTermAndIndex, refreshPolicy, listener);
             }
         }
     }
@@ -137,6 +139,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         public void putOrUpdateTransformStoredDoc(
             TransformStoredDoc storedDoc,
             SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+            WriteRequest.RefreshPolicy refreshPolicy,
             ActionListener<SeqNoPrimaryTermAndIndex> listener
         ) {
             if (seqNo != -1) {
@@ -148,7 +151,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 }
             }
 
-            super.putOrUpdateTransformStoredDoc(storedDoc, seqNoPrimaryTermAndIndex, ActionListener.wrap(r -> {
+            super.putOrUpdateTransformStoredDoc(storedDoc, seqNoPrimaryTermAndIndex, refreshPolicy, ActionListener.wrap(r -> {
                 // always inc seqNo, primaryTerm at random
                 if (randomBoolean()) {
                     primaryTerm++;
@@ -246,6 +249,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
                         new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
                         listener
                     ),
                     e -> {
@@ -258,6 +262,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
                         new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
                         listener
                     ),
                     e -> {
@@ -270,6 +275,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
                         new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
                         listener
                     ),
                     e -> {
@@ -328,6 +334,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
                         new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
                         listener
                     ),
                     e -> {
@@ -341,6 +348,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 this.<Void>assertAsync(
                     listener -> indexer.persistState(
                         new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
                         listener
                     ),
                     r -> {
@@ -353,6 +361,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
                         new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
                         listener
                     ),
                     e -> {
@@ -365,6 +374,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
                         new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
                         listener
                     ),
                     e -> {
@@ -377,6 +387,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
                         new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
                         listener
                     ),
                     e -> {
@@ -459,6 +470,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             this.<Void>assertAsync(
                 listener -> indexer.persistState(
                     new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                    WriteRequest.RefreshPolicy.IMMEDIATE,
                     listener
                 ),
                 r -> {
@@ -476,6 +488,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         indexer.getStats()
                     ),
                     indexer.getSeqNoPrimaryTermAndIndex(),
+                    WriteRequest.RefreshPolicy.IMMEDIATE,
                     listener
                 ),
                 seqNoPrimaryTermAndIndex -> assertThat(
@@ -488,6 +501,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             this.<Void>assertAsyncFailure(
                 listener -> indexer.persistState(
                     new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                    WriteRequest.RefreshPolicy.IMMEDIATE,
                     listener
                 ),
                 e -> {
@@ -501,6 +515,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             this.<Void>assertAsync(
                 listener -> indexer.persistState(
                     new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                    WriteRequest.RefreshPolicy.IMMEDIATE,
                     listener
                 ),
                 r -> {
@@ -514,6 +529,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             this.<Void>assertAsync(
                 listener -> indexer.persistState(
                     new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                    WriteRequest.RefreshPolicy.IMMEDIATE,
                     listener
                 ),
                 r -> {

@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -244,7 +245,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void persistState(TransformState state, ActionListener<Void> listener) {
+        void persistState(TransformState state, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<Void> listener) {
             persistedState = state;
             listener.onResponse(null);
         }
@@ -332,7 +333,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void persistState(TransformState state, ActionListener<Void> listener) {
+        void persistState(TransformState state, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 

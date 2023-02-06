@@ -474,7 +474,17 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         TransformStoredDoc storedDocs = TransformStoredDocTests.randomTransformStoredDoc(transformId);
         SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME);
 
-        assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener), firstIndex, null, null);
+        assertAsync(
+            listener -> transformConfigManager.putOrUpdateTransformStoredDoc(
+                storedDocs,
+                null,
+                WriteRequest.RefreshPolicy.IMMEDIATE,
+                listener
+            ),
+            firstIndex,
+            null,
+            null
+        );
         assertAsync(
             listener -> transformConfigManager.getTransformStoredDoc(transformId, false, listener),
             tuple(storedDocs, firstIndex),
@@ -485,7 +495,12 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         SeqNoPrimaryTermAndIndex secondIndex = new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME);
         TransformStoredDoc updated = TransformStoredDocTests.randomTransformStoredDoc(transformId);
         assertAsync(
-            listener -> transformConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
+            listener -> transformConfigManager.putOrUpdateTransformStoredDoc(
+                updated,
+                firstIndex,
+                WriteRequest.RefreshPolicy.IMMEDIATE,
+                listener
+            ),
             secondIndex,
             null,
             null
@@ -498,7 +513,12 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         );
 
         assertAsync(
-            listener -> transformConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
+            listener -> transformConfigManager.putOrUpdateTransformStoredDoc(
+                updated,
+                firstIndex,
+                WriteRequest.RefreshPolicy.IMMEDIATE,
+                listener
+            ),
             (SeqNoPrimaryTermAndIndex) null,
             r -> fail("did not fail with version conflict."),
             e -> assertThat(
@@ -515,7 +535,17 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             SeqNoPrimaryTermAndIndex initialSeqNo = new SeqNoPrimaryTermAndIndex(i, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME);
             TransformStoredDoc stat = TransformStoredDocTests.randomTransformStoredDoc(randomAlphaOfLength(6) + i);
             expectedDocs.add(stat);
-            assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(stat, null, listener), initialSeqNo, null, null);
+            assertAsync(
+                listener -> transformConfigManager.putOrUpdateTransformStoredDoc(
+                    stat,
+                    null,
+                    WriteRequest.RefreshPolicy.IMMEDIATE,
+                    listener
+                ),
+                initialSeqNo,
+                null,
+                null
+            );
         }
 
         // remove one of the put docs so we don't retrieve all
@@ -586,6 +616,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.putOrUpdateTransformStoredDoc(
                 transformStoredDoc,
                 new SeqNoPrimaryTermAndIndex(3, 1, oldIndex),
+                WriteRequest.RefreshPolicy.IMMEDIATE,
                 listener
             ),
             new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
@@ -618,7 +649,17 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         // create some other docs to check they are not getting accidentally deleted
         TransformStoredDoc storedDocs = TransformStoredDocTests.randomTransformStoredDoc(transformId);
         SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME);
-        assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener), firstIndex, null, null);
+        assertAsync(
+            listener -> transformConfigManager.putOrUpdateTransformStoredDoc(
+                storedDocs,
+                null,
+                WriteRequest.RefreshPolicy.IMMEDIATE,
+                listener
+            ),
+            firstIndex,
+            null,
+            null
+        );
 
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
         assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);

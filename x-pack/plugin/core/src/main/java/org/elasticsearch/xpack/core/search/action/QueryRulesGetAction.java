@@ -24,7 +24,7 @@ import java.io.IOException;
 public class QueryRulesGetAction extends ActionType<QueryRulesGetAction.Response> {
 
     public static final QueryRulesGetAction INSTANCE = new QueryRulesGetAction();
-    public static final String NAME = "cluster:admin/read/query_rules/get";
+    public static final String NAME = "cluster:admin/query_rules/get";
 
     private QueryRulesGetAction() {
         super(NAME, QueryRulesGetAction.Response::new);

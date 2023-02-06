@@ -19,7 +19,7 @@ import java.io.IOException;
 public class QueryRulesDeleteAction extends ActionType<AcknowledgedResponse> {
 
     public static final QueryRulesDeleteAction INSTANCE = new QueryRulesDeleteAction();
-    public static final String NAME = "cluster:admin/read/query_rules/delete";
+    public static final String NAME = "cluster:admin/query_rules/delete";
 
     private QueryRulesDeleteAction() {
         super(NAME, AcknowledgedResponse::readFrom);

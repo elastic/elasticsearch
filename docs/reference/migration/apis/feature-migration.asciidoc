@@ -97,6 +97,12 @@ Example response:
       "indices" : [ ]
     },
     {
+      "feature_name" : "query_rules_management",
+      "minimum_index_version" : "8.0.0",
+      "migration_status" : "NO_MIGRATION_NEEDED",
+      "indices" : [ ]
+    },
+    {
       "feature_name" : "searchable_snapshots",
       "minimum_index_version" : "8.0.0",
       "migration_status" : "NO_MIGRATION_NEEDED",

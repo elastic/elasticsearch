@@ -3,7 +3,7 @@
 
   - do:
       query_rules.put:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
         body:
           mappings:
             user: string
@@ -13,7 +13,7 @@
 
   - do:
       query_rules.get:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
 
   - match: { ruleset_id: my-rules-id }
   - match: { found: true }
@@ -23,18 +23,18 @@
 
   - do:
       query_rules.get:
-        rulesetId: some-other-id
+        ruleset_id: some-other-id
 
   - match: { ruleset_id : some-other-id }
   - match: { found : false }
 
   - do:
       query_rules.delete:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
 
   - do:
       query_rules.get:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
 
   - match: { ruleset_id: my-rules-id }
   - match: { found: false }
@@ -44,7 +44,7 @@
 
   - do:
       query_rules.put:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
         body:
           mappings:
             user: string
@@ -52,7 +52,7 @@
 
   - do:
       query_rules.put:
-        rulesetId: my-other-rules-id
+        ruleset_id: my-other-rules-id
         body:
           mappings:
             user: string
@@ -69,7 +69,7 @@
   - do:
       catch: "/rules are missing/"
       query_rules.put:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
         body:
           mappings:
             user: string
@@ -77,7 +77,7 @@
   - do:
       catch: "/rules definition should be an array/"
       query_rules.put:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
         body:
           mappings:
             user: string
@@ -86,14 +86,14 @@
   - do:
       catch: "/mappings are missing/"
       query_rules.put:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
         body:
           rules: [{ "condition" : {}, "action" : {}}]
 
   - do:
       catch: "/mappings definition should be an object/"
       query_rules.put:
-        rulesetId: my-rules-id
+        ruleset_id: my-rules-id
         body:
           mappings:
             [ { user: "string" } ]

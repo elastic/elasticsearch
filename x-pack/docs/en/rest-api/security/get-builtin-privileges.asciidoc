@@ -99,6 +99,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "monitor_transform",
     "monitor_watcher",
     "none",
+    "query_rules",
     "read_ccr",
     "read_ilm",
     "read_pipeline",

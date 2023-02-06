@@ -21,7 +21,7 @@ import java.io.IOException;
 public class QueryRulesListAction extends ActionType<QueryRulesListAction.Response> {
 
     public static final QueryRulesListAction INSTANCE = new QueryRulesListAction();
-    public static final String NAME = "cluster:admin/read/query_rules/list";
+    public static final String NAME = "cluster:admin/query_rules/list";
 
     private QueryRulesListAction() {
         super(NAME, QueryRulesListAction.Response::new);

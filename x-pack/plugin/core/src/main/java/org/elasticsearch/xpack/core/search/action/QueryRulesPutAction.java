@@ -26,7 +26,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class QueryRulesPutAction extends ActionType<AcknowledgedResponse> {
 
     public static final QueryRulesPutAction INSTANCE = new QueryRulesPutAction();
-    public static final String NAME = "cluster:admin/read/query_rules/put";
+    public static final String NAME = "cluster:admin/query_rules/put";
 
     private QueryRulesPutAction() {
         super(NAME, AcknowledgedResponse::readFrom);

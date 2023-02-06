@@ -59,7 +59,8 @@ public class RestTermsEnumActionTests extends ESTestCase {
         client,
         new NoneCircuitBreakerService(),
         usageService,
-        Tracer.NOOP
+        Tracer.NOOP,
+        Settings.EMPTY
     );
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 

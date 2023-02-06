@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -48,6 +49,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -197,15 +199,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // TODO: Replace with a less hacky approach.
         ActionListener<BulkResponse> listener = outerListener;
         if (DiscoveryNode.isStateless(clusterService.getSettings()) && bulkRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
-            listener = outerListener.delegateFailure((l, r) -> client.admin().indices().prepareRefresh().execute(l.map(ignored -> {
+            listener = outerListener.delegateFailure((l, r) -> {
+                final Set<String> indices = new HashSet<>();
                 for (BulkItemResponse response : r.getItems()) {
+                    if (response.isFailed() == false) {
+                        indices.add(response.getIndex());
+                    }
                     DocWriteResponse docWriteResponse = response.getResponse();
                     if (docWriteResponse != null) {
                         docWriteResponse.setForcedRefresh(true);
                     }
                 }
-                return r;
-            })));
+                client.admin()
+                    .indices()
+                    .prepareRefresh()
+                    .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
+                    .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
+                    .execute(l.map(ignored -> r));
+            });
             bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         }
         /*

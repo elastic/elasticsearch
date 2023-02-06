@@ -236,14 +236,11 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                     assertEquals(shard.index().getName(), shardView.index());
                     assertEquals(shard.shardId().id(), shardView.shardId());
                     var forecastedWriteLoad = TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(indexMetadata);
-                    assertEquals(
-                        forecastedWriteLoad.isPresent() ? forecastedWriteLoad.getAsDouble() : null,
-                        shardView.forecastedWriteLoad()
-                    );
+                    assertEquals(forecastedWriteLoad.isPresent() ? forecastedWriteLoad.getAsDouble() : null, shardView.forecastWriteLoad());
                     var forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
                     assertEquals(
                         forecastedShardSizeInBytes.isPresent() ? forecastedShardSizeInBytes.getAsLong() : null,
-                        shardView.forecastedShardSizeInBytes()
+                        shardView.forecastShardSizeInBytes()
                     );
                     Set<String> desiredNodeIds = Optional.ofNullable(shardAssignments.get(shard.shardId()))
                         .map(ShardAssignment::nodeIds)

@@ -110,7 +110,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).endObject())
         );
-        assertEquals(-10.1, doc.rootDoc().getField("field.min").numericValue());
+        assertEquals("DoubleField <field.min:-10.1>", doc.rootDoc().getField("field.min").toString());
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));

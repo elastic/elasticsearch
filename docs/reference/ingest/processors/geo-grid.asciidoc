@@ -32,7 +32,7 @@ include::common-options.asciidoc[]
 
 To demonstrate the usage of this ingest processor, consider an index called `geocells`
 with a mapping for a field `geocell` of type `geo_shape`.
-In order to populate that index using `geotile` and `geohex` fields, we would need to define
+In order to populate that index using `geotile` and `geohex` fields, define
 two ingest processors:
 
 [source,console]

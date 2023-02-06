@@ -1,0 +1,5 @@
+pr: 93518
+summary: Replication action for unpromotable shards
+area: Cluster Coordination
+type: feature
+issues: []

@@ -177,6 +177,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         FIX_DELAYED_SHARDS_GUIDE
     );
 
+    public static final String WAIT_FOR_INITIALIZATION_GUIDE = "https://ela.st/wait-for-shard-initialization";
+    public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_INITIALIZATION = new Diagnosis.Definition(
+        NAME,
+        "initializing_shards",
+        "Elasticsearch is currently initializing the unavailable shards. Please wait for the initialization to finish.",
+        "The shards will become available as long as the initialization completes. No action is required by the user.",
+        WAIT_FOR_INITIALIZATION_GUIDE
+    );
+
     public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "https://ela.st/fix-index-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
         NAME,
@@ -392,8 +401,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
-            available &= routing.active() || isRestarting || isNew || routing.initializing();
-            if ((routing.active() || isRestarting || isNew || routing.initializing()) == false) {
+            available &= routing.active() || isRestarting || isNew;
+            if ((routing.active() || isRestarting || isNew) == false) {
                 indicesWithUnavailableShards.add(routing.getIndexName());
             }
 
@@ -412,7 +421,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         }
                     }
                 }
-                case INITIALIZING -> initializing++;
+                case INITIALIZING -> {
+                    initializing++;
+                    if (verbose) {
+                        addDefinition(DIAGNOSIS_WAIT_FOR_INITIALIZATION, routing.getIndexName());
+                    }
+                }
                 case STARTED -> started++;
                 case RELOCATING -> relocating++;
             }

@@ -19,8 +19,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,7 +53,19 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIndexInput {
 
-    protected static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
+    /**
+     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
+     */
+    protected static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(
+            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
+            "es.searchable.snapshot.shared_cache.write_buffer.size"
+        ).getBytes()
+    );
+
+    protected static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
+        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
+    );
 
     protected final CacheFileReference cacheFileReference;
 
@@ -292,8 +305,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         assert assertFileChannelOpen(fc);
         assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         final long length = end - start;
-        final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", start, end, cacheFileReference));
+        final ByteBuffer copyBuffer = writeBuffer.get().clear();
+        logger.trace("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference);
 
         long bytesCopied = 0L;
         long remaining = end - start;
@@ -301,7 +314,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         try (InputStream input = openInputStreamFromBlobStore(start, length)) {
             while (remaining > 0L) {
                 final int bytesRead = readSafe(input, copyBuffer, start, end, remaining, cacheFileReference);
-                positionalWrite(fc, start + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
+                positionalWrite(fc, start + bytesCopied, copyBuffer.flip());
+                copyBuffer.clear();
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
                 progressUpdater.accept(start + bytesCopied);
@@ -356,15 +370,15 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
      */
     protected static int readSafe(
         InputStream inputStream,
-        byte[] copyBuffer,
+        ByteBuffer copyBuffer,
         long rangeStart,
         long rangeEnd,
         long remaining,
         Object cacheFileReference
     ) throws IOException {
-        final int len = (remaining < copyBuffer.length) ? toIntBytes(remaining) : copyBuffer.length;
-        final int bytesRead = inputStream.read(copyBuffer, 0, len);
-        if (bytesRead == -1) {
+        final int len = (remaining < copyBuffer.remaining()) ? toIntBytes(remaining) : copyBuffer.remaining();
+        final int bytesRead = Streams.read(inputStream, copyBuffer, len);
+        if (bytesRead <= 0) {
             throw new EOFException(
                 String.format(
                     Locale.ROOT,
@@ -376,7 +390,6 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 )
             );
         }
-        assert bytesRead > 0 : bytesRead;
         return bytesRead;
     }
 
@@ -396,40 +409,28 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
             try {
                 // cache file was evicted during the range fetching, read bytes directly from blob container
-                final long length = b.remaining();
-                final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-                logger.trace(
-                    () -> format("direct reading of range [%s-%s] for cache file [%s]", position, position + length, cacheFileReference)
-                );
+                final int length = b.remaining();
+                logger.trace("direct reading of range [{}-{}] for cache file [{}]", position, position + length, cacheFileReference);
 
-                int bytesCopied = 0;
                 final long startTimeNanos = stats.currentTimeNanos();
                 try (InputStream input = openInputStreamFromBlobStore(position, length)) {
-                    long remaining = length;
-                    while (remaining > 0) {
-                        final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
-                        int bytesRead = input.read(copyBuffer, 0, len);
-                        if (bytesRead == -1) {
-                            throw new EOFException(
-                                String.format(
-                                    Locale.ROOT,
-                                    "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
-                                    position,
-                                    position + length,
-                                    remaining,
-                                    cacheFileReference
-                                )
-                            );
-                        }
-                        b.put(copyBuffer, 0, bytesRead);
-                        bytesCopied += bytesRead;
-                        remaining -= bytesRead;
-                        assert remaining == b.remaining() : remaining + " vs " + b.remaining();
+                    final int bytesRead = Streams.read(input, b, length);
+                    if (bytesRead < length) {
+                        throw new EOFException(
+                            String.format(
+                                Locale.ROOT,
+                                "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
+                                position,
+                                position + length,
+                                length - bytesRead,
+                                cacheFileReference
+                            )
+                        );
                     }
                     final long endTimeNanos = stats.currentTimeNanos();
-                    stats.addDirectBytesRead(bytesCopied, endTimeNanos - startTimeNanos);
+                    stats.addDirectBytesRead(bytesRead, endTimeNanos - startTimeNanos);
+                    return bytesRead;
                 }
-                return bytesCopied;
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }

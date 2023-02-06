@@ -1847,14 +1847,6 @@ public class InternalEngine extends Engine {
     }
 
     final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
-        final long localCheckpointOfLastCommit = Long.parseLong(
-            lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-        );
-        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointOfLastCommit + 1
-        ).translogFileGeneration;
-        long txSize = translog.sizeInBytesByMinGen(translogGenerationOfLastCommit);
-        logger.warn("refresh buffer=" + new ByteSizeValue(getIndexBufferRAMBytesUsed(), ByteSizeUnit.BYTES) + " tx=" + new ByteSizeValue(txSize, ByteSizeUnit.BYTES), new RuntimeException());
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();

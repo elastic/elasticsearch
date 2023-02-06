@@ -18,6 +18,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -34,8 +35,8 @@ import static org.elasticsearch.xpack.security.transport.SecurityServerTransport
 
 public class RemoteAccessAuthenticationService {
 
-    private static final RoleDescriptor CROSS_CLUSTER_SEARCH_ROLE = new RoleDescriptor(
-        "_cross_cluster_search",
+    private static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
+        "_cross_cluster_internal",
         new String[] { ClusterStateAction.NAME },
         null,
         null,
@@ -96,13 +97,19 @@ public class RemoteAccessAuthenticationService {
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
                     final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
-                    final User user = receivedAuthentication.getEffectiveSubject().getUser();
+                    final Subject receivedEffectiveSubject = receivedAuthentication.getEffectiveSubject();
+                    final User user = receivedEffectiveSubject.getUser();
+
                     final Authentication finalAuthentication;
                     if (SystemUser.is(user)) {
                         finalAuthentication = authentication.toRemoteAccess(
                             new RemoteAccessAuthentication(
-                                receivedAuthentication,
-                                new RoleDescriptorsIntersection(CROSS_CLUSTER_SEARCH_ROLE)
+                                Authentication.newInternalAuthentication(
+                                    SystemUser.INSTANCE,
+                                    receivedEffectiveSubject.getTransportVersion(),
+                                    receivedEffectiveSubject.getRealm().getNodeName()
+                                ),
+                                new RoleDescriptorsIntersection(CROSS_CLUSTER_INTERNAL_ROLE)
                             )
                         );
                     } else if (User.isInternal(user)) {
@@ -112,6 +119,7 @@ public class RemoteAccessAuthenticationService {
                     } else {
                         finalAuthentication = authentication.toRemoteAccess(remoteAccessAuthentication);
                     }
+
                     writeAuthToContext(authcContext, finalAuthentication, listener);
                 }, ex -> withRequestProcessingFailure(authcContext, ex, listener)))
             );

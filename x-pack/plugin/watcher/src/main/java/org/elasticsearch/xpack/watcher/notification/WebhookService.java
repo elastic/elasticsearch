@@ -59,7 +59,9 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
 
     // Boolean setting for whether token should be sent if present.
     public static final Setting<Boolean> SETTING_WEBHOOK_TOKEN_ENABLED = Setting.boolSetting(
-        "xpack.notification.webhook.additional_token_enabled", false, Setting.Property.NodeScope
+        "xpack.notification.webhook.additional_token_enabled",
+        false,
+        Setting.Property.NodeScope
     );
 
     private final HttpClient httpClient;

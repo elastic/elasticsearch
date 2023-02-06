@@ -76,7 +76,7 @@ PUT _ingest/pipeline/geohex2shape
 }
 --------------------------------------------------
 
-Using the two pipelines above, we can attempt to index documents into the `geocells` index.
+These two pipelines can be used to index documents into the `geocells` index.
 The `geocell` field will be the string version of either a rectangular tile with format `z/x/y` or an H3 cell address,
 depending on which ingest processor we use when indexing the document.
 The resulting geometry will be represented and indexed as a <<geo-shape,`geo_shape`>> field in either

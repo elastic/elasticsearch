@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
@@ -78,10 +79,10 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
         final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", maxTasks, executor, queue);
 
-        final var threadBlocker = new TestBarrier(totalTasks);
+        final var threadBlocker = new CyclicBarrier(totalTasks);
         for (int i = 0; i < totalTasks; i++) {
             new Thread(() -> {
-                threadBlocker.await();
+                CyclicBarrierUtils.await(threadBlocker);
                 taskRunner.enqueueTask(new TestTask());
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
             }).start();
@@ -198,11 +199,11 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
     }
 
     private void assertNoRunningTasks(AbstractThrottledTaskRunner<?> taskRunner) {
-        final var barrier = new TestBarrier(maxThreads + 1);
+        final var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            executor.execute(barrier::await);
+            executor.execute(() -> CyclicBarrierUtils.await(barrier));
         }
-        barrier.await();
+        CyclicBarrierUtils.await(barrier);
         assertThat(taskRunner.runningTasks(), equalTo(0));
     }
 

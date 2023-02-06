@@ -311,8 +311,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {
-            assertNotNull(getTask());
-            assertNull(getTask().getState());
+            PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
+            assertNotNull(task);
+            assertNull(task.getState());
             putGeoIpPipeline(); // This is to work around the race condition described in #92888
         });
         putNonGeoipPipeline(pipelineId);

@@ -51,6 +51,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -1845,6 +1847,14 @@ public class InternalEngine extends Engine {
     }
 
     final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
+        final long localCheckpointOfLastCommit = Long.parseLong(
+            lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+        );
+        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
+            localCheckpointOfLastCommit + 1
+        ).translogFileGeneration;
+        long txSize = translog.sizeInBytesByMinGen(translogGenerationOfLastCommit);
+        logger.warn("refresh buffer=" + new ByteSizeValue(getIndexBufferRAMBytesUsed(), ByteSizeUnit.BYTES) + " tx=" + new ByteSizeValue(txSize, ByteSizeUnit.BYTES), new RuntimeException());
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
@@ -1909,11 +1919,11 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
-        final long flushThresholdSizeInBytes = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos();
         // If we're already halfway through the flush thresholds, then we do a flush. This will save us from writing segments twice
         // independently in a short period of time, once to reclaim IndexWriter buffer memory and then to reclaim the translog.
-        if (flush(false, false, flushThresholdSizeInBytes / 2, flushThresholdAgeInNanos / 2)) {
+        final long flushThresholdSizeInBytes = Math.max(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, config().getIndexSettings().getFlushThresholdSize().getBytes() / 2);
+        final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos() / 2;
+        if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos) && flush(false, false, flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
             return;
         }
 

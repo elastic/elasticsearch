@@ -57,6 +57,11 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
     }
 
     @Override
+    protected TextClassificationConfig mutateInstance(TextClassificationConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected TextClassificationConfig mutateInstanceForVersion(TextClassificationConfig instance, Version version) {
         return mutateForVersion(instance, version);
     }

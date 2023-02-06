@@ -4,8 +4,6 @@
 <titleabbrev>Run downsampling manually</titleabbrev>
 ++++
 
-preview::[]
-
 This is a simplified example that allows you to see quickly how
 <<downsampling,downsampling>> works to reduce the storage size of a time series
 index. The example uses typical Kubernetes cluster monitoring data. To test out

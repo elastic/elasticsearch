@@ -60,6 +60,9 @@ class FieldValueFetcher {
             };
         } else {
             // If field is not a metric, we downsample it as a label
+            if ("histogram".equals(fieldType.typeName())) {
+                return new LabelFieldProducer.HistogramLastLabelFieldProducer(name());
+            }
             return new LabelFieldProducer.LabelLastValueFieldProducer(name());
         }
     }

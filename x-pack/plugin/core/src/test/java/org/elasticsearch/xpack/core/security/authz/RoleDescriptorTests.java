@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -395,11 +395,11 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationForCurrentVersion() throws Exception {
-        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        final boolean canIncludeRemoteIndices = version.onOrAfter(Version.V_8_6_0);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersion.V_8_6_0);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(version);
+        output.setTransportVersion(version);
 
         final RoleDescriptor descriptor = randomRoleDescriptor(true, canIncludeRemoteIndices);
         descriptor.writeTo(output);
@@ -408,21 +408,21 @@ public class RoleDescriptorTests extends ESTestCase {
             ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry
         );
-        streamInput.setVersion(version);
+        streamInput.setTransportVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
 
         assertThat(serialized, equalTo(descriptor));
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
-        final Version version = VersionUtils.randomVersionBetween(
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_6_0);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices.calculateMinimumCompatVersion(),
             versionBeforeRemoteIndices
         );
         final BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(version);
+        output.setTransportVersion(version);
 
         final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
         if (descriptor.hasRemoteIndicesPrivileges()) {
@@ -430,7 +430,7 @@ public class RoleDescriptorTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )
@@ -442,7 +442,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
                 registry
             );
-            streamInput.setVersion(version);
+            streamInput.setTransportVersion(version);
             final RoleDescriptor serialized = new RoleDescriptor(streamInput);
             assertThat(descriptor, equalTo(serialized));
         }

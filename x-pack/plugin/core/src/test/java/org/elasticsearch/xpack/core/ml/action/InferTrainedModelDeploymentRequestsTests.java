@@ -60,6 +60,11 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
     }
 
     @Override
+    protected InferTrainedModelDeploymentAction.Request mutateInstance(InferTrainedModelDeploymentAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());

@@ -192,7 +192,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public Version getMinimalSupportedNodeVersion() {
         return requestingImportance() ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
     }
 

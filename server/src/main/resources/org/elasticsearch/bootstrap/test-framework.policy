@@ -83,6 +83,7 @@ grant codeBase "${codebase.mocksocket}" {
 grant codeBase "${codebase.elasticsearch}" {
   permission java.lang.RuntimePermission "setSecurityManager";
 };
+
 // this is the test-framework, but the jar is horribly named
 grant codeBase "${codebase.framework}" {
   permission java.lang.RuntimePermission "setSecurityManager";

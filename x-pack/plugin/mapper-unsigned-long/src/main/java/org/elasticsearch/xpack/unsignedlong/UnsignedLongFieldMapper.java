@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -30,6 +31,8 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -605,11 +608,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         List<Field> fields = new ArrayList<>();
-        if (indexed) {
-            fields.add(new LongPoint(fieldType().name(), numericValue));
-        }
-        if (hasDocValues) {
+        if (indexed && hasDocValues) {
+            fields.add(new LongField(fieldType().name(), numericValue));
+        } else if (hasDocValues) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+        } else if (indexed) {
+            fields.add(new LongPoint(fieldType().name(), numericValue));
         }
         if (stored) {
             // for stored field, keeping original unsigned_long value in the String form
@@ -704,5 +708,30 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
         }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
+            );
+        }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed()) {
+            @Override
+            protected void writeValue(XContentBuilder b, long value) throws IOException {
+                b.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value));
+            }
+        };
     }
 }

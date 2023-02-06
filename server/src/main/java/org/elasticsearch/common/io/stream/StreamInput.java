@@ -17,6 +17,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -83,19 +84,35 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  */
 public abstract class StreamInput extends InputStream {
 
-    private Version version = Version.CURRENT;
+    private TransportVersion version = TransportVersion.CURRENT;
 
     /**
      * The version of the node on the other side of this stream.
      */
+    @Deprecated(forRemoval = true)
     public Version getVersion() {
+        return Version.fromId(this.version.id);
+    }
+
+    /**
+     * The transport version the data is serialized as.
+     */
+    public TransportVersion getTransportVersion() {
         return this.version;
     }
 
     /**
      * Set the version of the node on the other side of this stream.
      */
+    @Deprecated(forRemoval = true)
     public void setVersion(Version version) {
+        this.version = version.transportVersion;
+    }
+
+    /**
+     * Set the transport version of the data in this stream.
+     */
+    public void setTransportVersion(TransportVersion version) {
         this.version = version;
     }
 
@@ -600,6 +617,20 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional byte array. It's effectively the same as readByteArray, except
+     * it supports null.
+     * @return a byte array or null
+     * @throws IOException
+     */
+    @Nullable
+    public byte[] readOptionalByteArray() throws IOException {
+        if (readBoolean()) {
+            return readByteArray();
+        }
+        return null;
+    }
+
+    /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
@@ -738,10 +769,10 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readArrayList();
             case 8 -> readArray();
-            case 9 -> getVersion().onOrAfter(Version.V_8_7_0)
+            case 9 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
                 ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
-            case 10 -> getVersion().onOrAfter(Version.V_8_7_0)
+            case 10 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
                 ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readMap(StreamInput::readString, StreamInput::readGenericValue);
             case 11 -> readByte();

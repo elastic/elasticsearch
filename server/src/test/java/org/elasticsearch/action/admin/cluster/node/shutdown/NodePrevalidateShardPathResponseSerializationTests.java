@@ -13,8 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 import static org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequestSerializationTests.createSetMutation;
 
 public class NodePrevalidateShardPathResponseSerializationTests extends AbstractWireSerializingTestCase<NodePrevalidateShardPathResponse> {
@@ -41,7 +39,7 @@ public class NodePrevalidateShardPathResponseSerializationTests extends Abstract
     }
 
     @Override
-    protected NodePrevalidateShardPathResponse mutateInstance(NodePrevalidateShardPathResponse response) throws IOException {
+    protected NodePrevalidateShardPathResponse mutateInstance(NodePrevalidateShardPathResponse response) {
         if (randomBoolean()) {
             return new NodePrevalidateShardPathResponse(getRandomNode(), response.getShardIds());
         }

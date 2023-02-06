@@ -11,7 +11,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -529,8 +529,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.readBoolean(),
             in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false,
-            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null
         );
     }
 
@@ -553,10 +553,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeBoolean(allowCustomRouting);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
     }

@@ -90,6 +90,11 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         return null;
     }
 
+    @Override
+    protected EqlSearchRequest mutateInstance(EqlSearchRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private TimeValue randomTV() {
         return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }

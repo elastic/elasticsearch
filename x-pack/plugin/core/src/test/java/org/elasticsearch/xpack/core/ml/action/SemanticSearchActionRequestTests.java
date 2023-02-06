@@ -79,6 +79,11 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
         );
     }
 
+    @Override
+    protected SemanticSearchAction.Request mutateInstance(SemanticSearchAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidate() {
         var validAction = createTestInstance();
         assertNull(validAction.validate());

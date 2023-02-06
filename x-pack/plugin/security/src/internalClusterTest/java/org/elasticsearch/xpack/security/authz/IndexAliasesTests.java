@@ -769,14 +769,16 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             .get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
-        // no manage_aliases privilege on non_authorized alias
-        getAliasesResponse = client.admin()
-            .indices()
-            .prepareGetAliases("non_authorized")
-            .addIndices("test_1")
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .get();
-        assertEquals(0, getAliasesResponse.getAliases().size());
+        // no manage_aliases privilege on `non_authorized` alias and ignore_unavailable doesn't influence aliases
+        assertThrowsAuthorizationException(
+            client.admin()
+                .indices()
+                .prepareGetAliases("non_authorized")
+                .addIndices("test_1")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
+            GetAliasesAction.NAME,
+            "aliases_only"
+        );
 
         // no manage_aliases privilege on non_authorized index
         getAliasesResponse = client.admin()

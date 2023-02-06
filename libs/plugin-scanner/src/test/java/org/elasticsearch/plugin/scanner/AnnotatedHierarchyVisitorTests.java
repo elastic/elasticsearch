@@ -8,8 +8,8 @@
 
 package org.elasticsearch.plugin.scanner;
 
-import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.Extensible;
+import org.elasticsearch.plugin.NamedComponent;
 import org.elasticsearch.plugin.scanner.test_model.ExtensibleClass;
 import org.elasticsearch.plugin.scanner.test_model.ExtensibleInterface;
 import org.elasticsearch.plugin.scanner.test_model.ImplementingExtensible;

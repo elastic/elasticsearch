@@ -28,7 +28,6 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -50,7 +49,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
     private DirectoryReader reader;
     private IndexSearcher searcher;
     private LeafReaderContext leafReaderContext;
-    private final SearchLookup lookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
+    private final SearchLookup lookup = new SearchLookup(null, null, (ctx, doc) -> null);
 
     @Before
     public void initSearcher() throws IOException {
@@ -179,7 +178,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             }
 
             @Override
-            public ScoreScript newInstance(DocReader docReader) throws IOException {
+            public ScoreScript newInstance(DocReader docReader) {
                 return new ScoreScript(script.getParams(), lookup, docReader) {
                     @Override
                     public double execute(ExplanationHolder explanation) {

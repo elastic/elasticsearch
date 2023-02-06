@@ -400,7 +400,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             shardId,
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            unassignedInfo
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);
@@ -448,6 +449,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         Object[] args = new Object[] {
             needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
             mockNodeVersion,
+            Version.CURRENT,
             Version.CURRENT,
             apmIndicesExist };
         final String expectedJson = Strings.format("""
@@ -737,7 +739,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     },
                     "roles": [
                       "master"
-                    ]
+                    ],
+                    "version": "%s"
                   }
                 }
               },

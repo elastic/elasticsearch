@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -111,11 +111,11 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchAndExecuteXpackSecurityUser() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE, randomVersion());
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE, randomTransportVersion());
     }
 
     public void testSwitchAndExecuteSecurityProfileUser() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_PROFILE_ORIGIN, SecurityProfileUser.INSTANCE, randomVersion());
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_PROFILE_ORIGIN, SecurityProfileUser.INSTANCE, randomTransportVersion());
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
@@ -127,20 +127,20 @@ public class AuthorizationUtilsTests extends ESTestCase {
             PersistentTasksService.PERSISTENT_TASK_ORIGIN,
             ClientHelper.INDEX_LIFECYCLE_ORIGIN
         )) {
-            assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE, randomVersion());
+            assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE, randomTransportVersion());
         }
     }
 
     public void testSwitchAndExecuteAsyncSearchUser() throws Exception {
         String origin = ClientHelper.ASYNC_SEARCH_ORIGIN;
-        assertSwitchBasedOnOriginAndExecute(origin, AsyncSearchUser.INSTANCE, randomVersion());
+        assertSwitchBasedOnOriginAndExecute(origin, AsyncSearchUser.INSTANCE, randomTransportVersion());
     }
 
     public void testSwitchWithTaskOrigin() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, XPackUser.INSTANCE, randomVersion());
+        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, XPackUser.INSTANCE, randomTransportVersion());
     }
 
-    private void assertSwitchBasedOnOriginAndExecute(String origin, User user, Version version) throws Exception {
+    private void assertSwitchBasedOnOriginAndExecute(String origin, User user, TransportVersion version) throws Exception {
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final String headerName = randomAlphaOfLengthBetween(4, 16);
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
@@ -151,7 +151,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
             assertEquals(user, authentication.getEffectiveSubject().getUser());
-            assertEquals(version, authentication.getEffectiveSubject().getVersion());
+            assertEquals(version, authentication.getEffectiveSubject().getTransportVersion());
             latch.countDown();
         }, e -> fail(e.getMessage()));
 
@@ -160,7 +160,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
             assertEquals(user, authentication.getEffectiveSubject().getUser());
-            assertEquals(version, authentication.getEffectiveSubject().getVersion());
+            assertEquals(version, authentication.getEffectiveSubject().getTransportVersion());
             latch.countDown();
             listener.onResponse(null);
         };
@@ -172,7 +172,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
         }
     }
 
-    private Version randomVersion() {
-        return VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+    private TransportVersion randomTransportVersion() {
+        return TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
     }
 }

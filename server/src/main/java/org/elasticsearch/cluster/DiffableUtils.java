@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -371,7 +371,7 @@ public final class DiffableUtils {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(deletes, (o, v) -> keySerializer.writeKey(v, o));
-            Version version = out.getVersion();
+            TransportVersion version = out.getTransportVersion();
             // filter out custom states not supported by the other node
             int diffCount = 0;
             for (Map.Entry<K, Diff<T>> diff : diffs) {
@@ -499,14 +499,14 @@ public final class DiffableUtils {
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(Diff<V> value, Version version) {
+        default boolean supportsVersion(Diff<V> value, TransportVersion version) {
             return true;
         }
 
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(V value, Version version) {
+        default boolean supportsVersion(V value, TransportVersion version) {
             return true;
         }
 

@@ -24,7 +24,9 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregator;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregator;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
@@ -50,21 +52,15 @@ import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHexGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexCellIdSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeCellIdSource;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeHashGridAggregator;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeHexGridAggregator;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.InternalGeoHexGrid;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHexGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregationBuilder;
@@ -272,15 +268,10 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 cardinality,
                 metadata) -> {
                 if (GEO_HEX_AGG_FEATURE.check(getLicenseState())) {
-                    GeoHexCellIdSource cellIdSource = new GeoHexCellIdSource(
-                        (ValuesSource.GeoPoint) valuesSource,
-                        precision,
-                        geoBoundingBox
-                    );
                     return new GeoHexGridAggregator(
                         name,
                         factories,
-                        cellIdSource,
+                        cb -> new GeoHexCellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox, cb),
                         requiredSize,
                         shardSize,
                         aggregationContext,
@@ -313,14 +304,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 collectsFromSingleBucket,
                 metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
-                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
-                        ? new UnboundedGeoHashGridTiler(precision)
-                        : new BoundedGeoHashGridTiler(precision, geoBoundingBox);
-                    GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler);
-                    GeoShapeHashGridAggregator agg = new GeoShapeHashGridAggregator(
+                    final GeoGridTiler tiler = GeoHashGridTiler.makeGridTiler(precision, geoBoundingBox);
+                    return new GeoHashGridAggregator(
                         name,
                         factories,
-                        cellIdSource,
+                        cb -> new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler, cb),
                         requiredSize,
                         shardSize,
                         aggregationContext,
@@ -328,9 +316,6 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                         collectsFromSingleBucket,
                         metadata
                     );
-                    // this would ideally be something set in an immutable way on the ValuesSource
-                    cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
-                    return agg;
                 }
                 throw LicenseUtils.newComplianceException("geohash_grid aggregation on geo_shape fields");
             },
@@ -353,14 +338,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 collectsFromSingleBucket,
                 metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
-                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
-                        ? new UnboundedGeoTileGridTiler(precision)
-                        : new BoundedGeoTileGridTiler(precision, geoBoundingBox);
-                    GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler);
-                    GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(
+                    final GeoGridTiler tiler = GeoTileGridTiler.makeGridTiler(precision, geoBoundingBox);
+                    return new GeoTileGridAggregator(
                         name,
                         factories,
-                        cellIdSource,
+                        cb -> new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler, cb),
                         requiredSize,
                         shardSize,
                         context,
@@ -368,9 +350,6 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                         collectsFromSingleBucket,
                         metadata
                     );
-                    // this would ideally be something set in an immutable way on the ValuesSource
-                    cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
-                    return agg;
                 }
                 throw LicenseUtils.newComplianceException("geotile_grid aggregation on geo_shape fields");
             },
@@ -393,14 +372,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 collectsFromSingleBucket,
                 metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
-                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
-                        ? new UnboundedGeoHexGridTiler(precision)
-                        : new BoundedGeoHexGridTiler(precision, geoBoundingBox);
-                    GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler);
-                    GeoShapeHexGridAggregator agg = new GeoShapeHexGridAggregator(
+                    final GeoGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, geoBoundingBox);
+                    return new GeoHexGridAggregator(
                         name,
                         factories,
-                        cellIdSource,
+                        cb -> new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler, cb),
                         requiredSize,
                         shardSize,
                         context,
@@ -408,9 +384,6 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                         collectsFromSingleBucket,
                         metadata
                     );
-                    // this would ideally be something set in an immutable way on the ValuesSource
-                    cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
-                    return agg;
                 }
                 throw LicenseUtils.newComplianceException("geohex_grid aggregation on geo_shape fields");
             },

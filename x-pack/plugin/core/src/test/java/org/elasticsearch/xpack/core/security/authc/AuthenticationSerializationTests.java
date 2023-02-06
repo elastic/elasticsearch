@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
@@ -19,6 +22,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -57,6 +61,52 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFromAuthenticatingUser, is(notNullValue()));
         assertThat(readFromAuthenticatingUser, not(sameInstance(authentication.getAuthenticatingSubject().getUser())));
         assertThat(readFromAuthenticatingUser, equalTo(authentication.getAuthenticatingSubject().getUser()));
+    }
+
+    public void testWriteToAndReadFromWithRemoteAccess() throws Exception {
+        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        assertThat(authentication.isRemoteAccess(), is(true));
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        authentication.writeTo(output);
+        final Authentication readFrom = new Authentication(output.bytes().streamInput());
+        assertThat(readFrom.isRemoteAccess(), is(true));
+
+        assertThat(readFrom, not(sameInstance(authentication)));
+        assertThat(readFrom, equalTo(authentication));
+    }
+
+    public void testWriteToWithRemoteAccessThrowsOnUnsupportedVersion() throws Exception {
+        final Authentication authentication = randomBoolean()
+            ? AuthenticationTestHelper.builder().remoteAccess().build()
+            : AuthenticationTestHelper.builder().build();
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
+            random(),
+            Authentication.VERSION_REMOTE_ACCESS_REALM
+        );
+        out.setTransportVersion(version);
+
+        if (authentication.isRemoteAccess()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before ["
+                        + Authentication.VERSION_REMOTE_ACCESS_REALM
+                        + "] can't handle remote access authentication and attempted to send to ["
+                        + out.getTransportVersion()
+                        + "]"
+                )
+            );
+        } else {
+            authentication.writeTo(out);
+            final StreamInput in = out.bytes().streamInput();
+            in.setTransportVersion(out.getTransportVersion());
+            final Authentication readFrom = new Authentication(in);
+            assertThat(readFrom, equalTo(authentication.maybeRewriteForOlderVersion(out.getTransportVersion())));
+        }
     }
 
     public void testSystemUserReadAndWrite() throws Exception {

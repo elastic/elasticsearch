@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.ToXContent;
@@ -91,9 +92,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertThat(doc.getFields("cyclic_test")[1].stringValue(), equalTo("bar"));
 
         assertThat(doc.getFields("int_to_str_test").length, equalTo(1));
+        assertThat(doc.getFields("int_to_str_test")[0].fieldType().docValuesType(), equalTo(DocValuesType.NONE));
         assertThat(doc.getFields("int_to_str_test")[0].numericValue().intValue(), equalTo(42));
 
-        assertThat(doc.getFields("new_field").length, equalTo(2)); // new field has doc values
+        assertThat(doc.getFields("new_field").length, equalTo(1));
+        // new_field has doc values
+        assertThat(doc.getFields("new_field")[0].fieldType().docValuesType(), equalTo(DocValuesType.SORTED_NUMERIC));
         assertThat(doc.getFields("new_field")[0].numericValue().intValue(), equalTo(42));
 
         assertNotNull(parsedDoc.dynamicMappingsUpdate());
@@ -379,31 +383,37 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertFieldValue(nested, "n1.n2.target", 3L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
+        assertEquals(1, nested.getFields(NestedPathFieldMapper.NAME).length);
 
         nested = doc.docs().get(1);
         assertFieldValue(nested, "n1.n2.target", 5L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
+        assertEquals(1, nested.getFields(NestedPathFieldMapper.NAME).length);
 
         nested = doc.docs().get(3);
         assertFieldValue(nested, "n1.n2.target", 7L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
+        assertEquals(1, nested.getFields(NestedPathFieldMapper.NAME).length);
 
         LuceneDocument parent = doc.docs().get(2);
         assertFieldValue(parent, "target");
         assertFieldValue(parent, "n1.target", 3L, 5L);
         assertFieldValue(parent, "n1.n2.target");
+        assertEquals(1, parent.getFields(NestedPathFieldMapper.NAME).length);
 
         parent = doc.docs().get(4);
         assertFieldValue(parent, "target");
         assertFieldValue(parent, "n1.target", 7L);
         assertFieldValue(parent, "n1.n2.target");
+        assertEquals(1, parent.getFields(NestedPathFieldMapper.NAME).length);
 
         LuceneDocument root = doc.docs().get(5);
         assertFieldValue(root, "target", 3L, 5L, 7L);
         assertFieldValue(root, "n1.target");
         assertFieldValue(root, "n1.n2.target");
+        assertEquals(0, root.getFields(NestedPathFieldMapper.NAME).length);
     }
 
     public void testCopyToChildNested() {

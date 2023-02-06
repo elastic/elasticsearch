@@ -161,7 +161,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     protected ServerChannelInitializer getSslChannelInitializer(final String name, final SslConfiguration configuration) {
-        return new SslChannelInitializer(name, defaultSslConfiguration);
+        return new SslChannelInitializer(name, configuration);
     }
 
     @Override

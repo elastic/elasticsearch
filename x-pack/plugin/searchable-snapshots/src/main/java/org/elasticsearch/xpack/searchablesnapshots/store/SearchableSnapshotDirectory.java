@@ -23,6 +23,7 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.store.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;

@@ -8,10 +8,6 @@
 
 package org.elasticsearch.search.rerank;
 
-import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
-
-import java.util.List;
-
 public interface Reranker {
 
     default int windowSize() {
@@ -21,6 +17,4 @@ public interface Reranker {
     default int size() {
         return 0;
     }
-
-    SortedTopDocs rerank(List<SortedTopDocs> sortedTopDocs);
 }

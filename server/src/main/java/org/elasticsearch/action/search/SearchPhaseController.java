@@ -43,7 +43,6 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rerank.Reranker;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -477,17 +476,7 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(
-            queryResults,
-            Collections.emptyList(),
-            topDocs,
-            topDocsStats,
-            0,
-            true,
-            aggReduceContextBuilder,
-            true,
-            null
-        );
+        return reducedQueryPhase(queryResults, Collections.emptyList(), topDocs, topDocsStats, 0, true, aggReduceContextBuilder, true);
     }
 
     /**
@@ -507,8 +496,7 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        Reranker reranker
+        boolean performFinalReduce
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -590,82 +578,24 @@ public final class SearchPhaseController {
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
-
-        int secondaryResultSize = -1;
-        List<List<TopDocs>> secondaryTopDocs = new ArrayList<>();
-        List<SortedTopDocs> secondarySortedTopDocs = new ArrayList<>();
-        for (SearchPhaseResult searchPhaseResult : queryResults) {
-            QuerySearchResult querySearchResult = searchPhaseResult.queryResult();
-            // TODO: check for timeouts and early terminations
-            if (secondaryResultSize != -1 && secondaryResultSize != querySearchResult.getSecondarySearchResults().size()) {
-                throw new IllegalStateException("unexpected number of secondary results");
-            }
-            secondaryResultSize = querySearchResult.getSecondarySearchResults().size();
-
-            for (int secondaryResultIndex = 0; secondaryResultIndex < secondaryResultSize; ++secondaryResultIndex) {
-                if (secondaryTopDocs.size() < secondaryResultSize) {
-                    secondaryTopDocs.add(new ArrayList<>());
-                }
-                SingleSearchResult secondarySearchResult = querySearchResult.getSecondarySearchResults().get(secondaryResultIndex);
-                TopDocsAndMaxScore secondaryTopDocsAndMaxScore = secondarySearchResult.consumeTopDocs();
-                setShardIndex(secondaryTopDocsAndMaxScore.topDocs, querySearchResult.getShardIndex());
-                secondaryTopDocs.get(secondaryResultIndex).add(secondaryTopDocsAndMaxScore.topDocs);
-            }
-        }
-
+        final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
-        if (secondaryTopDocs.isEmpty()) {
-            SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
-            return new ReducedQueryPhase(
-                totalHits,
-                topDocsStats.fetchHits,
-                topDocsStats.getMaxScore(),
-                topDocsStats.timedOut,
-                topDocsStats.terminatedEarly,
-                reducedSuggest,
-                aggregations,
-                profileBuilder,
-                sortedTopDocs,
-                sortValueFormats,
-                numReducePhases,
-                size,
-                from,
-                false
-            );
-        } else {
-            assert reranker != null;
-            for (List<TopDocs> std : secondaryTopDocs) {
-                secondarySortedTopDocs.add(sortDocs(isScrollRequest, std, from, reranker.size(), List.of()));
-            }
-            // DEBUG
-            /*if (true) {
-                String explain = "";
-                for (SortedTopDocs std : secondarySortedTopDocs) {
-                    for (ScoreDoc sd : std.scoreDocs) {
-                        explain += "[" + sd.doc + ":" + sd.shardIndex + "]";
-                    }
-                    explain += " ; ";
-                }
-                throw new IllegalArgumentException(explain);
-            }*/
-            SortedTopDocs sortedTopDocs = reranker.rerank(secondarySortedTopDocs);
-            return new ReducedQueryPhase(
-                totalHits,
-                sortedTopDocs.scoreDocs.length,
-                sortedTopDocs.scoreDocs[0].score,
-                queryResults.stream().anyMatch(qr -> qr.queryResult().searchTimedOut()),
-                queryResults.stream().anyMatch(qr -> qr.queryResult().terminatedEarly() != null && qr.queryResult().terminatedEarly()),
-                reducedSuggest,
-                aggregations,
-                profileBuilder,
-                sortedTopDocs,
-                sortValueFormats,
-                numReducePhases,
-                reranker.size(),
-                from,
-                false
-            );
-        }
+        return new ReducedQueryPhase(
+            totalHits,
+            topDocsStats.fetchHits,
+            topDocsStats.getMaxScore(),
+            topDocsStats.timedOut,
+            topDocsStats.terminatedEarly,
+            reducedSuggest,
+            aggregations,
+            profileBuilder,
+            sortedTopDocs,
+            sortValueFormats,
+            numReducePhases,
+            size,
+            from,
+            false
+        );
     }
 
     private static InternalAggregations reduceAggs(
@@ -676,9 +606,9 @@ public final class SearchPhaseController {
         return toReduce.isEmpty()
             ? null
             : InternalAggregations.topLevelReduce(
-                toReduce,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
+            toReduce,
+            performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
+        );
     }
 
     /**
@@ -884,7 +814,7 @@ public final class SearchPhaseController {
         }
     }
 
-    public record SortedTopDocs(
+    record SortedTopDocs(
         // the searches merged top docs
         ScoreDoc[] scoreDocs,
         // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.

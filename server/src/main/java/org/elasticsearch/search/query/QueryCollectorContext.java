@@ -18,7 +18,6 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.query.QuerySearchResult.SingleSearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +66,7 @@ abstract class QueryCollectorContext {
      *
      * @param result The query search result to populate
      */
-    void postProcess(SingleSearchResult result) throws IOException {}
+    void postProcess(QuerySearchResult result) throws IOException {}
 
     /**
      * Creates the collector tree from the provided <code>collectors</code>

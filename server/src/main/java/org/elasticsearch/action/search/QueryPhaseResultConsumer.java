@@ -139,8 +139,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingMerges.numReducePhases,
             false,
             aggReduceContextBuilder,
-            performFinalReduce,
-            reranker
+            performFinalReduce
         );
         if (hasAggs
             // reduced aggregations can be null if all shards failed

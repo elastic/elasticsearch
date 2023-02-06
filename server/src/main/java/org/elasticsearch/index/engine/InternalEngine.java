@@ -51,8 +51,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -1913,9 +1911,13 @@ public class InternalEngine extends Engine {
     public void writeIndexingBuffer() throws EngineException {
         // If we're already halfway through the flush thresholds, then we do a flush. This will save us from writing segments twice
         // independently in a short period of time, once to reclaim IndexWriter buffer memory and then to reclaim the translog.
-        final long flushThresholdSizeInBytes = Math.max(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, config().getIndexSettings().getFlushThresholdSize().getBytes() / 2);
+        final long flushThresholdSizeInBytes = Math.max(
+            Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1,
+            config().getIndexSettings().getFlushThresholdSize().getBytes() / 2
+        );
         final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos() / 2;
-        if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos) && flush(false, false, flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
+        if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
+            flush(false, false);
             return;
         }
 
@@ -1942,7 +1944,8 @@ public class InternalEngine extends Engine {
         final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
             localCheckpointOfLastCommit + 1
         ).translogFileGeneration;
-        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThresholdSizeInBytes && System.nanoTime() - lastFlushTimestamp < flushThresholdAgeInNanos) {
+        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThresholdSizeInBytes
+            && relativeTimeInNanosSupplier.getAsLong() - lastFlushTimestamp < flushThresholdAgeInNanos) {
             return false;
         }
         /*
@@ -1969,12 +1972,6 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        final long flushThresholdSizeInBytes = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos();
-        return flush(force, waitIfOngoing, flushThresholdSizeInBytes, flushThresholdAgeInNanos);
-    }
-
-    private boolean flush(boolean force, boolean waitIfOngoing, long flushThresholdSizeInBytes, long flushThresholdAgeInNanos) {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -1982,7 +1979,6 @@ public class InternalEngine extends Engine {
                 "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing
             );
         }
-        boolean flushed = false;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (flushLock.tryLock() == false) {
@@ -2004,7 +2000,7 @@ public class InternalEngine extends Engine {
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
                 if (hasUncommittedChanges
                     || force
-                    || shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)
+                    || shouldPeriodicallyFlush()
                     || getProcessedLocalCheckpoint() > Long.parseLong(
                         lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                     )) {
@@ -2018,7 +2014,6 @@ public class InternalEngine extends Engine {
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();
                         lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
-                        flushed = true;
                     } catch (AlreadyClosedException e) {
                         failOnTragicEvent(e);
                         throw e;
@@ -2041,7 +2036,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
-        return flushed;
+        return true;
     }
 
     private void refreshLastCommittedSegmentInfos() {

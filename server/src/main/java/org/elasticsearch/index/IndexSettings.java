@@ -267,8 +267,8 @@ public final class IndexSettings {
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
         /*
-         * Prevent the translog from growing over 10GB or 20% of the recommended shard size. In general, we expect the translog to flush
-         * based on age, so this size threshold mostly guards us against the worst-case space overhead of translogs.
+         * Prevent the translog from growing over 10GB or 20% of the recommended shard size of 50GB. This helps bound the maximum disk usage
+         * overhead of translogs.
          */
         new ByteSizeValue(10, ByteSizeUnit.GB),
         /*
@@ -285,7 +285,8 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING = Setting.timeSetting(
         "index.translog.flush_threshold_age",
         /*
-         * Flush at least every 5 minutes by default.
+         * Flush at least every 5 minutes by default. This helps ensure that replaying the translog also takes in the order of 5 minutes,
+         * and has the good property of naturally giving more translog size to the shards that are heavily indexed into.
          */
         new TimeValue(5, TimeUnit.MINUTES),
         new TimeValue(1, TimeUnit.SECONDS),

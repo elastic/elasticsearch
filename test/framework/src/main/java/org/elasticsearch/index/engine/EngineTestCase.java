@@ -860,7 +860,7 @@ public abstract class EngineTestCase extends ESTestCase {
             primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            System::nanoTime,
+            this::relativeTimeInNanos,
             indexCommitListener,
             true
         );
@@ -1635,5 +1635,10 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected static CodecService newCodecService() {
         return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    /** Supplier of relative timestamps for the engine. Override this method to control how time passes as seen by the engine. The default implementation returns {@link System#nanoTime()}. */
+    protected long relativeTimeInNanos() {
+        return System.nanoTime();
     }
 }

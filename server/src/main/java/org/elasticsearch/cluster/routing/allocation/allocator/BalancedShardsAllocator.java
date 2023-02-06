@@ -53,7 +53,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.StreamSupport;
@@ -321,26 +320,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * A {@link Balancer}
      */
     public static class Balancer {
-        private final Map<String, ModelNode> nodes;
         private final WriteLoadForecaster writeLoadForecaster;
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
+        private final Metadata metadata;
         private final WeightFunction weight;
 
         private final float threshold;
-        private final Metadata metadata;
         private final float avgShardsPerNode;
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
+        private final Map<String, ModelNode> nodes;
         private final NodeSorter sorter;
 
         public Balancer(WriteLoadForecaster writeLoadForecaster, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
-            this.weight = weight;
-            this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
+            this.weight = weight;
+            this.threshold = threshold;
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
             avgWriteLoadPerNode = getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
             avgDiskUsageInBytesPerNode = ((double) getTotalDiskUsageInBytes(allocation.clusterInfo(), metadata) / routingNodes.size());
@@ -371,15 +370,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         // Visible for testing
         static long getIndexDiskUsageInBytes(ClusterInfo clusterInfo, IndexMetadata indexMetadata) {
-            OptionalLong forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
-            final long indexDiskUsageInBytes;
-            if (forecastedShardSizeInBytes.isPresent()) {
-                int i = numberOfCopies(indexMetadata);
-                indexDiskUsageInBytes = forecastedShardSizeInBytes.getAsLong() * i;
-            } else {
-                indexDiskUsageInBytes = getIndexDiskUsageInBytesFromClusterInfo(clusterInfo, indexMetadata);
-            }
-            return indexDiskUsageInBytes;
+            var forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
+            return forecastedShardSizeInBytes.isPresent()
+                ? forecastedShardSizeInBytes.getAsLong() * numberOfCopies(indexMetadata)
+                : getIndexDiskUsageInBytesFromClusterInfo(clusterInfo, indexMetadata);
         }
 
         private static long getIndexDiskUsageInBytesFromClusterInfo(ClusterInfo clusterInfo, IndexMetadata indexMetadata) {
@@ -420,6 +414,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return writeLoadForecaster.getForecastedWriteLoad(metadata.index(index)).orElse(0.0);
         }
 
+        private double diskUsageInBytesPerShard(String index) {
+            var indexMetadata = metadata.index(index);
+            var forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
+            return forecastedShardSizeInBytes.isPresent()
+                ? forecastedShardSizeInBytes.getAsLong()
+                : (double) getIndexDiskUsageInBytesFromClusterInfo(allocation.clusterInfo(), indexMetadata) / numberOfCopies(indexMetadata);
+        }
+
         /**
          * Returns an array view on the nodes in the balancer. Nodes should not be removed from this list.
          */
@@ -447,10 +449,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public double avgDiskUsageInBytesPerNode() {
             return avgDiskUsageInBytesPerNode;
-        }
-
-        public double diskUsageInBytesPerShard(String index) {
-            return metadata.index(index).getForecastedShardSizeInBytes().orElse(0);
         }
 
         /**

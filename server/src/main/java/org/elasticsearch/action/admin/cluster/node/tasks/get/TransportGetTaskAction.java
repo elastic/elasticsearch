@@ -167,7 +167,10 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     waitedForCompletionListener.onResponse(null);
                 } else {
                     future.addListener(
-                        ContextPreservingActionListener.wrapPreservingContext(waitedForCompletionListener, threadPool.getThreadContext())
+                        new ContextPreservingActionListener<>(
+                            threadPool.getThreadContext().newRestorableContext(false),
+                            waitedForCompletionListener
+                        )
                     );
                     var failByTimeout = threadPool.schedule(
                         () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of task")),

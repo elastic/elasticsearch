@@ -244,7 +244,7 @@ The response from this index request:
 --------------------------------------------------
 // TESTRESPONSE[s/"_version": \d+/"_version": $body._version/ s/"_seq_no": \d+/"_seq_no": $body._seq_no/ s/"_primary_term": 1/"_primary_term": $body._primary_term/]
 
-This additional information will then allow us to, for example, create a visualization of the H3 cell,
+This additional information will then enable, for example, creating a visualization of the H3 cell,
 its children and its intersecting non-children cells.
 
 image:images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: cell, children and intersecting non-children]

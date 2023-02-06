@@ -1,0 +1,5 @@
+pr: 93510
+summary: Add a pattern bank cache to Grok Processors
+area: Ingest Node
+type: enhancement
+issues: []

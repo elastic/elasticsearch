@@ -26,11 +26,22 @@
             "fields": {
                 "long": {
                     "type": "long"
+                },
+                "short": {
+                    "type": "short"
+                },
+                "byte": {
+                    "type": "byte"
                 }
             }
         },
         "height": {
-            "type" : "double"
+            "type" : "double",
+            "fields" : {
+                "float" : {
+                  "type" : "float"
+                }
+            }
         },
         "still_hired": {
             "type" : "keyword"

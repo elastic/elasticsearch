@@ -12,7 +12,31 @@ l:integer
 5
 ;
 
+maxOfShort
+// short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from test | stats l = max(languages.short);
+
+l:integer
+5
+;
+
+maxOfByte
+// byte becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from test | stats l = max(languages.byte);
+
+l:integer
+5
+;
+
 maxOfDouble
+from test | stats h = max(height);
+
+h:double
+2.1
+;
+
+maxOfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
 from test | stats h = max(height);
 
 h:double
@@ -33,12 +57,34 @@ l:double
 3.1222222222222222
 ;
 
+avgOfShort
+from test | stats l = avg(languages.short);
+
+l:double
+3.1222222222222222
+;
+
+avgOfByte
+from test | stats l = avg(languages.byte);
+
+l:double
+3.1222222222222222
+;
+
 avgOfDouble
 from test | stats h = avg(height);
 
 h:double
 1.7682
 ;
+
+avgOfFloat
+from test | stats h = avg(height.float);
+
+h:double
+1.7682
+;
+
 
 sumOfLong
 from test | stats l = sum(languages.long);

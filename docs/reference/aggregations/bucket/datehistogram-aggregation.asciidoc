@@ -626,7 +626,7 @@ More examples:
 
 * If the goal is to, for example, have an annual histogram where each year starts on the 5th February,
 you could use `calendar_interval` of `year` and `offset` of `+33d`, and each year will be shifted identically,
-because the offset includes only January, which ius the same length every year.
+because the offset includes only January, which is the same length every year.
 However, if the goal is to have the year start on the 5th March instead, this technique will not work because
 the offset includes February, which changes length every four years.
 * If you want a quarterly histogram starting on a date within the first month of the year, it will work,

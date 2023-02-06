@@ -87,7 +87,7 @@ public class RemoteAccessAuthenticationService {
                 List.of(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
             )
         ) {
-            final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(true);
+            final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
             // Write remote access credential to the Authorization header, so we can re-use generic authentication service functionality for
             // authc token extraction
             threadContext.putHeader("Authorization", remoteAccessHeaders.clusterCredentialHeader());

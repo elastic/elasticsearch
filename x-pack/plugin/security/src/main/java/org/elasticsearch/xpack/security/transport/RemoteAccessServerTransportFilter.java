@@ -41,6 +41,10 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
     ) {
         if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
             super.authenticate(securityAction, request, authenticationListener);
+        } else if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
+            authenticationListener.onFailure(
+                new IllegalArgumentException("action [" + securityAction + "] is not allow-listed for remote access")
+            );
         } else {
             remoteAccessAuthcService.authenticate(securityAction, request, false, authenticationListener);
         }

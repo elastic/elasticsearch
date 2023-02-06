@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -571,9 +572,31 @@ public class DenseVectorFieldMapper extends FieldMapper {
     );
 
     enum VectorSimilarity {
-        L2_NORM(VectorSimilarityFunction.EUCLIDEAN),
-        COSINE(VectorSimilarityFunction.COSINE),
-        DOT_PRODUCT(VectorSimilarityFunction.DOT_PRODUCT);
+        L2_NORM(VectorSimilarityFunction.EUCLIDEAN) {
+            @Override
+            float score(float similarity, ElementType elementType, int dim) {
+                return switch (elementType) {
+                    case BYTE, FLOAT -> 1f / (1f + similarity);
+                };
+            }
+        },
+        COSINE(VectorSimilarityFunction.COSINE) {
+            @Override
+            float score(float similarity, ElementType elementType, int dim) {
+                return switch (elementType) {
+                    case BYTE, FLOAT -> (1 + similarity) / 2f;
+                };
+            }
+        },
+        DOT_PRODUCT(VectorSimilarityFunction.DOT_PRODUCT) {
+            @Override
+            float score(float similarity, ElementType elementType, int dim) {
+                return switch (elementType) {
+                    case BYTE -> 0.5f + similarity / (float) (dim * (1 << 15));
+                    case FLOAT -> (1 + similarity) / 2f;
+                };
+            }
+        };
 
         public final VectorSimilarityFunction function;
 
@@ -585,6 +608,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public final String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
+
+        abstract float score(float similarity, ElementType elementType, int dim);
     }
 
     private abstract static class IndexOptions implements ToXContent {
@@ -723,37 +748,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public Query createKnnQuery(byte[] queryVector, int numCands, Query filter) {
-            if (isIndexed() == false) {
-                throw new IllegalArgumentException(
-                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
-                );
-            }
-
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
-
-            if (elementType != ElementType.BYTE) {
-                throw new IllegalArgumentException(
-                    "only [" + ElementType.BYTE + "] elements are supported when querying field [" + name() + "]"
-                );
-            }
-
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = 0.0f;
-                for (byte b : queryVector) {
-                    squaredMagnitude += b * b;
-                }
-                elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
-            }
-
-            return new KnnByteVectorQuery(name(), queryVector, numCands, filter);
-        }
-
-        public Query createKnnQuery(float[] queryVector, int numCands, Query filter) {
+        private void checkQueryVector(float[] queryVector) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -774,6 +769,43 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
             }
+        }
+
+        private void checkQueryVector(byte[] queryVector) {
+            if (isIndexed() == false) {
+                throw new IllegalArgumentException(
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException(
+                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
+                );
+            }
+
+            if (elementType != ElementType.BYTE) {
+                throw new IllegalArgumentException(
+                    "only [" + ElementType.BYTE + "] elements are supported when querying field [" + name() + "]"
+                );
+            }
+        }
+
+        public Query createKnnQuery(byte[] queryVector, int numCands, Query filter) {
+            checkQueryVector(queryVector);
+            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = 0.0f;
+                for (byte b : queryVector) {
+                    squaredMagnitude += b * b;
+                }
+                elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
+            }
+
+            return new KnnByteVectorQuery(name(), queryVector, numCands, filter);
+        }
+
+        public Query createKnnQuery(float[] queryVector, int numCands, Query filter) {
+            checkQueryVector(queryVector);
             return switch (elementType) {
                 case BYTE -> {
                     byte[] bytes = new byte[queryVector.length];
@@ -784,6 +816,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 case FLOAT -> new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
+        }
+
+        public Query createVectorSimilarity(float[] queryVector, float similarity, int numCands) {
+            checkQueryVector(queryVector);
+            float docScore = this.similarity.score(similarity, elementType, dims);
+            Query knnQuery = switch (elementType) {
+                case BYTE -> {
+                    byte[] bytes = new byte[queryVector.length];
+                    for (int i = 0; i < queryVector.length; i++) {
+                        bytes[i] = (byte) queryVector[i];
+                    }
+                    yield new KnnByteVectorQuery(name(), bytes, numCands);
+                }
+                case FLOAT -> new KnnFloatVectorQuery(name(), queryVector, numCands);
+            };
+            return new VectorSimilarityQuery(knnQuery, similarity, docScore);
         }
     }
 

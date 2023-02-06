@@ -246,6 +246,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.search.vectors.VectorSimilarityQueryBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1130,6 +1131,13 @@ public class SearchModule {
                 KnnScoreDocQueryBuilder.NAME,
                 KnnScoreDocQueryBuilder::new,
                 parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
+            )
+        );
+        registerQuery(
+            new QuerySpec<>(
+                VectorSimilarityQueryBuilder.NAME,
+                VectorSimilarityQueryBuilder::new,
+                VectorSimilarityQueryBuilder::fromXContent
             )
         );
 

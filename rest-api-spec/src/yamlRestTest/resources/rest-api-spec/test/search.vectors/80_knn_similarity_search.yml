@@ -1,0 +1,181 @@
+setup:
+  - skip:
+      version: ' - 8.6.99'
+      reason: 'vector similarity search added in 8.7'
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Vector similarity search only":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              num_candidates: 3
+              field: vector
+              similarity: 110
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+---
+"Vector similarity search under bool":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            bool:
+              must:
+                - vector_similarity:
+                    num_candidates: 3
+                    field: vector
+                    similarity: 110
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                - term:
+                    name: "cow.jpg"
+
+  - length: {hits.hits: 0}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            bool:
+              must:
+                - vector_similarity:
+                    num_candidates: 3
+                    field: vector
+                    similarity: 110
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                - term:
+                    name: "moose.jpg"
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+---
+"similarity search with bad parameters":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              num_candidates: 0
+              field: vector
+              similarity: 10.5
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              field: vector
+              similarity: 10.5
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              num_candidates: 3
+              similarity: 10.5
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              num_candidates: 3
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              num_candidates: 3
+              similarity: 10.5
+              field: vector
+---
+"Test nonexistent field":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              num_candidates: 3
+              field: non_existent
+              similarity: 10.5
+              query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]

@@ -1,0 +1,63 @@
+[[query-dsl-vector-similarity-query]]
+=== Vector Similarity query
+++++
+<titleabbrev>Vector Similarity</titleabbrev>
+++++
+
+A query that allows approximate nearest neighbors search over <<dense-vector,`dense_vector`>> fields.
+The query will find vectors that are within or equal to the given similarity threshold of the provide
+query vector.
+
+[[vector-similarity-query-ex-request]]
+==== Example request
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "vector_similarity": {
+      "field": "image-vector",
+      "query_vector": [-5, 9, -12],
+      "num_candidates": 100
+      "similarity": 10.0
+    }
+  }
+}
+----
+
+[[vector-similarity-top-level-params]]
+==== Top-level parameters for `vector_similarity`
+`field`::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+
+`query_vector`::
+(Required, array of floats)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
+
+`num_candidates`::
+(Required, int)
+The number of nearest neighbor candidates to consider per shard. Cannot exceed
+10,000.
+
+`similarity`::
+(Required, float)
+The minimum similarity required for a document to be considered a match. The similarity
+value calculated relates to the raw <<dense-vector-similarity, `similarity`>> used. Not the
+document score. The matched documents are then scored according to <<dense-vector-similarity, `similarity`>>
+and the provided `boost` is applied.
+
++
+--
+The `similarity` parameter is the direct vector similarity calculation.
+
+* `l2_norm`: also known as Euclidean, will include documents where the vector is within
+the `dims` dimensional sphere with radius `similarity`.
+* `cosine` & `dot_product`: Only return vectors where the cosine similarity or dot-product are at least the provided
+`similarity`.
+--
+
+`boost`::
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>>. Defaults to `1.0`.

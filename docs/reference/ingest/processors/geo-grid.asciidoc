@@ -9,7 +9,7 @@ Converts geo-grid definitions of grid tiles or cells to regular bounding boxes o
 This is useful if there is a need to interact with the tile shapes as spatially indexable fields.
 For example the `geotile` field value `"4/8/3"` could be indexed as a string field, but that would not enable
 any spatial operations on it.
-Instead we should convert it to the value
+Instead, convert it to the value
 `"POLYGON ((0.0 40.979898069620134, 22.5 40.979898069620134, 22.5 55.77657301866769, 0.0 55.77657301866769, 0.0 40.979898069620134))"`,
 which can be indexed as a <<geo-shape,`geo_shape`>> field.
 
@@ -32,7 +32,7 @@ include::common-options.asciidoc[]
 
 To demonstrate the usage of this ingest processor, consider an index called `geocells`
 with a mapping for a field `geocell` of type `geo_shape`.
-In order to populate that index using `geotile` and `geohex` fields, we would need to define
+In order to populate that index using `geotile` and `geohex` fields, define
 two ingest processors:
 
 [source,console]
@@ -76,7 +76,7 @@ PUT _ingest/pipeline/geohex2shape
 }
 --------------------------------------------------
 
-Using the two pipelines above, we can attempt to index documents into the `geocells` index.
+These two pipelines can be used to index documents into the `geocells` index.
 The `geocell` field will be the string version of either a rectangular tile with format `z/x/y` or an H3 cell address,
 depending on which ingest processor we use when indexing the document.
 The resulting geometry will be represented and indexed as a <<geo-shape,`geo_shape`>> field in either
@@ -127,8 +127,8 @@ image:images/spatial/geogrid_tile.png[Kibana map with showing the geotile at 4/8
 ==== Example: Hexagonal geohex with polygon in WKT format
 
 In this example a `geocell` field with an H3 string address is indexed as a
-https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[WKT Polygon], since the ingest-processor explicitly
-defined the `target_format` above.
+https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[WKT Polygon], since this ingest processor explicitly
+defined the `target_format`.
 
 [source,console]
 --------------------------------------------------
@@ -163,7 +163,7 @@ image:images/spatial/geogrid_h3.png[Kibana map with showing an H3 cell, and its 
 
 ==== Example: Enriched tile details
 
-As described in the <<geo-grid-processor-options,geo_grid processor options>> above,
+As described in <<geo-grid-processor-options,geo_grid processor options>>,
 there are many other fields that can be set, which will enrich the information available.
 For example, with H3 tiles there are 7 child tiles, but only the first is fully contained by the parent.
 The remaining six are only partially overlapping the parent, and there exist a further six non-child tiles
@@ -193,7 +193,7 @@ PUT _ingest/pipeline/geohex2shape
 }
 --------------------------------------------------
 
-Now when we index the document we will see a different result.
+Index the document to see a different result:
 
 [source,console]
 --------------------------------------------------
@@ -206,7 +206,7 @@ GET geocells/_doc/1
 --------------------------------------------------
 // TEST[continued]
 
-The response from the above index request:
+The response from this index request:
 
 [source,console-result]
 --------------------------------------------------
@@ -244,7 +244,7 @@ The response from the above index request:
 --------------------------------------------------
 // TESTRESPONSE[s/"_version": \d+/"_version": $body._version/ s/"_seq_no": \d+/"_seq_no": $body._seq_no/ s/"_primary_term": 1/"_primary_term": $body._primary_term/]
 
-This additional information will then allow us to, for example, create a visualization of the H3 cell,
+This additional information will then enable, for example, creating a visualization of the H3 cell,
 its children and its intersecting non-children cells.
 
 image:images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: cell, children and intersecting non-children]

@@ -45,6 +45,45 @@ constant_keyword:
   - match: {values.0.0: 17}
 
 ---
+wildcard:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              card:
+                type: wildcard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": "jack of diamonds" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: keyword}
+  - length: {values: 1}
+  - match: {values.0.0: jack of diamonds}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval l=length(card) | project l'
+  - match: {columns.0.name: l}
+  - match: {columns.0.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 16}
+
+---
 small_numbers:
   - do:
       indices.create:

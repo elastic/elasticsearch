@@ -33,6 +33,10 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
     public static final ParseField HIGH_VARIANCE_PENALTY = new ParseField("high_variance_penalty");
     public static final ParseField INCOMPLETE_BUCKET_PENALTY = new ParseField("incomplete_bucket_penalty");
     public static final ParseField MULTIMODAL_DISTRIBUTION = new ParseField("multimodal_distribution");
+    public static final ParseField RARE_CATEGORY_SEEN_FIRST_TIME = new ParseField("rare_category_seen_first_time");
+    public static final ParseField RARE_CATEGORY_TYPICAL_CONCENTRATION = new ParseField("rare_category_typical_concentration");
+    public static final ParseField RARE_CATEGORY_ACTUAL_CONCENTRATION = new ParseField("rare_category_actual_concentration");
+
 
     public static final ObjectParser<AnomalyScoreExplanation, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<AnomalyScoreExplanation, Void> LENIENT_PARSER = createParser(true);
@@ -54,6 +58,9 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         parser.declareBoolean(AnomalyScoreExplanation::setHighVariancePenalty, HIGH_VARIANCE_PENALTY);
         parser.declareBoolean(AnomalyScoreExplanation::setIncompleteBucketPenalty, INCOMPLETE_BUCKET_PENALTY);
         parser.declareBoolean(AnomalyScoreExplanation::setMultimodalDistribution, MULTIMODAL_DISTRIBUTION);
+        parser.declareBoolean(AnomalyScoreExplanation::setRareCategorySeenFirstTime, RARE_CATEGORY_SEEN_FIRST_TIME);
+        parser.declareDouble(AnomalyScoreExplanation::setRareCategoryTypicalConcentration, RARE_CATEGORY_TYPICAL_CONCENTRATION);
+        parser.declareDouble(AnomalyScoreExplanation::setRareCategoryActualConcentration, RARE_CATEGORY_ACTUAL_CONCENTRATION);
         return parser;
     }
 
@@ -68,6 +75,9 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
     private Boolean highVariancePenalty;
     private Boolean incompleteBucketPenalty;
     private Boolean multimodalDistribution;
+    private Boolean rareCategorySeenFirstTime;
+    private Double rareCategoryTypicalConcentration;
+    private Double rareCategoryActualConcentration;
 
     AnomalyScoreExplanation() {}
 
@@ -85,6 +95,12 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.multimodalDistribution = in.readOptionalBoolean();
         }
+        // TODO: change to 8.8
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            this.rareCategorySeenFirstTime = in.readOptionalBoolean();
+            this.rareCategoryTypicalConcentration = in.readOptionalDouble();
+            this.rareCategoryActualConcentration = in.readOptionalDouble();
+        }
     }
 
     @Override
@@ -101,6 +117,12 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         out.writeOptionalBoolean(incompleteBucketPenalty);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeOptionalBoolean(multimodalDistribution);
+        }
+        // TODO: change to 8.8
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeOptionalBoolean(rareCategorySeenFirstTime);
+            out.writeOptionalDouble(rareCategoryTypicalConcentration);
+            out.writeOptionalDouble(rareCategoryActualConcentration);
         }
     }
 
@@ -140,6 +162,15 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         if (multimodalDistribution != null) {
             builder.field(MULTIMODAL_DISTRIBUTION.getPreferredName(), multimodalDistribution);
         }
+        if (rareCategorySeenFirstTime != null) {
+            builder.field(RARE_CATEGORY_SEEN_FIRST_TIME.getPreferredName(), rareCategorySeenFirstTime);
+        }
+        if (rareCategoryTypicalConcentration != null) {
+            builder.field(RARE_CATEGORY_TYPICAL_CONCENTRATION.getPreferredName(), rareCategoryTypicalConcentration);
+        }
+        if (rareCategoryActualConcentration != null) {
+            builder.field(RARE_CATEGORY_ACTUAL_CONCENTRATION.getPreferredName(), rareCategoryActualConcentration);
+        }
         builder.endObject();
         return builder;
     }
@@ -157,7 +188,10 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
             upperConfidenceBound,
             highVariancePenalty,
             incompleteBucketPenalty,
-            multimodalDistribution
+            multimodalDistribution, 
+            rareCategorySeenFirstTime,
+            rareCategoryTypicalConcentration,
+            rareCategoryActualConcentration
         );
     }
 
@@ -181,7 +215,11 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
             && Objects.equals(this.upperConfidenceBound, that.upperConfidenceBound)
             && Objects.equals(this.highVariancePenalty, that.highVariancePenalty)
             && Objects.equals(this.incompleteBucketPenalty, that.incompleteBucketPenalty)
-            && Objects.equals(this.multimodalDistribution, that.multimodalDistribution);
+            && Objects.equals(this.multimodalDistribution, that.multimodalDistribution)
+            && Objects.equals(this.rareCategorySeenFirstTime, that.rareCategorySeenFirstTime)
+            && Objects.equals(this.rareCategoryTypicalConcentration, that.rareCategoryTypicalConcentration)
+            && Objects.equals(this.rareCategoryActualConcentration, that.rareCategoryActualConcentration)
+            ;
     }
 
     public String getAnomalyType() {
@@ -270,6 +308,30 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
 
     public void setMultimodalDistribution(Boolean multimodalDistribution) {
         this.multimodalDistribution = multimodalDistribution;
+    }
+
+    public Boolean isRareCategorySeenFirstTime() {
+        return rareCategorySeenFirstTime;
+    }
+
+    public void setRareCategorySeenFirstTime(Boolean rareCategorySeenFirstTime) {
+        this.rareCategorySeenFirstTime = rareCategorySeenFirstTime;
+    }
+
+    public Double getRareCategoryTypicalConcentration() {
+        return rareCategoryTypicalConcentration;
+    }
+
+    public void setRareCategoryTypicalConcentration(Double rareCategoryTypicalConcentration) {
+        this.rareCategoryTypicalConcentration = rareCategoryTypicalConcentration;
+    }
+
+    public Double getRareCategoryActualConcentration() {
+        return rareCategoryActualConcentration;
+    }
+
+    public void setRareCategoryActualConcentration(Double rareCategoryActualConcentration) {
+        this.rareCategoryActualConcentration = rareCategoryActualConcentration;
     }
 
 }

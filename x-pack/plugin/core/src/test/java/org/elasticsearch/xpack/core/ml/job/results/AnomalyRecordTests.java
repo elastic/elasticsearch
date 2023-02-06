@@ -106,6 +106,9 @@ public class AnomalyRecordTests extends AbstractXContentSerializingTestCase<Anom
             anomalyScoreExplanation.setHighVariancePenalty(randomBoolean());
             anomalyScoreExplanation.setIncompleteBucketPenalty(randomBoolean());
             anomalyScoreExplanation.setMultimodalDistribution(randomBoolean());
+            anomalyScoreExplanation.setRareCategorySeenFirstTime(randomBoolean());
+            anomalyScoreExplanation.setRareCategoryTypicalConcentration(randomDouble());
+            anomalyScoreExplanation.setRareCategoryActualConcentration(randomDouble());
         }
 
         return anomalyRecord;

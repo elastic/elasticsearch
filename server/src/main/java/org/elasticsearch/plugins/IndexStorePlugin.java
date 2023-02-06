@@ -49,13 +49,11 @@ public interface IndexStorePlugin {
          * Creates a new directory per shard. This method is called once per shard on shard creation.
          * @param indexSettings the shards index settings
          * @param shardPath the path the shard is using
-         * @param isSearchable true if the shard for which the directory is created is a searchable shard copy
-         * @param isPromotable true if the shard for which the directory is created is a shard copy that can be promoted as a primary shard
+         * @param shardRouting the {@link ShardRouting}
          * @return a new lucene directory instance
          * @throws IOException if an IOException occurs while opening the directory
          */
-        default Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, boolean isSearchable, boolean isPromotable)
-            throws IOException {
+        default Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, ShardRouting shardRouting) throws IOException {
             return newDirectory(indexSettings, shardPath);
         }
     }

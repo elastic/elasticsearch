@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 
 import java.io.IOException;
@@ -101,6 +102,8 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
             if (response.getInferenceResults().get(0)instanceof TextEmbeddingResults textEmbeddingResults) {
                 listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
+            } else if (response.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
+                listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
                 throw new IllegalStateException(
                     "expected a result of type ["

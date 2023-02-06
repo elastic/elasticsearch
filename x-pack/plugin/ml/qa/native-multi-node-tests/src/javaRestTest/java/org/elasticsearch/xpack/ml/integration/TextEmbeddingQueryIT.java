@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.hasSize;
  *      torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
-public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
+public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
 
     static final String BASE_64_ENCODED_MODEL = "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWl"
         + "paWlpaWlpaWoACY19fdG9yY2hfXwpUaW55VGV4dEVtYmVkZGluZwpxACmBfShYCAAAAHRy"

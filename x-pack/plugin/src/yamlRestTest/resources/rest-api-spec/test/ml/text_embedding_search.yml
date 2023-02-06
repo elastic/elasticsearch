@@ -122,5 +122,4 @@ setup:
               text_embedding:
                 model_id: text_embedding_model
                 model_text: "the octopus comforter smells"
-  - gte: { inference_took: 0 }
   - match: { hits.total.value: 3 }

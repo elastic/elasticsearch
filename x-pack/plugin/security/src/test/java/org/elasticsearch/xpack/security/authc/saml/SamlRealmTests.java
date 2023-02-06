@@ -227,18 +227,11 @@ public class SamlRealmTests extends SamlTestCase {
             final TimeValue minimumRefreshTime = testBackgroundRefresh ? TimeValue.timeValueMillis(500) : defaultRefreshTime;
 
             final Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + webServer.getPort(), builder -> {
-                if (defaultRefreshTime != null) {
-                    builder.put(
-                        getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH),
-                        defaultRefreshTime.getStringRep()
-                    );
-                }
-                if (minimumRefreshTime != null) {
-                    builder.put(
-                        getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH),
-                        minimumRefreshTime.getStringRep()
-                    );
-                }
+                builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), defaultRefreshTime.getStringRep());
+                builder.put(
+                    getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH),
+                    minimumRefreshTime.getStringRep()
+                );
                 if (randomBoolean()) {
                     builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), false);
                 }

@@ -80,7 +80,7 @@ class UnresolvedEntity implements EntityDescriptor {
 
     @Override
     public void setExtensions(Extensions extensions) {
-
+        throw new UnsupportedOperationException("Cannot set extensions on " + this);
     }
 
     @Override

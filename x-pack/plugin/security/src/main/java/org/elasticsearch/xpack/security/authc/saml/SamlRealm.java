@@ -158,6 +158,9 @@ public final class SamlRealm extends Realm implements Releasable {
     // Although we only use this for IDP metadata loading, the SSLServer only loads configurations where "ssl." is a top-level element
     // in the realm group configuration, so it has to have this name.
 
+    // Strictly, this shouldn't be static because it means that only 1 SAML realm per node can be refreshing metadata, but there's no reason
+    // to assume that there's any relationship between SAML realms. However, because all the metadata loading code is in static methods, we
+    // live with this limitation for now.
     private static final AtomicBoolean REFRESHING_METADATA = new AtomicBoolean(false);
 
     private final List<Releasable> releasables;
@@ -534,17 +537,17 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<User>> listener) {
-        if (this.idpDescriptor.get() instanceof UnresolvedEntity) {
-            // This isn't an ideal check, but we don't have a better option right now
-            listener.onResponse(
-                AuthenticationResult.unsuccessful(
-                    "SAML realm [" + this + "] cannot authenticate because the metadata could not be resolved",
-                    null
-                )
-            );
-            return;
-        }
         if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
+            if (this.idpDescriptor.get() instanceof UnresolvedEntity) {
+                // This isn't an ideal check, but we don't have a better option right now
+                listener.onResponse(
+                    AuthenticationResult.unsuccessful(
+                        "SAML realm [" + this + "] cannot authenticate because the metadata could not be resolved",
+                        null
+                    )
+                );
+                return;
+            }
             try {
                 final SamlToken token = (SamlToken) authenticationToken;
                 final SamlAttributes attributes = authenticator.authenticate(token);
@@ -844,6 +847,9 @@ public final class SamlRealm extends Realm implements Releasable {
                 }
             }
             descriptor = resolver.resolveSingle(criteria);
+            if (descriptor != null) {
+                logger.debug(() -> "SAML metadata for [" + entityId + "] has been successfully refreshed");
+            }
         }
         return descriptor;
     }

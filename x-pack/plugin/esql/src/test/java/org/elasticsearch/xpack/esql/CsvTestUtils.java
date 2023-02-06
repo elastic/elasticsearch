@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -268,7 +269,8 @@ final class CsvTestUtils {
         FLOAT(Double::parseDouble),
         KEYWORD(Object::toString),
         NULL(s -> null),
-        DATETIME(x -> x == null ? null : DateFormatters.from(DEFAULT_DATE_FORMATTER.parse(x)).toInstant().toEpochMilli());
+        DATETIME(x -> x == null ? null : DateFormatters.from(DEFAULT_DATE_FORMATTER.parse(x)).toInstant().toEpochMilli()),
+        BOOLEAN(Booleans::parseBoolean);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -305,6 +307,7 @@ final class CsvTestUtils {
                 case DOUBLE -> DOUBLE;
                 case NULL -> NULL;
                 case BYTES_REF -> KEYWORD;
+                case BOOLEAN -> BOOLEAN;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

@@ -7,52 +7,40 @@
 
 package org.elasticsearch.compute.data;
 
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-$endif$
-
 /**
- * Block that stores $type$ values.
+ * Block that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits Filter$Type$Block,$Type$ArrayBlock,$Type$VectorBlock {
+public sealed interface BooleanBlock extends Block permits FilterBooleanBlock,BooleanArrayBlock,BooleanVectorBlock {
 
     /**
-     * Retrieves the $type$ value stored at the given value index.
+     * Retrieves the boolean value stored at the given value index.
      *
      * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
      * getFirstValueIndex(position) + getValueCount(position) (exclusive).
      *
      * @param valueIndex the value index
-$if(BytesRef)$
-     * @param dest the destination
-$endif$
-     * @return the data value (as a $type$)
+     * @return the data value (as a boolean)
      */
-$if(BytesRef)$
-    BytesRef getBytesRef(int valueIndex, BytesRef dest);
-
-$else$
-    $type$ get$Type$(int valueIndex);
-$endif$
+    boolean getBoolean(int valueIndex);
 
     @Override
-    $Type$Vector asVector();
+    BooleanVector asVector();
 
     @Override
-    $Type$Block getRow(int position);
+    BooleanBlock getRow(int position);
 
     @Override
-    $Type$Block filter(int... positions);
+    BooleanBlock filter(int... positions);
 
     /**
      * Compares the given object with this block for equality. Returns {@code true} if and only if the
-     * given object is a $Type$Block, and both blocks are {@link #equals($Type$Block, $Type$Block) equal}.
+     * given object is a BooleanBlock, and both blocks are {@link #equals(BooleanBlock, BooleanBlock) equal}.
      */
     @Override
     boolean equals(Object obj);
 
-    /** Returns the hash code of this block, as defined by {@link #hash($Type$Block)}. */
+    /** Returns the hash code of this block, as defined by {@link #hash(BooleanBlock)}. */
     @Override
     int hashCode();
 
@@ -60,9 +48,9 @@ $endif$
      * Returns {@code true} if the given blocks are equal to each other, otherwise {@code false}.
      * Two blocks are considered equal if they have the same position count, and contain the same
      * values (including absent null values) in the same order. This definition ensures that the
-     * equals method works properly across different implementations of the $Type$Block interface.
+     * equals method works properly across different implementations of the BooleanBlock interface.
      */
-    static boolean equals($Type$Block block1, $Type$Block block2) {
+    static boolean equals(BooleanBlock block1, BooleanBlock block2) {
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -80,12 +68,7 @@ $endif$
                 final int b1ValueIdx = block1.getFirstValueIndex(pos);
                 final int b2ValueIdx = block2.getFirstValueIndex(pos);
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-$if(BytesRef)$
-                    if (block1.getBytesRef(b1ValueIdx + valueIndex, new BytesRef())
-                        .equals(block2.getBytesRef(b2ValueIdx + valueIndex, new BytesRef())) == false) {
-$else$
-                    if (block1.get$Type$(b1ValueIdx + valueIndex) != block2.get$Type$(b2ValueIdx + valueIndex)) {
-$endif$
+                    if (block1.getBoolean(b1ValueIdx + valueIndex) != block2.getBoolean(b2ValueIdx + valueIndex)) {
                         return false;
                     }
                 }
@@ -100,7 +83,7 @@ $endif$
      * for any two blocks, {@code block1} and {@code block2}, as required by the general contract of
      * {@link Object#hashCode}.
      */
-    static int hash($Type$Block block) {
+    static int hash(BooleanBlock block) {
         final int positions = block.getPositionCount();
         int result = 1;
         for (int pos = 0; pos < positions; pos++) {
@@ -111,23 +94,7 @@ $endif$
                 result = 31 * result + valueCount;
                 final int firstValueIdx = block.getFirstValueIndex(pos);
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-$if(BytesRef)$
-                    result = 31 * result + block.getBytesRef(firstValueIdx + valueIndex, new BytesRef()).hashCode();
-$endif$
-$if(boolean)$
                     result = 31 * result + Boolean.hashCode(block.getBoolean(firstValueIdx + valueIndex));
-$endif$
-$if(int)$
-                    result = 31 * result + block.getInt(firstValueIdx + valueIndex);
-$endif$
-$if(long)$
-                    long element = block.getLong(firstValueIdx + valueIndex);
-                    result = 31 * result + (int) (element ^ (element >>> 32));
-$endif$
-$if(double)$
-                    long element = Double.doubleToLongBits(block.getDouble(firstValueIdx + valueIndex));
-                    result = 31 * result + (int) (element ^ (element >>> 32));
-$endif$
                 }
             }
         }
@@ -135,19 +102,19 @@ $endif$
     }
 
     static Builder newBlockBuilder(int estimatedSize) {
-        return new $Type$BlockBuilder(estimatedSize);
+        return new BooleanBlockBuilder(estimatedSize);
     }
 
-    static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return new Constant$Type$Vector(value, positions).asBlock();
+    static BooleanBlock newConstantBlockWith(boolean value, int positions) {
+        return new ConstantBooleanVector(value, positions).asBlock();
     }
 
-    sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {
+    sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {
 
         /**
-         * Appends a $type$ to the current entry.
+         * Appends a boolean to the current entry.
          */
-        Builder append$Type$($type$ value);
+        Builder appendBoolean(boolean value);
 
         @Override
         Builder appendNull();
@@ -159,6 +126,6 @@ $endif$
         Builder endPositionEntry();
 
         @Override
-        $Type$Block build();
+        BooleanBlock build();
     }
 }

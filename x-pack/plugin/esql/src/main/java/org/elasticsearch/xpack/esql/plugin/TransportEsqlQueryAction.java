@@ -17,6 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -128,6 +129,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     if (dataTypes.get(b) == DataTypes.DATETIME) {
                         long longVal = ((LongBlock) block).getLong(p);
                         row.add(DateFormat.DEFAULT_DATE_FORMATTER.formatMillis(longVal));
+                        continue;
+                    }
+                    if (dataTypes.get(b) == DataTypes.BOOLEAN) {
+                        row.add(((BooleanBlock) block).getBoolean(p));
                         continue;
                     }
                     throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(b) + "]");

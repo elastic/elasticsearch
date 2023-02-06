@@ -11,6 +11,7 @@ package org.elasticsearch.compute.data;
  * The type of elements in {@link Block} and {@link Vector}
  */
 public enum ElementType {
+    BOOLEAN,
     INT,
     LONG,
     DOUBLE,

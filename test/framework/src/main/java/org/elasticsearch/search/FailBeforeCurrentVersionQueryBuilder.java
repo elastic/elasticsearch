@@ -33,7 +33,7 @@ public class FailBeforeCurrentVersionQueryBuilder extends DummyQueryBuilder {
     @Override
     protected void doWriteTo(StreamOutput out) {
         if (out.getTransportVersion().before(TransportVersion.CURRENT)) {
-            throw new IllegalArgumentException("This query isn't serializable to nodes before " + TransportVersion.CURRENT);
+            throw new IllegalArgumentException("This query isn't serializable with transport versions before " + TransportVersion.CURRENT);
         }
     }
 

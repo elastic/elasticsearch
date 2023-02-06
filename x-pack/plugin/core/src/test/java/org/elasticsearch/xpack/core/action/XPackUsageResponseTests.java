@@ -33,9 +33,9 @@ public class XPackUsageResponseTests extends ESTestCase {
         oldVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getFirstVersion(),
-            TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE)
+            TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT)
         );
-        newVersion = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT);
+        newVersion = TransportVersionUtils.randomVersionBetween(random(), oldVersion, TransportVersion.CURRENT);
     }
 
     public static class OldUsage extends XPackFeatureSet.Usage {

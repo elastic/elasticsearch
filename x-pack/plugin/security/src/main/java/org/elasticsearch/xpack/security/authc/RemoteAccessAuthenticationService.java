@@ -47,11 +47,16 @@ public class RemoteAccessAuthenticationService {
         null
     );
     private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticationService.class);
-
+    private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
 
-    public RemoteAccessAuthenticationService(AuthenticationService authenticationService) {
+    public RemoteAccessAuthenticationService(ApiKeyService apiKeyService, AuthenticationService authenticationService) {
+        this.apiKeyService = apiKeyService;
         this.authenticationService = authenticationService;
+    }
+
+    public AuthenticationService getAuthenticationService() {
+        return authenticationService;
     }
 
     public void authenticate(
@@ -74,7 +79,7 @@ public class RemoteAccessAuthenticationService {
 
         final RemoteAccessHeaders remoteAccessHeaders;
         try {
-            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
+            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(apiKeyService, threadContext);
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
             return;
@@ -89,12 +94,11 @@ public class RemoteAccessAuthenticationService {
             )
         ) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
-            // Write remote access credential to the Authorization header, so we can re-use generic authentication service functionality for
-            // authc token extraction
-            threadContext.putHeader("Authorization", remoteAccessHeaders.clusterCredentialHeader());
+            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredential);
             authenticationService.authenticate(
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
+                    assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
                     final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
                     final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
                     final Subject receivedEffectiveSubject = receivedAuthentication.getEffectiveSubject();
@@ -126,15 +130,25 @@ public class RemoteAccessAuthenticationService {
         }
     }
 
-    private record RemoteAccessHeaders(String clusterCredentialHeader, RemoteAccessAuthentication remoteAccessAuthentication) {
-        static RemoteAccessHeaders readFromContext(ThreadContext threadContext) throws IOException {
+    private record RemoteAccessHeaders(
+        ApiKeyService.ApiKeyCredentials clusterCredential,
+        RemoteAccessAuthentication remoteAccessAuthentication
+    ) {
+        static RemoteAccessHeaders readFromContext(ApiKeyService apiKeyService, ThreadContext threadContext) throws IOException {
+            apiKeyService.ensureEnabled();
             final String clusterCredentialHeader = threadContext.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
             if (clusterCredentialHeader == null) {
                 throw new IllegalArgumentException(
                     "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"
                 );
             }
-            return new RemoteAccessHeaders(clusterCredentialHeader, RemoteAccessAuthentication.readFromContext(threadContext));
+            final ApiKeyService.ApiKeyCredentials apiKeyCredential = apiKeyService.getCredentialsFromHeader(clusterCredentialHeader);
+            if (apiKeyCredential == null) {
+                throw new IllegalArgumentException(
+                    "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential"
+                );
+            }
+            return new RemoteAccessHeaders(apiKeyCredential, RemoteAccessAuthentication.readFromContext(threadContext));
         }
     }
 

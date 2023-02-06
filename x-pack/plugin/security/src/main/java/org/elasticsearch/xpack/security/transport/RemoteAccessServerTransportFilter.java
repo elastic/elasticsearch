@@ -14,7 +14,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
@@ -22,15 +21,22 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
     private final RemoteAccessAuthenticationService remoteAccessAuthcService;
 
     RemoteAccessServerTransportFilter(
-        AuthenticationService authcService,
+        RemoteAccessAuthenticationService remoteAccessAuthcService,
         AuthorizationService authzService,
         ThreadContext threadContext,
         boolean extractClientCert,
         DestructiveOperations destructiveOperations,
         SecurityContext securityContext
     ) {
-        super(authcService, authzService, threadContext, extractClientCert, destructiveOperations, securityContext);
-        this.remoteAccessAuthcService = new RemoteAccessAuthenticationService(authcService);
+        super(
+            remoteAccessAuthcService.getAuthenticationService(),
+            authzService,
+            threadContext,
+            extractClientCert,
+            destructiveOperations,
+            securityContext
+        );
+        this.remoteAccessAuthcService = remoteAccessAuthcService;
     }
 
     @Override

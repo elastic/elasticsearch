@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 import org.mockito.ArgumentCaptor;
@@ -141,6 +142,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -191,6 +193,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -234,6 +237,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         ) {
             @Override
@@ -295,6 +299,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -362,6 +367,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -425,6 +431,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 
@@ -592,6 +599,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
@@ -710,6 +718,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias)
         );
@@ -777,6 +786,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
@@ -889,6 +899,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 
@@ -931,6 +942,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 

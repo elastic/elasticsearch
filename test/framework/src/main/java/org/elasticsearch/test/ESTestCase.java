@@ -160,6 +160,9 @@ import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -804,6 +807,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
+    public static IntStream randomInts() {
+        return random().ints();
+    }
+
+    public static IntStream randomInts(long streamSize) {
+        return random().ints(streamSize);
+    }
+
     /**
      * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */
@@ -818,6 +829,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static double randomDouble() {
         return random().nextDouble();
+    }
+
+    public static DoubleStream randomDoubles() {
+        return random().doubles();
+    }
+
+    public static DoubleStream randomDoubles(long streamSize) {
+        return random().doubles(streamSize);
     }
 
     /**
@@ -851,6 +870,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    public static LongStream randomLongs() {
+        return random().longs();
+    }
+
+    public static LongStream randomLongs(long streamSize) {
+        return random().longs(streamSize);
     }
 
     /**

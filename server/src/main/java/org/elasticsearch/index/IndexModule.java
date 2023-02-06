@@ -48,6 +48,8 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -147,8 +149,9 @@ public final class IndexModule {
      * {@link Directory} wrappers allow to apply a function to the Lucene directory instances
      * created by {@link org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory}.
      */
-    @FunctionalInterface
-    public interface DirectoryWrapper extends CheckedFunction<Directory, Directory, IOException> {}
+    public interface DirectoryWrapper {
+        Directory wrap(Directory delegate, ShardId shardId, boolean isSearchable, boolean isPromotable);
+    }
 
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
@@ -575,7 +578,23 @@ public final class IndexModule {
         final DirectoryWrapper directoryWrapper = this.indexDirectoryWrapper.get();
         assert frozen.get() : "IndexModule configuration not frozen";
         if (directoryWrapper != null) {
-            return (idxSettings, shardPath) -> directoryWrapper.apply(factory.newDirectory(idxSettings, shardPath));
+            return new IndexStorePlugin.DirectoryFactory() {
+                @Override
+                public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                    return newDirectory(indexSettings, shardPath, true, true);
+                }
+
+                @Override
+                public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, boolean isSearchable, boolean isPromotable)
+                    throws IOException {
+                    return directoryWrapper.wrap(
+                        factory.newDirectory(indexSettings, shardPath, isSearchable, isPromotable),
+                        shardPath.getShardId(),
+                        isSearchable,
+                        isPromotable
+                    );
+                }
+            };
         }
         return factory;
     }

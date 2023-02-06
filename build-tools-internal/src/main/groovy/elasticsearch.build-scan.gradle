@@ -119,7 +119,7 @@ buildScan {
           tag "pr/${prId}"
           tag 'pull-request'
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
-          def prUrl = "${prBaseUrl}/pulls/${prId}"
+          def prUrl = "${prBaseUrl}/pull/${prId}"
           link 'Pull Request', prUrl
         } else {
           def repoUrl = System.getenv('BUILDKITE_REPO')

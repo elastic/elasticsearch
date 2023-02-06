@@ -1637,7 +1637,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    /** Supplier of relative timestamps for the engine. Override this method to control how time passes as seen by the engine. The default implementation returns {@link System#nanoTime()}. */
+    /**
+     * Supplier of relative timestamps for the engine. Override this method to control how time passes as seen by the engine. The default
+     * implementation returns {@link System#nanoTime()}.
+     */
     protected long relativeTimeInNanos() {
         return System.nanoTime();
     }

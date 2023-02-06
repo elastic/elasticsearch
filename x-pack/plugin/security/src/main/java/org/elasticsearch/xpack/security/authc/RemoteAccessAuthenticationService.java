@@ -63,10 +63,6 @@ public class RemoteAccessAuthenticationService {
         this.authenticationService = authenticationService;
     }
 
-    public AuthenticationService getAuthenticationService() {
-        return authenticationService;
-    }
-
     public void authenticate(
         final String action,
         final TransportRequest request,
@@ -76,14 +72,6 @@ public class RemoteAccessAuthenticationService {
         final Authenticator.Context authcContext = authenticationService.newContext(action, request, allowAnonymous);
         final ThreadContext threadContext = authcContext.getThreadContext();
 
-        if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
-            withRequestProcessingFailure(
-                authcContext,
-                new IllegalArgumentException("authentication header is not allowed with remote access"),
-                listener
-            );
-            return;
-        }
         // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
         if (getMinNodeVersion().before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
             withRequestProcessingFailure(
@@ -96,11 +84,18 @@ public class RemoteAccessAuthenticationService {
                 listener
             );
             return;
+        } else if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
+            withRequestProcessingFailure(
+                authcContext,
+                new IllegalArgumentException("authentication header is not allowed with remote access"),
+                listener
+            );
+            return;
         }
 
         final RemoteAccessHeaders remoteAccessHeaders;
         try {
-            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(apiKeyService, threadContext);
+            remoteAccessHeaders = extractRemoteAccessHeaders(threadContext);
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
             return;
@@ -151,26 +146,28 @@ public class RemoteAccessAuthenticationService {
         }
     }
 
+    public AuthenticationService getAuthenticationService() {
+        return authenticationService;
+    }
+
     private record RemoteAccessHeaders(
         ApiKeyService.ApiKeyCredentials clusterCredential,
         RemoteAccessAuthentication remoteAccessAuthentication
-    ) {
-        static RemoteAccessHeaders readFromContext(ApiKeyService apiKeyService, ThreadContext threadContext) throws IOException {
-            apiKeyService.ensureEnabled();
-            final String clusterCredentialHeader = threadContext.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
-            if (clusterCredentialHeader == null) {
-                throw new IllegalArgumentException(
-                    "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"
-                );
-            }
-            final ApiKeyService.ApiKeyCredentials apiKeyCredential = apiKeyService.getCredentialsFromHeader(clusterCredentialHeader);
-            if (apiKeyCredential == null) {
-                throw new IllegalArgumentException(
-                    "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential"
-                );
-            }
-            return new RemoteAccessHeaders(apiKeyCredential, RemoteAccessAuthentication.readFromContext(threadContext));
+    ) {}
+
+    private RemoteAccessHeaders extractRemoteAccessHeaders(final ThreadContext threadContext) throws IOException {
+        apiKeyService.ensureEnabled();
+        final String clusterCredentialHeader = threadContext.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
+        if (clusterCredentialHeader == null) {
+            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required");
         }
+        final ApiKeyService.ApiKeyCredentials apiKeyCredential = apiKeyService.getCredentialsFromHeader(clusterCredentialHeader);
+        if (apiKeyCredential == null) {
+            throw new IllegalArgumentException(
+                "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential"
+            );
+        }
+        return new RemoteAccessHeaders(apiKeyCredential, RemoteAccessAuthentication.readFromContext(threadContext));
     }
 
     private TransportVersion getMinNodeVersion() {

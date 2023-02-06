@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -72,7 +73,7 @@ public class RemoteAccessAuthenticationService {
         final Authenticator.Context authcContext = authenticationService.newContext(action, request, allowAnonymous);
         final ThreadContext threadContext = authcContext.getThreadContext();
 
-        // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
+        // TODO revisit this once Node's Version is refactored
         if (getMinNodeVersion().before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
             withRequestProcessingFailure(
                 authcContext,
@@ -96,6 +97,7 @@ public class RemoteAccessAuthenticationService {
         final RemoteAccessHeaders remoteAccessHeaders;
         try {
             remoteAccessHeaders = extractRemoteAccessHeaders(threadContext);
+            remoteAccessHeaders.validate();
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
             return;
@@ -110,14 +112,13 @@ public class RemoteAccessAuthenticationService {
             )
         ) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
-            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredential);
+            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredential());
             authenticationService.authenticate(
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
                     final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
-                    final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
-                    final Subject receivedEffectiveSubject = receivedAuthentication.getEffectiveSubject();
+                    final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
                     final User user = receivedEffectiveSubject.getUser();
 
                     final Authentication finalAuthentication;
@@ -153,7 +154,29 @@ public class RemoteAccessAuthenticationService {
     private record RemoteAccessHeaders(
         ApiKeyService.ApiKeyCredentials clusterCredential,
         RemoteAccessAuthentication remoteAccessAuthentication
-    ) {}
+    ) {
+        private void validate() {
+            final String subjectPrincipal = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser().principal();
+            for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessAuthentication
+                .getRoleDescriptorsBytesList()) {
+                final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
+                for (RoleDescriptor roleDescriptor : roleDescriptors) {
+                    final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
+                        || roleDescriptor.hasConfigurableClusterPrivileges()
+                        || roleDescriptor.hasApplicationPrivileges()
+                        || roleDescriptor.hasRunAs()
+                        || roleDescriptor.hasRemoteIndicesPrivileges();
+                    if (privilegesOtherThanIndex) {
+                        throw new IllegalArgumentException(
+                            "role descriptor for remote access can only contain index privileges but other privileges found for subject ["
+                                + subjectPrincipal
+                                + "]"
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     private RemoteAccessHeaders extractRemoteAccessHeaders(final ThreadContext threadContext) throws IOException {
         apiKeyService.ensureEnabled();

@@ -193,12 +193,28 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return this.remoteIndicesPrivileges;
     }
 
+    public ApplicationResourcePrivileges[] getApplicationPrivileges() {
+        return this.applicationPrivileges;
+    }
+
+    public boolean hasClusterPrivileges() {
+        return clusterPrivileges.length != 0;
+    }
+
+    public boolean hasApplicationPrivileges() {
+        return applicationPrivileges.length != 0;
+    }
+
+    public boolean hasConfigurableClusterPrivileges() {
+        return configurableClusterPrivileges.length != 0;
+    }
+
     public boolean hasRemoteIndicesPrivileges() {
         return remoteIndicesPrivileges.length != 0;
     }
 
-    public ApplicationResourcePrivileges[] getApplicationPrivileges() {
-        return this.applicationPrivileges;
+    public boolean hasRunAs() {
+        return runAs.length != 0;
     }
 
     public String[] getRunAs() {

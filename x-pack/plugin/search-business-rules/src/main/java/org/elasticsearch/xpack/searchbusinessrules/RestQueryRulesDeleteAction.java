@@ -30,12 +30,12 @@ public class RestQueryRulesDeleteAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/" + ENDPOINT + "/{rulesetId}"));
+        return List.of(new Route(DELETE, "/" + ENDPOINT + "/{ruleset_id}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        QueryRulesDeleteAction.Request request = new QueryRulesDeleteAction.Request(restRequest.param("rulesetId"));
+        QueryRulesDeleteAction.Request request = new QueryRulesDeleteAction.Request(restRequest.param("ruleset_id"));
         return channel -> client.execute(
             QueryRulesDeleteAction.INSTANCE,
             request,

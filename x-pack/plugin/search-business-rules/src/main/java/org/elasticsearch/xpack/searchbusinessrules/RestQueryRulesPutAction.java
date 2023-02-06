@@ -29,13 +29,13 @@ public class RestQueryRulesPutAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + ENDPOINT + "/{rulesetId}"));
+        return List.of(new Route(PUT, "/" + ENDPOINT + "/{ruleset_id}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         QueryRulesPutAction.Request request = new QueryRulesPutAction.Request(
-            restRequest.param("rulesetId"),
+            restRequest.param("ruleset_id"),
             restRequest.content(),
             restRequest.getXContentType()
         );

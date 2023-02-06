@@ -62,3 +62,39 @@
       query_rules.list: {}
 
   - match : { ruleset_ids : [ my-rules-id, my-other-rules-id] }
+
+---
+"Test put query rules validation":
+
+  - do:
+      catch: "/rules are missing/"
+      query_rules.put:
+        rulesetId: my-rules-id
+        body:
+          mappings:
+            user: string
+
+  - do:
+      catch: "/rules definition should be an array/"
+      query_rules.put:
+        rulesetId: my-rules-id
+        body:
+          mappings:
+            user: string
+          rules: my-rules
+
+  - do:
+      catch: "/mappings are missing/"
+      query_rules.put:
+        rulesetId: my-rules-id
+        body:
+          rules: [{ "condition" : {}, "action" : {}}]
+
+  - do:
+      catch: "/mappings definition should be an object/"
+      query_rules.put:
+        rulesetId: my-rules-id
+        body:
+          mappings:
+            [ { user: "string" } ]
+          rules: [{ "condition" : {}, "action" : {}}]

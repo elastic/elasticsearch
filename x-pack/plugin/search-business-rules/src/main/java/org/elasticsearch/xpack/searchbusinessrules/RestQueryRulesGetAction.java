@@ -29,12 +29,12 @@ public class RestQueryRulesGetAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/" + ENDPOINT + "/{rulesetId}"));
+        return List.of(new Route(GET, "/" + ENDPOINT + "/{ruleset_id}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        QueryRulesGetAction.Request request = new QueryRulesGetAction.Request(restRequest.param("rulesetId"));
+        QueryRulesGetAction.Request request = new QueryRulesGetAction.Request(restRequest.param("ruleset_id"));
         return channel -> client.execute(
             QueryRulesGetAction.INSTANCE,
             request,

@@ -1,7 +1,7 @@
 {
   "query_rules.delete":{
     "documentation":{
-      "url":"TODO",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/todo.html",
       "description":"Allows to delete a query rules set from the cluster"
     },
     "stability":"experimental",
@@ -13,12 +13,12 @@
     "url":{
       "paths":[
         {
-          "path":"/_query_rules/{rulesetId}",
+          "path":"/_query_rules/{ruleset_id}",
           "methods":[
             "DELETE"
           ],
           "parts":{
-            "rulesetId":{
+            "ruleset_id":{
               "type":"string",
               "description":"A unique rule set id"
             }

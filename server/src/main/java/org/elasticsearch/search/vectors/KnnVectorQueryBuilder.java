@@ -12,7 +12,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -67,14 +66,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         super(in);
         this.fieldName = in.readString();
         this.numCands = in.readVInt();
-        if (in.getVersion().before(Version.V_8_7_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_7_0)) {
             this.queryVector = in.readFloatArray();
             this.byteQueryVector = null;
         } else {
             this.queryVector = in.readBoolean() ? in.readFloatArray() : null;
             this.byteQueryVector = in.readBoolean() ? in.readByteArray() : null;
         }
-        if (in.getVersion().before(Version.V_8_2_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
             this.filterQueries = new ArrayList<>();
         } else {
             this.filterQueries = readQueries(in);
@@ -119,7 +118,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeVInt(numCands);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             boolean queryVectorNotNull = queryVector != null;
             out.writeBoolean(queryVectorNotNull);
             if (queryVectorNotNull) {
@@ -142,7 +141,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
             out.writeFloatArray(f);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             writeQueries(out, filterQueries);
         }
     }

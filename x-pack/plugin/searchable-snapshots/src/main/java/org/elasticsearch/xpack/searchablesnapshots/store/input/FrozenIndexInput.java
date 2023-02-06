@@ -13,7 +13,6 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -26,11 +25,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
+import java.util.concurrent.Semaphore;
+import java.util.function.LongConsumer;
 
-import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.core.Strings.format;
 
 public class FrozenIndexInput extends MetadataCachingIndexInput {
@@ -113,22 +110,12 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         final int length = b.remaining();
         final int originalByteBufPosition = b.position();
 
-        final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
-        final AtomicBoolean stopAsyncReads = new AtomicBoolean();
-        // Runnable that, when called, ensures that async callbacks (such as those used by readCacheFile) are not
+        // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to readWithoutBlobCache
-        // In particular, it's important to call this method before adapting the ByteBuffer's offset
-        final Runnable preventAsyncBufferChanges = () -> {
-            luceneByteBufLock.writeLock().lock();
-            try {
-                stopAsyncReads.set(true);
-            } finally {
-                luceneByteBufLock.writeLock().unlock();
-            }
-        };
-
+        // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
+        final Semaphore luceneByteBufPermits = new Semaphore(Integer.MAX_VALUE);
+        boolean bufferWriteLocked = false;
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
-
         try {
             final ByteRange startRangeToWrite = computeRange(position);
             final ByteRange endRangeToWrite = computeRange(position + length - 1);
@@ -149,8 +136,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     len,
                     b,
                     rangeToRead.start(),
-                    luceneByteBufLock,
-                    stopAsyncReads
+                    luceneByteBufPermits
                 ),
                 (channel, channelPos, relativePos, len, progressUpdater) -> {
                     final long startTimeNanos = stats.currentTimeNanos();
@@ -163,12 +149,15 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                 SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
             );
             assert bytesRead == length : bytesRead + " vs " + length;
-            assert luceneByteBufLock.getReadHoldCount() == 0;
+            assert luceneByteBufPermits.availablePermits() == Integer.MAX_VALUE;
 
-            preventAsyncBufferChanges.run();
+            luceneByteBufPermits.acquire(Integer.MAX_VALUE);
+            bufferWriteLocked = true;
             b.position(originalByteBufPosition + bytesRead); // mark all bytes as accounted for
         } finally {
-            preventAsyncBufferChanges.run();
+            if (bufferWriteLocked == false) {
+                luceneByteBufPermits.acquire(Integer.MAX_VALUE);
+            }
         }
     }
 
@@ -188,8 +177,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         long length,
         final ByteBuffer buffer,
         long logicalPos,
-        ReentrantReadWriteLock luceneByteBufLock,
-        AtomicBoolean stopAsyncReads
+        Semaphore luceneByteBufPermits
     ) throws IOException {
         logger.trace(
             "{}: reading cached {} logical {} channel {} pos {} length {} (details: {})",
@@ -205,21 +193,10 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             return 0;
         }
         final int bytesRead;
-        if (luceneByteBufLock.readLock().tryLock()) {
+        if (luceneByteBufPermits.tryAcquire()) {
             try {
-                boolean shouldStopReading = stopAsyncReads.get();
-                if (shouldStopReading) {
-                    // return fake response
-                    return Math.toIntExact(length);
-                }
                 // create slice that is positioned to read the given values
-                final ByteBuffer dup = buffer.duplicate();
-                final int newPosition = dup.position() + Math.toIntExact(relativePos);
-                assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
-                assert newPosition + length <= buffer.limit()
-                    : "oldpos " + dup.position() + " newpos " + newPosition + " length " + length + " limit " + buffer.limit();
-                dup.position(newPosition);
-                dup.limit(newPosition + Math.toIntExact(length));
+                final ByteBuffer dup = buffer.slice(buffer.position() + Math.toIntExact(relativePos), Math.toIntExact(length));
                 bytesRead = fc.read(dup, channelPos);
                 if (bytesRead == -1) {
                     throw new EOFException(
@@ -233,7 +210,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     );
                 }
             } finally {
-                luceneByteBufLock.readLock().unlock();
+                luceneByteBufPermits.release();
             }
         } else {
             // return fake response
@@ -243,27 +220,13 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         return bytesRead;
     }
 
-    /**
-     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
-     */
-    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
-        ByteSizeValue.parseBytesSizeValue(
-            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
-            "es.searchable.snapshot.shared_cache.write_buffer.size"
-        ).getBytes()
-    );
-
-    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
-        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
-    );
-
     private void writeCacheFile(
         final SharedBytes.IO fc,
         final InputStream input,
         final long fileChannelPos,
         final long relativePos,
         final long length,
-        final Consumer<Long> progressUpdater,
+        final LongConsumer progressUpdater,
         final long startTimeNanos
     ) throws IOException {
         assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -276,28 +239,19 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             cacheFile
         );
         final long end = relativePos + length;
-        final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", relativePos, end, cacheFile));
 
         long bytesCopied = 0L;
         long remaining = length;
-        final ByteBuffer buf = writeBuffer.get();
-        buf.clear();
+        final ByteBuffer buf = writeBuffer.get().clear();
         while (remaining > 0L) {
-            final int bytesRead = MetadataCachingIndexInput.readSafe(input, copyBuffer, relativePos, end, remaining, cacheFile);
-            if (bytesRead > buf.remaining()) {
-                // always fill up buf to the max
-                final int bytesToAdd = buf.remaining();
-                buf.put(copyBuffer, 0, bytesToAdd);
-                assert buf.remaining() == 0;
-                long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-                bytesCopied += bytesWritten;
-                progressUpdater.accept(bytesCopied);
-                // add the remaining bytes to buf
-                buf.put(copyBuffer, bytesToAdd, bytesRead - bytesToAdd);
-            } else {
-                buf.put(copyBuffer, 0, bytesRead);
+            final int bytesRead = MetadataCachingIndexInput.readSafe(input, buf, relativePos, end, remaining, cacheFile);
+            if (buf.hasRemaining()) {
+                break;
             }
+            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+            bytesCopied += bytesWritten;
+            progressUpdater.accept(bytesCopied);
             remaining -= bytesRead;
         }
         // ensure that last write is aligned on 4k boundaries (= page size)

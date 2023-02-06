@@ -19,9 +19,6 @@ GET /_internal/desired_balance
 
 The API returns the following result:
 
-Where `actual_disk_usage` is computed using shard sizes from cluster info only
-and `forecast_disk_usage` uses shard size forecast when available.
-
 [source,console-result]
 --------------------------------------------------
 {

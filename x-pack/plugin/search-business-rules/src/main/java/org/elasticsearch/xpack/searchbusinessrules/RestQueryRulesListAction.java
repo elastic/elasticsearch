@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.search.action.QueryRulesListAction;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestQueryRulesListAction extends BaseRestHandler {
 
@@ -29,12 +29,17 @@ public class RestQueryRulesListAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/" + ENDPOINT));
+        return List.of(new Route(POST, "/" + ENDPOINT));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        QueryRulesListAction.Request request = new QueryRulesListAction.Request();
+        QueryRulesListAction.Request request;
+        if (restRequest.hasContent()) {
+            request = QueryRulesListAction.Request.parse(restRequest.contentParser());
+        } else {
+            request = new QueryRulesListAction.Request(10, 0);
+        }
         return channel -> client.execute(
             QueryRulesListAction.INSTANCE,
             request,

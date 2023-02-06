@@ -15,10 +15,14 @@
         {
           "path":"/_query_rules/_list",
           "methods":[
-            "GET"
+            "POST"
           ]
         }
       ]
+    },
+    "body":{
+      "description":"The list ids optional parameters",
+      "required":false
     }
   }
 }

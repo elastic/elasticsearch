@@ -63,6 +63,20 @@
 
   - match : { ruleset_ids : [ my-rules-id, my-other-rules-id] }
 
+  - do:
+      query_rules.list:
+        body:
+          size: 1
+
+  - match : { ruleset_ids : [ my-rules-id ] }
+
+  - do:
+      query_rules.list:
+        body:
+          size: 1
+          from: 1
+
+  - match : { ruleset_ids : [ my-other-rules-id ] }
 ---
 "Test put query rules validation":
 

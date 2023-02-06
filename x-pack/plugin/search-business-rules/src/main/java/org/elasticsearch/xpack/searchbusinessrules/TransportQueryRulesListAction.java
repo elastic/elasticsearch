@@ -43,9 +43,11 @@ public class TransportQueryRulesListAction extends HandledTransportAction<QueryR
     @Override
     protected void doExecute(Task task, QueryRulesListAction.Request request, ActionListener<QueryRulesListAction.Response> listener) {
         SearchRequest searchRequest = new SearchRequest(QUERY_RULES_CONCRETE_INDEX_NAME).source(
-            new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).fetchSource(false)
+            new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+                .fetchSource(false)
+                .size(request.getSize())
+                .from(request.getFrom())
         );
-        logger.info("0 >>> " + searchRequest);
 
         executeAsyncWithOrigin(
             client,

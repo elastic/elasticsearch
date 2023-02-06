@@ -10,6 +10,8 @@ package org.elasticsearch.ingest.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -17,9 +19,11 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.lang.ref.SoftReference;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
@@ -166,17 +170,14 @@ public final class GrokProcessor extends AbstractProcessor {
             if (matchPatterns.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
+
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(Grok.getBuiltinPatterns(ecsCompatibility));
-            if (customPatternBank != null) {
-                patternBank.putAll(customPatternBank);
-            }
 
             try {
                 return new GrokProcessor(
                     processorTag,
                     description,
-                    patternBank,
+                    PatternBankCache.INSTANCE.get(ecsCompatibility, customPatternBank),
                     matchPatterns,
                     matchField,
                     traceMatch,
@@ -193,5 +194,25 @@ public final class GrokProcessor extends AbstractProcessor {
             }
 
         }
+    }
+
+    static class PatternBankCache {
+        private static final PatternBankCache INSTANCE = new PatternBankCache();
+        private final ConcurrentMap<Key, SoftReference<Map<String, String>>> cache = ConcurrentCollections.newConcurrentMap();
+
+        Map<String, String> get(String ecsCompatibility, Map<String, String> customBank) {
+            return cache.compute(new Key(ecsCompatibility, customBank), (ignored, value) -> {
+                if (value == null || value.get() == null) {
+                    var patternBank = ImmutableOpenMap.builder(Grok.getBuiltinPatterns(ecsCompatibility));
+                    if (customBank != null) {
+                        patternBank.putAllFromMap(customBank);
+                    }
+                    return new SoftReference<>(patternBank.build());
+                }
+                return value;
+            }).get();
+        }
+
+        record Key(String ecsCompatibility, Map<String, String> customBank) {}
     }
 }

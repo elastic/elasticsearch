@@ -85,6 +85,7 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         webServer.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93536")
     public void testWebhook() throws Exception {
         String localServer = "localhost:" + webServer.getPort();
         logger.info("--> updating keystore token hosts to: {}", localServer);

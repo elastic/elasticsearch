@@ -23,11 +23,12 @@ for the plugin. If you need other resources, package them into a resources JAR.
 Text analysis plugins can be written against the analysis plugin API. This API
 consists of the following dependencies:
 
-* `plugin-api`, which includes important annotations for the plugin 
-framework
-* `plugin-analysis-api`, which contains the classes that an analysis plugin can 
-implement.
-* `lucene-analysis-common`, the core Lucene module
+* `plugin-api`- an API used by plugin developers to implement custom {es} 
+plugins (stable).
+* `plugin-analysis-api` - an API used by plugin developers to implement analysis
+plugins and integrate them into {es}.
+* `lucene-analysis-common` - a dependency of `plugin-analysis-api` that contains
+core Lucene analysis interfaces like `Tokenizer`, `Analyzer`, and `TokenStream`.
 
 The advantage of using this API is that the resulting plugin is
 forward-compatible with new minor versions of {es}. While elements may be added

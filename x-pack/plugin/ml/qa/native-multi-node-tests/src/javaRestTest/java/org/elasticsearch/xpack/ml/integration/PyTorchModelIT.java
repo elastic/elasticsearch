@@ -429,7 +429,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         // The test ensures the responses are returned in the same order
         // as the requests
         createTextEmbeddingModel(modelId);
-        putModelDefinition(modelId, SemanticSearchIT.BASE_64_ENCODED_MODEL, SemanticSearchIT.RAW_MODEL_SIZE);
+        putModelDefinition(modelId, TextExpansionQueryIT.BASE_64_ENCODED_MODEL, TextExpansionQueryIT.RAW_MODEL_SIZE);
         putVocabulary(
             List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
             modelId

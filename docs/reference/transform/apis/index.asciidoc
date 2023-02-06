@@ -15,6 +15,8 @@ include::reset-transform.asciidoc[leveloffset=+2]
 include::start-transform.asciidoc[leveloffset=+2]
 //STOP
 include::stop-transform.asciidoc[leveloffset=+2]
+//SCHEDULE_NOW
+include::schedule-now-transform.asciidoc[leveloffset=+2]
 //UPDATE-UPGRADE
 include::update-transform.asciidoc[leveloffset=+2]
 include::upgrade-transforms.asciidoc[leveloffset=+2]

@@ -15,6 +15,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 
@@ -63,7 +64,6 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private StreamForSequentialReads streamForSequentialReads;
     private long sequentialReadSize;
     private static final long NO_SEQUENTIAL_READ_OPTIMIZATION = 0L;
-    private static final int COPY_BUFFER_SIZE = 8192;
 
     public DirectBlobContainerIndexInput(
         String name,
@@ -312,17 +312,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
      */
     private static int readFully(InputStream inputStream, final ByteBuffer b, int length, CheckedRunnable<IOException> onEOF)
         throws IOException {
-        int totalRead = 0;
-        final byte[] buffer = new byte[Math.min(length, COPY_BUFFER_SIZE)];
-        while (totalRead < length) {
-            final int len = Math.min(length - totalRead, COPY_BUFFER_SIZE);
-            final int read = inputStream.read(buffer, 0, len);
-            if (read == -1) {
-                onEOF.run();
-                break;
-            }
-            b.put(buffer, 0, read);
-            totalRead += read;
+        int totalRead = Streams.read(inputStream, b, length);
+        if (totalRead < length) {
+            onEOF.run();
         }
         return totalRead > 0 ? totalRead : -1;
     }

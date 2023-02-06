@@ -163,7 +163,7 @@ image:images/spatial/geogrid_h3.png[Kibana map with showing an H3 cell, and its 
 
 ==== Example: Enriched tile details
 
-As described in the <<geo-grid-processor-options,geo_grid processor options>> above,
+As described in <<geo-grid-processor-options,geo_grid processor options>>,
 there are many other fields that can be set, which will enrich the information available.
 For example, with H3 tiles there are 7 child tiles, but only the first is fully contained by the parent.
 The remaining six are only partially overlapping the parent, and there exist a further six non-child tiles

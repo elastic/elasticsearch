@@ -193,7 +193,7 @@ PUT _ingest/pipeline/geohex2shape
 }
 --------------------------------------------------
 
-Now when we index the document we will see a different result.
+Index the document to see a different result:
 
 [source,console]
 --------------------------------------------------

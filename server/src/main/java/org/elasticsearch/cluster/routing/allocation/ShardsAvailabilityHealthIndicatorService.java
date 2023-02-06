@@ -392,8 +392,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
-            available &= routing.active() || isRestarting || isNew;
-            if ((routing.active() || isRestarting || isNew) == false) {
+            available &= routing.active() || isRestarting || isNew || routing.initializing();
+            if ((routing.active() || isRestarting || isNew || routing.initializing()) == false) {
                 indicesWithUnavailableShards.add(routing.getIndexName());
             }
 
@@ -804,13 +804,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || primaries.unassigned_new > 0
                 || primaries.unassigned_restarting > 0
                 || replicas.unassigned > 0
-                || replicas.unassigned_restarting > 0) {
+                || replicas.unassigned_restarting > 0
+                || primaries.initializing > 0
+                || replicas.initializing > 0) {
                 builder.append(
                     Stream.of(
                         createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
                         createMessage(primaries.unassigned_new, "creating primary shard", "creating primary shards"),
                         createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
                         createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
+                        createMessage(primaries.initializing, "initializing primary shard", "initializing primary shards"),
+                        createMessage(replicas.initializing, "initializing replica shard", "initializing replica shards"),
                         createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards")
                     ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");

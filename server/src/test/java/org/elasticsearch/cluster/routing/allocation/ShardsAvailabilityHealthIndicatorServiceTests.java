@@ -867,12 +867,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkIsAllocationDisabled(
             indexMetadata,
-            List.of(new NodeAllocationResult(
-                // Shard allocation is disabled on index
-                new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
-                new NodeAllocationResult.ShardStoreInfo(10),
-                null
-            ))
+            List.of(
+                new NodeAllocationResult(
+                    // Shard allocation is disabled on index
+                    new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                    new NodeAllocationResult.ShardStoreInfo(10),
+                    null
+                )
+            )
         );
 
         assertThat(actions, hasSize(0));

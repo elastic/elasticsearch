@@ -81,7 +81,7 @@ Plugins are written in Java, so you need to install a Java Development Kit
 that this build script uses the `elasticsearch.stable-esplugin` gradle plugin to
 build your plugin.
 . Edit the `build.gradle` build script:
-** Add a definition for the `elasticsearchVersion` and matching `luceneVersion` 
+** Add a definition for the `pluginApiVersion` and matching `luceneVersion` 
 variables to the top of the file. You can find these versions in the 
 `build-tools-internal/version.properties` file in the {es-repo}[Elasticsearch 
 Github repository].

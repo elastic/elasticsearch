@@ -19,9 +19,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TransportVersionUtils {
-    private static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
+import static org.elasticsearch.TransportVersions.ALL_VERSIONS;
 
+public class TransportVersionUtils {
     /** Returns all released versions */
     public static List<TransportVersion> allReleasedVersions() {
         return ALL_VERSIONS;

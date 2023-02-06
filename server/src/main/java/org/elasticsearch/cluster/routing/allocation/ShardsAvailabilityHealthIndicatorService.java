@@ -465,22 +465,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
-            case NO_VALID_SHARD_COPY:
-                diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
-                break;
-            case NO_ATTEMPT:
+            case NO_VALID_SHARD_COPY -> diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
+            case NO_ATTEMPT -> {
                 if (shardRouting.unassignedInfo().isDelayed()) {
                     diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 } else {
                     diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 }
-                break;
-            case DECIDERS_NO:
-                diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
-                break;
-            case DELAYED_ALLOCATION:
-                diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
-                break;
+            }
+            case DECIDERS_NO -> diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+            case DELAYED_ALLOCATION -> diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
         }
         if (diagnosisDefs.isEmpty()) {
             diagnosisDefs.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);

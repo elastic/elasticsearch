@@ -184,6 +184,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
         SecurityClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
             final String transportProfile = connectionProfile.getTransportProfile();
             logger.trace("initiating security client channel with transport profile [{}]", transportProfile);
+            // Only client connections to a new RCS remote cluster can have transport profile of _remote_cluster
+            // All other client connections use the default transport profile regardless of the transport profile used on the server side.
             if (REMOTE_CLUSTER_PROFILE.equals(transportProfile)) {
                 this.channelSslConfiguration = remoteClusterClientSslConfiguration;
             } else {

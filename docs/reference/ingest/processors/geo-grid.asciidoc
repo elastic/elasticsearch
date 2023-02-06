@@ -9,7 +9,7 @@ Converts geo-grid definitions of grid tiles or cells to regular bounding boxes o
 This is useful if there is a need to interact with the tile shapes as spatially indexable fields.
 For example the `geotile` field value `"4/8/3"` could be indexed as a string field, but that would not enable
 any spatial operations on it.
-Instead we should convert it to the value
+Instead, convert it to the value
 `"POLYGON ((0.0 40.979898069620134, 22.5 40.979898069620134, 22.5 55.77657301866769, 0.0 55.77657301866769, 0.0 40.979898069620134))"`,
 which can be indexed as a <<geo-shape,`geo_shape`>> field.
 

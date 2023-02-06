@@ -485,7 +485,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         }
     }
 
-    public void testClientChannelUsesSeperateSslConfigurationForRemoteCluster() throws Exception {
+    public void testClientChannelUsesSeparateSslConfigurationForRemoteCluster() throws Exception {
         final Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt");
         final Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem");
 
@@ -573,6 +573,56 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     assertThat(channel.getProfile(), equalTo("_remote_cluster"));
                     final SSLEngine sslEngine = SSLEngineUtils.getSSLEngine(channel);
                     assertThat(sslEngine.getUseClientMode(), is(true));
+                }
+
+                final TcpChannel acceptedChannel = getAcceptedChannel(originalTransport, connection);
+                assertThat(acceptedChannel.getProfile(), equalTo("_remote_cluster"));
+            }
+        }
+    }
+
+    public void testRemoteClusterCanWorkWithoutSSL() throws Exception {
+        final ConnectionProfile connectionProfile = ConnectionProfile.resolveConnectionProfile(
+            new ConnectionProfile.Builder().setTransportProfile("_remote_cluster")
+                .addConnections(
+                    1,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.PING,
+                    TransportRequestOptions.Type.RECOVERY,
+                    TransportRequestOptions.Type.REG,
+                    TransportRequestOptions.Type.STATE
+                )
+                .build(),
+            TestProfiles.LIGHT_PROFILE
+        );
+
+        final Settings fcSettings = Settings.builder()
+            .put("remote_cluster.enabled", "true")
+            .put("remote_cluster.port", "9999")
+            .put("xpack.security.remote_cluster.ssl.enabled", "false")
+            .build();
+
+        try (MockTransportService fcService = buildService("FC", Version.CURRENT, fcSettings)) {
+            final TcpTransport originalTransport = (TcpTransport) fcService.getOriginalTransport();
+            final TransportAddress remoteAccessAddress = originalTransport.profileBoundAddresses().get("_remote_cluster").publishAddress();
+            final DiscoveryNode node = new DiscoveryNode(
+                fcService.getLocalNode().getId(),
+                remoteAccessAddress,
+                fcService.getLocalNode().getVersion()
+            );
+            final Settings qcSettings = Settings.builder().put("xpack.security.remote_cluster.ssl.enabled", "false").build();
+            try (
+                MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings);
+                Transport.Connection connection = openConnection(qcService, node, connectionProfile)
+            ) {
+                assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
+                Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
+                assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
+                TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) conn;
+                for (TcpChannel channel : nodeChannels.getChannels()) {
+                    assertFalse(channel.isServerChannel());
+                    assertThat(channel.getProfile(), equalTo("_remote_cluster"));
                 }
 
                 final TcpChannel acceptedChannel = getAcceptedChannel(originalTransport, connection);

@@ -61,7 +61,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final SslConfiguration defaultSslConfiguration;
     private final Map<String, SslConfiguration> profileConfigurations;
     private final boolean transportSslEnabled;
-    private final boolean remoteClusterServerSslEnabled;
+    private final boolean remoteClusterPortEnabled;
+    private final boolean remoteClusterSslEnabled;
     private final SslConfiguration remoteClusterClientSslConfiguration;
 
     public SecurityNetty4Transport(
@@ -88,14 +89,15 @@ public class SecurityNetty4Transport extends Netty4Transport {
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        final boolean remoteClusterClientSslEnabled = REMOTE_CLUSTER_SSL_ENABLED.get(settings);
-        this.remoteClusterServerSslEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings) && remoteClusterClientSslEnabled;
+        this.remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);
+        this.remoteClusterSslEnabled = REMOTE_CLUSTER_SSL_ENABLED.get(settings);
 
         this.profileConfigurations = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
         this.defaultSslConfiguration = this.profileConfigurations.get(TransportSettings.DEFAULT_PROFILE);
         assert this.transportSslEnabled == false || this.defaultSslConfiguration != null;
 
-        if (remoteClusterClientSslEnabled) {
+        // Client configuration does not depend on whether the remote access port is enabled
+        if (remoteClusterSslEnabled) {
             this.remoteClusterClientSslConfiguration = sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX);
             assert this.remoteClusterClientSslConfiguration != null;
         } else {
@@ -110,12 +112,16 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     @Override
     public final ChannelHandler getServerChannelInitializer(String name) {
-        if (remoteClusterServerSslEnabled && REMOTE_CLUSTER_PROFILE.equals(name)) {
-            final SslConfiguration remoteClusterSslConfiguration = profileConfigurations.get(name);
-            if (remoteClusterSslConfiguration == null) {
-                throw new IllegalStateException("remote cluster SSL is enabled but no configuration is found");
+        if (remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(name)) {
+            if (remoteClusterSslEnabled) {
+                final SslConfiguration remoteClusterSslConfiguration = profileConfigurations.get(name);
+                if (remoteClusterSslConfiguration == null) {
+                    throw new IllegalStateException("remote cluster SSL is enabled but no configuration is found");
+                }
+                return getSslChannelInitializer(name, remoteClusterSslConfiguration);
+            } else {
+                return getNoSslChannelInitializer(name);
             }
-            return getSslChannelInitializer(name, remoteClusterSslConfiguration);
         } else if (transportSslEnabled) {
             SslConfiguration configuration = profileConfigurations.get(name);
             if (configuration == null) {

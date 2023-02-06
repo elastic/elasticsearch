@@ -373,3 +373,39 @@ checks are `transport_worker` and `cluster_coordination` threads, for which
 there should never be a long wait. There may also be evidence of long waits for
 threads in the {es} logs. Refer to <<modules-network-threading-model>> for more
 information.
+
+===== Diagnosing `ShardLockObtainFailedException` failures
+
+If a node leaves and rejoins the cluster then {es} will usually shut down and
+re-initialize its shards. If the shards do not shut down quickly enough then
+{es} may fail to re-initialize them due to a `ShardLockObtainFailedException`.
+
+To gather more information about the reason for shards shutting down slowly,
+configure the following logger:
+
+[source,yaml]
+----
+logger.org.elasticsearch.env.NodeEnvironment: DEBUG
+----
+
+When this logger is enabled, {es} will attempt to run the
+<<cluster-nodes-hot-threads>> API whenever it encounters a
+`ShardLockObtainFailedException`. The results are compressed, encoded, and
+split into chunks to avoid truncation:
+
+[source,text]
+----
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 1]: H4sIAAAAAAAA/x...
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 2]: p7x3w1hmOQVtuV...
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 3]: v7uTboMGDbyOy+...
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] [part 4]: 4tse0RnPnLeDNN...
+[DEBUG][o.e.e.NodeEnvironment    ] [master] hot threads while failing to obtain shard lock for [index][0] (gzip compressed, base64-encoded, and split into 4 parts on preceding log lines)
+----
+
+To reconstruct the output, base64-decode the data and decompress it using
+`gzip`. For instance, on Unix-like systems:
+
+[source,sh]
+----
+cat shardlock.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
+----

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -36,7 +37,11 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
 
     public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(Map.of(), Map.of());
 
-    public static ClusterBalanceStats createFrom(ClusterState clusterState, WriteLoadForecaster writeLoadForecaster) {
+    public static ClusterBalanceStats createFrom(
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        WriteLoadForecaster writeLoadForecaster
+    ) {
         var tierToNodeStats = new HashMap<String, List<NodeBalanceStats>>();
         var nodes = new HashMap<String, NodeBalanceStats>();
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
@@ -44,7 +49,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
             if (dataRoles.isEmpty()) {
                 continue;
             }
-            var nodeStats = NodeBalanceStats.createFrom(routingNode, clusterState.metadata(), writeLoadForecaster);
+            var nodeStats = NodeBalanceStats.createFrom(routingNode, clusterState.metadata(), clusterInfo, writeLoadForecaster);
             nodes.put(routingNode.node().getName(), nodeStats);
             for (DiscoveryNodeRole role : dataRoles) {
                 tierToNodeStats.computeIfAbsent(role.roleName(), ignored -> new ArrayList<>()).add(nodeStats);
@@ -71,21 +76,29 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         return builder.startObject().field("tiers").map(tiers).field("nodes").map(nodes).endObject();
     }
 
-    public record TierBalanceStats(MetricStats shardCount, MetricStats forecastWriteLoad, MetricStats forecastShardSize)
-        implements
-            Writeable,
-            ToXContentObject {
+    public record TierBalanceStats(
+        MetricStats shardCount,
+        MetricStats forecastWriteLoad,
+        MetricStats forecastShardSize,
+        MetricStats actualShardSize
+    ) implements Writeable, ToXContentObject {
 
         private static TierBalanceStats createFrom(List<NodeBalanceStats> nodes) {
             return new TierBalanceStats(
                 MetricStats.createFrom(nodes, it -> it.shards),
                 MetricStats.createFrom(nodes, it -> it.forecastWriteLoad),
-                MetricStats.createFrom(nodes, it -> it.forecastShardSize)
+                MetricStats.createFrom(nodes, it -> it.forecastShardSize),
+                MetricStats.createFrom(nodes, it -> it.actualShardSize)
             );
         }
 
         public static TierBalanceStats readFrom(StreamInput in) throws IOException {
-            return new TierBalanceStats(MetricStats.readFrom(in), MetricStats.readFrom(in), MetricStats.readFrom(in));
+            return new TierBalanceStats(
+                MetricStats.readFrom(in),
+                MetricStats.readFrom(in),
+                MetricStats.readFrom(in),
+                MetricStats.readFrom(in)
+            );
         }
 
         @Override
@@ -93,6 +106,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
             shardCount.writeTo(out);
             forecastWriteLoad.writeTo(out);
             forecastShardSize.writeTo(out);
+            actualShardSize.writeTo(out);
         }
 
         @Override
@@ -101,6 +115,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
                 .field("shard_count", shardCount)
                 .field("forecast_write_load", forecastWriteLoad)
                 .field("forecast_disk_usage", forecastShardSize)
+                .field("actual_disk_usage", actualShardSize)
                 .endObject();
         }
     }
@@ -155,24 +170,35 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         }
     }
 
-    public record NodeBalanceStats(int shards, double forecastWriteLoad, long forecastShardSize) implements Writeable, ToXContentObject {
+    public record NodeBalanceStats(int shards, double forecastWriteLoad, long forecastShardSize, long actualShardSize)
+        implements
+            Writeable,
+            ToXContentObject {
 
-        private static NodeBalanceStats createFrom(RoutingNode routingNode, Metadata metadata, WriteLoadForecaster writeLoadForecaster) {
-            double totalWriteLoad = 0.0;
-            long totalShardSize = 0L;
+        private static NodeBalanceStats createFrom(
+            RoutingNode routingNode,
+            Metadata metadata,
+            ClusterInfo clusterInfo,
+            WriteLoadForecaster writeLoadForecaster
+        ) {
+            double forecastWriteLoad = 0.0;
+            long forecastShardSize = 0L;
+            long actualShardSize = 0L;
 
             for (ShardRouting shardRouting : routingNode) {
                 var indexMetadata = metadata.index(shardRouting.index());
+                var shardSize = clusterInfo.getShardSize(shardRouting, 0L);
                 assert indexMetadata != null;
-                totalWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-                totalShardSize += indexMetadata.getForecastedShardSizeInBytes().orElse(0);
+                forecastWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+                forecastShardSize += indexMetadata.getForecastedShardSizeInBytes().orElse(shardSize);
+                actualShardSize += shardSize;
             }
 
-            return new NodeBalanceStats(routingNode.size(), totalWriteLoad, totalShardSize);
+            return new NodeBalanceStats(routingNode.size(), forecastWriteLoad, forecastShardSize, actualShardSize);
         }
 
         public static NodeBalanceStats readFrom(StreamInput in) throws IOException {
-            return new NodeBalanceStats(in.readInt(), in.readDouble(), in.readLong());
+            return new NodeBalanceStats(in.readInt(), in.readDouble(), in.readLong(), in.readLong());
         }
 
         @Override
@@ -180,6 +206,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
             out.writeInt(shards);
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
+            out.writeLong(actualShardSize);
         }
 
         @Override
@@ -188,6 +215,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
                 .field("shard_count", shards)
                 .field("forecast_write_load", forecastWriteLoad)
                 .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
+                .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize))
                 .endObject();
         }
     }

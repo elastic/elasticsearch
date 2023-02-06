@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.searchablesnapshots.store;
+package org.elasticsearch.blobcache.store;
 
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -33,7 +33,7 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     private final Directory realDirectory;
     private final Set<String> deletedFiles = new CopyOnWriteArraySet<>();
 
-    InMemoryNoOpCommitDirectory(Directory realDirectory) {
+    public InMemoryNoOpCommitDirectory(Directory realDirectory) {
         super(new ByteBuffersDirectory(NoLockFactory.INSTANCE));
         this.realDirectory = realDirectory;
     }

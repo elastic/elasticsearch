@@ -547,12 +547,13 @@ adjustments have been made.
 [[search-aggregations-bucket-datehistogram-offset-months]]
 ===== Long offsets over calendar intervals
 
-The `offset` is a fixed interval, which can be applied to `calendar_interval` bucket definitions.
+As seen above, it is typical to use offsets in units smaller than the `calendar_interval`, for example
+using offsets in hours when the interval is days, or an offset of days when the interval is months.
 If the calendar interval is always of a standard length, or the `offset` is less than one unit of the calendar
 interval (for example less than `+24h` for `days` or less than `+28d` for months),
 then each bucket will have a repeating start. For example `+6h` for `days` will result in all buckets
 starting at 6am each day. However, `+30h` will also result in buckets starting at 6am, except when crossing
-days that change from standard to summer-savings time or back.
+days that change from standard to summer-savings time or vice-versa.
 
 This situation is much more pronounced for months, where each month has a different length
 to at least one of its adjacent months.
@@ -620,6 +621,17 @@ For example, for `+50d` we see:
 
 It is therefor always important when using `offset` with `calendar_interval` bucket sizes
 to understand the consequences of using offsets larger than the interval size.
+
+More examples:
+
+* If the goal is to, for example, have an annual histogram where each year starts on the 5th February,
+you could use `calendar_interval` of `year` and `offset` of `+33d`, and each year will be shifted identically,
+because the offset includes only January, which ius the same length every year.
+However, if the goal is to have the year start on the 5th March instead, this technique will not work because
+the offset includes February, which changes length every four years.
+* If you want a quarterly histogram starting on a date within the first month of the year, it will work,
+but as soon as you push the start date into the second month by having an offset longer than a month, the
+quarters will all start on different dates.
 
 [[date-histogram-keyed-response]]
 ==== Keyed Response

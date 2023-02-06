@@ -26,7 +26,7 @@ which can be indexed as a <<geo-shape,`geo_shape`>> field.
 | `non_children_field`        | no        | -         | If specified and intersecting non-child tiles exist, save their addresses to this field as an array of strings.
 | `precision_field`           | no        | -         | If specified, save the tile precision (zoom) as an integer to this field.
 | `ignore_missing`            | no        | -         | If `true` and `field` does not exist, the processor quietly exits without modifying the document.
-| `target_format`             | no        | "GEOJSON" | Which format to save the generated polygon in. Either `WKT` or `GeoJSON`.
+| `target_format`             | no        | "GeoJSON" | Which format to save the generated polygon in. Either `WKT` or `GeoJSON`.
 include::common-options.asciidoc[]
 |======
 
@@ -82,7 +82,7 @@ depending on which ingest processor we use when indexing the document.
 The resulting geometry will be represented and indexed as a <<geo-shape,`geo_shape`>> field in either
 http://geojson.org[GeoJSON] or the https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text] format.
 
-==== Example: Rectangular geo-tile with envelope in GeoJSON
+==== Example: Rectangular geotile with envelope in GeoJSON
 
 In this example a `geocell` field with a value defined in `z/x/y` format is indexed as a
 http://geojson.org[GeoJSON Envelope] since the ingest-processor above was defined with default `target_format`.
@@ -124,7 +124,7 @@ The response shows how the ingest-processor has replaced the `geocell` field wit
 
 image:images/spatial/geogrid_tile.png[Kibana map with showing the geotile at 4/8/5 and its four child cells]
 
-==== Example: Hexagonal geo-tile with polygon in WKT format
+==== Example: Hexagonal geohex with polygon in WKT format
 
 In this example a `geocell` field with an H3 string address is indexed as a
 https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[WKT Polygon], since the ingest-processor explicitly

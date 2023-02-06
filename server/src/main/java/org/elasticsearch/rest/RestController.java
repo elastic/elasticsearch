@@ -79,7 +79,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final Setting<Boolean> ENFORCE_API_PROTECTIONS_SETTING = Setting.boolSetting(
         "enforce-api-protections",
         false,
-    Setting.Property.NodeScope
+        Setting.Property.NodeScope
     );
 
     private static final BytesReference FAVICON_RESPONSE;

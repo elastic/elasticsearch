@@ -84,7 +84,8 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
             null,
             circuitBreakerService,
             usageService,
-            Tracer.NOOP
+            Tracer.NOOP,
+            Settings.EMPTY
         );
 
         // A basic RestHandler handles requests to the endpoint

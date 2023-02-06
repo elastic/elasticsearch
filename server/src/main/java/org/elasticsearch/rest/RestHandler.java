@@ -36,7 +36,9 @@ public interface RestHandler {
         return true;
     }
 
-    String getName();
+    default String getName() {
+        return getClass().getSimpleName();
+    }
 
     /**
      * Indicates if the RestHandler supports content as a stream. A stream would be multiple objects delineated by

@@ -108,7 +108,12 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(PROFILING_ENABLED);
+        return List.of(
+            PROFILING_ENABLED,
+            TransportGetProfilingAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
+            TransportGetProfilingAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
+            TransportGetProfilingAction.PROFILING_QUERY_REALTIME
+        );
     }
 
     @Override

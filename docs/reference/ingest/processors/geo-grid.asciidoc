@@ -127,8 +127,8 @@ image:images/spatial/geogrid_tile.png[Kibana map with showing the geotile at 4/8
 ==== Example: Hexagonal geo-tile with polygon in WKT format
 
 In this example a `geocell` field with an H3 string address is indexed as a
-https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[WKT Polygon], since the ingest-processor explicitly
-defined the `target_format` above.
+https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[WKT Polygon], since this ingest processor explicitly
+defined the `target_format`.
 
 [source,console]
 --------------------------------------------------

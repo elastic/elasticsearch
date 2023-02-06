@@ -16,6 +16,7 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
 
@@ -27,11 +28,11 @@ import java.util.function.BiConsumer;
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
-    private final BiConsumer<HttpMessage, ActionListener<Void>> validator;
+    private final BiConsumer<HttpRequest, ActionListener<ValidatedHttpRequest>> validator;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private STATE state = STATE.WAITING_TO_START;
 
-    public Netty4HttpHeaderValidator(BiConsumer<HttpMessage, ActionListener<Void>> validator) {
+    public Netty4HttpHeaderValidator(BiConsumer<HttpRequest, ActionListener<ValidatedHttpRequest>> validator) {
         this.validator = validator;
     }
 
@@ -45,6 +46,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         final HttpObject httpObject = (HttpObject) msg;
 
         if (state == STATE.WAITING_TO_START) {
+            assert httpObject instanceof HttpRequest;
             assert pending.isEmpty();
             pending.add(ReferenceCountUtil.retain(httpObject));
             requestStart(ctx);
@@ -77,19 +79,19 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert pending.isEmpty() == false;
 
         HttpObject httpObject = pending.getFirst();
-        assert httpObject instanceof HttpMessage;
         // We failed in the decoding step for other reasons. Pass down the pipeline.
         if (httpObject.decoderResult().isFailure()) {
             ctx.fireChannelRead(pending.pollFirst());
             return;
         }
+        assert httpObject instanceof HttpRequest;
 
         state = STATE.QUEUEING_DATA;
-        validator.accept((HttpMessage) httpObject, new ActionListener<>() {
+        validator.accept((HttpRequest) httpObject, new ActionListener<>() {
             @Override
-            public void onResponse(Void unused) {
+            public void onResponse(ValidatedHttpRequest validatedHttpRequest) {
                 // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                ctx.channel().eventLoop().submit(() -> validationSuccess(ctx));
+                ctx.channel().eventLoop().submit(() -> validationSuccess(ctx, validatedHttpRequest));
             }
 
             @Override
@@ -108,11 +110,17 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         });
     }
 
-    private void validationSuccess(ChannelHandlerContext ctx) {
+    private void validationSuccess(ChannelHandlerContext ctx, ValidatedHttpRequest validatedHttpRequest) {
         assert ctx.channel().eventLoop().inEventLoop();
         state = STATE.HANDLING_QUEUED_DATA;
 
         int pendingMessages = pending.size();
+
+        // TODO remove the HttpRequest before calling the validator so we don't have to remove it here
+        HttpMessage headersMessage = (HttpMessage) pending.remove();
+        assert headersMessage == validatedHttpRequest.httpRequest();
+        ctx.fireChannelRead(validatedHttpRequest);
+        ReferenceCountUtil.release(validatedHttpRequest);
 
         boolean fullRequestForwarded = false;
         HttpObject object;

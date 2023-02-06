@@ -15,8 +15,8 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
-import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 
@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class Netty4HttpHeaderValidatorTests extends ESTestCase {
 
-    private final AtomicReference<Object> header = new AtomicReference<>();
-    private final AtomicReference<ActionListener<Void>> listener = new AtomicReference<>();
+    private final AtomicReference<HttpRequest> header = new AtomicReference<>();
+    private final AtomicReference<ActionListener<ValidatedHttpRequest>> listener = new AtomicReference<>();
     private EmbeddedChannel channel;
     private Netty4HttpHeaderValidator netty4HttpHeaderValidator;
 
@@ -49,7 +49,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         channel = new EmbeddedChannel();
         header.set(null);
         listener.set(null);
-        BiConsumer<HttpMessage, ActionListener<Void>> validator = (o, validationCompleteListener) -> {
+        BiConsumer<HttpRequest, ActionListener<ValidatedHttpRequest>> validator = (o, validationCompleteListener) -> {
             header.set(o);
             listener.set(validationCompleteListener);
         };
@@ -69,11 +69,12 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), nullValue());
         assertFalse(channel.config().isAutoRead());
 
-        listener.get().onResponse(null);
+        ValidatedHttpRequest headerOk = ValidatedHttpRequest.decorateOK(header.get());
+        listener.get().onResponse(headerOk);
         channel.runPendingTasks();
         assertTrue(channel.config().isAutoRead());
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.FORWARDING_DATA));
-        assertThat(channel.readInbound(), sameInstance(request));
+        assertThat(channel.readInbound(), sameInstance(headerOk));
         assertThat(channel.readInbound(), sameInstance(content));
         assertThat(channel.readInbound(), nullValue());
         assertThat(content.refCnt(), equalTo(1));
@@ -169,9 +170,10 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), nullValue());
         assertFalse(channel.config().isAutoRead());
 
-        listener.get().onResponse(null);
+        ValidatedHttpRequest headerOk = ValidatedHttpRequest.decorateOK(header.get());
+        listener.get().onResponse(headerOk);
         channel.runPendingTasks();
-        assertThat(channel.readInbound(), sameInstance(request1));
+        assertThat(channel.readInbound(), sameInstance(headerOk));
         assertThat(channel.readInbound(), sameInstance(content1));
         assertThat(channel.readInbound(), sameInstance(lastContent1));
         assertThat(content1.refCnt(), equalTo(1));
@@ -182,9 +184,10 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.QUEUEING_DATA));
         assertThat(channel.readInbound(), nullValue());
 
-        listener.get().onResponse(null);
+        ValidatedHttpRequest header2Ok = ValidatedHttpRequest.decorateOK(header.get());
+        listener.get().onResponse(header2Ok);
         channel.runPendingTasks();
-        assertThat(channel.readInbound(), sameInstance(request2));
+        assertThat(channel.readInbound(), sameInstance(header2Ok));
         assertThat(channel.readInbound(), sameInstance(content2));
         assertThat(channel.readInbound(), sameInstance(lastContent2));
         assertThat(content2.refCnt(), equalTo(1));
@@ -267,9 +270,10 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.QUEUEING_DATA));
         assertThat(channel.readInbound(), nullValue());
 
-        listener.get().onResponse(null);
+        ValidatedHttpRequest header2Ok = ValidatedHttpRequest.decorateOK(header.get());
+        listener.get().onResponse(header2Ok);
         channel.runPendingTasks();
-        assertThat(channel.readInbound(), sameInstance(request2));
+        assertThat(channel.readInbound(), sameInstance(header2Ok));
         assertThat(channel.readInbound(), sameInstance(content2));
         assertThat(content2.refCnt(), equalTo(1));
 
@@ -302,12 +306,13 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), nullValue());
         assertFalse(channel.config().isAutoRead());
 
-        listener.get().onResponse(null);
+        ValidatedHttpRequest headerOk = ValidatedHttpRequest.decorateOK(header.get());
+        listener.get().onResponse(headerOk);
         channel.runPendingTasks();
         assertFalse(channel.config().isAutoRead());
         // We have already initiated the next data queuing
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.QUEUEING_DATA));
-        assertThat(channel.readInbound(), sameInstance(request));
+        assertThat(channel.readInbound(), sameInstance(headerOk));
         for (int i = 0; i < 64; ++i) {
             assertThat(channel.readInbound(), instanceOf(DefaultHttpContent.class));
         }

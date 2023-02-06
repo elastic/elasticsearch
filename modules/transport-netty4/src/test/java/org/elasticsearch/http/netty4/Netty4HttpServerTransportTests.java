@@ -381,7 +381,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         handlingSettings,
                         TLSConfig.noTLS(),
                         null,
-                        (message, listener) -> listener.onResponse(null)
+                        (httpRequest, listener) -> listener.onResponse(ValidatedHttpRequest.decorateOK(httpRequest))
                     ) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {

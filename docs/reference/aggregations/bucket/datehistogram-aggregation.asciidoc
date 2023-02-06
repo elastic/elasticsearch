@@ -547,7 +547,7 @@ adjustments have been made.
 [[search-aggregations-bucket-datehistogram-offset-months]]
 ===== Long offsets over calendar intervals
 
-As seen above, it is typical to use offsets in units smaller than the `calendar_interval`, for example
+It is typical to use offsets in units smaller than the `calendar_interval`. For example,
 using offsets in hours when the interval is days, or an offset of days when the interval is months.
 If the calendar interval is always of a standard length, or the `offset` is less than one unit of the calendar
 interval (for example less than `+24h` for `days` or less than `+28d` for months),

@@ -183,6 +183,7 @@ tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'update_by_query/80_scripting/Can\'t change _id',
     'update_by_query/80_scripting/Set unsupported operation type',
-    'update_by_query/80_scripting/Setting bogus context is an error'
+    'update_by_query/80_scripting/Setting bogus context is an error',
+
   ].join(',')
 }

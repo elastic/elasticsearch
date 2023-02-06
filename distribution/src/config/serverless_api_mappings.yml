@@ -1,0 +1,9 @@
+public:
+  - bulk_action
+  - create_index_action
+  - cat_count_action
+  - ingest_delete_pipeline_action
+  - ingest_get_pipeline_action
+internal:
+  - cat_shards_action
+  - cat_nodes_action

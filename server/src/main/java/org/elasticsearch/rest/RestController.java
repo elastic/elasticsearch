@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -75,6 +76,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
+    private static final Setting<Boolean> ENFORCE_API_PROTECTIONS_SETTING = Setting.boolSetting(
+        "enforce-api-protections",
+        false,
+    Setting.Property.NodeScope
+    );
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -101,6 +107,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final UsageService usageService;
     private final Tracer tracer;
     private final Map<String, String> handlerToProtectionLevelMap;
+    private final boolean enforceProtections;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
@@ -132,6 +139,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return "favicon";
             }
         });
+        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(client.settings());
     }
 
     private Map<String, String> createHandlerToProtectionLevelMap(Settings serverlessApiMappings) {
@@ -392,18 +400,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
-        String handlerName = handler.getName();
-        final String internalOrigin = request.header("X-elastic-internal-origin");
-        boolean internalRequest = internalOrigin != null;
-        String protectionLevel = handlerToProtectionLevelMap.get(handlerName);
-        if (protectionLevel == null) {
-            responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
-        } else if (protectionLevel.equals("internal")) {
-            if (internalRequest == false) {
+        if (enforceProtections) {
+            String handlerName = handler.getName();
+            final String internalOrigin = request.header("X-elastic-internal-origin");
+            boolean internalRequest = internalOrigin != null;
+            String protectionLevel = handlerToProtectionLevelMap.get(handlerName);
+            if (protectionLevel == null) {
+                responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+            } else if (protectionLevel.equals("internal")) {
+                if (internalRequest == false) {
+                    responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+                }
+            } else if (protectionLevel.equals("public") == false) {
                 responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
             }
-        } else if (protectionLevel.equals("public") == false) {
-            responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
         }
         try {
             if (handler.canTripCircuitBreaker()) {

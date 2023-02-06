@@ -121,12 +121,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         this.handlerToProtectionLevelMap = createHandlerToProtectionLevelMap(serverlessApiMappings);
-        registerHandlerNoWrap(
-            RestRequest.Method.GET,
-            "/favicon.ico",
-            RestApiVersion.current(),
-            (request, channel, clnt) -> channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
-        );
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE));
+            }
+
+            @Override
+            public String getName() {
+                return "favicon";
+            }
+        });
     }
 
     private Map<String, String> createHandlerToProtectionLevelMap(Settings serverlessApiMappings) {

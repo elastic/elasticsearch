@@ -22,7 +22,6 @@ import java.util.Objects;
 /**
  * Handler for REST requests
  */
-@FunctionalInterface
 public interface RestHandler {
 
     /**
@@ -37,9 +36,7 @@ public interface RestHandler {
         return true;
     }
 
-    default String getName() {
-        return "";
-    }
+    String getName();
 
     /**
      * Indicates if the RestHandler supports content as a stream. A stream would be multiple objects delineated by

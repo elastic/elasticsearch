@@ -1,0 +1,5 @@
+pr: 93502
+summary: Health api fix initializing shards 90327
+area: Health
+type: bug
+issues: []

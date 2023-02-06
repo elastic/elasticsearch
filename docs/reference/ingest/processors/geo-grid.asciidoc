@@ -206,7 +206,7 @@ GET geocells/_doc/1
 --------------------------------------------------
 // TEST[continued]
 
-The response from the above index request:
+The response from this index request:
 
 [source,console-result]
 --------------------------------------------------

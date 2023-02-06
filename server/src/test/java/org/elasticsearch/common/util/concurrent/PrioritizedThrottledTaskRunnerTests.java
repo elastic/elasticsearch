@@ -9,8 +9,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
@@ -18,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
@@ -38,7 +37,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         maxThreads = between(1, 10);
-        executor = EsExecutors.newScaling("test", 1, maxThreads, 0, TimeUnit.MILLISECONDS, false, threadFactory, threadContext);
+        executor = EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.NANOSECONDS, false, threadFactory, threadContext);
     }
 
     @Override
@@ -48,16 +47,12 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     }
 
     static class TestTask extends AbstractRunnable implements Comparable<TestTask> {
-        private final Logger logger = LogManager.getLogger(TestTask.class);
-
         private final Runnable runnable;
         private final int priority;
-        private final String taskDescription;
 
-        TestTask(Runnable runnable, int priority, String taskDescription) {
+        TestTask(Runnable runnable, int priority) {
             this.runnable = runnable;
             this.priority = priority;
-            this.taskDescription = taskDescription;
         }
 
         @Override
@@ -67,9 +62,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
         @Override
         public void doRun() {
-            logger.info("--> starting to execute task [{}]", taskDescription);
             runnable.run();
-            logger.info("--> finished task [{}]", taskDescription);
         }
 
         @Override
@@ -95,7 +88,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
                     executedCountDown.countDown();
-                }, getRandomPriority(), "testMultiThreadedEnqueue-" + taskId));
+                }, getRandomPriority()));
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
             }).start();
         }
@@ -116,7 +109,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         taskRunner.enqueueTask(new TestTask(() -> {
             blockBarrier.await(10, TimeUnit.SECONDS); // notify main thread that the runner is blocked
             blockBarrier.await(10, TimeUnit.SECONDS); // wait for main thread to finish enqueuing tasks
-        }, getRandomPriority(), "blocking task"));
+        }, getRandomPriority()));
 
         blockBarrier.await(10, TimeUnit.SECONDS); // wait for blocking task to start executing
 
@@ -135,7 +128,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                 taskRunner.enqueueTask(new TestTask(() -> {
                     executedPriorities.add(priority);
                     executedCountDown.countDown();
-                }, priority, "concurrent enqueued tasks - " + taskId));
+                }, priority));
                 enqueuedBarrier.await(10, TimeUnit.SECONDS); // notify main thread that the task is enqueued
             }).start();
         }
@@ -173,7 +166,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 executedCountDown.countDown();
-            }, getRandomPriority(), "testEnqueueSpawnsNewTasksUpToMax-" + taskId));
+            }, getRandomPriority()));
             assertThat(taskRunner.runningTasks(), equalTo(i + 1));
         }
         // Enqueueing one or more new tasks would create only one new running task
@@ -186,7 +179,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 executedCountDown.countDown();
-            }, getRandomPriority(), "testEnqueueSpawnsNewTasksUpToMax-" + taskId));
+            }, getRandomPriority()));
             assertThat(taskRunner.runningTasks(), equalTo(maxTasks));
         }
         assertThat(taskRunner.queueSize(), equalTo(newTasks - 1));
@@ -199,7 +192,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
     public void testFailsTasksOnRejectionOrShutdown() throws Exception {
         final var executor = randomBoolean()
-            ? EsExecutors.newScaling("test", 1, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
+            ? EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
             : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, false);
         final var taskRunner = new PrioritizedThrottledTaskRunner<TestTask>("test", between(1, maxThreads * 2), executor);
         final var totalPermits = between(1, maxThreads * 2);
@@ -211,19 +204,17 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
             try {
                 while (true) {
                     assertTrue(permits.tryAcquire(10, TimeUnit.SECONDS));
-                    taskRunner.enqueueTask(
-                        new TestTask(taskCompleted::countDown, getRandomPriority(), "testFailsTasksOnRejectionOrShutdown") {
-                            @Override
-                            public void onRejection(Exception e) {
-                                rejectionCountDown.countDown();
-                            }
-
-                            @Override
-                            public void onAfter() {
-                                permits.release();
-                            }
+                    taskRunner.enqueueTask(new TestTask(taskCompleted::countDown, getRandomPriority()) {
+                        @Override
+                        public void onRejection(Exception e) {
+                            rejectionCountDown.countDown();
                         }
-                    );
+
+                        @Override
+                        public void onAfter() {
+                            permits.release();
+                        }
+                    });
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -246,14 +237,9 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     }
 
     private void assertNoRunningTasks(PrioritizedThrottledTaskRunner<TestTask> taskRunner) {
-        logger.info("--> ensure that there are no running tasks in the executor. Max number of threads [{}]", maxThreads);
         final var barrier = new TestBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            executor.execute(() -> {
-                logger.info("--> await until barrier is released");
-                barrier.await(10, TimeUnit.SECONDS);
-                logger.info("--> the barrier is released");
-            });
+            executor.execute(() -> barrier.await(10, TimeUnit.SECONDS));
         }
         barrier.await(10, TimeUnit.SECONDS);
         assertThat(taskRunner.runningTasks(), equalTo(0));

@@ -39,9 +39,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         var clusterState = createClusterState(
             List.of(
-                newNode("node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-3", Set.of(DATA_CONTENT_NODE_ROLE))
+                newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE))
             ),
             List.of(
                 startedIndex("index-1", null, null, "node-1", "node-2"),
@@ -63,6 +63,14 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0)
                         )
+                    ),
+                    Map.of(
+                        "node-1",
+                        new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 0L),
+                        "node-2",
+                        new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 0L),
+                        "node-3",
+                        new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 0L)
                     )
                 )
             )
@@ -73,9 +81,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         var clusterState = createClusterState(
             List.of(
-                newNode("node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-3", Set.of(DATA_CONTENT_NODE_ROLE))
+                newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE))
             ),
             List.of(
                 startedIndex("index-1", 1.5, 8L, "node-1", "node-2"),
@@ -97,6 +105,14 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                             new ClusterBalanceStats.MetricStats(12.0, 3.5, 4.5, 4.0, stdDev(3.5, 4.0, 4.5)),
                             new ClusterBalanceStats.MetricStats(36.0, 10.0, 14.0, 12.0, stdDev(10.0, 12.0, 14.0))
                         )
+                    ),
+                    Map.of(
+                        "node-1",
+                        new ClusterBalanceStats.NodeBalanceStats(2, 3.5, 14L),
+                        "node-2",
+                        new ClusterBalanceStats.NodeBalanceStats(2, 4.0, 12L),
+                        "node-3",
+                        new ClusterBalanceStats.NodeBalanceStats(2, 4.5, 10L)
                     )
                 )
             )
@@ -107,12 +123,12 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         var clusterState = createClusterState(
             List.of(
-                newNode("node-hot-1", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-hot-2", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-hot-3", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-warm-1", Set.of(DATA_WARM_NODE_ROLE)),
-                newNode("node-warm-2", Set.of(DATA_WARM_NODE_ROLE)),
-                newNode("node-warm-3", Set.of(DATA_WARM_NODE_ROLE))
+                newNode("node-hot-1", "node-hot-1", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-hot-2", "node-hot-2", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-hot-3", "node-hot-3", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-warm-1", "node-warm-1", Set.of(DATA_WARM_NODE_ROLE)),
+                newNode("node-warm-2", "node-warm-2", Set.of(DATA_WARM_NODE_ROLE)),
+                newNode("node-warm-3", "node-warm-3", Set.of(DATA_WARM_NODE_ROLE))
             ),
             List.of(
                 startedIndex("index-hot-1", 4.0, 4L, "node-hot-1", "node-hot-2", "node-hot-3"),
@@ -148,6 +164,20 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new ClusterBalanceStats.MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0))
                         )
+                    ),
+                    Map.of(
+                        "node-hot-1",
+                        new ClusterBalanceStats.NodeBalanceStats(3, 8.5, 16L),
+                        "node-hot-2",
+                        new ClusterBalanceStats.NodeBalanceStats(2, 6.0, 10L),
+                        "node-hot-3",
+                        new ClusterBalanceStats.NodeBalanceStats(2, 6.5, 10L),
+                        "node-warm-1",
+                        new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 12L),
+                        "node-warm-2",
+                        new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 12L),
+                        "node-warm-3",
+                        new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 18L)
                     )
                 )
             )
@@ -158,9 +188,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         var clusterState = createClusterState(
             List.of(
-                newNode("node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-3", Set.of(DATA_CONTENT_NODE_ROLE))
+                newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE))
             ),
             List.of()
         );
@@ -178,6 +208,14 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0)
                         )
+                    ),
+                    Map.of(
+                        "node-1",
+                        new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L),
+                        "node-2",
+                        new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L),
+                        "node-3",
+                        new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L)
                     )
                 )
             )

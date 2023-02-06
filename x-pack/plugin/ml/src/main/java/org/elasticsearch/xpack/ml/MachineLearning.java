@@ -49,7 +49,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -364,7 +363,6 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
-import org.elasticsearch.xpack.ml.queries.TextEmbeddingQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -445,6 +443,7 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.ml.vectors.TextEmbeddingQueryVectorBuilder;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -1551,12 +1550,13 @@ public class MachineLearning extends Plugin
         return List.of(new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER));
     }
 
-    public List<QuerySpec<?>> getQueries() {
+    @Override
+    public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
         return List.of(
-            new QuerySpec<QueryBuilder>(
-                TextEmbeddingQueryBuilder.NAME,
-                TextEmbeddingQueryBuilder::new,
-                TextEmbeddingQueryBuilder::fromXContent
+            new QueryVectorBuilderSpec<>(
+                TextEmbeddingQueryVectorBuilder.NAME,
+                TextEmbeddingQueryVectorBuilder::new,
+                TextEmbeddingQueryVectorBuilder.PARSER::apply
             )
         );
     }

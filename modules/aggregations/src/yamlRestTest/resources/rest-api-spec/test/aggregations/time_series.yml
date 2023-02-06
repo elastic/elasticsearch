@@ -54,7 +54,7 @@ setup:
 ---
 "Basic test":
   - skip:
-      version: " - 8.5.99"
+      version: " - 8.6.99"
       reason: Time series result serialization changed in 8.6.0
 
   - do:

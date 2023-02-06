@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -47,10 +49,16 @@ public class RemoteAccessAuthenticationService {
         null
     );
     private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticationService.class);
+    private final ClusterService clusterService;
     private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
 
-    public RemoteAccessAuthenticationService(ApiKeyService apiKeyService, AuthenticationService authenticationService) {
+    public RemoteAccessAuthenticationService(
+        ClusterService clusterService,
+        ApiKeyService apiKeyService,
+        AuthenticationService authenticationService
+    ) {
+        this.clusterService = clusterService;
         this.apiKeyService = apiKeyService;
         this.authenticationService = authenticationService;
     }
@@ -72,6 +80,19 @@ public class RemoteAccessAuthenticationService {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException("authentication header is not allowed with remote access"),
+                listener
+            );
+            return;
+        }
+        // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
+        if (getMinNodeVersion().before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
+            withRequestProcessingFailure(
+                authcContext,
+                new IllegalArgumentException(
+                    "all nodes must have version ["
+                        + Authentication.VERSION_REMOTE_ACCESS_REALM
+                        + "] or higher to support cross cluster requests with remote access"
+                ),
                 listener
             );
             return;
@@ -150,6 +171,10 @@ public class RemoteAccessAuthenticationService {
             }
             return new RemoteAccessHeaders(apiKeyCredential, RemoteAccessAuthentication.readFromContext(threadContext));
         }
+    }
+
+    private TransportVersion getMinNodeVersion() {
+        return clusterService.state().nodes().getMinNodeVersion().transportVersion;
     }
 
     private static void withRequestProcessingFailure(

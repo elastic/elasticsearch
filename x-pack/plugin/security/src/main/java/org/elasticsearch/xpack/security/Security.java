@@ -912,6 +912,7 @@ public class Security extends Plugin
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         final RemoteAccessAuthenticationService remoteAccessAuthcService = new RemoteAccessAuthenticationService(
+            clusterService,
             apiKeyService,
             authcService.get()
         );

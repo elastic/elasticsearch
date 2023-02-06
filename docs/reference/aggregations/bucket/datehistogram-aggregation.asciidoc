@@ -560,10 +560,9 @@ to at least one of its adjacent months.
 To demonstrate this, consider eight documents each with a date field on the 20th day of each of the
 eight months from January to August of 2022.
 
-When querying for a date histogram over the calendar interval of months, we will have each document in a single bucket,
-one for each month.
-And each bucket will have a key named after the first day of the month, plus any offset.
-For example, the offset of `+19d` will have buckets with names like `2022-01-20`.
+When querying for a date histogram over the calendar interval of months, the response will return one bucket per month, each with a single document.
+Each bucket will have a key named after the first day of the month, plus any offset.
+For example, the offset of `+19d` will result in buckets with names like `2022-01-20`.
 
 [source,console,id=datehistogram-aggregation-offset-example-19d]
 --------------------------------------------------

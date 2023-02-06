@@ -68,6 +68,7 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder();
         builder.put(super.nodeSettings(nodeOrdinal, otherSettings));
+        builder.put(WebhookService.SETTING_WEBHOOK_TOKEN_ENABLED.getKey(), true);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(WebhookService.SETTING_WEBHOOK_HOST_TOKEN_PAIRS.getKey(), "localhost:0=oldtoken");
         builder.setSecureSettings(secureSettings);

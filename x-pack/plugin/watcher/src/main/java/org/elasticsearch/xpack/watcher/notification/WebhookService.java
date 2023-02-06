@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,17 +57,26 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
         null
     );
 
+    // Boolean setting for whether token should be sent if present.
+    public static final Setting<Boolean> SETTING_WEBHOOK_TOKEN_ENABLED = Setting.boolSetting(
+        "xpack.notification.webhook.additional_token_enabled", false, Setting.Property.NodeScope
+    );
+
     private final HttpClient httpClient;
+    private final boolean additionalTokenEnabled;
 
     public WebhookService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(NAME, settings, clusterSettings, List.of(), getSecureSettings());
         this.httpClient = httpClient;
         // do an initial load of all settings
         reload(settings);
+        this.additionalTokenEnabled = SETTING_WEBHOOK_TOKEN_ENABLED.get(settings);
     }
 
     public static List<Setting<?>> getSettings() {
-        return getSecureSettings();
+        List<Setting<?>> settings = new ArrayList<>(getSecureSettings());
+        settings.add(SETTING_WEBHOOK_TOKEN_ENABLED);
+        return settings;
     }
 
     private static List<Setting<?>> getSecureSettings() {
@@ -114,7 +124,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
         // If applicable, add the extra token to the headers
         boolean tokenAdded = false;
         WebhookAccount account = getAccount(NAME);
-        if (account.hostTokenMap.size() > 0) {
+        if (this.additionalTokenEnabled && account.hostTokenMap.size() > 0) {
             // Generate a string like example.com:9200 to match against the list of hosts where the
             // additional token should be provided. The token will only be added to the headers if
             // the request matches the list.

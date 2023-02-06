@@ -50,8 +50,8 @@ public class BlobCacheUtils {
         return ByteRange.of(start, end);
     }
 
-    public static void ensureSlice(String sliceName, long sliceOffset, long sliceLength, IndexInput indexInput) {
-        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > indexInput.length()) {
+    public static void ensureSlice(String sliceName, long sliceOffset, long sliceLength, IndexInput input) {
+        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > input.length()) {
             throw new IllegalArgumentException(
                 "slice() "
                     + sliceName
@@ -60,9 +60,9 @@ public class BlobCacheUtils {
                     + ",length="
                     + sliceLength
                     + ",fileLength="
-                    + indexInput.length()
+                    + input.length()
                     + ": "
-                    + indexInput
+                    + input
             );
         }
     }

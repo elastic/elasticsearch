@@ -125,7 +125,7 @@ public class IndexShardRoutingTable {
     }
 
     /**
-     * Returns the primary {@Link ShardRouting}
+     * Returns the primary {@link ShardRouting}
      */
     public ShardRouting primary() {
         return primary;

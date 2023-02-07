@@ -102,6 +102,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
@@ -345,6 +346,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
         RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME,
         RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
+        RestController.ENFORCE_API_PROTECTIONS_SETTING,
         ProxyConnectionStrategy.PROXY_ADDRESS,
         ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
         ProxyConnectionStrategy.SERVER_NAME,

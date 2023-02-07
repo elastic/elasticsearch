@@ -76,8 +76,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
-    private static final Setting<Boolean> ENFORCE_API_PROTECTIONS_SETTING = Setting.boolSetting(
-        "enforce-api-protections",
+    public static final Setting<Boolean> ENFORCE_API_PROTECTIONS_SETTING = Setting.boolSetting(
+        "rest.enforce_api_protections",
         false,
         Setting.Property.NodeScope
     );

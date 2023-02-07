@@ -8,17 +8,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
-import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -56,7 +60,7 @@ import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -413,14 +417,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     HalfFloatDocValuesField::new
                 );
             }
@@ -544,11 +548,12 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final float f = value.floatValue();
-                if (indexed) {
-                    document.add(new FloatPoint(name, f));
-                }
-                if (docValued) {
+                if (indexed && docValued) {
+                    document.add(new FloatField(name, f));
+                } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(f)));
+                } else if (indexed) {
+                    document.add(new FloatPoint(name, f));
                 }
                 if (stored) {
                     document.add(new StoredField(name, f));
@@ -564,14 +569,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     FloatDocValuesField::new
                 );
             }
@@ -673,11 +678,12 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final double d = value.doubleValue();
-                if (indexed) {
-                    document.add(new DoublePoint(name, d));
-                }
-                if (docValued) {
+                if (indexed && docValued) {
+                    document.add(new DoubleField(name, d));
+                } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(d)));
+                } else if (indexed) {
+                    document.add(new DoublePoint(name, d));
                 }
                 if (stored) {
                     document.add(new StoredField(name, d));
@@ -693,14 +699,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     DoubleDocValuesField::new
                 );
             }
@@ -797,14 +803,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     ByteDocValuesField::new
                 );
             }
@@ -886,14 +892,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     ShortDocValuesField::new
                 );
             }
@@ -1022,11 +1028,12 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final int i = value.intValue();
-                if (indexed) {
-                    document.add(new IntPoint(name, i));
-                }
-                if (docValued) {
+                if (indexed && docValued) {
+                    document.add(new IntField(name, i));
+                } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, i));
+                } else if (indexed) {
+                    document.add(new IntPoint(name, i));
                 }
                 if (stored) {
                     document.add(new StoredField(name, i));
@@ -1042,14 +1049,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     IntegerDocValuesField::new
                 );
             }
@@ -1148,11 +1155,12 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final long l = value.longValue();
-                if (indexed) {
-                    document.add(new LongPoint(name, l));
-                }
-                if (docValued) {
+                if (indexed && docValued) {
+                    document.add(new LongField(name, l));
+                } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, l));
+                } else if (indexed) {
+                    document.add(new LongPoint(name, l));
                 }
                 if (stored) {
                     document.add(new StoredField(name, l));
@@ -1168,14 +1176,14 @@ public class NumberFieldMapper extends FieldMapper {
             public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
                 String name,
                 ValuesSourceType valuesSourceType,
-                SourceLookup sourceLookup,
+                SourceProvider sourceProvider,
                 ValueFetcher valueFetcher
             ) {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name,
                     valuesSourceType,
                     valueFetcher,
-                    sourceLookup,
+                    sourceProvider,
                     LongDocValuesField::new
                 );
             }
@@ -1415,7 +1423,7 @@ public class NumberFieldMapper extends FieldMapper {
         public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
             String name,
             ValuesSourceType valuesSourceType,
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             ValueFetcher valueFetcher
         ) {
             throw new UnsupportedOperationException("not supported for source fallback");
@@ -1592,12 +1600,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-                return type.getValueFetcherFieldDataBuilder(
-                    name(),
-                    valuesSourceType,
-                    searchLookup.source(),
-                    sourceValueFetcher(sourcePaths)
-                );
+                return type.getValueFetcherFieldDataBuilder(name(), valuesSourceType, searchLookup, sourceValueFetcher(sourcePaths));
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");

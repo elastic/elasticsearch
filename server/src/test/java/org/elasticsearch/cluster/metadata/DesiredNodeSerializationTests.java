@@ -34,7 +34,7 @@ public class DesiredNodeSerializationTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected DesiredNode mutateInstance(DesiredNode instance) throws IOException {
+    protected DesiredNode mutateInstance(DesiredNode instance) {
         return mutateDesiredNode(instance);
     }
 

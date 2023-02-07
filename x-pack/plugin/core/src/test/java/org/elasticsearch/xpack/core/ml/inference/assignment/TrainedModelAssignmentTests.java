@@ -63,6 +63,11 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         return randomInstance();
     }
 
+    @Override
+    protected TrainedModelAssignment mutateInstance(TrainedModelAssignment instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testBuilderAddingExistingRoute() {
         TrainedModelAssignment.Builder assignment = TrainedModelAssignment.Builder.empty(randomParams());
         String addingNode = "new-node";

@@ -12,32 +12,60 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 final class StackFrame implements ToXContentObject {
-    String fileName;
-    String functionName;
-    Integer functionOffset;
-    Integer lineNumber;
-    Integer sourceType;
+    List<String> fileName;
+    List<String> functionName;
+    List<Integer> functionOffset;
+    List<Integer> lineNumber;
+    List<Integer> sourceType;
 
-    StackFrame(String fileName, String functionName, Integer functionOffset, Integer lineNumber, Integer sourceType) {
-        this.fileName = fileName;
-        this.functionName = functionName;
-        this.functionOffset = functionOffset;
-        this.lineNumber = lineNumber;
-        this.sourceType = sourceType;
+    StackFrame(Object fileName, Object functionName, Object functionOffset, Object lineNumber, Object sourceType) {
+        this.fileName = listOf(fileName);
+        this.functionName = listOf(functionName);
+        this.functionOffset = listOf(functionOffset);
+        this.lineNumber = listOf(lineNumber);
+        this.sourceType = listOf(sourceType);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<T> listOf(Object o) {
+        if (o instanceof List) {
+            return (List<T>) o;
+        } else if (o != null) {
+            return List.of((T) o);
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     public static StackFrame fromSource(Map<String, Object> source) {
-        return new StackFrame(
-            ObjectPath.eval("Stackframe.file.name", source),
-            ObjectPath.eval("Stackframe.function.name", source),
-            ObjectPath.eval("Stackframe.function.offset", source),
-            ObjectPath.eval("Stackframe.line.number", source),
-            ObjectPath.eval("Stackframe.source.type", source)
-        );
+        // stack frames may either be stored with synthetic source or regular one
+        // which results either in a nested or flat document structure.
+
+        if (source.containsKey("Stackframe")) {
+            // synthetic source
+            return new StackFrame(
+                ObjectPath.eval("Stackframe.file.name", source),
+                ObjectPath.eval("Stackframe.function.name", source),
+                ObjectPath.eval("Stackframe.function.offset", source),
+                ObjectPath.eval("Stackframe.line.number", source),
+                ObjectPath.eval("Stackframe.source.type", source)
+            );
+        } else {
+            // regular source
+            return new StackFrame(
+                source.get("Stackframe.file.name"),
+                source.get("Stackframe.function.name"),
+                source.get("Stackframe.function.offset"),
+                source.get("Stackframe.line.number"),
+                source.get("Stackframe.source.type")
+            );
+        }
     }
 
     @Override

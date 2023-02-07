@@ -18,6 +18,7 @@ _transform/
 * <<reset-transform,Reset {transforms}>>
 * <<start-transform,Start {transforms}>>
 * <<stop-transform,Stop {transforms}>>
+* <<schedule-now-transform,Schedule Now {transforms}>>
 * <<update-transform,Update {transforms}>>
 
 For the full list, see <<transform-apis>>.

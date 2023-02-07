@@ -78,7 +78,9 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
+import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SSL_ENABLED;
 
 /**
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
@@ -590,6 +592,8 @@ public class SSLService {
         sslSettingsMap.put(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX, settings.getByPrefix(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX));
         sslSettingsMap.put(XPackSettings.TRANSPORT_SSL_PREFIX, settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX));
         sslSettingsMap.putAll(getTransportProfileSSLSettings(settings));
+        // We build the ssl settings even when remote cluster port is not enabled because we may need it for the client side
+        sslSettingsMap.put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX, getRemoteClusterSslSettings(settings));
         return Collections.unmodifiableMap(sslSettingsMap);
     }
 
@@ -611,6 +615,7 @@ public class SSLService {
         for (String context : List.of("xpack.security.transport.ssl", "xpack.security.http.ssl")) {
             validateServerConfiguration(context);
         }
+        maybeValidateRemoteClusterServerConfiguration();
 
         return Collections.unmodifiableMap(sslContextHolders);
     }
@@ -623,18 +628,7 @@ public class SSLService {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
             final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".", true);
             if (isConfigurationValidForServerUsage(configuration) == false) {
-                throw new ElasticsearchSecurityException(
-                    "invalid SSL configuration for "
-                        + prefix
-                        + " - server ssl configuration requires a key and certificate, but these have not been configured; "
-                        + "you must set either ["
-                        + configurationSettings.x509KeyPair.keystorePath.getKey()
-                        + "], or both ["
-                        + configurationSettings.x509KeyPair.keyPath.getKey()
-                        + "] and ["
-                        + configurationSettings.x509KeyPair.certificatePath.getKey()
-                        + "]"
-                );
+                throwExceptionForMissingKeyMaterial(prefix, configurationSettings);
             }
         } else if (settings.hasValue(enabledSetting) == false) {
             final List<String> sslSettingNames = settings.keySet().stream().filter(s -> s.startsWith(prefix)).sorted().toList();
@@ -650,6 +644,35 @@ public class SSLService {
                 );
             }
         }
+    }
+
+    private void maybeValidateRemoteClusterServerConfiguration() {
+        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings) == false) {
+            return;
+        }
+        final String prefix = "xpack.security.remote_cluster.ssl";
+        final SslConfiguration sslConfiguration = getSSLConfiguration(prefix);
+        if (REMOTE_CLUSTER_SSL_ENABLED.get(settings)) {
+            if (isConfigurationValidForServerUsage(sslConfiguration) == false) {
+                final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".", false);
+                throwExceptionForMissingKeyMaterial(prefix, configurationSettings);
+            }
+        }
+    }
+
+    private static void throwExceptionForMissingKeyMaterial(String prefix, SSLConfigurationSettings configurationSettings) {
+        throw new ElasticsearchSecurityException(
+            "invalid SSL configuration for "
+                + prefix
+                + " - server ssl configuration requires a key and certificate, but these have not been configured; "
+                + "you must set either ["
+                + configurationSettings.x509KeyPair.keystorePath.getKey()
+                + "], or both ["
+                + configurationSettings.x509KeyPair.keyPath.getKey()
+                + "] and ["
+                + configurationSettings.x509KeyPair.certificatePath.getKey()
+                + "]"
+        );
     }
 
     /**
@@ -873,6 +896,15 @@ public class SSLService {
         Settings.Builder builder = Settings.builder().put(httpSSLSettings);
         if (builder.get("client_authentication") == null) {
             builder.put("client_authentication", XPackSettings.HTTP_CLIENT_AUTH_DEFAULT);
+        }
+        return builder.build();
+    }
+
+    private static Settings getRemoteClusterSslSettings(Settings settings) {
+        final Settings remoteClusterSslSettings = settings.getByPrefix(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX);
+        final Settings.Builder builder = Settings.builder().put(remoteClusterSslSettings);
+        if (builder.get("client_authentication") == null) {
+            builder.put("client_authentication", XPackSettings.REMOTE_CLUSTER_CLIENT_AUTH_DEFAULT);
         }
         return builder.build();
     }

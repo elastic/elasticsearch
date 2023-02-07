@@ -148,6 +148,11 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         return createTestItem(randomFrom(XContentType.values()).canonical(), randomBoolean(), randomBoolean());
     }
 
+    @Override
+    protected SearchHit mutateInstance(SearchHit instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values()).canonical();
         SearchHit searchHit = createTestItem(xContentType, true, false);

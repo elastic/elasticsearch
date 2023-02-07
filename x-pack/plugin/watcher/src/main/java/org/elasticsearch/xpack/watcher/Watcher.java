@@ -598,6 +598,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
         settings.addAll(ReportingAttachmentParser.getSettings());
+        settings.addAll(WebhookService.getSettings());
 
         // http settings
         settings.addAll(HttpSettings.getSettings());

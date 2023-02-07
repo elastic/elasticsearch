@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class MultiGetShardRequestTests extends ESTestCase {
@@ -26,15 +26,15 @@ public class MultiGetShardRequestTests extends ESTestCase {
         MultiGetShardRequest multiGetShardRequest = createTestInstance(randomBoolean());
 
         BytesStreamOutput out = new BytesStreamOutput();
-        Version minVersion = Version.CURRENT.minimumCompatibilityVersion();
+        TransportVersion minVersion = TransportVersion.CURRENT.minimumCompatibilityVersion();
         if (multiGetShardRequest.isForceSyntheticSource()) {
-            minVersion = Version.V_8_4_0;
+            minVersion = TransportVersion.V_8_4_0;
         }
-        out.setVersion(randomVersionBetween(random(), minVersion, Version.CURRENT));
+        out.setTransportVersion(randomVersionBetween(random(), minVersion, TransportVersion.CURRENT));
         multiGetShardRequest.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(out.getVersion());
+        in.setTransportVersion(out.getTransportVersion());
         MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest(in);
         assertThat(multiGetShardRequest2.index(), equalTo(multiGetShardRequest.index()));
         assertThat(multiGetShardRequest2.preference(), equalTo(multiGetShardRequest.preference()));
@@ -58,7 +58,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
     public void testForceSyntheticUnsupported() {
         MultiGetShardRequest request = createTestInstance(true);
         StreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_8_3_0);
+        out.setTransportVersion(TransportVersion.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }

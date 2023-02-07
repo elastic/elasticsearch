@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -57,7 +58,7 @@ public final class ProcessUtils {
         List<String> command = new ArrayList<>();
         command.addAll(
             OS.conditional(
-                c -> c.onWindows(() -> List.of("cmd", "/c", executable.toString()))
+                c -> c.onWindows(() -> List.of("cmd", "/c", executable.getFileName().toString()))
                     .onUnix(() -> List.of(workingDir.relativize(executable).toString()))
             )
         );
@@ -67,6 +68,7 @@ public final class ProcessUtils {
         processBuilder.directory(workingDir.toFile());
         processBuilder.environment().clear();
         processBuilder.environment().putAll(environment);
+        processBuilder.environment().put("PATH", executable.getParent().toString() + File.pathSeparator + System.getenv("PATH"));
 
         LOGGER.info("Executing '{}' in '{}'", command, workingDir);
 

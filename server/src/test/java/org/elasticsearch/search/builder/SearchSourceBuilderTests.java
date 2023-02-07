@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -45,7 +45,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -117,9 +117,13 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
         SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
-        Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_11_0));
+        TransportVersion v = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_0_0,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_11_0)
+        );
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
-        assertThat(e.getMessage(), equalTo("Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + v + "]"));
+        assertThat(e.getMessage(), equalTo("Versions before 7110099 don't support [runtime_mappings] and search was sent to [" + v + "]"));
     }
 
     public void testShallowCopy() {
@@ -136,10 +140,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
-        return copyBuilder(original, Version.CURRENT);
+        return copyBuilder(original, TransportVersion.CURRENT);
     }
 
-    private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, Version version) throws IOException {
+    private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, TransportVersion version) throws IOException {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new, version);
     }
 

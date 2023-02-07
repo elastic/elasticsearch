@@ -52,6 +52,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
+import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
+
 public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, LocalClusterHandle> {
     private static final Logger LOGGER = LogManager.getLogger(LocalClusterFactory.class);
     private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(2);
@@ -79,21 +82,20 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     public class Node {
         private final LocalNodeSpec spec;
         private final Path workingDir;
-        private final Path distributionDir;
         private final Path repoDir;
         private final Path dataDir;
         private final Path logsDir;
         private final Path configDir;
         private final Path tempDir;
 
-        private boolean initialized = false;
+        private Path distributionDir;
+        private Version currentVersion;
         private Process process = null;
         private DistributionDescriptor distributionDescriptor;
 
         public Node(LocalNodeSpec spec) {
             this.spec = spec;
             this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
-            this.distributionDir = workingDir.resolve("distro"); // location of es distribution files, typically hard-linked
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -101,22 +103,25 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
         }
 
-        public synchronized void start() {
+        public synchronized void start(Version version) {
             LOGGER.info("Starting Elasticsearch node '{}'", spec.getName());
+            if (version != null) {
+                spec.setVersion(version);
+            }
 
-            if (initialized == false) {
+            if (currentVersion == null || currentVersion.equals(spec.getVersion()) == false) {
                 LOGGER.info("Creating installation for node '{}' in {}", spec.getName(), workingDir);
                 distributionDescriptor = resolveDistribution();
                 LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
-                initializeWorkingDirectory();
+                initializeWorkingDirectory(currentVersion != null);
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
                 copyExtraJarFiles();
                 installPlugins();
-                if (spec.getDistributionType() == DistributionType.INTEG_TEST) {
+                if (distributionDescriptor.getType() == DistributionType.INTEG_TEST) {
                     installModules();
                 }
-                initialized = true;
+                currentVersion = spec.getVersion();
             } else {
                 createConfigDirectory();
                 copyExtraConfigFiles();
@@ -125,6 +130,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             writeConfiguration();
             createKeystore();
             addKeystoreSettings();
+            addKeystoreFiles();
             configureSecurity();
 
             startElasticsearch();
@@ -135,6 +141,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 ProcessUtils.stopHandle(process.toHandle(), forcibly);
                 ProcessReaper.instance().unregister(getServiceName());
             }
+            deletePortsFiles();
         }
 
         public void waitForExit() {
@@ -157,6 +164,20 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 waitUntilReady();
             }
             return readPortsFile(portsFile).get(0);
+        }
+
+        public void deletePortsFiles() {
+            try {
+                Path hostsFile = workingDir.resolve("config").resolve("unicast_hosts.txt");
+                Path httpPortsFile = workingDir.resolve("logs").resolve("http.ports");
+                Path transportPortsFile = workingDir.resolve("logs").resolve("transport.ports");
+
+                Files.deleteIfExists(hostsFile);
+                Files.deleteIfExists(httpPortsFile);
+                Files.deleteIfExists(transportPortsFile);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to write unicast_hosts for: " + this, e);
+            }
         }
 
         public LocalNodeSpec getSpec() {
@@ -205,17 +226,34 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
-        private void initializeWorkingDirectory() {
+        private void initializeWorkingDirectory(boolean preserveWorkingDirectory) {
             try {
-                IOUtils.deleteWithRetry(workingDir);
-                try {
-                    IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
-                } catch (IOUtils.LinkCreationException e) {
-                    // Note does not work for network drives, e.g. Vagrant
-                    LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
-                    // ensure we get a clean copy
-                    IOUtils.deleteWithRetry(distributionDir);
-                    IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
+                if (preserveWorkingDirectory == false) {
+                    IOUtils.deleteWithRetry(workingDir);
+                }
+
+                if (canUseSharedDistribution()) {
+                    distributionDir = distributionDescriptor.getDistributionDir();
+                } else {
+                    distributionDir = OS.conditional(
+                        // Use per-version distribution directories on Windows to avoid cleanup failures
+                        c -> c.onWindows(() -> workingDir.resolve("distro").resolve(distributionDescriptor.getVersion().toString()))
+                            .onUnix(() -> workingDir.resolve("distro"))
+                    );
+
+                    if (Files.exists(distributionDir)) {
+                        IOUtils.deleteWithRetry(distributionDir);
+                    }
+
+                    try {
+                        IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
+                    } catch (IOUtils.LinkCreationException e) {
+                        // Note does not work for network drives, e.g. Vagrant
+                        LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
+                        // ensure we get a clean copy
+                        IOUtils.deleteWithRetry(distributionDir);
+                        IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
+                    }
                 }
                 Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
@@ -224,6 +262,16 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to create working directory for node '" + spec.getName() + "'", e);
             }
+        }
+
+        /*
+         * We can "share" a distribution directory across clusters so long as we aren't modifying it. That means we aren't installing any
+         * additional plugins, modules, or jars. This avoids having to copy the test distribution unnecessarily.
+         */
+        private boolean canUseSharedDistribution() {
+            return OS.current() != WINDOWS // Issues with long file paths on Windows in CI
+                && System.getProperty(TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP) == null
+                && (distributionDescriptor.getType() == DEFAULT || (getSpec().getPlugins().isEmpty() && getSpec().getModules().isEmpty()));
         }
 
         private void copyExtraJarFiles() {
@@ -301,27 +349,10 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private void createKeystore() {
-            try {
-                Path executable = OS.conditional(
-                    c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
-                        .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
-                );
-
-                if (spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()) {
-                    ProcessUtils.exec(workingDir, executable, getEnvironmentVariables(), false, "-v", "create").waitFor();
-                } else {
-                    ProcessUtils.exec(
-                        spec.getKeystorePassword() + "\n" + spec.getKeystorePassword(),
-                        workingDir,
-                        executable,
-                        getEnvironmentVariables(),
-                        false,
-                        "create",
-                        "-p"
-                    ).waitFor();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+            if (spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()) {
+                runToolScript("elasticsearch-keystore", null, "-v", "create");
+            } else {
+                runToolScript("elasticsearch-keystore", spec.getKeystorePassword() + "\n" + spec.getKeystorePassword(), "create", "-p");
             }
         }
 
@@ -331,9 +362,18 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     ? value
                     : spec.getKeystorePassword() + "\n" + value;
 
+                runToolScript("elasticsearch-keystore", input, "add", key);
+            });
+        }
+
+        private void addKeystoreFiles() {
+            spec.getKeystoreFiles().forEach((key, file) -> {
                 try {
+                    Path path = Files.createTempFile(tempDir, key, null);
+                    file.writeTo(path);
+
                     ProcessUtils.exec(
-                        input,
+                        spec.getKeystorePassword(),
                         workingDir,
                         OS.conditional(
                             c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
@@ -341,10 +381,11 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                         ),
                         getEnvironmentVariables(),
                         false,
-                        "add",
-                        key
+                        "add-file",
+                        key,
+                        path.toString()
                     ).waitFor();
-                } catch (InterruptedException e) {
+                } catch (InterruptedException | IOException e) {
                     throw new RuntimeException(e);
                 }
             });
@@ -370,22 +411,16 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
                 LOGGER.info("Creating users for node '{}'", spec.getName());
                 for (User user : spec.getUsers()) {
-                    try {
-                        ProcessUtils.exec(
-                            workingDir,
-                            distributionDir.resolve("bin").resolve("elasticsearch-users"),
-                            getEnvironmentVariables(),
-                            false,
-                            "useradd",
-                            user.getUsername(),
-                            "-p",
-                            user.getPassword(),
-                            "-r",
-                            user.getRole()
-                        ).waitFor();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
+                    runToolScript(
+                        "elasticsearch-users",
+                        null,
+                        "useradd",
+                        user.getUsername(),
+                        "-p",
+                        user.getPassword(),
+                        "-r",
+                        user.getRole()
+                    );
                 }
             }
         }
@@ -429,31 +464,14 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     .map(p -> p.toUri().toString())
                     .toList();
 
-                Path pluginCommand = OS.conditional(
-                    c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-plugin.bat"))
-                        .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-plugin"))
-                );
                 if (spec.getVersion().onOrAfter("7.6.0")) {
-                    try {
-                        ProcessUtils.exec(
-                            workingDir,
-                            pluginCommand,
-                            getEnvironmentVariables(),
-                            false,
-                            Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
-                        ).waitFor();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
+                    runToolScript(
+                        "elasticsearch-plugin",
+                        null,
+                        Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
+                    );
                 } else {
-                    toInstall.forEach(plugin -> {
-                        try {
-                            ProcessUtils.exec(workingDir, pluginCommand, getEnvironmentVariables(), false, "install", "--batch", plugin)
-                                .waitFor();
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
+                    toInstall.forEach(plugin -> runToolScript("elasticsearch-plugin", null, "install", "--batch", plugin));
                 }
             }
         }
@@ -493,7 +511,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
                 });
 
-                IOUtils.syncWithCopy(modulePath.getParent(), destination);
+                IOUtils.syncWithCopy(modulePath, destination);
 
                 // Install any extended plugins
                 Properties pluginProperties = new Properties();
@@ -585,6 +603,22 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 "-XX:ErrorFile=logs/hs_err_pid%p.log",
                 "-XX:ErrorFile=" + relativeLogsDir.resolve("hs_err_pid%p.log")
             );
+        }
+
+        private void runToolScript(String tool, String input, String... args) {
+            try {
+                ProcessUtils.exec(
+                    input,
+                    distributionDir,
+                    distributionDir.resolve("bin")
+                        .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
+                    getEnvironmentVariables(),
+                    false,
+                    args
+                ).waitFor();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         private String getServiceName() {

@@ -132,7 +132,9 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         reason = "Debug #93226",
         value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG,"
             + "org.elasticsearch.indices.IndicesService:DEBUG,"
-            + "org.elasticsearch.index.IndexService:DEBUG"
+            + "org.elasticsearch.index.IndexService:DEBUG,"
+            + "org.elasticsearch.env.NodeEnvironment:DEBUG,"
+            + "org.elasticsearch.cluster.service.MasterService:TRACE"
     )
     public void testListenersInvokedWhenIndexIsRelocated() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();

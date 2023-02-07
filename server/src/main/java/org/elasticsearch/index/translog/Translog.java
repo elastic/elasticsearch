@@ -9,7 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1240,7 +1240,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_8_0_0) ? SERIALIZATION_FORMAT : FORMAT_NO_VERSION_TYPE;
+            final int format = out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
             out.writeString(id);
             if (format < FORMAT_NO_DOC_TYPE) {
@@ -1401,7 +1403,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_8_0_0) ? SERIALIZATION_FORMAT : FORMAT_NO_VERSION_TYPE;
+            final int format = out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
             if (format < FORMAT_NO_DOC_TYPE) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);

@@ -146,7 +146,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
             hardBounds = in.readOptionalWriteable(DoubleBounds::new);
         } else {

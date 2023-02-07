@@ -81,7 +81,7 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     public void testSplitFromOneToN() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
 
         splitToN(1, 5, 10);
         client().admin().indices().prepareDelete("*").get();

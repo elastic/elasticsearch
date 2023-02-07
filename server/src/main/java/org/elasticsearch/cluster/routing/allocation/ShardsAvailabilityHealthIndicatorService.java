@@ -182,7 +182,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         NAME,
         "initializing_shards",
         "Elasticsearch is currently initializing the unavailable shards. Please wait for the initialization to finish.",
-        "The shards will become available as long as the initialization completes. No action is required by the user.",
+        "The shards will become available as long as the initialization completes. No action is required by the user, you can" +
+            " monitor the progress of the initializing shards at " + WAIT_FOR_INITIALIZATION_GUIDE + ".",
         WAIT_FOR_INITIALIZATION_GUIDE
     );
 

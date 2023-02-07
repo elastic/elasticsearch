@@ -73,7 +73,7 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateSplitIndexToN() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
 
         int[][] possibleShardSplits = new int[][] { { 2, 4, 8 }, { 3, 6, 12 }, { 1, 2, 4 } };
         int[] shardSplits = randomFrom(possibleShardSplits);

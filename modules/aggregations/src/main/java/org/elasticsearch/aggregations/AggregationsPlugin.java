@@ -55,11 +55,8 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPl
                 .addResultReader(InternalMatrixStats::new)
         );
         specs.add(
-            new AggregationSpec(
-                TimeSeriesAggregationBuilder.NAME,
-                TimeSeriesAggregationBuilder::new,
-                TimeSeriesAggregationBuilder.PARSER
-            ).addResultReader(InternalTimeSeries::new)
+            new AggregationSpec(TimeSeriesAggregationBuilder.NAME, TimeSeriesAggregationBuilder::new, TimeSeriesAggregationBuilder.PARSER)
+                .addResultReader(InternalTimeSeries::new)
         );
         return List.copyOf(specs);
     }

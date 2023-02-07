@@ -39,6 +39,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
         .nodes(2)
         .setting("indices.memory.shard_inactive_time", "60m")
         .setting("xpack.security.enabled", "false")

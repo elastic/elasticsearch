@@ -39,7 +39,6 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
@@ -204,10 +203,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 }
             });
         });
-
-        project.getTasks()
-            .named(JavaBasePlugin.CHECK_TASK_NAME)
-            .configure(check -> check.dependsOn(project.getTasks().withType(StandaloneRestIntegTestTask.class)));
     }
 
     private ElasticsearchDistribution createDistribution(Project project, String name, String version) {

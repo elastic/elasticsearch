@@ -3,7 +3,7 @@
   - do:
       ingest.put_pipeline:
         id: "pipeline-using-a-redact-processor"
-        body:  >
+        body: >
           {
             "processors": [
               {
@@ -36,17 +36,18 @@
 "Test redact":
   - do:
       ingest.simulate:
-        body:  >
+        body: >
           {
             "pipeline": {
-            "processors": [
-              {
-                "redact": {
-                  "field": "to_redact",
-                  "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+              "processors": [
+                {
+                  "redact": {
+                    "field": "to_redact",
+                    "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+                  }
                 }
-              }
-            ]},
+              ]
+            },
             "docs": [{"_source": {"to_redact": "this-email@address.com will be redacted"}}]
           }
   - length: { docs: 1 }
@@ -56,18 +57,19 @@
 "Test ignore missing":
   - do:
       ingest.simulate:
-        body:  >
+        body: >
           {
             "pipeline": {
-            "processors": [
-              {
-                "redact": {
-                  "field": "to_redact",
-                  "ignore_missing": false,
-                  "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+              "processors": [
+                {
+                  "redact": {
+                    "field": "to_redact",
+                    "ignore_missing": false,
+                    "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+                  }
                 }
-              }
-            ]},
+              ]
+            },
             "docs": [{"_source": {"wrong_field": "will error"}}]
           }
   - match: { docs.0.error.reason: "field [to_redact] is null or missing" }
@@ -76,19 +78,20 @@
 "Test custom start and end tokens":
   - do:
       ingest.simulate:
-        body:  >
+        body: >
           {
             "pipeline": {
-            "processors": [
-              {
-                "redact": {
-                  "prefix": "==*",
-                  "suffix": "*==",
-                  "field": "to_redact",
-                  "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+              "processors": [
+                {
+                  "redact": {
+                    "prefix": "==*",
+                    "suffix": "*==",
+                    "field": "to_redact",
+                    "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+                  }
                 }
-              }
-            ]},
+              ]
+            },
             "docs": [{"_source": {"to_redact": "this-email@address.com will be redacted"}}]
           }
   - length: { docs: 1 }

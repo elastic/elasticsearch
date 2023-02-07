@@ -6,7 +6,7 @@
 
 The Redact processor obscures portions of text in the input document
 matching the given Grok patterns. A Grok pattern is like a regular
-expression with a named capturing group, text that matches the regular
+expression with a named capturing group: text that matches the regular
 expression is replaced with the capture name. {es} comes packaged with
 a number of useful predefined {es-repo}blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns].
 if one of those does not suit your needs create a new pattern with a

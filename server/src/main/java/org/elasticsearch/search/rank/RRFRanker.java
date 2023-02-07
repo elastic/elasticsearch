@@ -6,15 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rerank;
+package org.elasticsearch.search.rank;
 
-public class RRFReranker implements Reranker {
+public class RRFRanker implements Ranker {
 
     protected final int size;
     protected final int windowSize;
     protected final int kConstant;
 
-    public RRFReranker(int windowSize, int size, int kConstant) {
+    public RRFRanker(int windowSize, int size, int kConstant) {
         this.windowSize = windowSize;
         this.size = size;
         this.kConstant = kConstant;

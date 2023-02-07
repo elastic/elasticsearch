@@ -18,7 +18,6 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rerank.RerankQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
@@ -172,7 +171,7 @@ final class DfsQueryPhase extends SearchPhase {
             }
             request.source(newSource);
         } else {
-            RerankQueryBuilder rerankQueryBuilder = new RerankQueryBuilder();
+            RankQueryBuilder rerankQueryBuilder = new RankQueryBuilder();
             if (source.query() != null) {
                 rerankQueryBuilder.addQuery(source.query());
             }

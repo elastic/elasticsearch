@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rerank;
+package org.elasticsearch.search.rank;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -92,8 +92,8 @@ public class RRFBuilder implements Writeable, ToXContent {
         return rankConstant;
     }
 
-    public RRFReranker reranker(int size) {
-        return new RRFReranker(windowSize, size, rankConstant);
+    public RRFRanker reranker(int size) {
+        return new RRFRanker(windowSize, size, rankConstant);
     }
 
     @Override

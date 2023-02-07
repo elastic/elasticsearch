@@ -23,7 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rerank.RerankBuilder;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -194,8 +194,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Defines a rerank for scoring results.
      */
-    public SearchRequestBuilder setRerankBuilder(RerankBuilder rerankBuilder) {
-        sourceBuilder().rerankBuilder(rerankBuilder);
+    public SearchRequestBuilder setRerankBuilder(RankBuilder rankBuilder) {
+        sourceBuilder().rerankBuilder(rankBuilder);
         return this;
     }
 

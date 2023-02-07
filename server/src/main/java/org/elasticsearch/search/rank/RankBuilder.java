@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rerank;
+package org.elasticsearch.search.rank;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,20 +25,20 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RerankBuilder implements Writeable, ToXContent {
+public class RankBuilder implements Writeable, ToXContent {
 
     public static final ParseField RRF_FIELD = new ParseField("rrf");
 
-    private static final ConstructingObjectParser<RerankBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        "rerank",
-        args -> new RerankBuilder().rrfBuilder((RRFBuilder) args[0])
+    private static final ConstructingObjectParser<RankBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        "rank",
+        args -> new RankBuilder().rrfBuilder((RRFBuilder) args[0])
     );
 
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> RRFBuilder.fromXContent(p), RRF_FIELD);
     }
 
-    public static RerankBuilder fromXContent(XContentParser parser) throws IOException {
+    public static RankBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -55,9 +55,9 @@ public class RerankBuilder implements Writeable, ToXContent {
 
     private RRFBuilder rrfBuilder;
 
-    public RerankBuilder() {}
+    public RankBuilder() {}
 
-    public RerankBuilder(StreamInput in) throws IOException {
+    public RankBuilder(StreamInput in) throws IOException {
         rrfBuilder = in.readOptionalWriteable(RRFBuilder::new);
     }
 
@@ -66,7 +66,7 @@ public class RerankBuilder implements Writeable, ToXContent {
         out.writeOptionalWriteable(rrfBuilder);
     }
 
-    public RerankBuilder rrfBuilder(RRFBuilder rrfBuilder) {
+    public RankBuilder rrfBuilder(RRFBuilder rrfBuilder) {
         this.rrfBuilder = rrfBuilder;
         return this;
     }
@@ -75,7 +75,7 @@ public class RerankBuilder implements Writeable, ToXContent {
         return rrfBuilder;
     }
 
-    public Reranker reranker(int size) {
+    public Ranker reranker(int size) {
         if (rrfBuilder != null) {
             return rrfBuilder().reranker(size);
         }
@@ -86,7 +86,7 @@ public class RerankBuilder implements Writeable, ToXContent {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RerankBuilder that = (RerankBuilder) o;
+        RankBuilder that = (RankBuilder) o;
         return Objects.equals(rrfBuilder, that.rrfBuilder);
     }
 

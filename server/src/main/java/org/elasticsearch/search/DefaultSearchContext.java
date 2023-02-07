@@ -51,7 +51,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rerank.Reranker;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -96,7 +95,6 @@ final class DefaultSearchContext extends SearchContext {
     private int size = -1;
     private SortAndFormats sort;
     private Float minimumScore;
-    private Reranker reranker;
     private boolean trackScores = false; // when sorting, track scores as well...
     private int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     private FieldDoc searchAfter;

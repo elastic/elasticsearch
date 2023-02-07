@@ -19,7 +19,7 @@ patterns, legacy Grok patterns are not supported.
 
 [[using-redact]]
 
-==== Using the Redact Processor in a Pipeline
+==== Using the Redact processor in a pipeline
 
 [[redact-options]]
 .Redact Options

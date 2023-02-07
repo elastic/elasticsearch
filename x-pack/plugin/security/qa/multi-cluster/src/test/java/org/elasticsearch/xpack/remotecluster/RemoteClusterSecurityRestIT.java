@@ -85,22 +85,22 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
             createAndIndexRemoteAccessApiKey(createApiKeyRequest);
 
             // Index some documents, so we can attempt to search them from the querying cluster
-            final var indexDocRequest = new Request("POST", "/index1/_doc");
+            final var indexDocRequest = new Request("POST", "/index1/_doc?refresh=true");
             indexDocRequest.setJsonEntity("{\"foo\": \"bar\"}");
             assertOK(client().performRequest(indexDocRequest));
 
-            final var indexDocRequest2 = new Request("POST", "/index2/_doc");
+            final var indexDocRequest2 = new Request("POST", "/index2/_doc?refresh=true");
             indexDocRequest2.setJsonEntity("{\"bar\": \"foo\"}");
             assertOK(client().performRequest(indexDocRequest2));
 
-            final var indexDocRequest3 = new Request("POST", "/prefixed_index/_doc");
+            final var indexDocRequest3 = new Request("POST", "/prefixed_index/_doc?refresh=true");
             indexDocRequest3.setJsonEntity("{\"baz\": \"fee\"}");
             assertOK(client().performRequest(indexDocRequest3));
         } else {
             getRemoteAccessApiKeyAndStoreInSettings();
 
             // Index some documents, to use them in a mixed-cluster search
-            final var indexDocRequest = new Request("POST", "/local_index/_doc");
+            final var indexDocRequest = new Request("POST", "/local_index/_doc?refresh=true");
             indexDocRequest.setJsonEntity("{\"local_foo\": \"local_bar\"}");
             assertOK(client().performRequest(indexDocRequest));
 

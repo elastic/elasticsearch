@@ -43,22 +43,22 @@ import java.util.Set;
  */
 public class IndexShardRoutingTable {
 
-    final ShardShuffler shuffler;
-    final ShardId shardId;
-    final ShardRouting[] shards;
-    final ShardRouting primary;
-    final List<ShardRouting> replicas;
-    final List<ShardRouting> activeShards;
-    final List<ShardRouting> assignedShards;
-    final List<ShardRouting> unpromotableShards;
+    private final ShardShuffler shuffler;
+    private final ShardId shardId;
+    private final ShardRouting[] shards;
+    private final ShardRouting primary;
+    private final List<ShardRouting> replicas;
+    private final List<ShardRouting> activeShards;
+    private final List<ShardRouting> assignedShards;
+    private final List<ShardRouting> unpromotableShards;
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
      * If we can come up with a better variable name, it would be nice...
      */
-    final List<ShardRouting> allInitializingShards;
-    final boolean allShardsStarted;
-    final int activeSearchShardCount;
-    final int totalSearchShardCount;
+    private final List<ShardRouting> allInitializingShards;
+    private final boolean allShardsStarted;
+    private final int activeSearchShardCount;
+    private final int totalSearchShardCount;
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
@@ -122,6 +122,13 @@ public class IndexShardRoutingTable {
         this.allShardsStarted = allShardsStarted;
         this.activeSearchShardCount = activeSearchShardCount;
         this.totalSearchShardCount = totalSearchShardCount;
+    }
+
+    /**
+     * Returns the primary {@Link ShardRouting}
+     */
+    public ShardRouting primary() {
+        return primary;
     }
 
     /**

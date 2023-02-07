@@ -113,7 +113,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
-                assert indexShard.primary != null;
+                assert indexShard.primary() != null;
                 for (int copy = 0; copy < indexShard.size(); copy++) {
                     final ShardRouting shard = indexShard.shard(copy);
                     // to get all the shards belonging to an index, including the replicas,
@@ -127,7 +127,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                         if (shard.relocating()) {
                             relocatingShards++;
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
-                            addInitialRecovery(targetShardRouting, indexShard.primary);
+                            addInitialRecovery(targetShardRouting, indexShard.primary());
                             // LinkedHashMap to preserve order.
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
                             nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode)
@@ -138,7 +138,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                                 inactivePrimaryCount++;
                             }
                             inactiveShardCount++;
-                            addInitialRecovery(shard, indexShard.primary);
+                            addInitialRecovery(shard, indexShard.primary());
                         }
                     } else {
                         unassignedShards.add(shard);

@@ -21,6 +21,7 @@ import java.util.TreeMap;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -41,6 +42,7 @@ public final class EsqlDataTypes {
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
 
     private static final Collection<DataType> TYPES = Arrays.asList(
+        BOOLEAN,
         UNSUPPORTED,
         NULL,
         INTEGER,

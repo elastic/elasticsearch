@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -196,14 +197,24 @@ final class CsvTestUtils {
             }
             return builder.build();
         }
-        if (type == String.class || type == Boolean.class) {
-            // promoting boolean to string until we have native boolean support.
+        if (type == String.class) {
             BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(values.size());
             for (Object v : values) {
                 if (v == null) {
                     builder.appendNull();
                 } else {
                     builder.appendBytesRef(new BytesRef(v.toString()));
+                }
+            }
+            return builder.build();
+        }
+        if (type == Boolean.class) {
+            BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(values.size());
+            for (Object v : values) {
+                if (v == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBoolean((Boolean) v);
                 }
             }
             return builder.build();

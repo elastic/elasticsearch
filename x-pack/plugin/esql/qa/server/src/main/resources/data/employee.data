@@ -9,7 +9,7 @@
     "last_name": "Facello",
     "salary": 57305,
     "height": 2.03,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 268728049
   },
   {
@@ -22,7 +22,7 @@
     "last_name": "Simmel",
     "salary": 56371,
     "height": 2.08,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 328922887
   },
   {
@@ -35,7 +35,7 @@
     "last_name": "Bamford",
     "salary": 61805,
     "height": 1.83,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 200296405
   },
   {
@@ -48,7 +48,7 @@
     "last_name": "Koblick",
     "salary": 36174,
     "height": 1.78,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 311267831
   },
   {
@@ -61,7 +61,7 @@
     "last_name": "Maliniak",
     "salary": 63528,
     "height": 2.05,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 244294991
   },
   {
@@ -74,7 +74,7 @@
     "last_name": "Preusig",
     "salary": 60335,
     "height": 1.56,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 372957040
   },
   {
@@ -87,7 +87,7 @@
     "last_name": "Zielinski",
     "salary": 74572,
     "height": 1.70,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 393084805
   },
   {
@@ -100,7 +100,7 @@
     "last_name": "Kalloufi",
     "salary": 43906,
     "height": 2.10,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 283074758
   },
   {
@@ -113,7 +113,7 @@
     "last_name": "Peac",
     "salary": 66174,
     "height": 1.85,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 236805489
   },
   {
@@ -126,7 +126,7 @@
     "last_name": "Piveteau",
     "salary": 45797,
     "height": 1.70,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 315236372
   },
   {
@@ -139,7 +139,7 @@
     "last_name": "Sluis",
     "salary": 31120,
     "height": 1.50,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 239615525
   },
   {
@@ -152,7 +152,7 @@
     "last_name": "Bridgland",
     "salary": 48942,
     "height": 1.97,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 365510850
   },
   {
@@ -165,7 +165,7 @@
     "last_name": "Terkki",
     "salary": 48735,
     "height": 1.94,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 253864340
   },
   {
@@ -178,7 +178,7 @@
     "last_name": "Genin",
     "salary": 37137,
     "height": 1.99,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 225049139
   },
   {
@@ -191,7 +191,7 @@
     "last_name": "Nooteboom",
     "salary": 25324,
     "height": 1.66,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 390266432
   },
   {
@@ -204,7 +204,7 @@
     "last_name": "Cappelletti",
     "salary": 61358,
     "height": 1.54,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 253029411
   },
   {
@@ -217,7 +217,7 @@
     "last_name": "Bouloucos",
     "salary": 58715,
     "height": 1.74,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 236703986
   },
   {
@@ -230,7 +230,7 @@
     "last_name": "Peha",
     "salary": 56760,
     "height": 1.97,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 309604079
   },
   {
@@ -243,7 +243,7 @@
     "last_name": "Haddadi",
     "salary": 73717,
     "height": 2.06,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 342855721
   },
   {
@@ -256,7 +256,7 @@
     "last_name": "Warwick",
     "salary": 40031,
     "height": 1.41,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 373309605
   },
   {
@@ -269,7 +269,7 @@
     "last_name": "Erde",
     "salary": 60408,
     "height": 1.47,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 287654610
   },
   {
@@ -282,7 +282,7 @@
     "last_name": "Famili",
     "salary": 48233,
     "height": 1.82,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 233521306
   },
   {
@@ -295,7 +295,7 @@
     "last_name": "Montemayor",
     "salary": 47896,
     "height": 1.75,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 330870342
   },
   {
@@ -308,7 +308,7 @@
     "last_name": "Pettey",
     "salary": 64675,
     "height": 2.08,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 367717671
   },
   {
@@ -321,7 +321,7 @@
     "last_name": "Heyers",
     "salary": 47411,
     "height": 1.87,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 371270797
   },
   {
@@ -334,7 +334,7 @@
     "last_name": "Berztiss",
     "salary": 28336,
     "height": 2.10,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 359208133
   },
   {
@@ -347,7 +347,7 @@
     "last_name": "Reistad",
     "salary": 73851,
     "height": 1.53,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 374037782
   },
   {
@@ -360,7 +360,7 @@
     "last_name": "Tempesti",
     "salary": 39356,
     "height": 2.07,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 226435054
   },
   {
@@ -373,7 +373,7 @@
     "last_name": "Herbst",
     "salary": 74999,
     "height": 1.99,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 257694181
   },
   {
@@ -386,7 +386,7 @@
     "last_name": "Demeyer",
     "salary": 67492,
     "height": 1.92,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 394597613
   },
   {
@@ -399,7 +399,7 @@
     "last_name": "Joslin",
     "salary": 37716,
     "height": 1.68,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 348545109
   },
   {
@@ -412,7 +412,7 @@
     "last_name": "Reistad",
     "salary": 62233,
     "height": 2.10,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 277622619
   },
   {
@@ -425,7 +425,7 @@
     "last_name": "Merlo",
     "salary": 70011,
     "height": 1.63,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 208374744
   },
   {
@@ -438,7 +438,7 @@
     "last_name": "Swan",
     "salary": 39878,
     "height": 1.46,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 214393176
   },
   {
@@ -451,7 +451,7 @@
     "last_name": "Chappelet",
     "salary": 25945,
     "height": 1.81,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 203838153
   },
   {
@@ -464,7 +464,7 @@
     "last_name": "Portugali",
     "salary": 60781,
     "height": 1.61,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 305493131
   },
   {
@@ -477,7 +477,7 @@
     "last_name": "Makrucki",
     "salary": 37691,
     "height": 2.00,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 359217000
   },
   {
@@ -490,7 +490,7 @@
     "last_name": "Lortz",
     "salary": 35222,
     "height": 1.53,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 314036411
   },
   {
@@ -503,7 +503,7 @@
     "last_name": "Brender",
     "salary": 36051,
     "height": 1.55,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 243221262
   },
   {
@@ -516,7 +516,7 @@
     "last_name": "Meriste",
     "salary": 37112,
     "height": 1.90,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 244478622
   },
   {
@@ -529,7 +529,7 @@
     "last_name": "Lenart",
     "salary": 56415,
     "height": 1.75,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 287789442
   },
   {
@@ -542,7 +542,7 @@
     "last_name": "Stamatiou",
     "salary": 30404,
     "height": 1.44,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 246355863
   },
   {
@@ -555,7 +555,7 @@
     "last_name": "Tzvieli",
     "salary": 34341,
     "height": 1.52,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 287222180
   },
   {
@@ -568,7 +568,7 @@
     "last_name": "Casley",
     "salary": 39728,
     "height": 2.06,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 387408356
   },
   {
@@ -581,7 +581,7 @@
     "last_name": "Shanbhogue",
     "salary": 74970,
     "height": 1.70,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 371418933
   },
   {
@@ -594,7 +594,7 @@
     "last_name": "Rosenbaum",
     "salary": 50064,
     "height": 1.52,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 302353405
   },
   {
@@ -607,7 +607,7 @@
     "last_name": "Nyanchama",
     "salary": 42716,
     "height": 1.52,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 306369346
   },
   {
@@ -620,7 +620,7 @@
     "last_name": "Syrotiuk",
     "salary": 26436,
     "height": 2.00,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 248451647
   },
   {
@@ -633,7 +633,7 @@
     "last_name": "Tramer",
     "salary": 37853,
     "height": 1.52,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 320725709
   },
   {
@@ -646,7 +646,7 @@
     "last_name": "Dredge",
     "salary": 43026,
     "height": 1.96,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 242731798
   },
   {
@@ -659,7 +659,7 @@
     "last_name": "Caine",
     "salary": 58121,
     "height": 1.89,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 374753122
   },
   {
@@ -672,7 +672,7 @@
     "last_name": "Nitsch",
     "salary": 55360,
     "height": 1.79,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 299654717
   },
   {
@@ -685,7 +685,7 @@
     "last_name": "Zschoche",
     "salary": 54462,
     "height": 1.58,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 368103911
   },
   {
@@ -698,7 +698,7 @@
     "last_name": "Schueller",
     "salary": 65367,
     "height": 1.82,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 297441693
   },
   {
@@ -711,7 +711,7 @@
     "last_name": "Dredge",
     "salary": 49281,
     "height": 2.04,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 283157844
   },
   {
@@ -724,7 +724,7 @@
     "last_name": "Bernini",
     "salary": 33370,
     "height": 1.57,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 349086555
   },
   {
@@ -737,7 +737,7 @@
     "last_name": "Callaway",
     "salary": 27215,
     "height": 1.59,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 324356269
   },
   {
@@ -750,7 +750,7 @@
     "last_name": "McFarlin",
     "salary": 38376,
     "height": 1.83,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 268378108
   },
   {
@@ -763,7 +763,7 @@
     "last_name": "McAlpine",
     "salary": 44307,
     "height": 1.48,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 237368465
   },
   {
@@ -776,7 +776,7 @@
     "last_name": "Billingsley",
     "salary": 29175,
     "height": 1.42,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 341158890
   },
   {
@@ -789,7 +789,7 @@
     "last_name": "Herber",
     "salary": 49095,
     "height": 1.45,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 327550310
   },
   {
@@ -802,7 +802,7 @@
     "last_name": "Peyn",
     "salary": 65030,
     "height": 1.70,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 203989706
   },
   {
@@ -815,7 +815,7 @@
     "last_name": "Leonhardt",
     "salary": 52121,
     "height": 1.78,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 214068302
   },
   {
@@ -828,7 +828,7 @@
     "last_name": "Jansch",
     "salary": 33956,
     "height": 1.93,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 307364077
   },
   {
@@ -841,7 +841,7 @@
     "last_name": "Awdeh",
     "salary": 50249,
     "height": 1.59,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 372660279
   },
   {
@@ -854,7 +854,7 @@
     "last_name": "Schusler",
     "salary": 31897,
     "height": 2.10,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 360906451
   },
   {
@@ -867,7 +867,7 @@
     "last_name": "Stavenow",
     "salary": 52044,
     "height": 1.77,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 347664141
   },
   {
@@ -880,7 +880,7 @@
     "last_name": "Brattka",
     "salary": 28941,
     "height": 1.58,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 233999584
   },
   {
@@ -893,7 +893,7 @@
     "last_name": "Bierman",
     "salary": 41933,
     "height": 1.77,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 366512352
   },
   {
@@ -906,7 +906,7 @@
     "last_name": "Garigliano",
     "salary": 54329,
     "height": 1.77,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 347188604
   },
   {
@@ -919,7 +919,7 @@
     "last_name": "Lipner",
     "salary": 40612,
     "height": 2.07,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 306671693
   },
   {
@@ -932,7 +932,7 @@
     "last_name": "Sidou",
     "salary": 54518,
     "height": 1.82,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 209506065
   },
   {
@@ -945,7 +945,7 @@
     "last_name": "McClurg",
     "salary": 32568,
     "height": 1.66,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 314930367
   },
   {
@@ -958,7 +958,7 @@
     "last_name": "Bernatsky",
     "salary": 38992,
     "height": 1.64,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 382397583
   },
   {
@@ -971,7 +971,7 @@
     "last_name": "Dolinsky",
     "salary": 51956,
     "height": 1.94,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 370238919
   },
   {
@@ -984,7 +984,7 @@
     "last_name": "Ritzmann",
     "salary": 62405,
     "height": 1.83,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 376240317
   },
   {
@@ -997,7 +997,7 @@
     "last_name": "Azuma",
     "salary": 46595,
     "height": 1.68,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 351960222
   },
   {
@@ -1010,7 +1010,7 @@
     "last_name": "Mondadori",
     "salary": 69904,
     "height": 1.81,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 377116038
   },
   {
@@ -1023,7 +1023,7 @@
     "last_name": "Gils",
     "salary": 32263,
     "height": 1.59,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 320953330
   },
   {
@@ -1036,7 +1036,7 @@
     "last_name": "Baek",
     "salary": 52833,
     "height": 1.80,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 239266137
   },
   {
@@ -1049,7 +1049,7 @@
     "last_name": "Rosen",
     "salary": 50128,
     "height": 1.44,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 321375511
   },
   {
@@ -1062,7 +1062,7 @@
     "last_name": "Lortz",
     "salary": 49818,
     "height": 1.61,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 232522994
   },
   {
@@ -1075,7 +1075,7 @@
     "last_name": "Zockler",
     "salary": 39110,
     "height": 1.42,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 331236443
   },
   {
@@ -1088,7 +1088,7 @@
     "last_name": "Kalloufi",
     "salary": 28035,
     "height": 1.51,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 359067056
   },
   {
@@ -1101,7 +1101,7 @@
     "last_name": "Malabarba",
     "salary": 35742,
     "height": 2.01,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 353404008
   },
   {
@@ -1114,7 +1114,7 @@
     "last_name": "Foote",
     "salary": 68547,
     "height": 1.74,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 328580163
   },
   {
@@ -1127,7 +1127,7 @@
     "last_name": "Eugenio",
     "salary": 32272,
     "height": 1.74,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 305782871
   },
   {
@@ -1140,7 +1140,7 @@
     "last_name": "Syrzycki",
     "salary": 39638,
     "height": 1.91,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 330714423
   },
   {
@@ -1153,7 +1153,7 @@
     "last_name": "Flasterstein",
     "salary": 43602,
     "height": 1.57,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 232951673
   },
   {
@@ -1166,7 +1166,7 @@
     "last_name": "Hofting",
     "salary": 44956,
     "height": 2.03,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 212460105
   },
   {
@@ -1179,7 +1179,7 @@
     "last_name": "Gomatam",
     "salary": 38645,
     "height": 2.09,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 242582807
   },
   {
@@ -1192,7 +1192,7 @@
     "last_name": "Niizuma",
     "salary": 25976,
     "height": 1.75,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 313407352
   },
   {
@@ -1205,7 +1205,7 @@
     "last_name": "Desikan",
     "salary": 45656,
     "height": 1.69,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 315904921
   },
   {
@@ -1218,7 +1218,7 @@
     "last_name": "Ossenbruggen",
     "salary": 66817,
     "height": 2.10,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 332920135
   },
   {
@@ -1231,7 +1231,7 @@
     "last_name": "Morton",
     "salary": 37702,
     "height": 1.55,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 321850475
   },
   {
@@ -1244,7 +1244,7 @@
     "last_name": "Mandell",
     "salary": 43889,
     "height": 1.94,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 204381503
   },
   {
@@ -1257,7 +1257,7 @@
     "last_name": "Waschkowski",
     "salary": 71165,
     "height": 1.53,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 206258084
   },
   {
@@ -1270,7 +1270,7 @@
     "last_name": "Servieres",
     "salary": 44817,
     "height": 2.00,
-    "still_hired": "false",
+    "still_hired": false,
     "avg_worked_seconds": 272392146
   },
   {
@@ -1283,7 +1283,7 @@
     "last_name": "Sullins",
     "salary": 73578,
     "height": 1.81,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 377713748
   },
   {
@@ -1296,7 +1296,7 @@
     "last_name": "Haraldson",
     "salary": 68431,
     "height": 1.77,
-    "still_hired": "true",
+    "still_hired": true,
     "avg_worked_seconds": 223910853
   }
 ]

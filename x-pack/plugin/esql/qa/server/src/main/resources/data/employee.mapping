@@ -33,7 +33,7 @@
             "type" : "double"
         },
         "still_hired": {
-            "type" : "keyword"
+            "type" : "boolean"
         },
         "avg_worked_seconds" : {
             "type" : "long"

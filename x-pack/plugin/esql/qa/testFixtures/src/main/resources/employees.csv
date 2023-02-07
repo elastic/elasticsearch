@@ -1,4 +1,4 @@
-birth_date:date     ,emp_no:integer,first_name:keyword,gender:keyword,hire_date:date,languages:integer,languages.long:long,languages.short:short,languages.byte:byte,last_name:keyword,salary:integer,height:double,height.float:float,still_hired:keyword,avg_worked_seconds:long
+birth_date:date     ,emp_no:integer,first_name:keyword,gender:keyword,hire_date:date,languages:integer,languages.long:long,languages.short:short,languages.byte:byte,last_name:keyword,salary:integer,height:double,height.float:float,still_hired:boolean,avg_worked_seconds:long
 1953-09-02T00:00:00Z,10001,Georgi     ,M,1986-06-26T00:00:00Z,2,2,2,2,Facello     ,57305,2.03,2.03,true ,268728049
 1964-06-02T00:00:00Z,10002,Bezalel    ,F,1985-11-21T00:00:00Z,5,5,5,5,Simmel      ,56371,2.08,2.08,true ,328922887
 1959-12-03T00:00:00Z,10003,Parto      ,M,1986-08-28T00:00:00Z,4,4,4,4,Bamford     ,61805,1.83,1.83,false,200296405

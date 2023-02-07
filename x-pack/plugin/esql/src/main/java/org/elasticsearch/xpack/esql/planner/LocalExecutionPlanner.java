@@ -194,6 +194,9 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.NULL) {
             return ElementType.NULL;
         }
+        if (dataType == DataTypes.BOOLEAN) {
+            return ElementType.BOOLEAN;
+        }
         throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
     }
 

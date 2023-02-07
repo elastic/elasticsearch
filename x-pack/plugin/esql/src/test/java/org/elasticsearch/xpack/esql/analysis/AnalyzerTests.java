@@ -353,16 +353,15 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported(
             """
                 from test
-                | project bool, unsigned_long, text, date, date_nanos, unsupported, point, shape, version
+                | project unsigned_long, text, date, date_nanos, unsupported, point, shape, version
                 """,
-            "Found 7 problems\n"
-                + "line 2:11: Unknown column [bool]\n"
-                + "line 2:17: Unknown column [unsigned_long]\n"
-                + "line 2:32: Unknown column [text]\n"
-                + "line 2:56: Unknown column [unsupported]\n"
-                + "line 2:69: Unknown column [point], did you mean [int]?\n"
-                + "line 2:76: Unknown column [shape]\n"
-                + "line 2:83: Unknown column [version]"
+            "Found 6 problems\n"
+                + "line 2:11: Unknown column [unsigned_long]\n"
+                + "line 2:26: Unknown column [text]\n"
+                + "line 2:50: Unknown column [unsupported]\n"
+                + "line 2:63: Unknown column [point], did you mean [int]?\n"
+                + "line 2:70: Unknown column [shape]\n"
+                + "line 2:77: Unknown column [version]"
         );
     }
 
@@ -460,6 +459,7 @@ public class AnalyzerTests extends ESTestCase {
                 | project -some.dotted.field
                 """,
             new StringBuilder("mapping-multi-field-variation.json"),
+            "bool",
             "date",
             "date_nanos",
             "float",
@@ -477,6 +477,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(
             "from test",
             new StringBuilder("mapping-multi-field-with-nested.json"),
+            "bool",
             "date",
             "date_nanos",
             "int",
@@ -497,6 +498,7 @@ public class AnalyzerTests extends ESTestCase {
                 | project -some.ambiguous.*
                 """,
             new StringBuilder("mapping-multi-field-with-nested.json"),
+            "bool",
             "date",
             "date_nanos",
             "int",
@@ -511,7 +513,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project -some.*
-            """, new StringBuilder("mapping-multi-field-with-nested.json"), "date", "date_nanos", "int", "keyword");
+            """, new StringBuilder("mapping-multi-field-with-nested.json"), "bool", "date", "date_nanos", "int", "keyword");
     }
 
     public void testProjectOrderPatternWithDottedFields() {
@@ -523,6 +525,7 @@ public class AnalyzerTests extends ESTestCase {
             new StringBuilder("mapping-multi-field-with-nested.json"),
             "some.string.normalized",
             "some.string.typical",
+            "bool",
             "date",
             "date_nanos",
             "int",

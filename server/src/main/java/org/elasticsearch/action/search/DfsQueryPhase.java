@@ -136,63 +136,40 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
-        if (source.rerankBuilder() == null) {
-            List<ScoreDoc> scoreDocs = new ArrayList<>();
-            for (DfsKnnResults dfsKnnResults : knnResults) {
-                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                    if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                        scoreDocs.add(scoreDoc);
-                    }
+        List<ScoreDoc> scoreDocs = new ArrayList<>();
+        for (DfsKnnResults dfsKnnResults : knnResults) {
+            for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                    scoreDocs.add(scoreDoc);
                 }
             }
-            scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-            // It is possible that the different results refer to the same doc.
-            for (int i = 0; i < scoreDocs.size() - 1; i++) {
-                ScoreDoc scoreDoc = scoreDocs.get(i);
-                int j = i + 1;
-                for (; j < scoreDocs.size(); j++) {
-                    ScoreDoc otherScoreDoc = scoreDocs.get(j);
-                    if (otherScoreDoc.doc != scoreDoc.doc) {
-                        break;
-                    }
-                    scoreDoc.score += otherScoreDoc.score;
+        }
+        scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+        // It is possible that the different results refer to the same doc.
+        for (int i = 0; i < scoreDocs.size() - 1; i++) {
+            ScoreDoc scoreDoc = scoreDocs.get(i);
+            int j = i + 1;
+            for (; j < scoreDocs.size(); j++) {
+                ScoreDoc otherScoreDoc = scoreDocs.get(j);
+                if (otherScoreDoc.doc != scoreDoc.doc) {
+                    break;
                 }
-                if (j > i + 1) {
-                    scoreDocs.subList(i + 1, j).clear();
-                }
+                scoreDoc.score += otherScoreDoc.score;
             }
+            if (j > i + 1) {
+                scoreDocs.subList(i + 1, j).clear();
+            }
+        }
+        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
 
-            KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-            SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
-            if (source.query() == null) {
-                newSource.query(knnQuery);
-            } else {
-                newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
-            }
-            request.source(newSource);
+        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
+        if (source.query() == null) {
+            newSource.query(knnQuery);
         } else {
-            RankQueryBuilder rerankQueryBuilder = new RankQueryBuilder();
-            if (source.query() != null) {
-                rerankQueryBuilder.addQuery(source.query());
-            }
-
-            for (DfsKnnResults dfsKnnResults : knnResults) {
-                List<ScoreDoc> scoreDocs = new ArrayList<>();
-                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                    if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                        scoreDocs.add(scoreDoc);
-                    }
-                }
-                scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-                KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-                rerankQueryBuilder.addQuery(knnQuery);
-            }
-
-            SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
-            newSource.query(rerankQueryBuilder);
-            request.source(newSource);
+            newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
         }
 
+        request.source(newSource);
         return request;
     }
 }

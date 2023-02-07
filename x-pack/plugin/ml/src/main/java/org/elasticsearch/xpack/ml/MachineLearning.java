@@ -160,7 +160,6 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartActio
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -261,7 +260,6 @@ import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartA
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.ml.action.TransportResetJobAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.TransportSemanticSearchAction;
 import org.elasticsearch.xpack.ml.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
@@ -414,7 +412,6 @@ import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelVocabularyAction;
-import org.elasticsearch.xpack.ml.rest.inference.RestSemanticSearchAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestUpdateTrainedModelDeploymentAction;
@@ -1325,7 +1322,6 @@ public class MachineLearning extends Plugin
             new RestPutTrainedModelVocabularyAction(),
             new RestInferTrainedModelAction(),
             new RestClearDeploymentCacheAction(),
-            new RestSemanticSearchAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1432,7 +1428,6 @@ public class MachineLearning extends Plugin
                 TransportUpdateTrainedModelAssignmentStateAction.class
             ),
             new ActionHandler<>(ClearDeploymentCacheAction.INSTANCE, TransportClearDeploymentCacheAction.class),
-            new ActionHandler<>(SemanticSearchAction.INSTANCE, TransportSemanticSearchAction.class),
             usageAction,
             infoAction
         );

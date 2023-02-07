@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -66,6 +67,8 @@ public class RowOperator extends SourceOperator {
                 blocks[i] = DoubleBlock.newConstantBlockWith(doubleVal, 1);
             } else if (object instanceof String stringVal) {
                 blocks[i] = BytesRefBlock.newConstantBlockWith(new BytesRef(stringVal), 1);
+            } else if (object instanceof Boolean booleanVal) {
+                blocks[i] = BooleanBlock.newConstantBlockWith(booleanVal, 1);
             } else if (object == null) {
                 blocks[i] = Block.constantNullBlock(1);
             } else {

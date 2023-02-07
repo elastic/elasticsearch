@@ -7,8 +7,12 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.ann.Experimental;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -23,7 +27,7 @@ import java.util.Objects;
  *
  * <p> Pages are immutable and can be passed between threads.
  */
-public final class Page {
+public final class Page implements Writeable {
 
     private final Block[] blocks;
 
@@ -56,6 +60,17 @@ public final class Page {
         // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
+    }
+
+    public Page(StreamInput in) throws IOException {
+        int positionCount = in.readVInt();
+        int blockPositions = in.readVInt();
+        Block[] blocks = new Block[blockPositions];
+        for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
+            blocks[blockIndex] = in.readNamedWriteable(Block.class);
+        }
+        this.positionCount = positionCount;
+        this.blocks = blocks;
     }
 
     private static boolean assertPositionCount(Block... blocks) {
@@ -169,5 +184,30 @@ public final class Page {
             newBlocks[i] = blocks[i].getRow(position);
         }
         return new Page(false, 1, newBlocks);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(positionCount);
+        out.writeVInt(getBlockCount());
+        for (Block block : blocks) {
+            out.writeNamedWriteable(block);
+        }
+    }
+
+    public static class PageWriter implements Writeable.Writer<Page> {
+
+        @Override
+        public void write(StreamOutput out, Page value) throws IOException {
+            value.writeTo(out);
+        }
+    }
+
+    public static class PageReader implements Writeable.Reader<Page> {
+
+        @Override
+        public Page read(StreamInput in) throws IOException {
+            return new Page(in);
+        }
     }
 }

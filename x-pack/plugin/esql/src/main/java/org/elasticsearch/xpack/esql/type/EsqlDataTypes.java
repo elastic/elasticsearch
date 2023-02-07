@@ -21,15 +21,18 @@ import java.util.TreeMap;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public final class EsqlDataTypes {
@@ -43,7 +46,6 @@ public final class EsqlDataTypes {
         INTEGER,
         LONG,
         DOUBLE,
-        FLOAT,
         KEYWORD,
         DATETIME,
         DATE_PERIOD,
@@ -117,10 +119,10 @@ public final class EsqlDataTypes {
         for (Map.Entry<String, EsField> entry : oldFields.entrySet()) {
             EsField field = entry.getValue();
             Map<String, EsField> subFields = field.getProperties();
-            DataType fieldType = field.getDataType();
+            DataType fieldType = promoteToSupportedType(field.getDataType());
             if (subFields.isEmpty()) {
                 if (isSupportedDataType(fieldType)) {
-                    newFields.put(entry.getKey(), field);
+                    newFields.put(entry.getKey(), field.withType(fieldType));
                 }
             } else {
                 String name = field.getName();
@@ -137,6 +139,16 @@ public final class EsqlDataTypes {
                 }
             }
         }
+    }
+
+    private static DataType promoteToSupportedType(DataType type) {
+        if (type == BYTE || type == SHORT) {
+            return INTEGER;
+        }
+        if (type == HALF_FLOAT || type == FLOAT) {
+            return DOUBLE;
+        }
+        return type;
     }
 
     public static boolean isSupportedDataType(DataType type) {

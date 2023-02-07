@@ -59,25 +59,27 @@ def queryingCluster = testClusters.register('querying-cluster') {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'cluster.remote.connections_per_cluster', "1"
 
-  // TODO: For now, the client SSL configuration on the query cluster side is shared between
-  //       the default transport and remote_cluster profiles.
-  //       Therefore we cannot configure them separately. This will be separated once we add the support.
-  extraConfigFile 'transport.key', file("src/test/resources/ssl/remote_cluster.key")
-  extraConfigFile 'transport.cert', file("src/test/resources/ssl/remote_cluster.crt")
-  extraConfigFile 'transport.ca', file("src/test/resources/ssl/remote-cluster-ca.crt")
+  extraConfigFile 'transport.key', file("src/test/resources/ssl/transport.key")
+  extraConfigFile 'transport.cert', file("src/test/resources/ssl/transport.crt")
+  extraConfigFile 'transport.ca', file("src/test/resources/ssl/transport-ca.crt")
 
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.key', 'transport.key'
   setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
-  setting 'xpack.security.transport.ssl.key_passphrase', 'remote-cluster-password'
+  setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
   setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
   setting 'xpack.security.transport.ssl.client_authentication', 'required'
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+
+  // Client (QC) side ssl configuration for remote cluster
+  extraConfigFile 'remote-cluster.ca', file("src/test/resources/ssl/remote-cluster-ca.crt")
+  setting 'xpack.security.remote_cluster.ssl.certificate_authorities', 'remote-cluster.ca'
 
   setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
   setting 'cluster.remote.my_remote_cluster.proxy_address', {
     "\"${fulfillingCluster.get().getAllRemoteAccessPortURI().get(0)}\""
   }
+  setting 'cluster.remote.my_remote_cluster.authorization', 'foobar'
 
   user username: "test_user", password: "x-pack-test-password"
 }

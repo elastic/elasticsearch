@@ -204,6 +204,7 @@ public class LongBlockEqualityTests extends ESTestCase {
         for (Object obj1 : objs) {
             for (Object obj2 : objs) {
                 assertEquals(obj1, obj2);
+                assertEquals(obj2, obj1);
                 // equal objects must generate the same hash code
                 assertEquals(obj1.hashCode(), obj2.hashCode());
             }
@@ -217,6 +218,7 @@ public class LongBlockEqualityTests extends ESTestCase {
                     continue; // skip self
                 }
                 assertNotEquals(obj1, obj2);
+                assertNotEquals(obj2, obj1);
                 // unequal objects SHOULD generate the different hash code
                 assertNotEquals(obj1.hashCode(), obj2.hashCode());
             }

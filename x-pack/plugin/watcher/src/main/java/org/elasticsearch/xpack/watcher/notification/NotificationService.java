@@ -142,11 +142,12 @@ public abstract class NotificationService<Account> {
         return settings.getByPrefix(getNotificationsAccountPrefix()).names();
     }
 
-    private @Nullable String getDefaultAccountName(Settings settings) {
+    @Nullable
+    protected String getDefaultAccountName(Settings settings) {
         return settings.get("xpack.notification." + type + ".default_account");
     }
 
-    private Map<String, LazyInitializable<Account, SettingsException>> createAccounts(
+    protected Map<String, LazyInitializable<Account, SettingsException>> createAccounts(
         Settings settings,
         Set<String> accountNames,
         BiFunction<String, Settings, Account> accountFactory
@@ -154,7 +155,7 @@ public abstract class NotificationService<Account> {
         final Map<String, LazyInitializable<Account, SettingsException>> accounts = new HashMap<>();
         for (final String accountName : accountNames) {
             final Settings accountSettings = settings.getAsSettings(getNotificationsAccountPrefix() + accountName);
-            accounts.put(accountName, new LazyInitializable<>(() -> { return accountFactory.apply(accountName, accountSettings); }));
+            accounts.put(accountName, new LazyInitializable<>(() -> accountFactory.apply(accountName, accountSettings)));
         }
         return Collections.unmodifiableMap(accounts);
     }

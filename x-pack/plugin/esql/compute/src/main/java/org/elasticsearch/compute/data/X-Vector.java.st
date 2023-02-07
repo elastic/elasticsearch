@@ -77,6 +77,9 @@ $endif$
 $if(BytesRef)$
             result = 31 * result + vector.getBytesRef(pos, new BytesRef()).hashCode();
 $endif$
+$if(boolean)$
+            result = 31 * result + Boolean.hashCode(vector.getBoolean(pos));
+$endif$
 $if(int)$
             result = 31 * result + vector.getInt(pos);
 $endif$
@@ -91,7 +94,7 @@ $endif$
         }
         return result;
     }
-        
+
     static Builder newVectorBuilder(int estimatedSize) {
         return new $Type$VectorBuilder(estimatedSize);
     }

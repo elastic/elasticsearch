@@ -232,3 +232,10 @@ row @a = 10 | project @b = @a | eval @c = @b + 1;
 @b:integer | @c:integer
 10         | 11
 ;
+
+boolean
+row false;
+
+false:boolean
+false
+;

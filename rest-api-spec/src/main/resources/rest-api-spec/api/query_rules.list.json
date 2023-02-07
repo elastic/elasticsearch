@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_query_rules/_list",
+          "path":"/_query_rules/list",
           "methods":[
             "POST"
           ]

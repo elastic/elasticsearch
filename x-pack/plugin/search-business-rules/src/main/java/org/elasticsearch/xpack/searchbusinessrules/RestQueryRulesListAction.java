@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestQueryRulesListAction extends BaseRestHandler {
 
-    public static final String ENDPOINT = "_query_rules/_list";
+    public static final String ENDPOINT = "_query_rules/list";
 
     @Override
     public String getName() {

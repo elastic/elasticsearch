@@ -21,6 +21,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -90,14 +91,26 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             assertOK(client().performRequest(indexDocRequest2));
 
             final var indexDocRequest3 = new Request("POST", "/prefixed_index/_doc");
-            indexDocRequest3.setJsonEntity("{\"bar\": \"foo\"}");
+            indexDocRequest3.setJsonEntity("{\"baz\": \"fee\"}");
             assertOK(client().performRequest(indexDocRequest3));
         } else {
             getRemoteAccessApiKeyAndStoreInSettings();
 
+            // Index some documents, to use them in a mixed-cluster search
+            final var indexDocRequest = new Request("POST", "/local_index/_doc");
+            indexDocRequest.setJsonEntity("{\"local_foo\": \"local_bar\"}");
+            assertOK(client().performRequest(indexDocRequest));
+
+            // Create user role with privileges for remote and local indices
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "indices": [
+                    {
+                      "names": ["local_index"],
+                      "privileges": ["read"]
+                    }
+                  ],
                   "remote_indices": [
                     {
                       "names": ["index1", "prefixed_index"],
@@ -116,14 +129,25 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             assertOK(adminClient().performRequest(putUserRequest));
 
             // Check that we can search the fulfilling cluster from the querying cluster
-            final var searchRequest = new Request("GET", "/my_remote_cluster:index1/_search");
+            final boolean alsoSearchLocally = randomBoolean();
+            final var searchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/%s%s:%s/_search?ccs_minimize_roundtrips=%s",
+                    alsoSearchLocally ? "local_index," : "",
+                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    randomFrom("index1", "*"),
+                    randomBoolean()
+                )
+            );
             searchRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_SEARCH_USER, PASS))
             );
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
             final ObjectPath responseObj = ObjectPath.createFromResponse(response);
-            assertThat(responseObj.evaluate("hits.total.value"), equalTo(1));
+            assertThat(responseObj.evaluate("hits.total.value"), equalTo(alsoSearchLocally ? 2 : 1));
 
             // Check that access is restricted because of user privileges
             final var unauthorizedSearchRequest = new Request("GET", "/my_remote_cluster:index2/_search");

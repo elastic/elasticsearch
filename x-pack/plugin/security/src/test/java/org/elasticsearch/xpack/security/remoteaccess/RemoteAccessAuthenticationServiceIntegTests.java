@@ -35,10 +35,11 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
     public void testInvalidHeaders() throws InterruptedException, IOException {
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
+        final RemoteAccessAuthenticationService service = internalCluster().getInstance(RemoteAccessAuthenticationService.class, nodeName);
 
         try (var ignored = threadContext.stashContext()) {
             threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "abc");
-            authenticateAndAssertExpectedFailure(nodeName, ex -> {
+            authenticateAndAssertExpectedFailure(service, ex -> {
                 assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
                 assertThat(
                     ex.getCause().getMessage(),
@@ -62,7 +63,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                 );
                 AuthenticationTestHelper.randomRemoteAccessAuthentication().writeToContext(threadContext);
             }
-            authenticateAndAssertExpectedFailure(nodeName, ex -> {
+            authenticateAndAssertExpectedFailure(service, ex -> {
                 assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
                 assertThat(ex.getCause().getMessage(), equalTo("authentication header is not allowed with remote access"));
             });
@@ -74,7 +75,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                 // Validly-formatted, non-existent API key
                 "ApiKey WTdac3lvVUIzblhJMzR1RzNMWjI6VHc4RXpJZ0NUZTY5T3drZkUxT3hDQQ=="
             );
-            authenticateAndAssertExpectedFailure(nodeName, ex -> {
+            authenticateAndAssertExpectedFailure(service, ex -> {
                 assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
                 assertThat(
                     ex.getCause().getMessage(),
@@ -84,8 +85,8 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
     }
 
-    private void authenticateAndAssertExpectedFailure(String nodeName, Consumer<Exception> assertions) throws InterruptedException {
-        final RemoteAccessAuthenticationService service = internalCluster().getInstance(RemoteAccessAuthenticationService.class, nodeName);
+    private void authenticateAndAssertExpectedFailure(RemoteAccessAuthenticationService service, Consumer<Exception> assertions)
+        throws InterruptedException {
         final AtomicReference<Exception> actual = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         service.authenticate(SearchAction.NAME, new SearchRequest(), false, new LatchedActionListener<>(new ActionListener<>() {

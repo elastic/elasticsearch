@@ -17,6 +17,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == false;
+    private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service")) == false;
 
     private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 

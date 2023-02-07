@@ -12,6 +12,7 @@ import fixture.geoip.GeoIpHttpFixture;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -28,7 +29,7 @@ import java.util.Collection;
 import java.util.List;
 
 public abstract class AbstractGeoIpIT extends ESIntegTestCase {
-    private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == false;
+    private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service")) == false;
 
     @ClassRule
     public static final GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);

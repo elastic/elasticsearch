@@ -7,8 +7,7 @@ dependencies {
 
   // Common utilities from QL
   api project(xpackModule('ql:test-fixtures'))
-
-  implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
+  api project(':x-pack:plugin:esql:qa:testFixtures')
 }
 
 subprojects {

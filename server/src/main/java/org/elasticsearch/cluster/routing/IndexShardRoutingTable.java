@@ -43,21 +43,22 @@ import java.util.Set;
  */
 public class IndexShardRoutingTable {
 
-    final ShardShuffler shuffler;
-    final ShardId shardId;
-    final ShardRouting[] shards;
-    final ShardRouting primary;
-    final List<ShardRouting> replicas;
-    final List<ShardRouting> activeShards;
-    final List<ShardRouting> assignedShards;
+    private final ShardShuffler shuffler;
+    private final ShardId shardId;
+    private final ShardRouting[] shards;
+    private final ShardRouting primary;
+    private final List<ShardRouting> replicas;
+    private final List<ShardRouting> activeShards;
+    private final List<ShardRouting> assignedShards;
+    private final List<ShardRouting> unpromotableShards;
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
      * If we can come up with a better variable name, it would be nice...
      */
-    final List<ShardRouting> allInitializingShards;
-    final boolean allShardsStarted;
-    final int activeSearchShardCount;
-    final int totalSearchShardCount;
+    private final List<ShardRouting> allInitializingShards;
+    private final boolean allShardsStarted;
+    private final int activeSearchShardCount;
+    private final int totalSearchShardCount;
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
@@ -68,6 +69,7 @@ public class IndexShardRoutingTable {
         List<ShardRouting> replicas = new ArrayList<>();
         List<ShardRouting> activeShards = new ArrayList<>();
         List<ShardRouting> assignedShards = new ArrayList<>();
+        List<ShardRouting> unpromotableShards = new ArrayList<>();
         List<ShardRouting> allInitializingShards = new ArrayList<>();
         boolean allShardsStarted = true;
         int activeSearchShardCount = 0;
@@ -97,9 +99,15 @@ public class IndexShardRoutingTable {
                 assert shard.assignedToNode() : "relocating from unassigned " + shard;
                 assert shard.getTargetRelocatingShard().assignedToNode() : "relocating to unassigned " + shard.getTargetRelocatingShard();
                 assignedShards.add(shard.getTargetRelocatingShard());
+                if (shard.getTargetRelocatingShard().isPromotableToPrimary() == false) {
+                    unpromotableShards.add(shard.getTargetRelocatingShard());
+                }
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);
+                if (shard.isPromotableToPrimary() == false) {
+                    unpromotableShards.add(shard);
+                }
             }
             if (shard.state() != ShardRoutingState.STARTED) {
                 allShardsStarted = false;
@@ -109,10 +117,18 @@ public class IndexShardRoutingTable {
         this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
         this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
+        this.unpromotableShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(unpromotableShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
         this.allShardsStarted = allShardsStarted;
         this.activeSearchShardCount = activeSearchShardCount;
         this.totalSearchShardCount = totalSearchShardCount;
+    }
+
+    /**
+     * Returns the primary {@link ShardRouting}
+     */
+    public ShardRouting primary() {
+        return primary;
     }
 
     /**
@@ -160,6 +176,15 @@ public class IndexShardRoutingTable {
      */
     public List<ShardRouting> assignedShards() {
         return this.assignedShards;
+    }
+
+    /**
+     * Returns a {@link List} of assigned unpromotable shards, including relocation targets
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> unpromotableShards() {
+        return this.unpromotableShards;
     }
 
     public ShardIterator shardsRandomIt() {

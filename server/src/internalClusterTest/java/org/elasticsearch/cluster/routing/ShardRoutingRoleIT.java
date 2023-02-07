@@ -261,7 +261,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             });
             mockTransportService.addRequestHandlingBehavior(
-                TransportUnpromotableShardRefreshAction.NAME,
+                TransportUnpromotableShardRefreshAction.NAME + "[u]",
                 (handler, request, channel, task) -> {
                     // Skip handling the request and send an immediate empty response
                     channel.sendResponse(ActionResponse.Empty.INSTANCE);

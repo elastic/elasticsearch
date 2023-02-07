@@ -404,6 +404,7 @@ public class Constants {
         "indices:admin/open",
         "indices:admin/refresh",
         "indices:admin/refresh[s]",
+        "indices:admin/refresh/unpromotable",
         "indices:admin/reload_analyzers",
         "indices:admin/resize",
         "indices:admin/resolve/index",

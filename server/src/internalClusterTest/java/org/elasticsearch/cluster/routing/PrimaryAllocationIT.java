@@ -351,7 +351,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
 
         assertEquals(
-            Collections.singleton(state.routingTable().index(idxName).shard(0).primary.allocationId().getId()),
+            Collections.singleton(state.routingTable().index(idxName).shard(0).primary().allocationId().getId()),
             state.metadata().index(idxName).inSyncAllocationIds(0)
         );
 
@@ -676,7 +676,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client(master).admin().cluster().prepareState().get().getState();
             final IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
-            final String newPrimaryNode = state.getRoutingNodes().node(shardRoutingTable.primary.currentNodeId()).node().getName();
+            final String newPrimaryNode = state.getRoutingNodes().node(shardRoutingTable.primary().currentNodeId()).node().getName();
             assertThat(newPrimaryNode, not(equalTo(oldPrimary)));
             Set<String> selectedPartition = replicasSide1.contains(newPrimaryNode) ? replicasSide1 : replicasSide2;
             assertThat(shardRoutingTable.activeShards(), hasSize(selectedPartition.size()));

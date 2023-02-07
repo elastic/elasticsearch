@@ -207,7 +207,7 @@ public class OperationRouting {
             }
         }
         // if not, then use it as the index
-        int routingHash = 31 * Murmur3HashFunction.hash(preference) + indexShard.shardId.hashCode();
+        int routingHash = 31 * Murmur3HashFunction.hash(preference) + indexShard.shardId().hashCode();
         return indexShard.activeInitializingShardsIt(routingHash);
     }
 

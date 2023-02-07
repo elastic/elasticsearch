@@ -225,6 +225,6 @@ The username is redacted in the response.
 ==== Grok watchdog
 
 The watchdog interrupts expressions that take too long to execute.
-When interrupted the Redact processor fails with an error.
+When interrupted, the Redact processor fails with an error.
 The same <<grok-watchdog-options, settings>> that control the
 Grok Watchdog timeout also apply to the Redact processor.

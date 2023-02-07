@@ -68,6 +68,8 @@ public final class ProcessUtils {
         processBuilder.environment().clear();
         processBuilder.environment().putAll(environment);
 
+        LOGGER.info("Executing '{}' in '{}'", command, workingDir);
+
         try {
             process = processBuilder.start();
 

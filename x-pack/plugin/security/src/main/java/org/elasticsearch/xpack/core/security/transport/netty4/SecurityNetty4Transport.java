@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
@@ -57,10 +58,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     private final SecurityTransportExceptionHandler exceptionHandler;
     private final SSLService sslService;
-    private final SslConfiguration sslConfiguration;
-    private final Map<String, SslConfiguration> profileConfiguration;
+    private final SslConfiguration defaultSslConfiguration;
+    private final Map<String, SslConfiguration> profileConfigurations;
     private final boolean transportSslEnabled;
+    private final boolean remoteClusterPortEnabled;
     private final boolean remoteClusterSslEnabled;
+    private final SslConfiguration remoteClusterClientSslConfiguration;
 
     public SecurityNetty4Transport(
         final Settings settings,
@@ -86,10 +89,20 @@ public class SecurityNetty4Transport extends Netty4Transport {
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        this.remoteClusterSslEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings) && REMOTE_CLUSTER_SSL_ENABLED.get(settings);
+        this.remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);
+        this.remoteClusterSslEnabled = REMOTE_CLUSTER_SSL_ENABLED.get(settings);
 
-        this.profileConfiguration = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
-        this.sslConfiguration = this.profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
+        this.profileConfigurations = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
+        this.defaultSslConfiguration = this.profileConfigurations.get(TransportSettings.DEFAULT_PROFILE);
+        assert this.transportSslEnabled == false || this.defaultSslConfiguration != null;
+
+        // Client configuration does not depend on whether the remote access port is enabled
+        if (remoteClusterSslEnabled) {
+            this.remoteClusterClientSslConfiguration = sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX);
+            assert this.remoteClusterClientSslConfiguration != null;
+        } else {
+            this.remoteClusterClientSslConfiguration = null;
+        }
     }
 
     @Override
@@ -99,14 +112,18 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     @Override
     public final ChannelHandler getServerChannelInitializer(String name) {
-        if (remoteClusterSslEnabled && REMOTE_CLUSTER_PROFILE.equals(name)) {
-            final SslConfiguration remoteClusterSslConfiguration = profileConfiguration.get(name);
-            if (remoteClusterSslConfiguration == null) {
-                throw new IllegalStateException("remote cluster SSL is enabled but no configuration is found");
+        if (remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(name)) {
+            if (remoteClusterSslEnabled) {
+                final SslConfiguration remoteClusterSslConfiguration = profileConfigurations.get(name);
+                if (remoteClusterSslConfiguration == null) {
+                    throw new IllegalStateException("remote cluster SSL is enabled but no configuration is found");
+                }
+                return getSslChannelInitializer(name, remoteClusterSslConfiguration);
+            } else {
+                return getNoSslChannelInitializer(name);
             }
-            return getSslChannelInitializer(name, remoteClusterSslConfiguration);
         } else if (transportSslEnabled) {
-            SslConfiguration configuration = profileConfiguration.get(name);
+            SslConfiguration configuration = profileConfigurations.get(name);
             if (configuration == null) {
                 throw new IllegalStateException("unknown profile: " + name);
             }
@@ -121,8 +138,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
-        return new SecurityClientChannelInitializer(node);
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        return new SecurityClientChannelInitializer(node, connectionProfile);
     }
 
     @Override
@@ -162,9 +179,24 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
         private final boolean hostnameVerificationEnabled;
         private final SNIHostName serverName;
+        private final SslConfiguration channelSslConfiguration;
 
-        SecurityClientChannelInitializer(DiscoveryNode node) {
-            this.hostnameVerificationEnabled = transportSslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+        SecurityClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
+            final String transportProfile = connectionProfile.getTransportProfile();
+            logger.trace("initiating security client channel with transport profile [{}]", transportProfile);
+            // Only client connections to a new RCS remote cluster can have transport profile of _remote_cluster
+            // All other client connections use the default transport profile regardless of the transport profile used on the server side.
+            if (REMOTE_CLUSTER_PROFILE.equals(transportProfile)) {
+                this.channelSslConfiguration = remoteClusterClientSslConfiguration;
+            } else {
+                assert TransportSettings.DEFAULT_PROFILE.equals(transportProfile);
+                this.channelSslConfiguration = defaultSslConfiguration;
+            }
+            if (this.channelSslConfiguration != null) {
+                this.hostnameVerificationEnabled = this.channelSslConfiguration.verificationMode().isHostnameVerificationEnabled();
+            } else {
+                this.hostnameVerificationEnabled = false;
+            }
             String configuredServerName = node.getAttributes().get("server_name");
             if (configuredServerName != null) {
                 try {
@@ -180,9 +212,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            if (transportSslEnabled) {
+            if (channelSslConfiguration != null) {
                 ch.pipeline()
-                    .addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled, serverName));
+                    .addFirst(
+                        new ClientSslHandlerInitializer(channelSslConfiguration, sslService, hostnameVerificationEnabled, serverName)
+                    );
             }
         }
     }

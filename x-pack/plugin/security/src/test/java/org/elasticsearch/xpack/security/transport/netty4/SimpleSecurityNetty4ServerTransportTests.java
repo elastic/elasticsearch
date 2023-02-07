@@ -82,7 +82,9 @@ import javax.net.ssl.SSLSocket;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -134,6 +136,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         // Some tests use a client profile. Put the passphrase in the secure settings for the profile (secure settings cannot be set twice)
         secureSettings.setString("transport.profiles.client.xpack.security.ssl.secure_key_passphrase", "testnode");
+        // For test that enables remote cluster port
+        secureSettings.setString("xpack.security.remote_cluster.ssl.secure_key_passphrase", "testnode");
         Settings settings1 = Settings.builder()
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", testnodeKey)
@@ -477,6 +481,152 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
                 assertThat(sslEngine.getNeedClientAuth(), is(false));
                 assertThat(sslEngine.getWantClientAuth(), is(true));
+            }
+        }
+    }
+
+    public void testClientChannelUsesSeparateSslConfigurationForRemoteCluster() throws Exception {
+        final Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt");
+        final Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem");
+
+        final ConnectionProfile connectionProfile = ConnectionProfile.resolveConnectionProfile(
+            new ConnectionProfile.Builder().setTransportProfile("_remote_cluster")
+                .addConnections(
+                    1,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.PING,
+                    TransportRequestOptions.Type.RECOVERY,
+                    TransportRequestOptions.Type.REG,
+                    TransportRequestOptions.Type.STATE
+                )
+                .build(),
+            TestProfiles.LIGHT_PROFILE
+        );
+
+        final Settings fcSettings = Settings.builder()
+            .put("remote_cluster.enabled", "true")
+            .put("remote_cluster.port", "9999")
+            .put("xpack.security.remote_cluster.ssl.key", testnodeKey)
+            .put("xpack.security.remote_cluster.ssl.certificate", testnodeCert)
+            .put("xpack.security.remote_cluster.ssl.client_authentication", "none")
+            .build();
+
+        try (MockTransportService fcService = buildService("FC", Version.CURRENT, fcSettings)) {
+            final TcpTransport originalTransport = (TcpTransport) fcService.getOriginalTransport();
+            final TransportAddress remoteAccessAddress = originalTransport.profileBoundAddresses().get("_remote_cluster").publishAddress();
+            final DiscoveryNode node = new DiscoveryNode(
+                fcService.getLocalNode().getId(),
+                remoteAccessAddress,
+                fcService.getLocalNode().getVersion()
+            );
+
+            // 1. Connection will fail because FC server certificate is not trusted by default
+            final Settings qcSettings1 = Settings.builder().build();
+            try (MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings1)) {
+                final ConnectTransportException e = expectThrows(
+                    ConnectTransportException.class,
+                    () -> openConnection(qcService, node, connectionProfile)
+                );
+                assertThat(
+                    e.getRootCause().getMessage(),
+                    anyOf(containsString("unable to find valid certification path"), containsString("Unable to find certificate chain"))
+                );
+            }
+
+            // 2. Connection will success because QC does not verify FC server certificate
+            final Settings qcSettings2 = Settings.builder().put("xpack.security.remote_cluster.ssl.verification_mode", "none").build();
+            try (
+                MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings2);
+                Transport.Connection connection = openConnection(qcService, node, connectionProfile)
+            ) {
+                assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
+                Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
+                assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
+                TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) conn;
+                for (TcpChannel channel : nodeChannels.getChannels()) {
+                    assertFalse(channel.isServerChannel());
+                    assertThat(channel.getProfile(), equalTo("_remote_cluster"));
+                    final SSLEngine sslEngine = SSLEngineUtils.getSSLEngine(channel);
+                    assertThat(sslEngine.getUseClientMode(), is(true));
+                }
+
+                final TcpChannel acceptedChannel = getAcceptedChannel(originalTransport, connection);
+                assertThat(acceptedChannel.getProfile(), equalTo("_remote_cluster"));
+            }
+
+            // 3. Connection will success because QC is explicitly configured to trust FC server certificate
+            final Settings qcSettings3 = Settings.builder()
+                .put("xpack.security.remote_cluster.ssl.certificate_authorities", testnodeCert)
+                .put("xpack.security.remote_cluster.ssl.verification_mode", "full")
+                .build();
+            try (
+                MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings3);
+                Transport.Connection connection = openConnection(qcService, node, connectionProfile)
+            ) {
+                assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
+                Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
+                assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
+                TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) conn;
+                for (TcpChannel channel : nodeChannels.getChannels()) {
+                    assertFalse(channel.isServerChannel());
+                    assertThat(channel.getProfile(), equalTo("_remote_cluster"));
+                    final SSLEngine sslEngine = SSLEngineUtils.getSSLEngine(channel);
+                    assertThat(sslEngine.getUseClientMode(), is(true));
+                }
+
+                final TcpChannel acceptedChannel = getAcceptedChannel(originalTransport, connection);
+                assertThat(acceptedChannel.getProfile(), equalTo("_remote_cluster"));
+            }
+        }
+    }
+
+    public void testRemoteClusterCanWorkWithoutSSL() throws Exception {
+        final ConnectionProfile connectionProfile = ConnectionProfile.resolveConnectionProfile(
+            new ConnectionProfile.Builder().setTransportProfile("_remote_cluster")
+                .addConnections(
+                    1,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.PING,
+                    TransportRequestOptions.Type.RECOVERY,
+                    TransportRequestOptions.Type.REG,
+                    TransportRequestOptions.Type.STATE
+                )
+                .build(),
+            TestProfiles.LIGHT_PROFILE
+        );
+
+        final Settings fcSettings = Settings.builder()
+            .put("remote_cluster.enabled", "true")
+            .put("remote_cluster.port", "9999")
+            .put("xpack.security.remote_cluster.ssl.enabled", "false")
+            .build();
+
+        try (MockTransportService fcService = buildService("FC", Version.CURRENT, fcSettings)) {
+            final TcpTransport originalTransport = (TcpTransport) fcService.getOriginalTransport();
+            final TransportAddress remoteAccessAddress = originalTransport.profileBoundAddresses().get("_remote_cluster").publishAddress();
+            final DiscoveryNode node = new DiscoveryNode(
+                fcService.getLocalNode().getId(),
+                remoteAccessAddress,
+                fcService.getLocalNode().getVersion()
+            );
+            final Settings qcSettings = Settings.builder().put("xpack.security.remote_cluster.ssl.enabled", "false").build();
+            try (
+                MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings);
+                Transport.Connection connection = openConnection(qcService, node, connectionProfile)
+            ) {
+                assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
+                Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
+                assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
+                TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) conn;
+                for (TcpChannel channel : nodeChannels.getChannels()) {
+                    assertFalse(channel.isServerChannel());
+                    assertThat(channel.getProfile(), equalTo("_remote_cluster"));
+                }
+
+                final TcpChannel acceptedChannel = getAcceptedChannel(originalTransport, connection);
+                assertThat(acceptedChannel.getProfile(), equalTo("_remote_cluster"));
             }
         }
     }

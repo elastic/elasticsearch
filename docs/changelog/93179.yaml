@@ -6,7 +6,7 @@ issues:
  - 92898
 breaking:
   title: Making `JsonProcessor` stricter so that it does not silently drop data
-  area: Ingest Node
+  area: Ingest
   details: |-
     The ingest node's `json` processor was previously lenient. It would accept invalid JSON data if it started with valid JSON data.
     Anything after the valid part would be silently discarded. From 8.7 onwards, the default behavior is to reject invalid JSON data with

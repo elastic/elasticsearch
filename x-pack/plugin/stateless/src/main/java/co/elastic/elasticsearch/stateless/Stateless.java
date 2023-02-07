@@ -24,10 +24,8 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleSt
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
-import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.util.SetOnce;
@@ -169,8 +167,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        // set a Lucene directory wrapper for all indices, so that stateless is notified of all operations on Lucene files
-        indexModule.setDirectoryWrapper(StatelessDirectory::new);
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)) {
             indexModule.setIndexCommitListener(createIndexCommitListener());
@@ -201,13 +197,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             wrappedListener.onResponse(null);
                         }, wrappedListener::onFailure)
                     );
-            }
-
-            @Override
-            public void afterIndexShardCreated(IndexShard indexShard) {
-                final StatelessDirectory directory = StatelessDirectory.unwrapDirectory(indexShard.store().directory());
-                // register a default listener when the shard is created in order to log all operations on Lucene files
-                directory.addListener(new DefaultDirectoryListener(indexShard.shardId(), indexShard::getOperationPrimaryTerm));
             }
         });
     }

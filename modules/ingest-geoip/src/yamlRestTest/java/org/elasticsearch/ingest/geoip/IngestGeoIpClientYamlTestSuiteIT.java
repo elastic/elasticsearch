@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service")) == false;
+    private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;
 
     private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 

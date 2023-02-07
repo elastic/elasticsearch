@@ -124,6 +124,7 @@ public class RemoteAccessAuthenticationService {
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
+                    assert false == authentication.isRunAs() : "initial authentication for remote access cannot be run-as";
                     final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
                     validate(remoteAccessAuthentication);
                     writeAuthToContext(
@@ -136,7 +137,8 @@ public class RemoteAccessAuthenticationService {
         }
     }
 
-    private RemoteAccessAuthentication maybeRewriteForSystemUser(RemoteAccessAuthentication remoteAccessAuthentication) throws IOException {
+    private static RemoteAccessAuthentication maybeRewriteForSystemUser(RemoteAccessAuthentication remoteAccessAuthentication)
+        throws IOException {
         final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
         final User user = receivedEffectiveSubject.getUser();
         if (SystemUser.is(user)) {

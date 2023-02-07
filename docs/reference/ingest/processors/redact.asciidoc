@@ -15,7 +15,7 @@ of a match. If there are multiple matches all will be replaced with the
 capture name.
 
 The Redact processor is compatible with {ecs-ref}/ecs-field-reference.html[Elastic Common Schema (ECS)]
-patterns, legacy Grok patterns are not supported.
+patterns. Legacy Grok patterns are not supported.
 
 [[using-redact]]
 

@@ -65,7 +65,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -150,8 +149,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
                 "GET",
-                String.format(
-                    Locale.ROOT,
+                Strings.format(
                     "/%s%s:index-a/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "index-a," : "",
                     CLUSTER_A,
@@ -220,13 +218,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
                 "GET",
-                String.format(
-                    Locale.ROOT,
-                    "/%s:index-a,%s:index-*/_search?ccs_minimize_roundtrips=%s",
-                    CLUSTER_A,
-                    CLUSTER_B,
-                    minimizeRoundtrips
-                )
+                Strings.format("/%s:index-a,%s:index-*/_search?ccs_minimize_roundtrips=%s", CLUSTER_A, CLUSTER_B, minimizeRoundtrips)
             );
             searchRequest.setOptions(
                 searchRequest.getOptions()
@@ -551,8 +543,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
                 "GET",
-                String.format(
-                    Locale.ROOT,
+                Strings.format(
                     "/%s%s:index-a/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "index-a," : "",
                     cluster,
@@ -580,7 +571,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         final boolean grantApiKey = randomBoolean();
         if (grantApiKey) {
             createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
-            createApiKeyRequest.setJsonEntity(String.format("""
+            createApiKeyRequest.setJsonEntity(Strings.format("""
                     {
                         "grant_type" : "password",
                         "username"   : "%s",
@@ -620,7 +611,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         final boolean bulkUpdate = randomBoolean();
         if (bulkUpdate) {
             updateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
-            updateApiKeyRequest.setJsonEntity(String.format("""
+            updateApiKeyRequest.setJsonEntity(Strings.format("""
                 {
                     "ids": [ "%s" ],
                     "role_descriptors": %s
@@ -628,7 +619,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 """, id, roleDescriptors));
         } else {
             updateApiKeyRequest = new Request("PUT", "_security/api_key/" + id);
-            updateApiKeyRequest.setJsonEntity(String.format("""
+            updateApiKeyRequest.setJsonEntity(Strings.format("""
                 {
                     "role_descriptors": %s
                 }

@@ -589,10 +589,9 @@ public final class IndexModule {
         assert frozen.get() : "IndexModule configuration not frozen";
         if (directoryWrapper != null) {
             return new IndexStorePlugin.DirectoryFactory() {
-
                 @Override
                 public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-                    return directoryWrapper.wrap(factory.newDirectory(indexSettings, shardPath), null);
+                    return newDirectory(indexSettings, shardPath, null);
                 }
 
                 @Override

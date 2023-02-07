@@ -222,7 +222,7 @@ public class FeatureFactoryTests extends ESTestCase {
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1)), iterableWithSize(1));
-        final GeometryCollection<Geometry> WithinCollection = new GeometryCollection<>(
+        final GeometryCollection<Geometry> withinCollection = new GeometryCollection<>(
             List.of(
                 GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1),
                 GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1),
@@ -230,7 +230,7 @@ public class FeatureFactoryTests extends ESTestCase {
                 GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1)
             )
         );
-        assertThat(builder.getFeatures(WithinCollection), iterableWithSize(4));
+        assertThat(builder.getFeatures(withinCollection), iterableWithSize(4));
         // intersecting geometries
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1))), iterableWithSize(1));
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1))), iterableWithSize(1));

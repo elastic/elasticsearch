@@ -57,7 +57,7 @@ public final class ProcessUtils {
         List<String> command = new ArrayList<>();
         command.addAll(
             OS.conditional(
-                c -> c.onWindows(() -> List.of("cmd", "/c", workingDir.relativize(executable).toString()))
+                c -> c.onWindows(() -> List.of("cmd", "/c", executable.toString()))
                     .onUnix(() -> List.of(workingDir.relativize(executable).toString()))
             )
         );

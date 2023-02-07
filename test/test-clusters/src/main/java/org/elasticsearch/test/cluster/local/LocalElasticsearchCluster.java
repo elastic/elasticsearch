@@ -35,7 +35,6 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
                 try {
                     spec = builder.buildClusterSpec();
                     handle = new LocalClusterFactory(
-                        Path.of(System.getProperty("java.io.tmpdir")).resolve(description.getDisplayName()).toAbsolutePath(),
                         new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
                     ).create(spec);
                     handle.start();

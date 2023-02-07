@@ -66,16 +66,21 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final int DEFAULT_DEBUG_PORT = 5007;
 
-    private final Path baseWorkingDir;
     private final DistributionResolver distributionResolver;
+    private Path baseWorkingDir;
 
-    public LocalClusterFactory(Path baseWorkingDir, DistributionResolver distributionResolver) {
-        this.baseWorkingDir = baseWorkingDir;
+    public LocalClusterFactory(DistributionResolver distributionResolver) {
         this.distributionResolver = distributionResolver;
     }
 
     @Override
     public LocalClusterHandle create(LocalClusterSpec spec) {
+        try {
+            this.baseWorkingDir = Files.createTempDirectory(spec.getName());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         return new LocalClusterHandle(spec.getName(), spec.getNodes().stream().map(Node::new).toList());
     }
 
@@ -95,7 +100,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         public Node(LocalNodeSpec spec) {
             this.spec = spec;
-            this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
+            this.workingDir = baseWorkingDir.resolve(spec.getName());
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -627,7 +632,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private String getServiceName() {
-            return baseWorkingDir.getFileName() + "-" + spec.getCluster().getName() + "-" + spec.getName();
+            return baseWorkingDir.getFileName() + "-" + spec.getName();
         }
 
         @Override

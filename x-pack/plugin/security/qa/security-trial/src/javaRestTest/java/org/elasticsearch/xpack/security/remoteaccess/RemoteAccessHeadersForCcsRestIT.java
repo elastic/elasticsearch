@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -138,9 +139,12 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
             final String clusterCredential = randomBase64UUID(random());
-            final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            final TransportAddress remoteAddress = remoteTransport.getOriginalTransport()
+                .profileBoundAddresses()
+                .get("_remote_cluster")
+                .publishAddress();
             final boolean useProxyMode = randomBoolean();
-            setupClusterSettings(CLUSTER_A, clusterCredential, remoteNode, useProxyMode);
+            setupClusterSettings(CLUSTER_A, clusterCredential, remoteAddress, useProxyMode);
             final boolean alsoSearchLocally = randomBoolean();
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
@@ -206,11 +210,21 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         ) {
             final String clusterCredentialA = randomBase64UUID(random());
             final boolean useProxyModeA = randomBoolean();
-            setupClusterSettings(CLUSTER_A, clusterCredentialA, remoteTransportA.getLocalDiscoNode(), useProxyModeA);
+            setupClusterSettings(
+                CLUSTER_A,
+                clusterCredentialA,
+                remoteTransportA.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
+                useProxyModeA
+            );
 
             final String clusterCredentialB = randomBase64UUID(random());
             final boolean useProxyModeB = randomBoolean();
-            setupClusterSettings(CLUSTER_B, clusterCredentialB, remoteTransportB.getLocalDiscoNode(), useProxyModeB);
+            setupClusterSettings(
+                CLUSTER_B,
+                clusterCredentialB,
+                remoteTransportB.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
+                useProxyModeB
+            );
 
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
@@ -297,19 +311,16 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
     private void setupClusterSettings(
         final String clusterAlias,
         final String clusterCredential,
-        final DiscoveryNode remoteNode,
+        final TransportAddress remoteAddress,
         boolean useProxyMode
     ) throws IOException {
         if (useProxyMode) {
             updateRemoteClusterSettings(
                 clusterAlias,
-                Map.of("mode", "proxy", "proxy_address", remoteNode.getAddress().toString(), "authorization", clusterCredential)
+                Map.of("mode", "proxy", "proxy_address", remoteAddress.toString(), "authorization", clusterCredential)
             );
         } else {
-            updateRemoteClusterSettings(
-                clusterAlias,
-                Map.of("seeds", remoteNode.getAddress().toString(), "authorization", clusterCredential)
-            );
+            updateRemoteClusterSettings(clusterAlias, Map.of("seeds", remoteAddress.toString(), "authorization", clusterCredential));
         }
     }
 
@@ -395,7 +406,12 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders
     ) {
         boolean success = false;
-        final Settings settings = Settings.builder().put("node.name", nodeName).build();
+        final Settings settings = Settings.builder()
+            .put("node.name", nodeName)
+            .put("remote_cluster.enabled", "true")
+            .put("remote_cluster.port", "0")
+            .put("xpack.security.remote_cluster.ssl.enabled", "false")
+            .build();
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         final MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
         try {

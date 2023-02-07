@@ -98,9 +98,15 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
         long cacheSize = CACHE_SIZE.get(parameters.env.settings());
         GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
-        DatabaseNodeService registry = new DatabaseNodeService(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
+        DatabaseNodeService registry = new DatabaseNodeService(
+            parameters.env,
+            parameters.client,
+            geoIpCache,
+            parameters.genericExecutor,
+            parameters.ingestService.getClusterService()
+        );
         databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry, parameters.ingestService.getClusterService()));
+        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
     }
 
     @Override
@@ -121,7 +127,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     ) {
         try {
             String nodeId = nodeEnvironment.nodeId();
-            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get(), clusterService);
+            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

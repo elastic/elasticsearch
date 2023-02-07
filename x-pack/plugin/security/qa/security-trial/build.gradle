@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
@@ -8,6 +10,7 @@ dependencies {
 }
 
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
+  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
@@ -19,6 +22,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.transport.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.remote_cluster.ssl.enabled', 'false'
 
   rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"

@@ -16,8 +16,6 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-import java.nio.file.Path;
-
 public class LocalElasticsearchCluster implements ElasticsearchCluster {
     private final DefaultLocalClusterSpecBuilder builder;
     private LocalClusterSpec spec;

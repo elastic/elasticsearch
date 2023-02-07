@@ -9,9 +9,8 @@
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractDocValuesForUtilBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.ConstantIntegerSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecodeBenchmark;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecreasingIntegerSupplier;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -35,45 +34,30 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(value = Mode.AverageTime)
 @OutputTimeUnit(value = TimeUnit.NANOSECONDS)
 @State(value = Scope.Benchmark)
-public class ES87TSDBDocValuesConstantBenchmark {
+public class DecodeDecreasingIntegerBenchmark {
     private static final int SEED = 17;
     private static final int BLOCK_SIZE = 128;
-    @Param({ "15" })
+    @Param({ "4", "8", "12", "16", "24", "28", "32", "36", "40", "44", "48", "52", "56", "64" })
     private int bitsPerValue;
-    @Param({ "decode", "encode" })
-    private String mode;
 
-    private final AbstractDocValuesForUtilBenchmark decode;
-    private final AbstractDocValuesForUtilBenchmark encode;
+    private final AbstractDocValuesForUtilBenchmark decodeDecreasingInteger;
 
-    public ES87TSDBDocValuesConstantBenchmark() {
-        this.decode = new DecodeBenchmark();
-        this.encode = new EncodeBenchmark();
-
+    public DecodeDecreasingIntegerBenchmark() {
+        this.decodeDecreasingInteger = new DecodeBenchmark();
     }
 
     @Setup(Level.Invocation)
     public void setupInvocation() throws IOException {
-        switch (mode) {
-            case "decode" -> decode.setupInvocation(bitsPerValue);
-            case "encode" -> encode.setupInvocation(bitsPerValue);
-
-        }
+        decodeDecreasingInteger.setupInvocation(bitsPerValue);
     }
 
     @Setup(Level.Iteration)
     public void setupIteration() throws IOException {
-        switch (mode) {
-            case "decode" -> decode.setupIteration(bitsPerValue, new ConstantIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
-            case "encode" -> encode.setupIteration(bitsPerValue, new ConstantIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
-        }
+        decodeDecreasingInteger.setupIteration(bitsPerValue, new DecreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
     }
 
     @Benchmark
     public void benchmark(Blackhole bh) throws IOException {
-        switch (mode) {
-            case "decode" -> decode.benchmark(bitsPerValue, bh);
-            case "encode" -> encode.benchmark(bitsPerValue, bh);
-        }
+        decodeDecreasingInteger.benchmark(bitsPerValue, bh);
     }
 }

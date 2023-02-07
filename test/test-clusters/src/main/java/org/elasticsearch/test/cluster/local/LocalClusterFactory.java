@@ -52,6 +52,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
+import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
+
 public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, LocalClusterHandle> {
     private static final Logger LOGGER = LogManager.getLogger(LocalClusterFactory.class);
     private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(2);
@@ -110,11 +113,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 LOGGER.info("Creating installation for node '{}' in {}", spec.getName(), workingDir);
                 distributionDescriptor = resolveDistribution();
                 LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
-                distributionDir = OS.conditional(
-                    // Use per-version distribution directories on Windows to avoid cleanup failures
-                    c -> c.onWindows(() -> workingDir.resolve("distro").resolve(distributionDescriptor.getVersion().toString()))
-                        .onUnix(() -> workingDir.resolve("distro"))
-                );
                 initializeWorkingDirectory(currentVersion != null);
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
@@ -230,19 +228,32 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void initializeWorkingDirectory(boolean preserveWorkingDirectory) {
             try {
-                if (preserveWorkingDirectory) {
-                    IOUtils.deleteWithRetry(distributionDir);
-                } else {
+                if (preserveWorkingDirectory == false) {
                     IOUtils.deleteWithRetry(workingDir);
                 }
-                try {
-                    IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
-                } catch (IOUtils.LinkCreationException e) {
-                    // Note does not work for network drives, e.g. Vagrant
-                    LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
-                    // ensure we get a clean copy
-                    IOUtils.deleteWithRetry(distributionDir);
-                    IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
+
+                if (canUseSharedDistribution()) {
+                    distributionDir = distributionDescriptor.getDistributionDir();
+                } else {
+                    distributionDir = OS.conditional(
+                        // Use per-version distribution directories on Windows to avoid cleanup failures
+                        c -> c.onWindows(() -> workingDir.resolve("distro").resolve(distributionDescriptor.getVersion().toString()))
+                            .onUnix(() -> workingDir.resolve("distro"))
+                    );
+
+                    if (Files.exists(distributionDir)) {
+                        IOUtils.deleteWithRetry(distributionDir);
+                    }
+
+                    try {
+                        IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
+                    } catch (IOUtils.LinkCreationException e) {
+                        // Note does not work for network drives, e.g. Vagrant
+                        LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
+                        // ensure we get a clean copy
+                        IOUtils.deleteWithRetry(distributionDir);
+                        IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
+                    }
                 }
                 Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
@@ -251,6 +262,16 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to create working directory for node '" + spec.getName() + "'", e);
             }
+        }
+
+        /*
+         * We can "share" a distribution directory across clusters so long as we aren't modifying it. That means we aren't installing any
+         * additional plugins, modules, or jars. This avoids having to copy the test distribution unnecessarily.
+         */
+        private boolean canUseSharedDistribution() {
+            return OS.current() != WINDOWS // Issues with long file paths on Windows in CI
+                && System.getProperty(TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP) == null
+                && (distributionDescriptor.getType() == DEFAULT || (getSpec().getPlugins().isEmpty() && getSpec().getModules().isEmpty()));
         }
 
         private void copyExtraJarFiles() {
@@ -490,7 +511,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
                 });
 
-                IOUtils.syncWithCopy(modulePath.getParent(), destination);
+                IOUtils.syncWithCopy(modulePath, destination);
 
                 // Install any extended plugins
                 Properties pluginProperties = new Properties();

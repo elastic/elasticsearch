@@ -716,7 +716,7 @@ the `basic` `authProvider` in {kib}. The process is documented in the
 . *Symptoms:*
 +
 --
-No response ID values are being passed from {kib} to {es}
+No SAML request ID values are being passed from {kib} to {es}:
 
 ....
 Caused by org.elasticsearch.ElasticsearchSecurityException: SAML content is in-response-to [_A1B2C3D4E5F6G8H9I0] but expected one of []

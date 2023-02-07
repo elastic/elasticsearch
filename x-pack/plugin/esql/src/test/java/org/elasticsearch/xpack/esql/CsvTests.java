@@ -92,6 +92,8 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
  * in TestPhysicalOperationProviders or adjust TestPhysicalPlanOptimizer. For example, the TestPhysicalPlanOptimizer is skipping any
  * rules that push operations to ES itself (a Limit for example). The TestPhysicalOperationProviders is a bit more complicated than that:
  * it’s creating its own Source physical operator, aggregation operator (just a tiny bit of it) and field extract operator.
+ *
+ * To log the results logResults() should return "true".
  */
 public class CsvTests extends ESTestCase {
 
@@ -119,7 +121,7 @@ public class CsvTests extends ESTestCase {
     private ThreadPool threadPool;
 
     private static IndexResolution loadIndexResolution() {
-        var mapping = new TreeMap<String, EsField>(loadMapping("mapping-default.json"));
+        var mapping = new TreeMap<String, EsField>(loadMapping(CsvTestsDataLoader.MAPPING));
         return IndexResolution.valid(new EsIndex(TEST_INDEX_SIMPLE, mapping));
     }
 
@@ -168,7 +170,7 @@ public class CsvTests extends ESTestCase {
     }
 
     public void doTest() throws Throwable {
-        Tuple<Page, List<String>> testData = loadPage(CsvTests.class.getResource("/employees.csv"));
+        Tuple<Page, List<String>> testData = loadPage(CsvTests.class.getResource("/" + CsvTestsDataLoader.DATA));
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             BigArrays.NON_RECYCLING_INSTANCE,
             configuration,
@@ -184,6 +186,10 @@ public class CsvTests extends ESTestCase {
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, Logger logger) {
         CsvAssert.assertResults(expected, actual, logger);
+        /*
+         * Comment the assertion above and enable the next two lines to see the results returned by ES without any assertions being done.
+         * This is useful when creating a new test or trying to figure out what are the actual results.
+         */
         // CsvTestUtils.logMetaData(actual, LOGGER);
         // CsvTestUtils.logData(actual.values(), LOGGER);
     }

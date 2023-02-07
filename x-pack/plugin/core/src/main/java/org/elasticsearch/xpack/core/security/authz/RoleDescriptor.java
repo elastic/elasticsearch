@@ -193,6 +193,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return this.remoteIndicesPrivileges;
     }
 
+    public boolean hasRemoteIndicesPrivileges() {
+        return remoteIndicesPrivileges.length != 0;
+    }
+
     public ApplicationResourcePrivileges[] getApplicationPrivileges() {
         return this.applicationPrivileges;
     }
@@ -207,10 +211,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public boolean hasConfigurableClusterPrivileges() {
         return configurableClusterPrivileges.length != 0;
-    }
-
-    public boolean hasRemoteIndicesPrivileges() {
-        return remoteIndicesPrivileges.length != 0;
     }
 
     public boolean hasRunAs() {

@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.security.transport.SecurityServerTransport
 
 public class RemoteAccessAuthenticationService {
 
-    private static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
+    public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
         "_cross_cluster_internal",
         new String[] { ClusterStateAction.NAME },
         null,
@@ -187,7 +187,7 @@ public class RemoteAccessAuthenticationService {
     }
 
     private void validate(final RemoteAccessAuthentication remoteAccessAuthentication) {
-        final String subjectPrincipal = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser().principal();
+        final Subject effectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
         for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessAuthentication
             .getRoleDescriptorsBytesList()) {
             final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
@@ -200,11 +200,20 @@ public class RemoteAccessAuthenticationService {
                 if (privilegesOtherThanIndex) {
                     throw new IllegalArgumentException(
                         "role descriptor for remote access can only contain index privileges but other privileges found for subject ["
-                            + subjectPrincipal
+                            + effectiveSubject.getUser().principal()
                             + "]"
                     );
                 }
             }
+        }
+        if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
+            throw new IllegalArgumentException(
+                "subject ["
+                    + effectiveSubject.getUser().principal()
+                    + "] has type ["
+                    + effectiveSubject.getType()
+                    + "] which is not supported for remote access"
+            );
         }
     }
 

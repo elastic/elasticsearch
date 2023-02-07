@@ -68,7 +68,7 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
         this.field = Objects.requireNonNull(field, Strings.format("[%s] must not be null", FIELD.getPreferredName()));
         this.queryVector = Objects.requireNonNull(queryVector, Strings.format("[%s] must not be null", QUERY_VECTOR.getPreferredName()));
         if (numCandidates <= 0) {
-            throw new IllegalArgumentException(String.format("[%s] must be greater than 0", NUM_CANDIDATES.getPreferredName()));
+            throw new IllegalArgumentException(Strings.format("[%s] must be greater than 0", NUM_CANDIDATES.getPreferredName()));
         }
         this.numCandidates = numCandidates;
         this.similarity = similarity;

@@ -154,7 +154,7 @@ have been replaced by `*REDACTED*`.
 [[redact-custom-patterns]]
 ==== Custom patterns
 
-If one of the existing Grok https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
+If one of the existing Grok {es-repo}blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
 does not fit your requirements custom patterns can be added with the
 `pattern_definitions` option. New patterns definitions are composed of
 a pattern name and the pattern itself. The pattern may be a regular

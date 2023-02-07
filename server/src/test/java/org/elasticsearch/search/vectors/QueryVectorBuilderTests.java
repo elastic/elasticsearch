@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.test.AbstractQueryVectorBuilderTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 

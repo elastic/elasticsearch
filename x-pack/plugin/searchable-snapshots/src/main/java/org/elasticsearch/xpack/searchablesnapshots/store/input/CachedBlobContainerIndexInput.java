@@ -24,6 +24,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.BlobCacheUtils.readSafe;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
@@ -171,7 +172,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 while (remainingBytes > 0L) {
                     assert totalBytesRead + remainingBytes == range.length();
                     copyBuffer.clear();
-                    final int bytesRead = readSafe(input, copyBuffer, range.start(), range.end(), remainingBytes, cacheFileReference);
+                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes, cacheFileReference);
 
                     // The range to prewarm in cache
                     final long readStart = range.start() + totalBytesRead;

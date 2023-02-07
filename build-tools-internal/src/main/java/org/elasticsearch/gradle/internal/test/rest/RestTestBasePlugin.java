@@ -186,10 +186,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 }
             });
         });
-
-        project.getTasks()
-            .named(JavaBasePlugin.CHECK_TASK_NAME)
-            .configure(check -> check.dependsOn(project.getTasks().withType(StandaloneRestIntegTestTask.class)));
     }
 
     private ElasticsearchDistribution createDistribution(Project project, String name, String version) {

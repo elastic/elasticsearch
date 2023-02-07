@@ -116,7 +116,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        final boolean rescore = QueryPhase.executeInternal(context, context.query(), context.queryResult().getPrimarySearchResult());
+        final boolean rescore = QueryPhase.executeInternal(context, context.query(), context.queryResult().());
         assertFalse(rescore);
 
         ContextIndexSearcher countSearcher = shouldCollectCount

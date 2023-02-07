@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rerank.Reranker;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -58,7 +57,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final CircuitBreaker circuitBreaker;
     private final SearchProgressListener progressListener;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
-    private final Reranker reranker;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -92,7 +90,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.onPartialMergeFailure = onPartialMergeFailure;
 
         SearchSourceBuilder source = request.source();
-        this.reranker = source == null || source.rerankBuilder() == null ? null : source.rerankBuilder().reranker(source.size());
         this.hasTopDocs = source == null || source.size() != 0;
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
@@ -130,7 +127,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // Add an estimate of the final reduce size
             breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
         }
-
         SearchPhaseController.ReducedQueryPhase reducePhase = SearchPhaseController.reducedQueryPhase(
             results.asList(),
             aggsList,

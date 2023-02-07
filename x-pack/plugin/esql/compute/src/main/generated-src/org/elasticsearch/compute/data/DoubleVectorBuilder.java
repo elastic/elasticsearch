@@ -40,7 +40,10 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
     }
 
     @Override
-    public DoubleArrayVector build() {
+    public DoubleVector build() {
+        if (valueCount == 1) {
+            return new ConstantDoubleVector(values[0], 1);
+        }
         // TODO: may wanna trim the array, if there N% unused tail space
         return new DoubleArrayVector(values, valueCount);
     }

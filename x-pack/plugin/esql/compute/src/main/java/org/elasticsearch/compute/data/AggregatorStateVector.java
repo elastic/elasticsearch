@@ -14,11 +14,11 @@ import java.util.Arrays;
 
 @Experimental
 public class AggregatorStateVector<T extends AggregatorState<T>> extends AbstractVector {
-    private final byte[] ba;
+    final byte[] ba;
 
-    private final int itemSize;
+    final int itemSize;
 
-    private final String description;
+    final String description;
 
     public AggregatorStateVector(byte[] ba, int positionCount, int itemSize, String description) {
         super(positionCount);

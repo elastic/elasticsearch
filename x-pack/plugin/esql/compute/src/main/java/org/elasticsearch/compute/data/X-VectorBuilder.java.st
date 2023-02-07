@@ -22,6 +22,16 @@ $endif$
  */
 final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$Vector.Builder {
 
+$if(int)$
+    /**
+     * {@code true} if this every element in this vector is {@code >=}
+     * the previous element, {@code false} if there is some element
+     * {@code <} a previous element, and {@code null} if it is unknown
+     * if either thing is true.
+     */
+    private Boolean nonDecreasing;
+$endif$
+
 $if(BytesRef)$
     private BytesRefArray values;
 
@@ -71,9 +81,28 @@ $else$
 $endif$
     }
 
+$if(int)$
     @Override
-    public $Type$ArrayVector build() {
+    public $Type$VectorBuilder setNonDecreasing(boolean nonDecreasing) {
+        this.nonDecreasing = nonDecreasing;
+        return this;
+    }
+$endif$
+
+    @Override
+    public $Type$Vector build() {
+        if (valueCount == 1) {
+$if(BytesRef)$
+            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1);
+$else$
+            return new Constant$Type$Vector(values[0], 1);
+$endif$
+        }
         // TODO: may wanna trim the array, if there N% unused tail space
+$if(int)$
+        return new $Type$ArrayVector(values, valueCount, nonDecreasing);
+$else$
         return new $Type$ArrayVector(values, valueCount);
+$endif$
     }
 }

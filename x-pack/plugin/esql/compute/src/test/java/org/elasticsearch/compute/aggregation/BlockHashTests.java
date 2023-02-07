@@ -24,7 +24,7 @@ public class BlockHashTests extends ESTestCase {
 
     public void testBasicIntHash() {
         int[] values = new int[] { 1, 2, 3, 1, 2, 3, 1, 2, 3 };
-        IntBlock block = new IntArrayVector(values, values.length).asBlock();
+        IntBlock block = new IntArrayVector(values, values.length, null).asBlock();
 
         IntBlock keysBlock;
         try (

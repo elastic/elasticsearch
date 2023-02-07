@@ -46,7 +46,10 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
     }
 
     @Override
-    public BytesRefArrayVector build() {
+    public BytesRefVector build() {
+        if (valueCount == 1) {
+            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1);
+        }
         // TODO: may wanna trim the array, if there N% unused tail space
         return new BytesRefArrayVector(values, valueCount);
     }

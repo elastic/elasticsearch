@@ -100,6 +100,13 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling remote cluster access TLS. Defaults to true. */
+    public static final Setting<Boolean> REMOTE_CLUSTER_SSL_ENABLED = Setting.boolSetting(
+        "xpack.security." + RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX + "ssl.enabled",
+        true,
+        Property.NodeScope
+    );
+
     /** Setting for enabling or disabling the reserved realm. Defaults to true */
     public static final Setting<Boolean> RESERVED_REALM_ENABLED_SETTING = Setting.boolSetting(
         "xpack.security.authc.reserved_realm.enabled",
@@ -237,6 +244,7 @@ public class XPackSettings {
 
     public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
     public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
+    public static final SslClientAuthenticationMode REMOTE_CLUSTER_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
     public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
     // http specific settings
@@ -270,6 +278,9 @@ public class XPackSettings {
         settings.add(DLS_FLS_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
         settings.add(HTTP_SSL_ENABLED);
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settings.add(REMOTE_CLUSTER_SSL_ENABLED);
+        }
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);

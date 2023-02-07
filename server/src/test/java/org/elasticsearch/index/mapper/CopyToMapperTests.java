@@ -383,31 +383,37 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertFieldValue(nested, "n1.n2.target", 3L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
+        assertEquals(1, nested.getFields(NestedPathFieldMapper.NAME).length);
 
         nested = doc.docs().get(1);
         assertFieldValue(nested, "n1.n2.target", 5L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
+        assertEquals(1, nested.getFields(NestedPathFieldMapper.NAME).length);
 
         nested = doc.docs().get(3);
         assertFieldValue(nested, "n1.n2.target", 7L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
+        assertEquals(1, nested.getFields(NestedPathFieldMapper.NAME).length);
 
         LuceneDocument parent = doc.docs().get(2);
         assertFieldValue(parent, "target");
         assertFieldValue(parent, "n1.target", 3L, 5L);
         assertFieldValue(parent, "n1.n2.target");
+        assertEquals(1, parent.getFields(NestedPathFieldMapper.NAME).length);
 
         parent = doc.docs().get(4);
         assertFieldValue(parent, "target");
         assertFieldValue(parent, "n1.target", 7L);
         assertFieldValue(parent, "n1.n2.target");
+        assertEquals(1, parent.getFields(NestedPathFieldMapper.NAME).length);
 
         LuceneDocument root = doc.docs().get(5);
         assertFieldValue(root, "target", 3L, 5L, 7L);
         assertFieldValue(root, "n1.target");
         assertFieldValue(root, "n1.n2.target");
+        assertEquals(0, root.getFields(NestedPathFieldMapper.NAME).length);
     }
 
     public void testCopyToChildNested() {

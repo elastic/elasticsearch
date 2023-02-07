@@ -8,6 +8,8 @@
 
 package org.elasticsearch.repositories;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,6 +30,9 @@ import java.util.Map;
 import java.util.Optional;
 
 public class IndexSnapshotsService {
+
+    private static final Logger logger = LogManager.getLogger(IndexSnapshotsService.class);
+
     private static final Comparator<Tuple<SnapshotId, RepositoryData.SnapshotDetails>> START_TIME_COMPARATOR = Comparator.<
         Tuple<SnapshotId, RepositoryData.SnapshotDetails>>comparingLong(pair -> pair.v2().getStartTimeMillis()).thenComparing(Tuple::v1);
 
@@ -62,6 +67,7 @@ public class IndexSnapshotsService {
 
         repositoryDataStepListener.whenComplete(repositoryData -> {
             if (repositoryData.hasIndex(indexName) == false) {
+                logger.debug("{} repository [{}] has no snapshots of this index", shardId, repositoryName);
                 listener.onResponse(Optional.empty());
                 return;
             }
@@ -81,11 +87,13 @@ public class IndexSnapshotsService {
                 // have the start/end date populated in RepositoryData. We could fetch all the backups and find out if there is
                 // a valid candidate, but for simplicity we just consider that we couldn't find any valid snapshot. Existing
                 // snapshots start/end timestamps should appear in the RepositoryData eventually.
+                logger.debug("{} could not determine latest snapshot of this shard in repository [{}]", shardId, repositoryName);
                 listener.onResponse(Optional.empty());
                 return;
             }
 
             final SnapshotId snapshotId = latestSnapshotId.get();
+            logger.debug("{} fetching details of [{}][{}]", shardId, repositoryName, snapshotId);
             repository.getSnapshotInfo(
                 snapshotId,
                 snapshotInfoStepListener.map(
@@ -100,6 +108,7 @@ public class IndexSnapshotsService {
 
             if (snapshotInfo == null || snapshotInfo.state() != SnapshotState.SUCCESS) {
                 // We couldn't find a valid candidate
+                logger.debug("{} failed to retrieve snapshot details from [{}]", shardId, repositoryName);
                 listener.onResponse(Optional.empty());
                 return;
             }

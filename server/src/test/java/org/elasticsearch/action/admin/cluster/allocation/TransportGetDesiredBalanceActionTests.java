@@ -11,6 +11,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -59,6 +61,7 @@ import static org.mockito.Mockito.when;
 public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase {
 
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
+    private final ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
     private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
         mock(TransportService.class),
         mock(ClusterService.class),
@@ -66,6 +69,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         mock(ActionFilters.class),
         mock(IndexNameExpressionResolver.class),
         desiredBalanceShardsAllocator,
+        clusterInfoService,
         TEST_WRITE_LOAD_FORECASTER
     );
     @SuppressWarnings("unchecked")
@@ -81,6 +85,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             mock(ShardsAllocator.class),
+            mock(ClusterInfoService.class),
             mock(WriteLoadForecaster.class)
         ).masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
 
@@ -202,6 +207,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             randomInt(Integer.MAX_VALUE)
         );
         when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);
+        when(clusterInfoService.getClusterInfo()).thenReturn(ClusterInfo.EMPTY);
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadataBuilder.build())

@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -21,16 +21,11 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.Locale;
 import java.util.concurrent.Semaphore;
 import java.util.function.LongConsumer;
-
-import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
-import static org.elasticsearch.core.Strings.format;
 
 public class FrozenIndexInput extends MetadataCachingIndexInput {
 
@@ -117,7 +112,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
         final Semaphore luceneByteBufPermits = new Semaphore(Integer.MAX_VALUE);
         boolean bufferWriteLocked = false;
-        logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
+        logger.trace("readInternal: read [{}-{}] from [{}]", position, position + length, this);
         try {
             final ByteRange startRangeToWrite = computeRange(position);
             final ByteRange endRangeToWrite = computeRange(position + length - 1);
@@ -201,15 +196,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                 final ByteBuffer dup = buffer.slice(buffer.position() + Math.toIntExact(relativePos), Math.toIntExact(length));
                 bytesRead = fc.read(dup, channelPos);
                 if (bytesRead == -1) {
-                    throw new EOFException(
-                        String.format(
-                            Locale.ROOT,
-                            "unexpected EOF reading [%d-%d] from %s",
-                            channelPos,
-                            channelPos + dup.remaining(),
-                            this.cacheFile
-                        )
-                    );
+                    BlobCacheUtils.throwEOF(channelPos, dup.remaining(), this.cacheFile);
                 }
             } finally {
                 luceneByteBufPermits.release();
@@ -221,20 +208,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         stats.addCachedBytesRead(bytesRead);
         return bytesRead;
     }
-
-    /**
-     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
-     */
-    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
-        ByteSizeValue.parseBytesSizeValue(
-            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
-            "es.searchable.snapshot.shared_cache.write_buffer.size"
-        ).getBytes()
-    );
-
-    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
-        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
-    );
 
     private void writeCacheFile(
         final SharedBytes.IO fc,
@@ -255,28 +228,19 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             cacheFile
         );
         final long end = relativePos + length;
-        final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", relativePos, end, cacheFile));
+        logger.trace("writing range [{}-{}] to cache file [{}]", relativePos, end, cacheFile);
 
         long bytesCopied = 0L;
         long remaining = length;
-        final ByteBuffer buf = writeBuffer.get();
-        buf.clear();
+        final ByteBuffer buf = writeBuffer.get().clear();
         while (remaining > 0L) {
-            final int bytesRead = MetadataCachingIndexInput.readSafe(input, copyBuffer, relativePos, end, remaining, cacheFile);
-            if (bytesRead > buf.remaining()) {
-                // always fill up buf to the max
-                final int bytesToAdd = buf.remaining();
-                buf.put(copyBuffer, 0, bytesToAdd);
-                assert buf.remaining() == 0;
-                long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-                bytesCopied += bytesWritten;
-                progressUpdater.accept(bytesCopied);
-                // add the remaining bytes to buf
-                buf.put(copyBuffer, bytesToAdd, bytesRead - bytesToAdd);
-            } else {
-                buf.put(copyBuffer, 0, bytesRead);
+            final int bytesRead = BlobCacheUtils.readSafe(input, buf, relativePos, remaining, cacheFile);
+            if (buf.hasRemaining()) {
+                break;
             }
+            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+            bytesCopied += bytesWritten;
+            progressUpdater.accept(bytesCopied);
             remaining -= bytesRead;
         }
         // ensure that last write is aligned on 4k boundaries (= page size)

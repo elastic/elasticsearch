@@ -592,9 +592,8 @@ public class SSLService {
         sslSettingsMap.put(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX, settings.getByPrefix(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX));
         sslSettingsMap.put(XPackSettings.TRANSPORT_SSL_PREFIX, settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX));
         sslSettingsMap.putAll(getTransportProfileSSLSettings(settings));
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
-            sslSettingsMap.put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX, getRemoteClusterSslSettings(settings));
-        }
+        // We build the ssl settings even when remote cluster port is not enabled because we may need it for the client side
+        sslSettingsMap.put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX, getRemoteClusterSslSettings(settings));
         return Collections.unmodifiableMap(sslSettingsMap);
     }
 

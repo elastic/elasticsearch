@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
@@ -196,6 +198,10 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | project first*name
             """, "first_name");
+        assertProjectionTypes("""
+            from test
+            | project first*name
+            """, DataTypes.KEYWORD);
     }
 
     public void testProjectIncludePattern() {
@@ -216,20 +222,23 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project *
-            """, "_meta_field", "emp_no", "first_name", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "languages", "last_name", "salary");
     }
 
     public void testNoProjection() {
         assertProjection("""
             from test
-            """, "_meta_field", "emp_no", "first_name", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "languages", "last_name", "salary");
+        assertProjectionTypes("""
+            from test
+            """, DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.KEYWORD, DataTypes.INTEGER);
     }
 
     public void testProjectOrder() {
         assertProjection("""
             from test
             | project first_name, *, last_name
-            """, "first_name", "_meta_field", "emp_no", "salary", "last_name");
+            """, "first_name", "_meta_field", "emp_no", "languages", "salary", "last_name");
     }
 
     public void testProjectExcludeName() {
@@ -250,21 +259,21 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project *, -*_name
-            """, "_meta_field", "emp_no", "salary");
+            """, "_meta_field", "emp_no", "languages", "salary");
     }
 
     public void testProjectExcludeNoStarPattern() {
         assertProjection("""
             from test
             | project -*_name
-            """, "_meta_field", "emp_no", "salary");
+            """, "_meta_field", "emp_no", "languages", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
         assertProjection("""
             from test
             | project *name, *, emp_no
-            """, "first_name", "last_name", "_meta_field", "salary", "emp_no");
+            """, "first_name", "last_name", "_meta_field", "languages", "salary", "emp_no");
     }
 
     public void testProjectExcludePatternAndKeepOthers() {
@@ -323,7 +332,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project -*ala*
-            """, "_meta_field", "emp_no", "first_name", "last_name");
+            """, "_meta_field", "emp_no", "first_name", "languages", "last_name");
     }
 
     public void testExcludeUnsupportedPattern() {
@@ -570,7 +579,7 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | eval date_format(float)
-            """, "first argument of [date_format(float)] must be [datetime], found value [float] type [float]");
+            """, "first argument of [date_format(float)] must be [datetime], found value [float] type [double]");
     }
 
     public void testDateFormatOnText() {
@@ -608,6 +617,13 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
         assertThat(Expressions.names(project.projections()), contains(names));
+    }
+
+    private void assertProjectionTypes(String query, DataType... types) {
+        var plan = analyze(query);
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        assertThat(project.projections().stream().map(NamedExpression::dataType).toList(), contains(types));
     }
 
     private void assertProjection(String query, StringBuilder mapping, String... names) {

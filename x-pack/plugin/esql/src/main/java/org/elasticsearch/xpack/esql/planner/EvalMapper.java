@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -172,16 +170,7 @@ final class EvalMapper {
                 record Ints(int channel) implements ExpressionEvaluator {
                     @Override
                     public Object computeRow(Page page, int pos) {
-                        Block b = page.getBlock(channel);
-                        if (b.elementType() == ElementType.LONG) {
-                            // TODO hack for allowing eval after stats which doesn't respect the int type
-                            LongBlock hack = (LongBlock) b;
-                            if (hack.isNull(pos)) {
-                                return null;
-                            }
-                            return hack.getLong(pos);
-                        }
-                        IntBlock block = (IntBlock) b;
+                        IntBlock block = page.getBlock(channel);
                         if (block.isNull(pos)) {
                             return null;
                         }

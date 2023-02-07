@@ -26,18 +26,31 @@ import static org.hamcrest.Matchers.is;
 public class BasicBlockTests extends ESTestCase {
 
     public void testEmpty() {
-        assertThat(0, is(new IntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet()).getPositionCount()));
-        assertThat(0, is(new IntArrayVector(new int[] {}, 0).getPositionCount()));
+        assertThat(new IntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(IntBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
+        assertThat(new IntArrayVector(new int[] {}, 0).getPositionCount(), is(0));
+        assertThat(IntVector.newVectorBuilder(0).build().getPositionCount(), is(0));
 
-        assertThat(0, is(new LongArrayBlock(new long[] {}, 0, new int[] {}, new BitSet()).getPositionCount()));
-        assertThat(0, is(new LongArrayVector(new long[] {}, 0).getPositionCount()));
+        assertThat(new LongArrayBlock(new long[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(LongBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
+        assertThat(new LongArrayVector(new long[] {}, 0).getPositionCount(), is(0));
+        assertThat(LongVector.newVectorBuilder(0).build().getPositionCount(), is(0));
 
-        assertThat(0, is(new DoubleArrayBlock(new double[] {}, 0, new int[] {}, new BitSet()).getPositionCount()));
-        assertThat(0, is(new DoubleArrayVector(new double[] {}, 0).getPositionCount()));
+        assertThat(new DoubleArrayBlock(new double[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(DoubleBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
+        assertThat(new DoubleArrayVector(new double[] {}, 0).getPositionCount(), is(0));
+        assertThat(DoubleVector.newVectorBuilder(0).build().getPositionCount(), is(0));
 
         var emptyArray = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
-        assertThat(0, is(new BytesRefArrayBlock(emptyArray, 0, new int[] {}, new BitSet()).getPositionCount()));
-        assertThat(0, is(new BytesRefArrayVector(emptyArray, 0).getPositionCount()));
+        assertThat(new BytesRefArrayBlock(emptyArray, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(BytesRefBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
+        assertThat(new BytesRefArrayVector(emptyArray, 0).getPositionCount(), is(0));
+        assertThat(BytesRefVector.newVectorBuilder(0).build().getPositionCount(), is(0));
+
+        assertThat(new BooleanArrayBlock(new boolean[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(BooleanBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
+        assertThat(new BooleanArrayVector(new boolean[] {}, 0).getPositionCount(), is(0));
+        assertThat(BooleanVector.newVectorBuilder(0).build().getPositionCount(), is(0));
     }
 
     public void testSmallSingleValueDenseGrowthInt() {
@@ -69,6 +82,14 @@ public class BasicBlockTests extends ESTestCase {
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
             var blockBuilder = BytesRefBlock.newBlockBuilder(initialSize);
             IntStream.range(0, 10).mapToObj(i -> NULL_VALUE).forEach(blockBuilder::appendBytesRef);
+            assertSingleValueDenseBlock(blockBuilder.build());
+        }
+    }
+
+    public void testSmallSingleValueDenseGrowthBoolean() {
+        for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
+            var blockBuilder = BooleanBlock.newBlockBuilder(initialSize);
+            IntStream.range(0, 10).forEach(i -> blockBuilder.appendBoolean(i % 3 == 0));
             assertSingleValueDenseBlock(blockBuilder.build());
         }
     }
@@ -396,6 +417,68 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
+    public void testBooleanBlock() {
+        for (int i = 0; i < 1000; i++) {
+            int positionCount = randomIntBetween(1, 16 * 1024);
+            BooleanBlock block;
+            if (randomBoolean()) {
+                final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
+                var blockBuilder = BooleanBlock.newBlockBuilder(builderEstimateSize);
+                IntStream.range(0, positionCount).forEach(p -> blockBuilder.appendBoolean(p % 10 == 0));
+                block = blockBuilder.build();
+            } else {
+                boolean[] values = new boolean[positionCount];
+                for (int p = 0; p < positionCount; p++) {
+                    values[p] = p % 10 == 0;
+                }
+                block = new BooleanArrayVector(values, positionCount).asBlock();
+            }
+
+            assertThat(block.getPositionCount(), is(positionCount));
+            assertThat(block.getBoolean(0), is(true));
+            assertThat(block.getBoolean(positionCount - 1), is((positionCount - 1) % 10 == 0));
+            assertSingleValueDenseBlock(block);
+
+            if (positionCount > 1) {
+                assertNullValues(
+                    positionCount,
+                    BooleanBlock::newBlockBuilder,
+                    (bb, value) -> bb.appendBoolean(value),
+                    position -> position % 10 == 0,
+                    BooleanBlock.Builder::build,
+                    (randomNonNullPosition, b) -> {
+                        assertThat(b.getBoolean(randomNonNullPosition.intValue()), is(randomNonNullPosition % 10 == 0));
+                    }
+                );
+            }
+
+            DoubleVector.Builder blockBuilder = DoubleVector.newVectorBuilder(
+                randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
+            );
+            IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(blockBuilder::appendDouble);
+            DoubleVector vector = blockBuilder.build();
+            assertSingleValueDenseBlock(vector.asBlock());
+        }
+    }
+
+    public void testConstantBooleanBlock() {
+        for (int i = 0; i < 1000; i++) {
+            int positionCount = randomIntBetween(1, 16 * 1024);
+            boolean value = randomBoolean();
+            BooleanBlock block;
+            if (randomBoolean()) {
+                block = BooleanBlock.newConstantBlockWith(value, positionCount);
+            } else {
+                block = new ConstantBooleanVector(value, positionCount).asBlock();
+            }
+            assertThat(positionCount, is(block.getPositionCount()));
+            assertThat(block.getBoolean(0), is(value));
+            assertThat(block.getBoolean(positionCount - 1), is(value));
+            assertThat(block.getBoolean(randomPosition(positionCount)), is(value));
+            assertSingleValueDenseBlock(block);
+        }
+    }
+
     public void testSingleValueSparseInt() {
         int positionCount = randomIntBetween(1, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
@@ -483,6 +566,36 @@ public class BasicBlockTests extends ESTestCase {
                 // assertThat(block.getDouble(i), is(0)); // Q: do we wanna allow access to the default value
             } else {
                 assertThat(block.getDouble(i), is(values[i]));
+            }
+        }
+        assertThat(block.nullValuesCount(), is(nullCount));
+        assertNull(block.asVector());
+    }
+
+    public void testSingleValueSparseBoolean() {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
+        var blockBuilder = BooleanBlock.newBlockBuilder(builderEstimateSize);
+
+        boolean[] values = new boolean[positionCount];
+        for (int i = 0; i < positionCount; i++) {
+            if (randomBoolean()) {
+                values[i] = randomBoolean();
+                blockBuilder.appendBoolean(values[i]);
+            } else {
+                blockBuilder.appendNull();
+            }
+        }
+        BooleanBlock block = blockBuilder.build();
+
+        assertThat(block.getPositionCount(), is(positionCount));
+        assertThat(block.getTotalValueCount(), is(positionCount));
+        int nullCount = 0;
+        for (int i = 0; i < positionCount; i++) {
+            if (block.isNull(i)) {
+                nullCount++;
+            } else {
+                assertThat(block.getBoolean(i), is(values[i]));
             }
         }
         assertThat(block.nullValuesCount(), is(nullCount));

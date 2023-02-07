@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -109,6 +110,9 @@ final class CsvTestUtils {
                                 }
                             }
                             Type type = Type.asType(typeName);
+                            if (type == null) {
+                                throw new IllegalArgumentException("Can't find type for " + entries[i]);
+                            }
                             if (type == Type.NULL) {
                                 throw new IllegalArgumentException("Null type is not allowed in the test data; found " + entries[i]);
                             }
@@ -158,56 +162,53 @@ final class CsvTestUtils {
     }
 
     static Block buildBlock(List<Object> values, Class<?> type) {
-        Block.Builder builder;
         if (type == Integer.class) {
-            builder = IntBlock.newBlockBuilder(values.size());
+            IntBlock.Builder builder = IntBlock.newBlockBuilder(values.size());
             for (Object v : values) {
                 if (v == null) {
                     builder.appendNull();
                 } else {
-                    ((IntBlock.Builder) builder).appendInt((Integer) v);
+                    builder.appendInt((Integer) v);
                 }
             }
-        } else if (type == Long.class) {
-            builder = LongBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((LongBlock.Builder) builder).appendLong((Long) v);
-                }
-            }
-        } else if (type == Float.class) {
-            // creating a DoubleBlock here, but once a Float one is available this code needs to change
-            builder = DoubleBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((DoubleBlock.Builder) builder).appendDouble((Double) v);
-                }
-            }
-        } else if (type == Double.class) {
-            builder = DoubleBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((DoubleBlock.Builder) builder).appendDouble((Double) v);
-                }
-            }
-        } else {
-            // (type == String.class || type == Boolean.class)
-            builder = BytesRefBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(v.toString()));
-                }
-            }
+            return builder.build();
         }
-        return builder.build();
+        if (type == Long.class) {
+            LongBlock.Builder builder = LongBlock.newBlockBuilder(values.size());
+            for (Object v : values) {
+                if (v == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendLong((Long) v);
+                }
+            }
+            return builder.build();
+        }
+        if (type == Float.class || type == Double.class) {
+            // promoting float to double until we have native float support. https://github.com/elastic/elasticsearch-internal/issues/724
+            DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(values.size());
+            for (Object v : values) {
+                if (v == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendDouble((Double) v);
+                }
+            }
+            return builder.build();
+        }
+        if (type == String.class || type == Boolean.class) {
+            // promoting boolean to string until we have native boolean support.
+            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(values.size());
+            for (Object v : values) {
+                if (v == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(v.toString()));
+                }
+            }
+            return builder.build();
+        }
+        throw new IllegalArgumentException("unsupported type " + type);
     }
 
     record ExpectedResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
@@ -262,10 +263,14 @@ final class CsvTestUtils {
     public enum Type {
         INTEGER(Integer::parseInt),
         LONG(Long::parseLong),
+        SHORT(Integer::parseInt),
+        BYTE(Integer::parseInt),
         DOUBLE(Double::parseDouble),
+        FLOAT(Double::parseDouble),
         KEYWORD(Object::toString),
         NULL(s -> null),
-        DATETIME(x -> x == null ? null : DateFormatters.from(DEFAULT_DATE_FORMATTER.parse(x)).toInstant().toEpochMilli());
+        DATETIME(x -> x == null ? null : DateFormatters.from(DEFAULT_DATE_FORMATTER.parse(x)).toInstant().toEpochMilli()),
+        BOOLEAN(Booleans::parseBoolean);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -302,6 +307,7 @@ final class CsvTestUtils {
                 case DOUBLE -> DOUBLE;
                 case NULL -> NULL;
                 case BYTES_REF -> KEYWORD;
+                case BOOLEAN -> BOOLEAN;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

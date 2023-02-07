@@ -114,6 +114,9 @@ $endif$
 $if(BytesRef)$
                     result = 31 * result + block.getBytesRef(firstValueIdx + valueIndex, new BytesRef()).hashCode();
 $endif$
+$if(boolean)$
+                    result = 31 * result + Boolean.hashCode(block.getBoolean(firstValueIdx + valueIndex));
+$endif$
 $if(int)$
                     result = 31 * result + block.getInt(firstValueIdx + valueIndex);
 $endif$

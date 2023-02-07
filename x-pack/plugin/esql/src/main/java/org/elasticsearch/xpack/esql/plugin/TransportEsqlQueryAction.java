@@ -17,9 +17,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -115,12 +115,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                         continue;
                     }
                     if (dataTypes.get(b) == DataTypes.INTEGER) {
-                        if (block.elementType() == ElementType.LONG) {
-                            // TODO hack to make stats ok without casting or native int stats
-                            // Danger! we can't Math.toIntExact here because stats can product out of range values!
-                            row.add(((LongBlock) block).getLong(p));
-                            continue;
-                        }
                         row.add(((IntBlock) block).getInt(p));
                         continue;
                     }
@@ -135,6 +129,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     if (dataTypes.get(b) == DataTypes.DATETIME) {
                         long longVal = ((LongBlock) block).getLong(p);
                         row.add(DateFormat.DEFAULT_DATE_FORMATTER.formatMillis(longVal));
+                        continue;
+                    }
+                    if (dataTypes.get(b) == DataTypes.BOOLEAN) {
+                        row.add(((BooleanBlock) block).getBoolean(p));
                         continue;
                     }
                     throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(b) + "]");

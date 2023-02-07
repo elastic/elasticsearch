@@ -91,7 +91,7 @@ but now the IP address `55.3.244.1` is replaced by the text `<client>`.
 
 The IP address is replaced with the word `client` because that is what is
 specified in the Grok pattern `%{IP:client}`. The `<` and `>` tokens which
-surround the pattern name are also configurable.
+surround the pattern name are configurable using the `prefix` and `suffix` options.
 
 The next example defines multiple patterns both of which are replaced
 with the word `REDACTED` and the prefix and suffix tokens are set to `*`

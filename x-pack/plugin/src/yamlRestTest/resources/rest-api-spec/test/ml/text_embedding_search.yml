@@ -1,5 +1,18 @@
 # This test uses the simple text embedding model from
 # TextEmbeddingQueryIT.java to create the dense vectors.
+# The model creates random tensors seeded by the hash of
+# input string, we expect the same input to produce
+# the same output. However, not all platforms produce
+# the same random tensor for the same seed. The model
+# creates different tensors on different platforms and
+# OS's, therefore the top search hits will be different
+# on different platforms meaning the test cannot assert
+# on the top hits. TextEmbeddingQueryIT does not suffer
+# from this limitation as it dynamically creates the
+# embeddings and documents rather than using hard-coded
+# values. Assertions on the order of search hits can be
+# skipped here because of the coverage in
+# TextEmbeddingQueryIT
 setup:
   - skip:
       features: headers
@@ -7,7 +20,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
-        index: embedded_text
+        index: index-with-embedded-text
         body:
           settings:
             number_of_replicas: 0
@@ -77,7 +90,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       bulk:
-        index: embedded_text
+        index: index-with-embedded-text
         refresh: true
         body: |
           {"index": {}}
@@ -97,7 +110,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.forcemerge:
-        index: embedded_text
+        index: index-with-embedded-text
         max_num_segments: 1
 
   - do:
@@ -112,7 +125,7 @@ setup:
 "Test text embedding search":
   - do:
       search:
-        index: embedded_text
+        index: index-with-embedded-text
         body:
           knn:
             field: embedding

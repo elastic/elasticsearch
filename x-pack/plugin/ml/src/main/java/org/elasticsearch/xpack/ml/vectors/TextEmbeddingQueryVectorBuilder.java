@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
@@ -94,7 +96,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             List.of(modelText)
         );
 
-        client.execute(InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
             if (response.getInferenceResults().isEmpty()) {
                 listener.onFailure(new IllegalStateException("text embedding inference response contain no results"));
                 return;

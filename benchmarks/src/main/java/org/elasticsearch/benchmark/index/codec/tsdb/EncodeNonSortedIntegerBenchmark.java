@@ -40,25 +40,25 @@ public class EncodeNonSortedIntegerBenchmark {
     @Param({ "4", "8", "12", "16", "24", "28", "32", "36", "40", "44", "48", "52", "56", "64" })
     private int bitsPerValue;
 
-    private final AbstractDocValuesForUtilBenchmark encodeNonSortedInteger;
+    private final AbstractDocValuesForUtilBenchmark encode;
 
     public EncodeNonSortedIntegerBenchmark() {
-        this.encodeNonSortedInteger = new EncodeBenchmark();
+        this.encode = new EncodeBenchmark();
 
     }
 
     @Setup(Level.Invocation)
     public void setupInvocation() throws IOException {
-        encodeNonSortedInteger.setupInvocation(bitsPerValue);
+        encode.setupInvocation(bitsPerValue);
     }
 
     @Setup(Level.Iteration)
     public void setupIteration() throws IOException {
-        encodeNonSortedInteger.setupIteration(bitsPerValue, new NonSortedIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+        encode.setupIteration(bitsPerValue, new NonSortedIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
     }
 
     @Benchmark
     public void benchmark(Blackhole bh) throws IOException {
-        encodeNonSortedInteger.benchmark(bitsPerValue, bh);
+        encode.benchmark(bitsPerValue, bh);
     }
 }

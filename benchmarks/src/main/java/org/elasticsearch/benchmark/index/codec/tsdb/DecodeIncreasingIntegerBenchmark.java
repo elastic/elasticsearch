@@ -40,26 +40,26 @@ public class DecodeIncreasingIntegerBenchmark {
     @Param({ "4", "8", "12", "16", "24", "28", "32", "36", "40", "44", "48", "52", "56", "64" })
     private int bitsPerValue;
 
-    private final AbstractDocValuesForUtilBenchmark decodeIncreasingInteger;
+    private final AbstractDocValuesForUtilBenchmark decode;
 
     public DecodeIncreasingIntegerBenchmark() {
-        this.decodeIncreasingInteger = new DecodeBenchmark();
+        this.decode = new DecodeBenchmark();
 
     }
 
     @Setup(Level.Invocation)
     public void setupInvocation() throws IOException {
-        decodeIncreasingInteger.setupInvocation(bitsPerValue);
+        decode.setupInvocation(bitsPerValue);
     }
 
     @Setup(Level.Iteration)
     public void setupIteration() throws IOException {
-        decodeIncreasingInteger.setupIteration(bitsPerValue, new IncreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+        decode.setupIteration(bitsPerValue, new IncreasingIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
     }
 
     @Benchmark
     public void benchmark(Blackhole bh) throws IOException {
-        decodeIncreasingInteger.benchmark(bitsPerValue, bh);
+        decode.benchmark(bitsPerValue, bh);
 
     }
 }

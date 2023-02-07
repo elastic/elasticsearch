@@ -443,6 +443,7 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.ml.vectors.TextEmbeddingQueryVectorBuilder;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -1547,6 +1548,17 @@ public class MachineLearning extends Plugin
     @Override
     public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return List.of(new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER));
+    }
+
+    @Override
+    public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
+        return List.of(
+            new QueryVectorBuilderSpec<>(
+                TextEmbeddingQueryVectorBuilder.NAME,
+                TextEmbeddingQueryVectorBuilder::new,
+                TextEmbeddingQueryVectorBuilder.PARSER::apply
+            )
+        );
     }
 
     private <T> ContextParser<String, T> checkAggLicense(ContextParser<String, T> realParser, LicensedFeature.Momentary feature) {

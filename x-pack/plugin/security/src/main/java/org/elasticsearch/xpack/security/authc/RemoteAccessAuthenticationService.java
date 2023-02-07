@@ -122,28 +122,25 @@ public class RemoteAccessAuthenticationService {
 
                     final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
                     final User user = receivedEffectiveSubject.getUser();
-
-                    final Authentication finalAuthentication;
+                    final RemoteAccessAuthentication maybeRewrittenRemoteAccessAuthentication;
                     if (SystemUser.is(user)) {
-                        finalAuthentication = authentication.toRemoteAccess(
-                            new RemoteAccessAuthentication(
-                                Authentication.newInternalAuthentication(
-                                    SystemUser.INSTANCE,
-                                    receivedEffectiveSubject.getTransportVersion(),
-                                    receivedEffectiveSubject.getRealm().getNodeName()
-                                ),
-                                new RoleDescriptorsIntersection(CROSS_CLUSTER_INTERNAL_ROLE)
-                            )
+                        maybeRewrittenRemoteAccessAuthentication = new RemoteAccessAuthentication(
+                            Authentication.newInternalAuthentication(
+                                SystemUser.INSTANCE,
+                                receivedEffectiveSubject.getTransportVersion(),
+                                receivedEffectiveSubject.getRealm().getNodeName()
+                            ),
+                            new RoleDescriptorsIntersection(CROSS_CLUSTER_INTERNAL_ROLE)
                         );
                     } else if (User.isInternal(user)) {
                         throw new IllegalArgumentException(
                             "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
                         );
                     } else {
-                        finalAuthentication = authentication.toRemoteAccess(remoteAccessAuthentication);
+                        maybeRewrittenRemoteAccessAuthentication = remoteAccessAuthentication;
                     }
 
-                    writeAuthToContext(authcContext, finalAuthentication, listener);
+                    writeAuthToContext(authcContext, authentication.toRemoteAccess(maybeRewrittenRemoteAccessAuthentication), listener);
                 }, ex -> withRequestProcessingFailure(authcContext, ex, listener)))
             );
         }

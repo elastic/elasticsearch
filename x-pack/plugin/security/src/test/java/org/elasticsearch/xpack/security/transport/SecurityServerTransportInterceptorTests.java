@@ -88,6 +88,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -906,7 +907,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
         assertThat(profileFilters.keySet(), containsInAnyOrder("default", "_remote_cluster"));
         assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
+        assertThat(profileFilters.get("default"), not(instanceOf(RemoteAccessServerTransportFilter.class)));
         assertThat(profileFilters.get("_remote_cluster").isExtractClientCert(), is(false));
+        assertThat(profileFilters.get("_remote_cluster"), instanceOf(RemoteAccessServerTransportFilter.class));
     }
 
     public void testNoProfileFilterForRemoteClusterWhenTheFeatureIsDisabled() {

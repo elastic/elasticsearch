@@ -190,7 +190,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
                 if (randomBoolean()) {
                     if (randomBoolean()) {
-                        Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
+                        org.elasticsearch.core.Streams.readFully(
+                            exchange.getRequestBody(),
+                            new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                        );
                     } else {
                         Streams.readFully(exchange.getRequestBody());
                         exchange.sendResponseHeaders(
@@ -222,7 +225,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_timeout"), exchange -> {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
+                    org.elasticsearch.core.Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                 }
@@ -317,7 +320,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             // sends an error back or let the request time out
             if (useTimeout == false) {
                 if (randomBoolean() && contentLength > 0) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
+                    org.elasticsearch.core.Streams.readFully(
+                        exchange.getRequestBody(),
+                        new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]
+                    );
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(
@@ -412,7 +418,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             // sends an error back or let the request time out
             if (useTimeout == false) {
                 if (randomBoolean() && contentLength > 0) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
+                    org.elasticsearch.core.Streams.readFully(
+                        exchange.getRequestBody(),
+                        new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]
+                    );
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(

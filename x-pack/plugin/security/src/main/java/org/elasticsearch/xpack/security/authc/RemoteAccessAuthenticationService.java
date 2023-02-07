@@ -97,7 +97,6 @@ public class RemoteAccessAuthenticationService {
         final RemoteAccessHeaders remoteAccessHeaders;
         try {
             remoteAccessHeaders = extractRemoteAccessHeaders(threadContext);
-            remoteAccessHeaders.validate();
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
             return;
@@ -117,7 +116,10 @@ public class RemoteAccessAuthenticationService {
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
+
                     final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
+                    validate(remoteAccessAuthentication);
+
                     final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
                     final User user = receivedEffectiveSubject.getUser();
 
@@ -154,29 +156,7 @@ public class RemoteAccessAuthenticationService {
     private record RemoteAccessHeaders(
         ApiKeyService.ApiKeyCredentials clusterCredential,
         RemoteAccessAuthentication remoteAccessAuthentication
-    ) {
-        private void validate() {
-            final String subjectPrincipal = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser().principal();
-            for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessAuthentication
-                .getRoleDescriptorsBytesList()) {
-                final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
-                for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                    final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
-                        || roleDescriptor.hasConfigurableClusterPrivileges()
-                        || roleDescriptor.hasApplicationPrivileges()
-                        || roleDescriptor.hasRunAs()
-                        || roleDescriptor.hasRemoteIndicesPrivileges();
-                    if (privilegesOtherThanIndex) {
-                        throw new IllegalArgumentException(
-                            "role descriptor for remote access can only contain index privileges but other privileges found for subject ["
-                                + subjectPrincipal
-                                + "]"
-                        );
-                    }
-                }
-            }
-        }
-    }
+    ) {}
 
     private RemoteAccessHeaders extractRemoteAccessHeaders(final ThreadContext threadContext) throws IOException {
         apiKeyService.ensureEnabled();
@@ -194,6 +174,28 @@ public class RemoteAccessAuthenticationService {
             throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
         }
         return new RemoteAccessHeaders(apiKeyCredential, RemoteAccessAuthentication.readFromContext(threadContext));
+    }
+
+    private void validate(final RemoteAccessAuthentication remoteAccessAuthentication) {
+        final String subjectPrincipal = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser().principal();
+        for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessAuthentication
+            .getRoleDescriptorsBytesList()) {
+            final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
+            for (RoleDescriptor roleDescriptor : roleDescriptors) {
+                final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
+                    || roleDescriptor.hasConfigurableClusterPrivileges()
+                    || roleDescriptor.hasApplicationPrivileges()
+                    || roleDescriptor.hasRunAs()
+                    || roleDescriptor.hasRemoteIndicesPrivileges();
+                if (privilegesOtherThanIndex) {
+                    throw new IllegalArgumentException(
+                        "role descriptor for remote access can only contain index privileges but other privileges found for subject ["
+                            + subjectPrincipal
+                            + "]"
+                    );
+                }
+            }
+        }
     }
 
     private TransportVersion getMinNodeVersion() {

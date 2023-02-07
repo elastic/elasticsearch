@@ -220,7 +220,6 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
         Integer size = reduceContext.builder() instanceof TimeSeriesAggregationBuilder
             ? ((TimeSeriesAggregationBuilder) reduceContext.builder()).getSize()
             : null; // tests may use a fake builder
-        int count = 0;
         List<InternalBucket> bucketsWithSameKey = new ArrayList<>(aggregations.size());
         BytesRef prevTsid = null;
         while (pq.size() > 0) {
@@ -251,7 +250,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
             BytesRef tsid = reducedBucket.key;
             assert prevTsid == null || tsid.compareTo(prevTsid) > 0;
             reduced.buckets.add(reducedBucket);
-            if (size != null && ++count >= size) {
+            if (size != null && reduced.buckets.size() >= size) {
                 break;
             }
             prevTsid = tsid;

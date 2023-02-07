@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
@@ -45,12 +44,9 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
         final TransportRequest request,
         final ActionListener<Authentication> authenticationListener
     ) {
-        if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
+        // TODO fail request instead, once handshake action is handled correctly
+        if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             super.authenticate(securityAction, request, authenticationListener);
-        } else if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
-            authenticationListener.onFailure(
-                new IllegalArgumentException("action [" + securityAction + "] is not allow-listed for remote access")
-            );
         } else {
             remoteAccessAuthcService.authenticate(securityAction, request, false, authenticationListener);
         }

@@ -190,6 +190,9 @@ public class RemoteAccessAuthenticationService {
                 "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential"
             );
         }
+        if (threadContext.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null) {
+            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
+        }
         return new RemoteAccessHeaders(apiKeyCredential, RemoteAccessAuthentication.readFromContext(threadContext));
     }
 

@@ -916,6 +916,7 @@ public class Security extends Plugin
             apiKeyService,
             authcService.get()
         );
+        components.add(remoteAccessAuthcService);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,

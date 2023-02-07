@@ -494,7 +494,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(reader, shard, IndexService.this.indexSettings);
                 }
             };
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            final Directory directory = directoryFactory.newDirectory(this.indexSettings, path, routing);
             store = new Store(
                 shardId,
                 this.indexSettings,

@@ -132,6 +132,13 @@ public class ReplicationOperation<
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
+
+            pendingActions.incrementAndGet();
+            replicasProxy.onPrimaryOperationComplete(
+                replicaRequest,
+                ActionListener.wrap(ignored -> decPendingAndFinishIfNeeded(), e -> { finishAsFailed(e); })
+            );
+
             // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
             // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
             // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
@@ -601,6 +608,16 @@ public class ReplicationOperation<
          * @param listener     a listener that will be notified when the failing shard has been removed from the in-sync set
          */
         void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, ActionListener<Void> listener);
+
+        /**
+         * Optional custom logic to execute when the primary operation is complete.
+         *
+         * @param request                    the operation to perform
+         * @param listener                   callback for handling the response or failure
+         */
+        default void onPrimaryOperationComplete(RequestT request, ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
     }
 
     /**

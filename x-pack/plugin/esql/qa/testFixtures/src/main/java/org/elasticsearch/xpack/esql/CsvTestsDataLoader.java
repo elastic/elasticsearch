@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -15,6 +16,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
@@ -39,42 +41,43 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class CsvTestsDataLoader {
     public static final String TEST_INDEX_SIMPLE = "test";
-
-    private static final Logger LOGGER = LogManager.getLogger(CsvTestsDataLoader.class);
+    public static final String MAPPING = "mapping-default.json";
+    public static final String DATA = "employees.csv";
 
     public static void main(String[] args) throws IOException {
         String protocol = "http";
         String host = "localhost";
         int port = 9200;
 
+        // Need to setup the log configuration properly to avoid messages when creating a new RestClient
+        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
+        LogConfigurator.configureESLogging();
+
         RestClientBuilder builder = RestClient.builder(new HttpHost(host, port, protocol));
         try (RestClient client = builder.build()) {
-            loadDatasetIntoEs(client, CsvTestsDataLoader::createParser);
+            loadDataSetIntoEs(client);
         }
     }
 
-    public static void loadDatasetIntoEs(RestClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
-        throws IOException {
-        load(client, TEST_INDEX_SIMPLE, "/mapping-default.json", "/employees.csv", p);
+    public static void loadDataSetIntoEs(RestClient client) throws IOException {
+        loadDataSetIntoEs(client, LogManager.getLogger(CsvTestsDataLoader.class));
     }
 
-    private static void load(
-        RestClient client,
-        String indexName,
-        String mappingName,
-        String dataName,
-        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
-    ) throws IOException {
+    public static void loadDataSetIntoEs(RestClient client, Logger logger) throws IOException {
+        load(client, TEST_INDEX_SIMPLE, "/" + MAPPING, "/" + DATA, logger);
+    }
+
+    private static void load(RestClient client, String indexName, String mappingName, String dataName, Logger logger) throws IOException {
         URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
         if (mapping == null) {
-            throw new IllegalArgumentException("Cannot find resource mapping-default.json");
+            throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
         URL data = CsvTestsDataLoader.class.getResource(dataName);
         if (data == null) {
-            throw new IllegalArgumentException("Cannot find resource employees.csv");
+            throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
         createTestIndex(client, indexName, readMapping(mapping));
-        loadData(client, indexName, data, p);
+        loadData(client, indexName, data, CsvTestsDataLoader::createParser, logger);
     }
 
     private static void createTestIndex(RestClient client, String indexName, String mapping) throws IOException {
@@ -97,7 +100,8 @@ public class CsvTestsDataLoader {
         RestClient client,
         String indexName,
         URL resource,
-        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
+        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
+        Logger logger
     ) throws IOException {
         Request request = new Request("POST", "/_bulk");
         StringBuilder builder = new StringBuilder();
@@ -201,18 +205,20 @@ public class CsvTestsDataLoader {
                 Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
                 Object errors = result.get("errors");
                 if (Boolean.FALSE.equals(errors)) {
-                    LOGGER.info("Data loading OK");
+                    logger.info("Data loading OK");
                     request = new Request("POST", "/" + TEST_INDEX_SIMPLE + "/_forcemerge?max_num_segments=1");
                     response = client.performRequest(request);
                     if (response.getStatusLine().getStatusCode() != 200) {
-                        LOGGER.info("Force-merge to 1 segment failed: " + response.getStatusLine());
+                        logger.info("Force-merge to 1 segment failed: " + response.getStatusLine());
+                    } else {
+                        logger.info("Forced-merge to 1 segment");
                     }
                 } else {
-                    LOGGER.info("Data loading FAILED");
+                    logger.info("Data loading FAILED");
                 }
             }
         } else {
-            LOGGER.info("Error loading data: " + response.getStatusLine());
+            logger.info("Error loading data: " + response.getStatusLine());
         }
     }
 

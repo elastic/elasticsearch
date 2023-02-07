@@ -108,8 +108,15 @@ public class ValuesSourceReaderOperator implements Operator {
         IntVector docs = page.<IntBlock>getBlock(luceneDocRef.docRef()).asVector();
         IntVector leafOrd = page.<IntBlock>getBlock(luceneDocRef.segmentRef()).asVector();
         IntVector shardOrd = page.<IntBlock>getBlock(luceneDocRef.shardRef()).asVector();
-        assert leafOrd.isConstant() : "Expected constant block, got: " + leafOrd;
-        assert shardOrd.isConstant() : "Expected constant block, got: " + shardOrd;
+        if (leafOrd.isConstant() == false) {
+            throw new IllegalArgumentException("Expected constant block, got: " + leafOrd);
+        }
+        if (shardOrd.isConstant() == false) {
+            throw new IllegalArgumentException("Expected constant block, got: " + shardOrd);
+        }
+        if (docs.isNonDecreasing() == false) {
+            throw new IllegalArgumentException("Expected non decreasing block, got: " + docs);
+        }
 
         if (docs.getPositionCount() > 0) {
             int segment = leafOrd.getInt(0);

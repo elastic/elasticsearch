@@ -149,7 +149,7 @@ public abstract sealed class BlockHash implements Releasable {
             for (int i = 0; i < size; i++) {
                 keys[i] = (int) longHash.get(i);
             }
-            return new IntArrayVector(keys, keys.length).asBlock();
+            return new IntArrayVector(keys, keys.length, null).asBlock();
         }
 
         @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -69,7 +70,7 @@ public class LuceneSourceOperator extends SourceOperator {
 
     private int currentPagePos;
 
-    private IntBlock.Builder currentBlockBuilder;
+    private IntVector.Builder currentBlockBuilder;
 
     private int currentScorerPos;
     private int pagesEmitted;
@@ -167,7 +168,7 @@ public class LuceneSourceOperator extends SourceOperator {
         this.query = query;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
-        currentBlockBuilder = IntBlock.newBlockBuilder(maxPageSize);
+        currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);
         maxCollectedDocs = limit;
     }
 
@@ -179,7 +180,7 @@ public class LuceneSourceOperator extends SourceOperator {
         this.weight = weight;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
-        currentBlockBuilder = IntBlock.newBlockBuilder(maxPageSize);
+        currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);
         maxCollectedDocs = limit;
     }
 
@@ -354,11 +355,11 @@ public class LuceneSourceOperator extends SourceOperator {
                 || numCollectedDocs >= maxCollectedDocs) {
                 page = new Page(
                     currentPagePos,
-                    currentBlockBuilder.build(),
+                    currentBlockBuilder.setNonDecreasing(true).build().asBlock(),
                     IntBlock.newConstantBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos),
                     IntBlock.newConstantBlockWith(shardId, currentPagePos)
                 );
-                currentBlockBuilder = IntBlock.newBlockBuilder(maxPageSize);
+                currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);
                 currentPagePos = 0;
             }
 

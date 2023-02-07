@@ -40,7 +40,10 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
     }
 
     @Override
-    public LongArrayVector build() {
+    public LongVector build() {
+        if (valueCount == 1) {
+            return new ConstantLongVector(values[0], 1);
+        }
         // TODO: may wanna trim the array, if there N% unused tail space
         return new LongArrayVector(values, valueCount);
     }

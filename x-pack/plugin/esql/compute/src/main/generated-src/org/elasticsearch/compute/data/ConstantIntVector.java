@@ -46,6 +46,11 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
     }
 
     @Override
+    public boolean isNonDecreasing() {
+        return true;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof IntVector that) {
             return IntVector.equals(this, that);

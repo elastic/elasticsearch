@@ -40,7 +40,10 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
     }
 
     @Override
-    public BooleanArrayVector build() {
+    public BooleanVector build() {
+        if (valueCount == 1) {
+            return new ConstantBooleanVector(values[0], 1);
+        }
         // TODO: may wanna trim the array, if there N% unused tail space
         return new BooleanArrayVector(values, valueCount);
     }

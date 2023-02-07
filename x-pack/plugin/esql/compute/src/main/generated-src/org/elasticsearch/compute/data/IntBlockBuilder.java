@@ -69,7 +69,7 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         } else {
             // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
-                return new IntArrayVector(values, positionCount).asBlock();
+                return new IntArrayVector(values, valueCount, null).asBlock();
             } else {
                 return new IntArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }

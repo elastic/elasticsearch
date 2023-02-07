@@ -215,6 +215,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
             }, latch));
             latch.await();
             final Authentication actualAuthentication = actual.get();
+            assertNotNull(actualAuthentication);
             assertThat(actualAuthentication.getEffectiveSubject().getUser(), is(SystemUser.INSTANCE));
             @SuppressWarnings("unchecked")
             List<RemoteAccessAuthentication.RoleDescriptorsBytes> rds = (List<

@@ -612,10 +612,10 @@ public class ReplicationOperation<
         /**
          * Optional custom logic to execute when the primary operation is complete.
          *
-         * @param request                    the operation to perform
+         * @param replicaRequest             the operation that will be performed on replicas
          * @param listener                   callback for handling the response or failure
          */
-        default void onPrimaryOperationComplete(RequestT request, ActionListener<Void> listener) {
+        default void onPrimaryOperationComplete(RequestT replicaRequest, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
     }

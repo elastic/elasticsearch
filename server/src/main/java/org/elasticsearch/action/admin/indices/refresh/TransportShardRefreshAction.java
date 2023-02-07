@@ -108,17 +108,17 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     protected class UnpromotableReplicasRefreshProxy extends ReplicasProxy {
 
         @Override
-        public void onPrimaryOperationComplete(BasicReplicationRequest request, ActionListener<Void> listener) {
+        public void onPrimaryOperationComplete(BasicReplicationRequest replicaRequest, ActionListener<Void> listener) {
             assert primaryRefreshResult.refreshed() : "primary has not refreshed";
-            ShardId primary = request.shardId();
-            UnpromotableShardRefreshRequest replicaRequest = new UnpromotableShardRefreshRequest(
+            ShardId primary = replicaRequest.shardId();
+            UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                 primary,
                 primaryRefreshResult.generation()
             );
-            final Task parentTask = taskManager.getTask(request.getParentTask().getId());
+            final Task parentTask = taskManager.getTask(replicaRequest.getParentTask().getId());
             broadcastToUnpromotableShards(
                 primary,
-                replicaRequest,
+                unpromotableReplicaRequest,
                 TransportUnpromotableShardRefreshAction.NAME,
                 parentTask,
                 clusterService,

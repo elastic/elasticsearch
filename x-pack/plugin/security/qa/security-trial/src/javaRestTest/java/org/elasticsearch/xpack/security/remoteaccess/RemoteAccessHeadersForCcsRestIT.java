@@ -305,6 +305,178 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         }
     }
 
+    public void testApiKeyRemoteAccessHeadersSentMultipleRemotes() throws Exception {
+        final Tuple<String, String> apiKeyTuple = createOrGrantApiKey("""
+            {
+              "name": "my-api-key",
+              "role_descriptors": {
+                "role-a": {
+                  "index": [
+                    {
+                      "names": ["index-a*"],
+                      "privileges": ["all"]
+                    }
+                  ],
+                  "remote_indices": [
+                    {
+                      "names": ["index-a*"],
+                      "privileges": ["all"],
+                      "clusters": ["my_remote_cluster*"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "index": [
+                    {
+                      "names": ["index-b*"],
+                      "privileges": ["all"]
+                    }
+                  ],
+                  "remote_indices": [
+                    {
+                      "names": ["index-b*"],
+                      "privileges": ["all"],
+                      "clusters": ["my_remote_cluster_b"]
+                    }
+                  ]
+                }
+              }
+            }
+            """);
+
+        final String apiKeyEncoded = apiKeyTuple.v2();
+
+        final Map<String, BlockingQueue<CapturedActionWithHeaders>> capturedHeadersByCluster = Map.of(
+            CLUSTER_A,
+            ConcurrentCollections.newBlockingQueue(),
+            CLUSTER_B,
+            ConcurrentCollections.newBlockingQueue()
+        );
+        try (
+            MockTransportService remoteTransportA = startTransport("remoteNodeA", threadPool, capturedHeadersByCluster.get(CLUSTER_A));
+            MockTransportService remoteTransportB = startTransport("remoteNodeB", threadPool, capturedHeadersByCluster.get(CLUSTER_B))
+        ) {
+            final String clusterCredentialA = randomBase64UUID(random());
+            final boolean useProxyModeA = randomBoolean();
+            setupClusterSettings(
+                CLUSTER_A,
+                clusterCredentialA,
+                remoteTransportA.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
+                useProxyModeA
+            );
+
+            final String clusterCredentialB = randomBase64UUID(random());
+            final boolean useProxyModeB = randomBoolean();
+            setupClusterSettings(
+                CLUSTER_B,
+                clusterCredentialB,
+                remoteTransportB.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
+                useProxyModeB
+            );
+
+            final boolean minimizeRoundtrips = randomBoolean();
+            final Request searchRequest = new Request(
+                "GET",
+                Strings.format("/%s:index-a,%s:index-*/_search?ccs_minimize_roundtrips=%s", CLUSTER_A, CLUSTER_B, minimizeRoundtrips)
+            );
+            searchRequest.setOptions(searchRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKeyEncoded));
+
+            final Response response = client().performRequest(searchRequest);
+            assertOK(response);
+            assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(0));
+
+            expectApiKeyActionsAndHeadersForCluster(
+                List.copyOf(capturedHeadersByCluster.get(CLUSTER_A)),
+                useProxyModeA,
+                minimizeRoundtrips,
+                clusterCredentialA,
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        // Base API key role
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        // Limited by API key role
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                )
+            );
+            expectApiKeyActionsAndHeadersForCluster(
+                List.copyOf(capturedHeadersByCluster.get(CLUSTER_B)),
+                useProxyModeB,
+                minimizeRoundtrips,
+                clusterCredentialB,
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build(),
+                                    RoleDescriptor.IndicesPrivileges.builder().indices("index-b*").privileges("all").build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build(),
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-b")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                )
+            );
+        }
+    }
+
     public void testApiKeyRemoteAccessHeadersSentSingleRemote() throws Exception {
         final boolean createApiKeyWithRoleDescriptors = randomBoolean();
         final Tuple<String, String> apiKeyTuple; // id, encoded

@@ -137,7 +137,7 @@ public class RedactProcessorTests extends ESTestCase {
         }
     }
 
-    public void testRedactWithClassNamesRemove() throws Exception {
+    public void testRedactWithPatternNamesRedacted() throws Exception {
         var config = new HashMap<String, Object>();
         config.put("field", "to_redact");
         config.put("patterns", List.of("%{EMAILADDRESS:REDACTED}", "%{IP:REDACTED}", "%{CREDIT_CARD:REDACTED}"));
@@ -220,7 +220,7 @@ public class RedactProcessorTests extends ESTestCase {
         );
 
         var merged = RedactProcessor.RegionTrackingMatchExtractor.mergeLongestRegion(r);
-        assertEquals("longest", merged.className);
+        assertEquals("longest", merged.patternName);
         assertEquals(10, merged.start);
         assertEquals(29, merged.end);
     }
@@ -233,7 +233,7 @@ public class RedactProcessorTests extends ESTestCase {
             );
 
             var merged = RedactProcessor.RegionTrackingMatchExtractor.mergeLongestRegion(r);
-            assertEquals("longest", merged.className);
+            assertEquals("longest", merged.patternName);
             assertEquals(10, merged.start);
             assertEquals(50, merged.end);
         }
@@ -245,7 +245,7 @@ public class RedactProcessorTests extends ESTestCase {
             );
 
             var merged = RedactProcessor.RegionTrackingMatchExtractor.mergeLongestRegion(r);
-            assertEquals("longest", merged.className);
+            assertEquals("longest", merged.patternName);
             assertEquals(10, merged.start);
             assertEquals(60, merged.end);
         }
@@ -278,7 +278,7 @@ public class RedactProcessorTests extends ESTestCase {
             var merged = RedactProcessor.RegionTrackingMatchExtractor.mergeOverlappingReplacements(Arrays.asList(a1, b1, b2, c1));
             assertThat(merged, hasSize(2));
             var mergedRegion = merged.get(0);
-            assertEquals("C", mergedRegion.className);
+            assertEquals("C", mergedRegion.patternName);
             assertEquals(5, mergedRegion.start);
             assertEquals(29, mergedRegion.end);
             assertEquals(a1, merged.get(1));
@@ -297,7 +297,7 @@ public class RedactProcessorTests extends ESTestCase {
             assertEquals(a1, merged.get(1));
             assertEquals(b1, merged.get(2));
             var mergedRegion = merged.get(3);
-            assertEquals("A", mergedRegion.className);
+            assertEquals("A", mergedRegion.patternName);
             assertEquals(50, mergedRegion.start);
             assertEquals(65, mergedRegion.end);
         }
@@ -313,7 +313,7 @@ public class RedactProcessorTests extends ESTestCase {
             assertEquals(b1, merged.get(0));
             assertEquals(a1, merged.get(1));
             var mergedRegion = merged.get(2);
-            assertEquals("C", mergedRegion.className);
+            assertEquals("C", mergedRegion.patternName);
             assertEquals(30, mergedRegion.start);
             assertEquals(49, mergedRegion.end);
             assertEquals(a2, merged.get(3));
@@ -327,7 +327,7 @@ public class RedactProcessorTests extends ESTestCase {
             var merged = RedactProcessor.RegionTrackingMatchExtractor.mergeOverlappingReplacements(Arrays.asList(a1, a2, b1));
             assertThat(merged, hasSize(2));
             var mergedRegion = merged.get(0);
-            assertEquals("A", mergedRegion.className);
+            assertEquals("A", mergedRegion.patternName);
             assertEquals(20, mergedRegion.start);
             assertEquals(28, mergedRegion.end);
             assertEquals(a2, merged.get(1));
@@ -344,12 +344,12 @@ public class RedactProcessorTests extends ESTestCase {
             var merged = RedactProcessor.RegionTrackingMatchExtractor.mergeOverlappingReplacements(Arrays.asList(a1, a2, b1, b2, c1, c2));
             assertThat(merged, hasSize(4));
             var mergedRegion = merged.get(0);
-            assertEquals("A", mergedRegion.className);
+            assertEquals("A", mergedRegion.patternName);
             assertEquals(14, mergedRegion.start);
             assertEquals(28, mergedRegion.end);
             assertEquals(b2, merged.get(1));
             mergedRegion = merged.get(2);
-            assertEquals("A", mergedRegion.className);
+            assertEquals("A", mergedRegion.patternName);
             assertEquals(44, mergedRegion.start);
             assertEquals(60, mergedRegion.end);
             assertEquals(c2, merged.get(3));

@@ -155,11 +155,71 @@ have been replaced by `*REDACTED*`.
 ==== Custom Patterns
 
 If one of the existing Grok https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
-does not fit your requirements extend the patterns with the `pattern_definitions` option.
-New patterns can be defined with a regular expression or combine
-Grok patterns from the base definitions to build complex patterns.
-Add new patterns to the processor configuration with the
-`pattern_definitions` option.
+does not fit your requirements custom patterns can be added with the
+`pattern_definitions` option. New patterns definitions are composed of
+a pattern name and the pattern itself. The pattern may be a regular
+expression or reference existing Grok patterns.
+
+This example defines the custom pattern `GITHUB_NAME` to match
+GitHub usernames. The pattern definition uses the existing
+`USERNAME` Grok https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1/grok-patterns[pattern] prefixed by the
+literal `@`.
+
+NOTE: The {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] is a really
+useful tool for building custom patterns.
+
+[source,console]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "redact": {
+          "field": "message",
+          "patterns": [
+            "%{GITHUB_NAME:GITHUB_NAME}"
+          ],
+          "pattern_definitions": {
+            "GITHUB_NAME": "@%{USERNAME}"
+          }
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "message": "@elastic-data-management the PR is ready for review"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The username is redacted in the response.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "_index",
+        "_id": "_id",
+        "_version": "-3",
+        "_source": {
+          "message": "<GITHUB_NAME> the PR is ready for review"
+        },
+        "_ingest": {
+          "timestamp": "2023-02-01T16:53:14.560005377Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2023-02-01T16:53:14.560005377Z/$body.docs.0.doc._ingest.timestamp/]
 
 [[grok-watchdog-redact]]
 ==== Grok watchdog

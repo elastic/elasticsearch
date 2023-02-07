@@ -114,7 +114,7 @@ public class RedactProcessor extends AbstractProcessor {
     }
 
     /**
-     * Finds all matches for each of the {@code groks} in @code fieldValue} and
+     * Finds all matches for each of the {@code groks} in {@code fieldValue} and
      * replaces the matched text with Grok pattern name.
      *
      * @param fieldValue Text to redact
@@ -128,8 +128,8 @@ public class RedactProcessor extends AbstractProcessor {
 
         RegionTrackingMatchExtractor extractor = new RegionTrackingMatchExtractor();
         for (var grok : groks) {
-            String className = grok.captureConfig().get(0).name();
-            extractor.setCurrentClass(className);
+            String patternName = grok.captureConfig().get(0).name();
+            extractor.setCurrentPatternName(patternName);
             matchRepeat(grok, utf8Bytes, extractor);
         }
 
@@ -165,19 +165,19 @@ public class RedactProcessor extends AbstractProcessor {
 
     /**
      * A Grok capture extractor which tracks matched regions
-     * and the Grok pattern class name for redaction later.
+     * and the Grok pattern name for redaction later.
      */
     static class RegionTrackingMatchExtractor implements GrokCaptureExtracter {
 
         static class Replacement {
             int start;
             int end;
-            final String className;
+            final String patternName;
 
-            Replacement(int start, int end, String className) {
+            Replacement(int start, int end, String patternName) {
                 this.start = start;
                 this.end = end;
-                this.className = className;
+                this.patternName = patternName;
             }
 
             int length() {
@@ -186,29 +186,29 @@ public class RedactProcessor extends AbstractProcessor {
 
             @Override
             public String toString() {
-                return "Replacement{" + "start=" + start + ", end=" + end + ", className='" + className + '\'' + '}';
+                return "Replacement{" + "start=" + start + ", end=" + end + ", patternName='" + patternName + '\'' + '}';
             }
         }
 
         private final List<Replacement> replacementPositions;
-        private String currentClass;
+        private String patternName;
 
         RegionTrackingMatchExtractor() {
             replacementPositions = new ArrayList<>();
         }
 
-        void setCurrentClass(String className) {
-            this.currentClass = className;
+        void setCurrentPatternName(String patternName) {
+            this.patternName = patternName;
         }
 
         @Override
         public void extract(byte[] utf8Bytes, int offset, Region region) {
-            assert currentClass != null;
+            assert patternName != null;
 
             int number = 0;
             int matchOffset = offset + region.beg[number];
             int matchEnd = offset + region.end[number];
-            replacementPositions.add(new Replacement(matchOffset, matchEnd, currentClass));
+            replacementPositions.add(new Replacement(matchOffset, matchEnd, patternName));
         }
 
         /**
@@ -221,15 +221,15 @@ public class RedactProcessor extends AbstractProcessor {
          * the pattern name of the longest matching regions is used for the replacement.
          *
          * @param utf8Bytes The original text as UTF8
-         * @param redactStartToken The token to prefix the matched and redacted class name with
-         * @param redactEndToken The token to suffix the matched and redacted class name with
+         * @param redactStartToken The token to prefix the matched and redacted pattern name with
+         * @param redactEndToken The token to suffix the matched and redacted pattern name with
          * @return A String with the matched regions redacted
          */
         String redactMatches(byte[] utf8Bytes, String redactStartToken, String redactEndToken) {
             var merged = mergeOverlappingReplacements(replacementPositions);
-            int longestClassName = merged.stream().mapToInt(r -> r.className.getBytes(StandardCharsets.UTF_8).length).max().getAsInt();
+            int longestPatternName = merged.stream().mapToInt(r -> r.patternName.getBytes(StandardCharsets.UTF_8).length).max().getAsInt();
 
-            int maxPossibleLength = longestClassName * merged.size() + utf8Bytes.length;
+            int maxPossibleLength = longestPatternName * merged.size() + utf8Bytes.length;
             byte[] redact = new byte[maxPossibleLength];
 
             int readOffset = 0;
@@ -241,7 +241,7 @@ public class RedactProcessor extends AbstractProcessor {
 
                 writeOffset = writeOffset + numBytesToWrite;
 
-                byte[] replacementText = (redactStartToken + rep.className + redactEndToken).getBytes(StandardCharsets.UTF_8);
+                byte[] replacementText = (redactStartToken + rep.patternName + redactEndToken).getBytes(StandardCharsets.UTF_8);
                 System.arraycopy(replacementText, 0, redact, writeOffset, replacementText.length);
 
                 writeOffset = writeOffset + replacementText.length;
@@ -300,7 +300,7 @@ public class RedactProcessor extends AbstractProcessor {
 
         /**
          * Merge overlapping replacement regions into a single replacement.
-         * The classname of the result comes from the longest replacement
+         * The name of the result comes from the longest replacement
          *
          * @param replacementPositions Must be sorted by start position
          * @return Merged Replacement
@@ -320,7 +320,7 @@ public class RedactProcessor extends AbstractProcessor {
                 endPos = Math.max(endPos, replacementPositions.get(i).end);
             }
 
-            return new Replacement(replacementPositions.get(0).start, endPos, replacementPositions.get(longestIndex).className);
+            return new Replacement(replacementPositions.get(0).start, endPos, replacementPositions.get(longestIndex).patternName);
         }
     }
 

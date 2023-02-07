@@ -17,12 +17,10 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
@@ -53,7 +51,7 @@ public class CsvTestsDataLoader {
 
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
-        LoggerFactory.setInstance(new LoggerFactoryImpl());
+        LogConfigurator.configureESLogging();
 
         RestClientBuilder builder = RestClient.builder(new HttpHost(host, port, protocol));
         try (RestClient client = builder.build()) {

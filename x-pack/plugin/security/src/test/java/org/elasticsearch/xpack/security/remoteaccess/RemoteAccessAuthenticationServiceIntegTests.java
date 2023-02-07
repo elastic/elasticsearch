@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
@@ -90,6 +91,19 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
             authenticateAndAssertExpectedFailure(service, ex -> {
                 assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
                 assertThat(ex.getCause().getMessage(), equalTo("authentication header is not allowed with remote access"));
+            });
+        }
+
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, AuthenticationTestHelper.builder().build().encode());
+            // Optionally include remote access headers; the request should fail due to authentication header either way
+            if (randomBoolean()) {
+                threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + encodedRemoteAccessApiKey);
+                AuthenticationTestHelper.randomRemoteAccessAuthentication().writeToContext(threadContext);
+            }
+            authenticateAndAssertExpectedFailure(service, ex -> {
+                assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
+                assertThat(ex.getCause().getMessage(), equalTo("run-as header is not allowed with remote access"));
             });
         }
 

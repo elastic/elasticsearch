@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -92,6 +93,13 @@ public class RemoteAccessAuthenticationService {
                 listener
             );
             return;
+        } else if (threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER) != null) {
+            withRequestProcessingFailure(
+                authcContext,
+                new IllegalArgumentException("run-as header is not allowed with remote access"),
+                listener
+            );
+            return;
         }
 
         final RemoteAccessHeaders remoteAccessHeaders;
@@ -116,33 +124,36 @@ public class RemoteAccessAuthenticationService {
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
-
                     final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
                     validate(remoteAccessAuthentication);
-
-                    final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
-                    final User user = receivedEffectiveSubject.getUser();
-                    final RemoteAccessAuthentication maybeRewrittenRemoteAccessAuthentication;
-                    if (SystemUser.is(user)) {
-                        maybeRewrittenRemoteAccessAuthentication = new RemoteAccessAuthentication(
-                            Authentication.newInternalAuthentication(
-                                SystemUser.INSTANCE,
-                                receivedEffectiveSubject.getTransportVersion(),
-                                receivedEffectiveSubject.getRealm().getNodeName()
-                            ),
-                            new RoleDescriptorsIntersection(CROSS_CLUSTER_INTERNAL_ROLE)
-                        );
-                    } else if (User.isInternal(user)) {
-                        throw new IllegalArgumentException(
-                            "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
-                        );
-                    } else {
-                        maybeRewrittenRemoteAccessAuthentication = remoteAccessAuthentication;
-                    }
-
-                    writeAuthToContext(authcContext, authentication.toRemoteAccess(maybeRewrittenRemoteAccessAuthentication), listener);
+                    writeAuthToContext(
+                        authcContext,
+                        authentication.toRemoteAccess(maybeRewriteForSystemUser(remoteAccessAuthentication)),
+                        listener
+                    );
                 }, ex -> withRequestProcessingFailure(authcContext, ex, listener)))
             );
+        }
+    }
+
+    private RemoteAccessAuthentication maybeRewriteForSystemUser(RemoteAccessAuthentication remoteAccessAuthentication) throws IOException {
+        final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
+        final User user = receivedEffectiveSubject.getUser();
+        if (SystemUser.is(user)) {
+            return new RemoteAccessAuthentication(
+                Authentication.newInternalAuthentication(
+                    SystemUser.INSTANCE,
+                    receivedEffectiveSubject.getTransportVersion(),
+                    receivedEffectiveSubject.getRealm().getNodeName()
+                ),
+                new RoleDescriptorsIntersection(CROSS_CLUSTER_INTERNAL_ROLE)
+            );
+        } else if (User.isInternal(user)) {
+            throw new IllegalArgumentException(
+                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
+            );
+        } else {
+            return remoteAccessAuthentication;
         }
     }
 

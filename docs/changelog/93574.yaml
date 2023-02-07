@@ -1,0 +1,5 @@
+pr: 93574
+summary: Add new `vector_similarity` query
+area: Search
+type: feature
+issues: []

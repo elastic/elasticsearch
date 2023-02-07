@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -220,7 +219,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final RecoveryState recoveryState = recoveryTarget.state();
         final RecoveryState.Timer timer = recoveryState.getTimer();
         final IndexShard indexShard = recoveryTarget.indexShard();
-        final Releasable onCompletion = Releasables.wrap(recoveryTarget.disableRecoveryMonitor(), recoveryRef);
 
         final var failureHandler = ActionListener.notifyOnce(ActionListener.runBefore(ActionListener.noop().delegateResponse((l, e) -> {
             // this will be logged as warning later on...
@@ -230,7 +228,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
                 true
             );
-        }), onCompletion::close));
+        }), recoveryRef::close));
 
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
             assert preExistingRequest == null;

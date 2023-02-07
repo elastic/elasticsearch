@@ -222,14 +222,34 @@ public class FeatureFactoryTests extends ESTestCase {
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1)), iterableWithSize(1));
+        final GeometryCollection<Geometry> withinCollection = new GeometryCollection<>(
+            List.of(
+                GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1),
+                GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1),
+                GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1),
+                GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1)
+            )
+        );
+        assertThat(builder.getFeatures(withinCollection), iterableWithSize(4));
         // intersecting geometries
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1))), iterableWithSize(1));
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1))), iterableWithSize(1));
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1))), iterableWithSize(1));
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1))), iterableWithSize(1));
+        final GeometryCollection<Geometry> intersectCollection = new GeometryCollection<>(
+            List.of(
+                expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1)),
+                expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1))
+            )
+        );
+        assertThat(builder.getFeatures(intersectCollection), iterableWithSize(2));
         // contain geometries
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2)), iterableWithSize(1));
+        final GeometryCollection<Geometry> containCollection = new GeometryCollection<>(
+            List.of(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2), GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2))
+        );
+        assertThat(builder.getFeatures(containCollection), iterableWithSize(2));
     }
 
     private Rectangle expandByHalf(Rectangle rectangle) {

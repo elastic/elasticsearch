@@ -2,7 +2,6 @@ apply plugin: 'elasticsearch.java'
 
 
 dependencies {
-
     implementation project(':x-pack:plugin:esql:compute')
     compileOnly project(':x-pack:plugin:esql')
     implementation project(":libs:elasticsearch-x-content")
@@ -10,7 +9,6 @@ dependencies {
     implementation project(':libs:elasticsearch-logging')
     implementation project(':test:framework')
     api(testArtifact(project(xpackModule('ql'))))
-//    api "org.apache.lucene:lucene-core:${versions.lucene}"
     implementation project(':server')
-    implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
+    api "net.sf.supercsv:super-csv:${versions.supercsv}"
 }

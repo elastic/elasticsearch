@@ -20,10 +20,12 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
@@ -146,7 +148,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
-    private final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator = (message, listener) -> listener.onResponse(null);
+    private final BiConsumer<HttpRequest, ActionListener<Void>> headerValidator = (message, listener) -> listener.onResponse(null);
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -339,14 +341,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
-        private final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator;
+        private final BiConsumer<HttpRequest, ActionListener<Void>> headerValidator;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator
+            @Nullable final BiConsumer<HttpRequest, ActionListener<Void>> headerValidator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
@@ -379,7 +381,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 handlingSettings.maxInitialLineLength(),
                 handlingSettings.maxHeaderSize(),
                 handlingSettings.maxChunkSize()
-            );
+            ) {
+                @Override
+                protected HttpMessage createMessage(String[] initialLine) throws Exception {
+                    DefaultHttpRequest httpRequest = (DefaultHttpRequest) super.createMessage(initialLine);
+                    return HeadersWithValidationResult.wrapRequestWithValidatableHeaders(httpRequest, validateHeaders);
+                }
+
+                @Override
+                protected HttpMessage createInvalidMessage() {
+                    DefaultHttpRequest httpRequest = (DefaultHttpRequest) super.createInvalidMessage();
+                    return HeadersWithValidationResult.wrapRequestWithValidatableHeaders(httpRequest, validateHeaders);
+                }
+            };
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             Netty4HttpHeaderValidator validator = new Netty4HttpHeaderValidator(headerValidator);
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());

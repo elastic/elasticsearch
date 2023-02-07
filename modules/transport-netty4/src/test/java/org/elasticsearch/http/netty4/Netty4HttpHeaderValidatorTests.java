@@ -15,8 +15,8 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
-import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 
@@ -49,7 +49,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         channel = new EmbeddedChannel();
         header.set(null);
         listener.set(null);
-        BiConsumer<HttpMessage, ActionListener<Void>> validator = (o, validationCompleteListener) -> {
+        BiConsumer<HttpRequest, ActionListener<Void>> validator = (o, validationCompleteListener) -> {
             header.set(o);
             listener.set(validationCompleteListener);
         };
@@ -60,7 +60,10 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     public void testValidationPausesAndResumesData() {
         assertTrue(channel.config().isAutoRead());
 
-        final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        DefaultHttpRequest request = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
         channel.writeInbound(request);
         channel.writeInbound(content);
@@ -77,6 +80,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), sameInstance(content));
         assertThat(channel.readInbound(), nullValue());
         assertThat(content.refCnt(), equalTo(1));
+        assertThat(((HeadersWithValidationResult) request.headers()).getValidationResult(), equalTo(HeadersValidationResult.OK));
 
         DefaultLastHttpContent lastContent = new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER);
         channel.writeInbound(lastContent);
@@ -85,13 +89,20 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), sameInstance(lastContent));
         assertThat(lastContent.refCnt(), equalTo(1));
 
+        request = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         channel.writeInbound(request);
         assertFalse(channel.config().isAutoRead());
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.QUEUEING_DATA));
     }
 
     public void testValidationErrorForwardsAsDecoderErrorMessage() {
-        final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request1 = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
         channel.writeInbound(request1);
         channel.writeInbound(content);
@@ -107,6 +118,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         DefaultHttpRequest failed = channel.readInbound();
         assertThat(failed, sameInstance(request1));
         assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), equalTo(HttpHeaderValues.CLOSE.toString()));
+        assertThat(((HeadersWithValidationResult) failed.headers()).getValidationResult(), equalTo(HeadersValidationResult.NOK));
         assertTrue(failed.decoderResult().isFailure());
         HeaderValidationException cause = (HeaderValidationException) failed.decoderResult().cause();
         assertThat(cause.getCause().getCause(), equalTo(failure));
@@ -114,7 +126,10 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_PERMANENTLY));
 
         reset();
-        final DefaultHttpRequest request2 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request2 = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         channel.writeInbound(request2);
         channel.writeInbound(content);
 
@@ -125,6 +140,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         failed = channel.readInbound();
         assertThat(failed, sameInstance(request2));
         assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), equalTo(HttpHeaderValues.CLOSE.toString()));
+        assertThat(((HeadersWithValidationResult) failed.headers()).getValidationResult(), equalTo(HeadersValidationResult.NOK));
         assertTrue(failed.decoderResult().isFailure());
         cause = (HeaderValidationException) failed.decoderResult().cause();
         assertThat(failed.decoderResult().cause().getCause(), equalTo(elasticsearchFailure));
@@ -132,7 +148,10 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_PERMANENTLY));
 
         reset();
-        final DefaultHttpRequest request3 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request3 = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         channel.writeInbound(request3);
         channel.writeInbound(content);
 
@@ -142,6 +161,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         failed = channel.readInbound();
         assertThat(failed, sameInstance(request3));
         assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), nullValue());
+        assertThat(((HeadersWithValidationResult) failed.headers()).getValidationResult(), equalTo(HeadersValidationResult.NOK));
         assertTrue(failed.decoderResult().isFailure());
         cause = (HeaderValidationException) failed.decoderResult().cause();
         assertThat(failed.decoderResult().cause().getCause(), equalTo(elasticsearchFailure));
@@ -152,13 +172,19 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     public void testValidationHandlesMultipleQueuedUpMessages() {
         assertTrue(channel.config().isAutoRead());
 
-        final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request1 = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         DefaultHttpContent content1 = new DefaultHttpContent(Unpooled.buffer(4));
         DefaultLastHttpContent lastContent1 = new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER);
         channel.writeInbound(request1);
         channel.writeInbound(content1);
         channel.writeInbound(lastContent1);
-        final DefaultHttpRequest request2 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request2 = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         DefaultHttpContent content2 = new DefaultHttpContent(Unpooled.buffer(4));
         DefaultLastHttpContent lastContent2 = new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER);
         channel.writeInbound(request2);
@@ -175,6 +201,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), sameInstance(content1));
         assertThat(channel.readInbound(), sameInstance(lastContent1));
         assertThat(content1.refCnt(), equalTo(1));
+        assertThat(((HeadersWithValidationResult) request1.headers()).getValidationResult(), equalTo(HeadersValidationResult.OK));
 
         assertThat(header.get(), sameInstance(request2));
 
@@ -188,6 +215,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), sameInstance(content2));
         assertThat(channel.readInbound(), sameInstance(lastContent2));
         assertThat(content2.refCnt(), equalTo(1));
+        assertThat(((HeadersWithValidationResult) request2.headers()).getValidationResult(), equalTo(HeadersValidationResult.OK));
 
         assertTrue(channel.config().isAutoRead());
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.WAITING_TO_START));
@@ -197,7 +225,10 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     public void testValidationFailureWithNoRecovery() {
         assertTrue(channel.config().isAutoRead());
 
-        final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request1 = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         DefaultHttpContent content1 = new DefaultHttpContent(Unpooled.buffer(4));
         DefaultLastHttpContent lastContent1 = new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER);
         channel.writeInbound(request1);
@@ -233,13 +264,19 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     public void testValidationFailureCanRecover() {
         assertTrue(channel.config().isAutoRead());
 
-        final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request1 = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         DefaultHttpContent content1 = new DefaultHttpContent(Unpooled.buffer(4));
         DefaultLastHttpContent lastContent1 = new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER);
         channel.writeInbound(request1);
         channel.writeInbound(content1);
         channel.writeInbound(lastContent1);
-        final DefaultHttpRequest request2 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request2 = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         DefaultHttpContent content2 = new DefaultHttpContent(Unpooled.buffer(4));
         DefaultLastHttpContent lastContent2 = new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER);
         channel.writeInbound(request2);
@@ -289,14 +326,22 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     public void testValidatorWithLargeMessage() {
         assertTrue(channel.config().isAutoRead());
 
-        final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest request = HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+            true
+        );
         channel.writeInbound(request);
 
         for (int i = 0; i < 64; ++i) {
             channel.writeInbound(new DefaultHttpContent(Unpooled.buffer(4)));
         }
         channel.writeInbound(new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER));
-        channel.writeInbound(request);
+        channel.writeInbound(
+            HeadersWithValidationResult.wrapRequestWithValidatableHeaders(
+                new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"),
+                true
+            )
+        );
 
         assertThat(header.get(), sameInstance(request));
         assertThat(channel.readInbound(), nullValue());

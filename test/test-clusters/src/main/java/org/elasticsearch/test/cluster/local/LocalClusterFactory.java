@@ -271,7 +271,8 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         private boolean canUseSharedDistribution() {
             return OS.current() != WINDOWS // Issues with long file paths on Windows in CI
                 && System.getProperty(TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP) == null
-                && (distributionDescriptor.getType() == DEFAULT || (getSpec().getPlugins().isEmpty() && getSpec().getModules().isEmpty()));
+                && getSpec().getPlugins().isEmpty()
+                && (distributionDescriptor.getType() == DEFAULT || getSpec().getModules().isEmpty());
         }
 
         private void copyExtraJarFiles() {
@@ -607,7 +608,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void runToolScript(String tool, String input, String... args) {
             try {
-                ProcessUtils.exec(
+                int exit = ProcessUtils.exec(
                     input,
                     distributionDir,
                     distributionDir.resolve("bin")
@@ -616,6 +617,10 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     false,
                     args
                 ).waitFor();
+
+                if (exit != 0) {
+                    throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }

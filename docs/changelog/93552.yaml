@@ -1,0 +1,5 @@
+pr: 93552
+summary: Utility to broadcast to unpromotable shards
+area: CRUD
+type: feature
+issues: []

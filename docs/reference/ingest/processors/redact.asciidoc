@@ -152,7 +152,7 @@ have been replaced by `*REDACTED*`.
 // TESTRESPONSE[s/2023-02-01T16:53:14.560005377Z/$body.docs.0.doc._ingest.timestamp/]
 
 [[redact-custom-patterns]]
-==== Custom Patterns
+==== Custom patterns
 
 If one of the existing Grok https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
 does not fit your requirements custom patterns can be added with the

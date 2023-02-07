@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
@@ -47,6 +48,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
 
@@ -119,12 +121,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            DriverStatus.ENTRY,
-            LuceneSourceOperator.Status.ENTRY,
-            ExchangeSourceOperator.Status.ENTRY,
-            ExchangeSinkOperator.Status.ENTRY,
-            ValuesSourceReaderOperator.Status.ENTRY
-        );
+        return Stream.concat(
+            List.of(
+                DriverStatus.ENTRY,
+                LuceneSourceOperator.Status.ENTRY,
+                ExchangeSourceOperator.Status.ENTRY,
+                ExchangeSinkOperator.Status.ENTRY,
+                ValuesSourceReaderOperator.Status.ENTRY
+            ).stream(),
+            Block.getNamedWriteables().stream()
+        ).toList();
     }
 }

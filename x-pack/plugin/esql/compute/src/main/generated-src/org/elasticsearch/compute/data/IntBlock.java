@@ -7,6 +7,12 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 /**
  * Block that stores int values.
  * This class is generated. Do not edit it.
@@ -32,6 +38,49 @@ public sealed interface IntBlock extends Block permits FilterIntBlock,IntArrayBl
 
     @Override
     IntBlock filter(int... positions);
+
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::of);
+
+    @Override
+    default String getWriteableName() {
+        return "IntBlock";
+    }
+
+    static IntBlock of(StreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        var builder = newBlockBuilder(positions);
+        for (int i = 0; i < positions; i++) {
+            if (in.readBoolean()) {
+                builder.appendNull();
+            } else {
+                final int valueCount = in.readVInt();
+                builder.beginPositionEntry();
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    builder.appendInt(in.readInt());
+                }
+                builder.endPositionEntry();
+            }
+        }
+        return builder.build();
+    }
+
+    @Override
+    default void writeTo(StreamOutput out) throws IOException {
+        final int positions = getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = getValueCount(pos);
+                out.writeVInt(valueCount);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeInt(getInt(getFirstValueIndex(pos) + valueIndex));
+                }
+            }
+        }
+    }
 
     /**
      * Compares the given object with this block for equality. Returns {@code true} if and only if the

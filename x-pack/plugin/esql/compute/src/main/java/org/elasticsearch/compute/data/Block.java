@@ -7,7 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.ann.Experimental;
+
+import java.util.List;
 
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
@@ -27,7 +31,7 @@ import org.elasticsearch.compute.ann.Experimental;
  *
  * <p> Block are immutable and can be passed between threads.
  */
-public interface Block {
+public interface Block extends NamedWriteable {
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -120,5 +124,20 @@ public interface Block {
          * Builds the block. This method can be called multiple times.
          */
         Block build();
+    }
+
+    static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            IntBlock.ENTRY,
+            LongBlock.ENTRY,
+            DoubleBlock.ENTRY,
+            BytesRefBlock.ENTRY,
+            IntVectorBlock.ENTRY,
+            LongVectorBlock.ENTRY,
+            DoubleVectorBlock.ENTRY,
+            BytesRefVectorBlock.ENTRY,
+            ConstantNullBlock.ENTRY,
+            AggregatorStateBlock.ENTRY
+        );
     }
 }

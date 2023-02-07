@@ -37,11 +37,29 @@ h:double
 
 maxOfFloat
 // float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
-from test | stats h = max(height);
+from test | stats h = max(height.float);
 
 h:double
 2.1
 ;
+
+maxOfHalfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from test | stats h = max(height.half_float);
+
+h:double
+2.1
+;
+
+
+maxOfScaledFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from test | stats h = max(height.scaled_float);
+
+h:double
+2.1
+;
+
 
 avgOfLong
 from test | stats l = avg(languages.long);
@@ -85,6 +103,18 @@ h:double
 1.7682
 ;
 
+avgOfHalfFloat
+from test | stats h = avg(height.half_float);
+
+h:double
+1.7682
+;
+avgOfScaledFloat
+from test | stats h = avg(height.scaled_float);
+
+h:double
+1.7682
+;
 
 sumOfLong
 from test | stats l = sum(languages.long);
@@ -100,8 +130,43 @@ l:long
 281
 ;
 
+sumOfByte
+from test | stats l = sum(languages.byte);
+
+l:long
+281
+;
+
+sumOfShort
+from test | stats l = sum(languages.short);
+
+l:long
+281
+;
+
 sumOfDouble
 from test | stats h = sum(height);
+
+h:double
+176.82
+;
+
+sumOfFloat
+from test | stats h = sum(height.float);
+
+h:double
+176.82
+;
+
+sumOfHalfFloat
+from test | stats h = sum(height.half_float);
+
+h:double
+176.82
+;
+
+sumOfScaledFloat
+from test | stats h = sum(height.scaled_float);
 
 h:double
 176.82

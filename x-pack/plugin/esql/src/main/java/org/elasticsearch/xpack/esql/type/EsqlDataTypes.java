@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
@@ -51,7 +52,8 @@ public final class EsqlDataTypes {
         KEYWORD,
         DATETIME,
         DATE_PERIOD,
-        TIME_DURATION
+        TIME_DURATION,
+        SCALED_FLOAT
     ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
@@ -147,7 +149,7 @@ public final class EsqlDataTypes {
         if (type == BYTE || type == SHORT) {
             return INTEGER;
         }
-        if (type == HALF_FLOAT || type == FLOAT) {
+        if (type == HALF_FLOAT || type == FLOAT || type == SCALED_FLOAT) {
             return DOUBLE;
         }
         return type;

@@ -278,6 +278,8 @@ final class CsvTestUtils {
         BYTE(Integer::parseInt),
         DOUBLE(Double::parseDouble),
         FLOAT(Double::parseDouble),
+        HALF_FLOAT(Double::parseDouble),
+        SCALED_FLOAT(Double::parseDouble),
         KEYWORD(Object::toString),
         NULL(s -> null),
         DATETIME(x -> x == null ? null : DateFormatters.from(DEFAULT_DATE_FORMATTER.parse(x)).toInstant().toEpochMilli()),

@@ -151,3 +151,48 @@ small_numbers:
   - length: {values: 1}
   - match: {values.0.0: 112.0}
   - match: {values.0.1: 12.0}
+
+---
+scaled_float:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              f:
+                type: scaled_float
+                scaling_factor: 100
+              d:
+                type: double
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { f: 112.01, d: 1.0 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: d}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: f}
+  - match: {columns.1.type: double}
+  - length: {values: 1}
+  - match: {values.0.0: 1.0}
+  - match: {values.0.1: 112.01}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval sum = d + f | project sum'
+  - match: {columns.0.name: sum}
+  - match: {columns.0.type: double}
+  - length: {values: 1}
+  - match: {values.0.0: 113.01}

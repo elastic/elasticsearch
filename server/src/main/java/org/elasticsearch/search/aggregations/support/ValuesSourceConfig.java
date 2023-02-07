@@ -445,14 +445,15 @@ public class ValuesSourceConfig {
      * Returns a human readable description of this values source, for use in error messages and similar.
      */
     public String getDescription() {
+        String suffix = " and value source type [" + valuesSourceType + "]";
         if (script != null) {
-            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]";
+            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]" + suffix;
         }
 
         MappedFieldType fieldType = fieldType();
         if (fieldType != null) {
-            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]" + suffix;
         }
-        return "unmapped field";
+        return "unmapped field" + suffix;
     }
 }

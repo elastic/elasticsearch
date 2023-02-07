@@ -14,7 +14,6 @@ module org.elasticsearch.ingest.geoip {
     requires org.apache.lucene.core;
     requires com.maxmind.geoip2;
     requires com.maxmind.db;
-    requires java.net.http;
 
     exports org.elasticsearch.ingest.geoip.stats to org.elasticsearch.server;
 }

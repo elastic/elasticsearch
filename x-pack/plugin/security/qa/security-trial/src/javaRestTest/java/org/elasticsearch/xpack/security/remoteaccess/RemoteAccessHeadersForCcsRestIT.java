@@ -303,7 +303,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         final boolean createApiKeyWithRoleDescriptors = randomBoolean();
         final Tuple<String, String> apiKeyTuple; // id, encoded
         if (createApiKeyWithRoleDescriptors) {
-            apiKeyTuple = createApiKey("""
+            apiKeyTuple = createOrGrantApiKey("""
                 {
                   "name": "my-api-key",
                   "role_descriptors": {
@@ -341,7 +341,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 }
                 """);
         } else {
-            apiKeyTuple = createApiKey("""
+            apiKeyTuple = createOrGrantApiKey("""
                 {
                   "name": "my-api-key"
                 }
@@ -414,16 +414,19 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     )
                 );
             }
-            testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(CLUSTER_A, apiKeyEncoded, expectedRoleDescriptorsIntersection);
+            testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(
+                CLUSTER_A + "_1",
+                apiKeyEncoded,
+                expectedRoleDescriptorsIntersection
+            );
         }
 
         // updating API key to test opposite
         // -> if we created API key with role descriptors, then we test authentication after removing them and vice versa
         boolean updateApiKeyWithRoleDescriptors = createApiKeyWithRoleDescriptors == false;
         if (updateApiKeyWithRoleDescriptors) {
-            updateApiKey(apiKeyId, """
+            updateOrBulkUpdateApiKey(apiKeyId, """
                  {
-                    "role_descriptors": {
                     "role-a": {
                       "index": [
                         {
@@ -454,14 +457,11 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                         }
                       ]
                     }
-                  }
                  }
                 """);
         } else {
-            updateApiKey(apiKeyId, """
-                 {
-                    "role_descriptors": { }
-                 }
+            updateOrBulkUpdateApiKey(apiKeyId, """
+                 { }
                 """);
         }
 
@@ -528,7 +528,11 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     )
                 );
             }
-            testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(CLUSTER_A, apiKeyEncoded, expectedRoleDescriptorsIntersection);
+            testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(
+                CLUSTER_A + "_2",
+                apiKeyEncoded,
+                expectedRoleDescriptorsIntersection
+            );
         }
     }
 
@@ -571,18 +575,37 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         }
     }
 
-    private Tuple<String, String> createApiKey(String body) throws IOException {
-        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
-        createApiKeyRequest.setJsonEntity(body);
+    private Tuple<String, String> createOrGrantApiKey(String body) throws IOException {
+        final Request createApiKeyRequest;
+        final boolean grantApiKey = randomBoolean();
+        if (grantApiKey) {
+            createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
+            createApiKeyRequest.setJsonEntity(String.format("""
+                    {
+                        "grant_type" : "password",
+                        "username"   : "%s",
+                        "password"   : "%s",
+                        "api_key"    :  %s
+                    }
+                """, REMOTE_SEARCH_USER, PASSWORD, body));
+        } else {
+            createApiKeyRequest = new Request("POST", "_security/api_key");
+            createApiKeyRequest.setJsonEntity(body);
+            createApiKeyRequest.setOptions(
+                createApiKeyRequest.getOptions()
+                    .toBuilder()
+                    .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
+            );
+        }
 
-        createApiKeyRequest.setOptions(
-            createApiKeyRequest.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
-        );
-
-        final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
+        final Response createApiKeyResponse;
+        if (grantApiKey) {
+            createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        } else {
+            createApiKeyResponse = client().performRequest(createApiKeyRequest);
+        }
         assertOK(createApiKeyResponse);
+
         final ObjectPath path = ObjectPath.createFromResponse(createApiKeyResponse);
         final String apiKeyEncoded = path.evaluate("encoded");
         final String apiKeyId = path.evaluate("id");
@@ -592,9 +615,25 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         return Tuple.tuple(apiKeyId, apiKeyEncoded);
     }
 
-    private void updateApiKey(String id, String body) throws IOException {
-        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + id);
-        updateApiKeyRequest.setJsonEntity(body);
+    private void updateOrBulkUpdateApiKey(String id, String roleDescriptors) throws IOException {
+        final Request updateApiKeyRequest;
+        final boolean bulkUpdate = randomBoolean();
+        if (bulkUpdate) {
+            updateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+            updateApiKeyRequest.setJsonEntity(String.format("""
+                {
+                    "ids": [ "%s" ],
+                    "role_descriptors": %s
+                }
+                """, id, roleDescriptors));
+        } else {
+            updateApiKeyRequest = new Request("PUT", "_security/api_key/" + id);
+            updateApiKeyRequest.setJsonEntity(String.format("""
+                {
+                    "role_descriptors": %s
+                }
+                """, roleDescriptors));
+        }
 
         updateApiKeyRequest.setOptions(
             updateApiKeyRequest.getOptions()
@@ -605,8 +644,14 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         final Response updateApiKeyResponse = client().performRequest(updateApiKeyRequest);
         assertOK(updateApiKeyResponse);
 
-        boolean updated = ObjectPath.createFromResponse(updateApiKeyResponse).evaluate("updated");
-        assertThat(updated, equalTo(true));
+        if (bulkUpdate) {
+            List<String> updated = ObjectPath.createFromResponse(updateApiKeyResponse).evaluate("updated");
+            assertThat(updated.size(), equalTo(1));
+            assertThat(updated.get(0), equalTo(id));
+        } else {
+            boolean updated = ObjectPath.createFromResponse(updateApiKeyResponse).evaluate("updated");
+            assertThat(updated, equalTo(true));
+        }
     }
 
     private void setupClusterSettings(

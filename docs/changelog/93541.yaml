@@ -1,0 +1,5 @@
+pr: 93541
+summary: Document correct get thread pool size
+area: "Search, CRUD"
+type: bug
+issues: []

@@ -87,6 +87,10 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /tika-langdetect-.*/, to: 'tika-langdetect'
 }
 
+esplugin.bundleSpec.from('config/ingest-attachment') {
+  into 'config'
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.doc'
   exclude '**/*.docx'

@@ -12,39 +12,43 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class EsqlComputeEngineAction extends ActionType<ActionResponse.Empty> {
     public static final EsqlComputeEngineAction INSTANCE = new EsqlComputeEngineAction();
-    public static final String NAME = "indices:data/read/esql_compute";
+    public static final String NAME = "internal:data/read/esql_compute";
 
     private EsqlComputeEngineAction() {
         super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
-        /**
-         * Index names that are targeted in the whole compute request, though
-         * this driver may refer to a subset of them.
-         */
-        private final String[] indices;
+    public static class Request extends ActionRequest {
         private final Driver driver;
 
-        public Request(String[] indices, Driver driver) {
-            this.indices = indices;
+        public Request(Driver driver) {
             this.driver = driver;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            throw new UnsupportedOperationException("Compute request should never leave the current node");
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException("Compute request should never leave the current node");
         }
 
         @Override
@@ -55,16 +59,6 @@ public class EsqlComputeEngineAction extends ActionType<ActionResponse.Empty> {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new Task(id, type, action, parentTaskId, headers, driver);
-        }
-
-        @Override
-        public String[] indices() {
-            return indices;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
     }
 

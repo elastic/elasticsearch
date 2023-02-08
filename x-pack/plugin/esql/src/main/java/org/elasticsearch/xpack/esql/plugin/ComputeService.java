@@ -92,6 +92,11 @@ public class ComputeService {
     private void acquireSearchContexts(Task task, String[] indices, ActionListener<List<SearchContext>> listener) {
         // We need to wrap ESQL request as IndicesRequest to integrate with security before performing the computation
         // TODO: Remove this wrap once we support multi-node clusters
+        // special handling for row command
+        if (indices.length == 0) {
+            listener.onResponse(List.of());
+            return;
+        }
         transportService.sendChildRequest(
             clusterService.localNode(),
             NODE_ACTION,
@@ -136,7 +141,7 @@ public class ComputeService {
                 new DriverRunner() {
                     @Override
                     protected void start(Driver driver, ActionListener<Void> done) {
-                        EsqlComputeEngineAction.Request request = new EsqlComputeEngineAction.Request(indexNames, driver);
+                        EsqlComputeEngineAction.Request request = new EsqlComputeEngineAction.Request(driver);
                         request.setParentTask(parentTask);
                         client.executeLocally(
                             EsqlComputeEngineAction.INSTANCE,

@@ -19,7 +19,7 @@ GET /_search
     "vector_similarity": {
       "field": "image-vector",
       "query_vector": [-5, 9, -12],
-      "num_candidates": 100
+      "num_candidates": 100,
       "similarity": 10.0
     }
   }

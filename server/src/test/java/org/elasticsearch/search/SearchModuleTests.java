@@ -469,6 +469,7 @@ public class SearchModuleTests extends ESTestCase {
         "term",
         "terms",
         "terms_set",
+        "vector_similarity",
         "wildcard",
         "wrapper",
         "distance_feature" };

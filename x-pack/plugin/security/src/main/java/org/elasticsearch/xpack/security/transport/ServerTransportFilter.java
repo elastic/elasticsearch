@@ -126,8 +126,13 @@ class ServerTransportFilter {
         authcService.authenticate(securityAction, request, true, authenticationListener);
     }
 
+    protected final ThreadContext getThreadContext() {
+        return threadContext;
+    }
+
     // Package private for testing
     boolean isExtractClientCert() {
         return extractClientCert;
     }
+
 }

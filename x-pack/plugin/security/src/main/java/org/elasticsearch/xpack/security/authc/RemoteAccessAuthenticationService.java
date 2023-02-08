@@ -18,8 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -51,6 +49,7 @@ public class RemoteAccessAuthenticationService {
         null
     );
     private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticationService.class);
+
     private final ClusterService clusterService;
     private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
@@ -75,28 +74,14 @@ public class RemoteAccessAuthenticationService {
         final ThreadContext threadContext = authcContext.getThreadContext();
 
         // TODO revisit this once Node's Version is refactored
-        if (getMinNodeVersion().before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
+        if (getMinNodeTransportVersion().before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
                     "all nodes must have version ["
                         + Authentication.VERSION_REMOTE_ACCESS_REALM
-                        + "] or higher to support cross cluster requests with remote access"
+                        + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
-                listener
-            );
-            return;
-        } else if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
-            withRequestProcessingFailure(
-                authcContext,
-                new IllegalArgumentException("authentication header is not allowed with remote access"),
-                listener
-            );
-            return;
-        } else if (threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER) != null) {
-            withRequestProcessingFailure(
-                authcContext,
-                new IllegalArgumentException("run-as header is not allowed with remote access"),
                 listener
             );
             return;
@@ -217,7 +202,7 @@ public class RemoteAccessAuthenticationService {
         }
     }
 
-    private TransportVersion getMinNodeVersion() {
+    private TransportVersion getMinNodeTransportVersion() {
         return clusterService.state().nodes().getMinNodeVersion().transportVersion;
     }
 

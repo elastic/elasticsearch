@@ -12,13 +12,6 @@ import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  restApi {
-    include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
-      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum'
-  }
-}
-
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
 

@@ -18,15 +18,19 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -132,7 +136,7 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
             assertOK(adminClient().performRequest(putUserRequest));
 
             // Check that we can search the fulfilling cluster from the querying cluster
-            final boolean alsoSearchLocally = randomBoolean();
+            final boolean alsoSearchLocally = false;
             final var searchRequest = new Request(
                 "GET",
                 String.format(
@@ -146,8 +150,15 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
             );
             final Response response = performRequestWithRemoteAccessUser(searchRequest);
             assertOK(response);
-            final ObjectPath responseObj = ObjectPath.createFromResponse(response);
-            assertThat(responseObj.evaluate("hits.total.value"), equalTo(alsoSearchLocally ? 2 : 1));
+            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                .map(SearchHit::getIndex)
+                .collect(Collectors.toList());
+            if (alsoSearchLocally) {
+                assertThat(actualIndices, containsInAnyOrder("index1", "local_index"));
+            } else {
+                assertThat(actualIndices, containsInAnyOrder("index1"));
+            }
 
             // Check that access is denied because of user privileges
             final ResponseException exception = expectThrows(

@@ -16,7 +16,17 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
+import java.util.Set;
+
+import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
+import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
+
 final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
+    private static final Set<String> ALLOWED_TRANSPORT_HEADERS = Set.of(
+        REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
+        REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
+    );
+
     private final RemoteAccessAuthenticationService remoteAccessAuthcService;
 
     RemoteAccessServerTransportFilter(
@@ -48,7 +58,25 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
         if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             super.authenticate(securityAction, request, authenticationListener);
         } else {
+            try {
+                ensureOnlyAllowedHeadersInThreadContext();
+            } catch (Exception ex) {
+                authenticationListener.onFailure(ex);
+                return;
+            }
             remoteAccessAuthcService.authenticate(securityAction, request, false, authenticationListener);
+        }
+    }
+
+    private void ensureOnlyAllowedHeadersInThreadContext() {
+        for (String header : getThreadContext().getHeaders().keySet()) {
+            if (false == ALLOWED_TRANSPORT_HEADERS.contains(header)) {
+                throw new IllegalArgumentException(
+                    "transport request header ["
+                        + header
+                        + "] is not allowed for cross cluster requests through the dedicated remote cluster port"
+                );
+            }
         }
     }
 }

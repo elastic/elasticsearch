@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -19,6 +20,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -26,9 +28,19 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 
 public class SharedBytes extends AbstractRefCounted {
 
+    /**
+     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
+     */
+    public static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(
+            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
+            "es.searchable.snapshot.shared_cache.write_buffer.size"
+        ).getBytes()
+    );
     private static final Logger logger = LogManager.getLogger(SharedBytes.class);
 
     public static int PAGE_SIZE = 4096;
@@ -96,6 +108,62 @@ public class SharedBytes extends AbstractRefCounted {
         }
     }
 
+    /**
+     * Copy {@code length} bytes from {@code input} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
+     *
+     * @param fc output cache file reference
+     * @param input stream to read from
+     * @param fileChannelPos position in {@code fc} to write to
+     * @param relativePos relative position in the Lucene file the is read from {@code input}
+     * @param length number of bytes to copy
+     * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
+     * @param buf bytebuffer to use for writing
+     * @param cacheFile object that describes the cached file, only used in logging and exception throwing as context information
+     * @throws IOException on failure
+     */
+    public static void copyToCacheFileAligned(
+        IO fc,
+        InputStream input,
+        long fileChannelPos,
+        long relativePos,
+        long length,
+        LongConsumer progressUpdater,
+        ByteBuffer buf,
+        final Object cacheFile
+    ) throws IOException {
+        long bytesCopied = 0L;
+        long remaining = length;
+        while (remaining > 0L) {
+            final int bytesRead = BlobCacheUtils.readSafe(input, buf, relativePos, remaining, cacheFile);
+            if (buf.hasRemaining()) {
+                break;
+            }
+            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+            bytesCopied += bytesWritten;
+            progressUpdater.accept(bytesCopied);
+            remaining -= bytesRead;
+        }
+        if (remaining > 0) {
+            // ensure that last write is aligned on 4k boundaries (= page size)
+            final int remainder = buf.position() % PAGE_SIZE;
+            final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
+            buf.position(buf.position() + adjustment);
+            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+            bytesCopied += bytesWritten;
+            final long adjustedBytesCopied = bytesCopied - adjustment; // adjust to not break RangeFileTracker
+            assert adjustedBytesCopied == length;
+            progressUpdater.accept(adjustedBytesCopied);
+        }
+    }
+
+    private static int positionalWrite(IO fc, long start, ByteBuffer byteBuffer) throws IOException {
+        byteBuffer.flip();
+        int written = fc.write(byteBuffer, start);
+        assert byteBuffer.hasRemaining() == false;
+        byteBuffer.clear();
+        return written;
+    }
+
     @Override
     protected void closeInternal() {
         try {
@@ -107,7 +175,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Map<Integer, IO> ios = ConcurrentCollections.newConcurrentMap();
 
-    IO getFileChannel(int sharedBytesPos) {
+    public IO getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
         return ios.compute(sharedBytesPos, (p, io) -> {
             if (io == null || io.tryIncRef() == false) {

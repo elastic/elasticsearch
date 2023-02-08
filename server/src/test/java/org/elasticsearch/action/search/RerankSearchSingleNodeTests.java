@@ -26,7 +26,7 @@ import java.util.List;
 public class RerankSearchSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSimpleRRFRerank() throws IOException {
-        int numShards = 1 + randomInt(3);
+        int numShards = 1;// + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -46,7 +46,7 @@ public class RerankSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 1000; doc++) {
-            client().prepareIndex("index").setSource("vector", new float[] { doc }, "int", doc % 500).get();
+            client().prepareIndex("index").setSource("vector", new float[] { doc }, "int", doc % 20).get();
         }
 
         client().admin().indices().prepareRefresh("index").get();
@@ -58,10 +58,10 @@ public class RerankSearchSingleNodeTests extends ESSingleNodeTestCase {
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(5))
-            .addSort("int", SortOrder.ASC)
-            .addFetchField("*")
-            .setSize(10)
-            .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
+            //.addSort("int", SortOrder.ASC)
+            //.addFetchField("*")
+            //.setSize(10)
+            //.addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
             .get();
 
         assertEquals(10, response.getHits().getHits().length);

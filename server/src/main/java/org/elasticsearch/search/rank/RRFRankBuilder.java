@@ -99,7 +99,7 @@ public class RRFRankBuilder implements ToRankContext {
 
     @Override
     public RankContext toRankContext() {
-        return new RRFRankContext();
+        return new RRFRankContext(windowSize, rankConstant);
     }
 
     @Override

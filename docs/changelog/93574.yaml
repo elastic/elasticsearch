@@ -3,3 +3,17 @@ summary: Add new `vector_similarity` query
 area: Search
 type: feature
 issues: []
+highlight:
+  title: Add new `vector_similarity` query
+  body: "This adds new query that allows searching for vectors within a\nsimilarity\
+    \ boundary that match a query vector.\n\nThis only works against `dense_vector`\
+    \ fields where `index: true`. \n\n`num_candidates` is still required as this controls\
+    \ the nearest-neighbor\nvector search accuracy. For each shard the query will\
+    \ search\n`num_candidates` and only keep those that are within the provided\n\
+    `similarity` boundary.\n\nFor example, when using the `l2_norm` indexed similarity\
+    \ value, this\ncould be considered a `radius` query.\n\nThis query can be used\
+    \ as any other normal query and can be combined\nwith other queries with a `bool`\
+    \ query.\n\nAdditionally, this query can be used within a `filter` context, but\
+    \ note\nunderlying implementation will still need to compare vector distances\n\
+    and scores to apply the provided similarity threshold limitation.\n\ncloses: https://github.com/elastic/elasticsearch/issues/84929"
+  notable: true

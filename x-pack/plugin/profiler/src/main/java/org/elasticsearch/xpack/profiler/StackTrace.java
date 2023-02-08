@@ -131,7 +131,7 @@ final class StackTrace implements ToXContentObject {
         if (j < capacity) {
             Arrays.fill(output, j, capacity, 0);
         }
-        return List.of(output);
+        return Arrays.asList(output);
     }
 
     // package-private for testing

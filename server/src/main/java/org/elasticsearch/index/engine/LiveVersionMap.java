@@ -128,11 +128,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          * Builds a new map for the refresh transition this should be called in beforeRefresh()
          */
         Maps buildTransitionMap() {
-            return new Maps(
-                new VersionLookup(ConcurrentCollections.newConcurrentMap(current.size())),
-                current,
-                shouldInheritSafeAccess()
-            );
+            return new Maps(new VersionLookup(ConcurrentCollections.newConcurrentMap(current.size())), current, shouldInheritSafeAccess());
         }
 
         /**

@@ -17,6 +17,7 @@ long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime(
 
 buildScan {
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+  String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
 
   // Automatically publish scans from Elasticsearch CI
   if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
@@ -98,40 +99,36 @@ buildScan {
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
       }
-    } else {
+    } else if (buildKiteUrl) {
+      // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+      uploadInBackground = false
 
-      def buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
-      if (buildKiteUrl) {
-        // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
-        uploadInBackground = false
+      def branch = System.getenv('BUILDKITE_BRANCH')
+      tag 'CI'
+      link 'CI Build', buildKiteUrl
+      tag branch
+      value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
 
-        def branch = System.getenv('BUILDKITE_BRANCH')
-        tag 'CI'
-        link 'CI Build', buildKiteUrl
-        tag branch
-        value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
-
-        // Add SCM information
-        def prId = System.getenv('BUILDKITE_PULL_REQUEST')
-        if (prId) {
-          def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
-          value 'Git Commit ID', System.getenv('ghprbActualCommit')
-          tag "pr/${prId}"
-          tag 'pull-request'
-          link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
-          def prUrl = "${prBaseUrl}/pull/${prId}"
-          link 'Pull Request', prUrl
-        } else {
-          def repoUrl = System.getenv('BUILDKITE_REPO')
-          if (repoUrl.startsWith('git@github')) {
-            repoUrl = repoUrl.replaceAll("git\\@github\\.com\\:", "https://github.com/").replaceAll("\\.git", "/tree/$branch")
-          }
-          value 'Git Commit ID', BuildParams.gitRevision
-          link 'Source', "${repoBaseUrl}/tree/${BuildParams.gitRevision}"
-        }
+      // Add SCM information
+      def prId = System.getenv('BUILDKITE_PULL_REQUEST')
+      if (prId) {
+        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
+        value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
+        tag "pr/${prId}"
+        tag 'pull-request'
+        link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
+        def prUrl = "${prBaseUrl}/pull/${prId}"
+        link 'Pull Request', prUrl
       } else {
-        tag 'LOCAL'
+        def repoUrl = System.getenv('BUILDKITE_REPO')
+        if (repoUrl.startsWith('git@github')) {
+          repoUrl = repoUrl.replaceAll("git\\@github\\.com\\:", "https://github.com/").replaceAll("\\.git", "/tree/$branch")
+        }
+        value 'Git Commit ID', BuildParams.gitRevision
+        link 'Source', "${repoBaseUrl}/tree/${BuildParams.gitRevision}"
       }
+    } else {
+      tag 'LOCAL'
     }
   }
 }

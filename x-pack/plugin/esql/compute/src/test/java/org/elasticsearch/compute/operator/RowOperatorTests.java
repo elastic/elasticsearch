@@ -55,9 +55,9 @@ public class RowOperatorTests extends ESTestCase {
     }
 
     public void testString() {
-        RowOperator.RowOperatorFactory factory = new RowOperator.RowOperatorFactory(List.of("cat"));
-        assertThat(factory.describe(), equalTo("RowOperator(objects = cat)"));
-        assertThat(factory.get().toString(), equalTo("RowOperator[objects=[cat]]"));
+        RowOperator.RowOperatorFactory factory = new RowOperator.RowOperatorFactory(List.of(new BytesRef("cat")));
+        assertThat(factory.describe(), equalTo("RowOperator(objects = [63 61 74])"));
+        assertThat(factory.get().toString(), equalTo("RowOperator[objects=[[63 61 74]]]"));
         BytesRefBlock block = factory.get().getOutput().getBlock(0);
         assertThat(block.getBytesRef(0, new BytesRef()), equalTo(new BytesRef("cat")));
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 
@@ -47,7 +48,9 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             // string
             new FunctionDefinition[] { def(Length.class, Length::new, "length") },
             // date
-            new FunctionDefinition[] { def(DateFormat.class, DateFormat::new, "date_format") } };
+            new FunctionDefinition[] {
+                def(DateFormat.class, DateFormat::new, "date_format"),
+                def(StartsWith.class, StartsWith::new, "starts_with") } };
     }
 
     @Override

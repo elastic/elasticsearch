@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -50,7 +51,8 @@ final class EvalMapper {
         new Literals(),
         new RoundFunction(),
         new LengthFunction(),
-        new DateFormatFunction()
+        new DateFormatFunction(),
+        new StartsWithFunction()
     );
 
     private EvalMapper() {}
@@ -206,7 +208,25 @@ final class EvalMapper {
                     return lit.value();
                 }
             }
+
+            assert checkDataType(lit) : "unsupported data value [" + lit.value() + "] for data type [" + lit.dataType() + "]";
             return new LiteralsExpressionEvaluator(lit);
+        }
+
+        private boolean checkDataType(Literal lit) {
+            if (lit.value() == null) {
+                // Null is always ok
+                return true;
+            }
+            return switch (LocalExecutionPlanner.toElementType(lit.dataType())) {
+                case BOOLEAN -> lit.value() instanceof Boolean;
+                case BYTES_REF -> lit.value() instanceof BytesRef;
+                case DOUBLE -> lit.value() instanceof Double;
+                case INT -> lit.value() instanceof Integer;
+                case LONG -> lit.value() instanceof Long;
+                case NULL -> true;
+                case UNKNOWN -> false;
+            };
         }
     }
 
@@ -256,8 +276,7 @@ final class EvalMapper {
             record DateFormatEvaluator(ExpressionEvaluator exp, ExpressionEvaluator formatEvaluator) implements ExpressionEvaluator {
                 @Override
                 public Object computeRow(Page page, int pos) {
-                    Object format = formatEvaluator != null ? formatEvaluator.computeRow(page, pos) : null;
-                    return DateFormat.process(((Long) exp.computeRow(page, pos)), toFormatter(format));
+                    return DateFormat.process(((Long) exp.computeRow(page, pos)), toFormatter(formatEvaluator.computeRow(page, pos)));
                 }
             }
 
@@ -270,14 +289,36 @@ final class EvalMapper {
 
             ExpressionEvaluator fieldEvaluator = toEvaluator(df.field(), layout);
             Expression format = df.format();
-            if (format == null || format.foldable()) {
-                return new ConstantDateFormatEvaluator(fieldEvaluator, toFormatter(format == null ? null : format.fold()));
+            if (format == null) {
+                return new ConstantDateFormatEvaluator(fieldEvaluator, DateFormat.DEFAULT_DATE_FORMATTER);
+            }
+            if (format.dataType() != DataTypes.KEYWORD) {
+                throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
+            }
+            if (format.foldable()) {
+                return new ConstantDateFormatEvaluator(fieldEvaluator, toFormatter(format.fold()));
             }
             return new DateFormatEvaluator(fieldEvaluator, toEvaluator(format, layout));
         }
 
         private static DateFormatter toFormatter(Object format) {
-            return format == null ? DateFormat.DEFAULT_DATE_FORMATTER : DateFormatter.forPattern(format.toString());
+            return format == null ? DateFormat.DEFAULT_DATE_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
+        }
+    }
+
+    public static class StartsWithFunction extends ExpressionMapper<StartsWith> {
+        @Override
+        public ExpressionEvaluator map(StartsWith sw, Layout layout) {
+            record StartsWithEvaluator(ExpressionEvaluator str, ExpressionEvaluator prefix) implements ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    return StartsWith.process((BytesRef) str.computeRow(page, pos), (BytesRef) prefix.computeRow(page, pos));
+                }
+            }
+
+            ExpressionEvaluator input = toEvaluator(sw.str(), layout);
+            ExpressionEvaluator pattern = toEvaluator(sw.prefix(), layout);
+            return new StartsWithEvaluator(input, pattern);
         }
     }
 }

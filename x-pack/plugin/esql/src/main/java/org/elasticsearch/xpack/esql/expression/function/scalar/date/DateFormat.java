@@ -32,8 +32,8 @@ public class DateFormat extends ScalarFunction implements OptionalArgument {
     public static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
         .withZone(ZoneOffset.UTC);
 
-    Expression field;
-    Expression format;
+    private final Expression field;
+    private final Expression format;
 
     public DateFormat(Source source, Expression field, Expression format) {
         super(source, format != null ? Arrays.asList(field, format) : Arrays.asList(field));

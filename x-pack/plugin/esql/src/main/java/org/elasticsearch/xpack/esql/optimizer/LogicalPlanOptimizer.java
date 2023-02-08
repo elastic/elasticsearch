@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -46,11 +45,9 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -94,37 +91,18 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         return asList(operators, local, label);
     }
 
-    static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+    static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
 
         ConvertStringToByteRef() {
             super(OptimizerRules.TransformDirection.UP);
         }
 
         @Override
-        protected Expression rule(BinaryComparison bc) {
-            Expression e = bc;
-            var l = bc.left();
-            var r = bc.right();
-
-            if (l.dataType() == DataTypes.KEYWORD) {
-                l = toByteRef(l);
-                r = toByteRef(r);
-
-                if (l != bc.left() || r != bc.right()) {
-                    e = bc.replaceChildren(Arrays.asList(l, r));
-                }
+        protected Expression rule(Literal lit) {
+            if (lit.value() != null && lit.value()instanceof String s) {
+                return Literal.of(lit, new BytesRef(s));
             }
-            return e;
-        }
-
-        private Expression toByteRef(Expression e) {
-            if (e instanceof Literal l) {
-                Object v = l.value();
-                if (v.getClass() == String.class) {
-                    e = Literal.of(l, BytesRefs.toBytesRef(v));
-                }
-            }
-            return e;
+            return lit;
         }
     }
 

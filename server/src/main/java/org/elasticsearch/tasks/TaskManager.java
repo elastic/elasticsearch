@@ -74,7 +74,7 @@ public class TaskManager implements ClusterStateApplier {
     private final String[] taskHeaders;
     private final ThreadPool threadPool;
 
-    private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMap();
 
     private final CancellableTasksTracker<CancellableTaskHolder> cancellableTasks = new CancellableTasksTracker<>(
         new CancellableTaskHolder[0]

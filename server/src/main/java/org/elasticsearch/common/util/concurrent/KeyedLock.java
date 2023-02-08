@@ -25,7 +25,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * */
 public final class KeyedLock<T> {
 
-    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMap();
     private final boolean fair;
 
     /**

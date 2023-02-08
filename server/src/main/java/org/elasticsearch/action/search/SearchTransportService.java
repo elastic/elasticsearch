@@ -88,7 +88,7 @@ public class SearchTransportService {
         Transport.Connection,
         SearchActionListener<? super SearchPhaseResult>,
         ActionListener<? super SearchPhaseResult>> responseWrapper;
-    private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMap();
 
     public SearchTransportService(
         TransportService transportService,

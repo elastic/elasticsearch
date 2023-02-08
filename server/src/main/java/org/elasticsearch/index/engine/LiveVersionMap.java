@@ -110,7 +110,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         Maps() {
-            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
+            this(new VersionLookup(ConcurrentCollections.newConcurrentMap()), VersionLookup.EMPTY, false);
         }
 
         boolean isSafeAccessMode() {
@@ -129,7 +129,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          */
         Maps buildTransitionMap() {
             return new Maps(
-                new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())),
+                new VersionLookup(ConcurrentCollections.newConcurrentMap(current.size())),
                 current,
                 shouldInheritSafeAccess()
             );
@@ -177,7 +177,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     }
 
     // All deletes also go here, and delete "tombstones" are retained after refresh:
-    private final Map<BytesRef, DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<BytesRef, DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMap();
 
     private volatile Maps maps = new Maps();
     // we maintain a second map that only receives the updates that we skip on the actual map (unsafe ops)
@@ -209,7 +209,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     static {
         // use the same impl as the Maps does
-        Map<Integer, Integer> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        Map<Integer, Integer> map = ConcurrentCollections.newConcurrentMap();
         map.put(0, 0);
         long chmEntryShallowSize = RamUsageEstimator.shallowSizeOf(map.entrySet().iterator().next());
         // assume a load factor of 50%

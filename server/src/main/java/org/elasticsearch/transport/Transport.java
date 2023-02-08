@@ -195,8 +195,7 @@ public interface Transport extends LifecycleComponent {
      * This class is a registry that allows
      */
     final class ResponseHandlers {
-        private final Map<Long, ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
-            .newConcurrentMapWithAggressiveConcurrency();
+        private final Map<Long, ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections.newConcurrentMap();
         private final AtomicLong requestIdGenerator = new AtomicLong();
 
         /**

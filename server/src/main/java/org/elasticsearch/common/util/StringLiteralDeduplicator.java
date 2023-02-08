@@ -20,7 +20,7 @@ public final class StringLiteralDeduplicator {
 
     private static final int MAX_SIZE = 1000;
 
-    private final Map<String, String> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<String, String> map = ConcurrentCollections.newConcurrentMap();
 
     public StringLiteralDeduplicator() {}
 

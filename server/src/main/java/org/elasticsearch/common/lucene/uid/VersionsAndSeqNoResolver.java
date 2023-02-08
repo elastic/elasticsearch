@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentMap;
 public final class VersionsAndSeqNoResolver {
 
     static final ConcurrentMap<IndexReader.CacheKey, CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]>> lookupStates =
-        ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        ConcurrentCollections.newConcurrentMap();
 
     // Evict this reader from lookupStates once it's closed:
     private static final IndexReader.ClosedListener removeLookupState = key -> {

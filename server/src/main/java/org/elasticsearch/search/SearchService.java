@@ -263,7 +263,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicLong idGenerator = new AtomicLong();
 
-    private final Map<Long, ReaderContext> activeReaders = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<Long, ReaderContext> activeReaders = ConcurrentCollections.newConcurrentMap();
 
     private final MultiBucketConsumerService multiBucketConsumerService;
 

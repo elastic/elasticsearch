@@ -237,7 +237,7 @@ public final class DateProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("cache capacity must be a value greater than 0 but was " + capacity);
             }
             this.capacity = capacity;
-            this.map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(this.capacity);
+            this.map = ConcurrentCollections.newConcurrentMap(this.capacity);
         }
 
         Function<String, ZonedDateTime> getOrCompute(Key key, Supplier<Function<String, ZonedDateTime>> supplier) {

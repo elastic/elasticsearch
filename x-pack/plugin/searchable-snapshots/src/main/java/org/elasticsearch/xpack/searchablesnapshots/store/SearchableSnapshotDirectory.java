@@ -168,7 +168,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
         this.shardId = Objects.requireNonNull(shardId);
-        this.stats = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        this.stats = ConcurrentCollections.newConcurrentMap();
         this.statsCurrentTimeNanosSupplier = Objects.requireNonNull(currentTimeNanosSupplier);
         this.cacheService = Objects.requireNonNull(cacheService);
         this.cacheDir = Objects.requireNonNull(cacheDir);

@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -55,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessIT extends AbstractStatelessIntegTestCase {
 
@@ -281,25 +281,21 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     }
 
     private static void assertObjectStoreConsistentWithIndexShards() {
-        final Map<Index, Integer> indices = resolveIndices();
-        assertThat(indices.isEmpty(), is(false));
-
-        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
-            assertThat(entry.getValue(), greaterThan(0));
-            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
-                assertThatObjectStoreIsConsistentWithLastCommit(findIndexShard(entry.getKey(), shardId));
-            }
-        }
+        assertObjectStoreConsistentWithShards(DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
     }
 
     private static void assertObjectStoreConsistentWithSearchShards() {
+        assertObjectStoreConsistentWithShards(DiscoveryNodeRole.SEARCH_ROLE, ShardRouting.Role.SEARCH_ONLY);
+    }
+
+    private static void assertObjectStoreConsistentWithShards(DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
         final Map<Index, Integer> indices = resolveIndices();
         assertThat(indices.isEmpty(), is(false));
 
         for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
             assertThat(entry.getValue(), greaterThan(0));
             for (int shardId = 0; shardId < entry.getValue(); shardId++) {
-                assertThatObjectStoreIsConsistentWithLastCommit(findSearchShard(entry.getKey(), shardId));
+                assertThatObjectStoreIsConsistentWithLastCommit(findShard(entry.getKey(), shardId, nodeRole, shardRole));
             }
         }
     }
@@ -420,41 +416,29 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     }
 
     private static IndexShard findIndexShard(Index index, int shardId) {
-        IndexShard indexShard = null;
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), DiscoveryNodeRole.INDEX_ROLE)) {
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService != null) {
-                    IndexShard shardOrNull = indexService.getShardOrNull(shardId);
-                    // TODO: Don't filter on primary once allocation fixed
-                    if (shardOrNull != null && shardOrNull.isActive() && shardOrNull.routingEntry().primary()) {
-                        indexShard = shardOrNull;
-                    }
-                }
-            }
-        }
-        assertThat("IndexShard instance not found on nodes with [index] role for " + shardId, indexShard, notNullValue());
-        assertThat("IndexShard should be primary but got " + indexShard.routingEntry(), indexShard.routingEntry().primary(), is(true));
-        return indexShard;
+        return findShard(index, shardId, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
     }
 
     private static IndexShard findSearchShard(Index index, int shardId) {
-        IndexShard indexShard = null;
+        return findShard(index, shardId, DiscoveryNodeRole.SEARCH_ROLE, ShardRouting.Role.SEARCH_ONLY);
+    }
+
+    private static IndexShard findShard(Index index, int shardId, DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), DiscoveryNodeRole.SEARCH_ROLE)) {
+            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), nodeRole)) {
                 IndexService indexService = indicesService.indexService(index);
                 if (indexService != null) {
-                    IndexShard shardOrNull = indexService.getShardOrNull(shardId);
-                    // TODO: Don't filter on primary once allocation fixed
-                    if (shardOrNull != null && shardOrNull.isActive() && shardOrNull.routingEntry().primary() == false) {
-                        indexShard = shardOrNull;
+                    IndexShard shard = indexService.getShardOrNull(shardId);
+                    if (shard != null && shard.isActive()) {
+                        assertThat("Unexpected shard role", shard.routingEntry().role(), equalTo(shardRole));
+                        return shard;
                     }
                 }
             }
         }
-        assertThat("IndexShard instance not found on nodes with [search] role for " + shardId, indexShard, notNullValue());
-        assertThat("IndexShard should be replica but got " + indexShard.routingEntry(), indexShard.routingEntry().primary(), is(false));
-        return indexShard;
+        throw new AssertionError(
+            "IndexShard instance not found for shard " + new ShardId(index, shardId) + " on nodes with [" + nodeRole.roleName() + "] role"
+        );
     }
 
     private static Map<Index, Integer> resolveIndices() {

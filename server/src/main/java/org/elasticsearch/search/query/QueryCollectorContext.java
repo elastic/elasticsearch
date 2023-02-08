@@ -30,7 +30,7 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
 
-abstract class QueryCollectorContext {
+public abstract class QueryCollectorContext {
     private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
         @Override
         public void collect(int doc) {}
@@ -43,7 +43,7 @@ abstract class QueryCollectorContext {
 
     private String profilerName;
 
-    QueryCollectorContext(String profilerName) {
+    protected QueryCollectorContext(String profilerName) {
         this.profilerName = profilerName;
     }
 
@@ -51,7 +51,7 @@ abstract class QueryCollectorContext {
      * Creates a collector that delegates documents to the provided <code>in</code> collector.
      * @param in The delegate collector
      */
-    abstract Collector create(Collector in) throws IOException;
+    public abstract Collector create(Collector in) throws IOException;
 
     /**
      * Wraps this collector with a profiler
@@ -66,7 +66,7 @@ abstract class QueryCollectorContext {
      *
      * @param result The query search result to populate
      */
-    void postProcess(QuerySearchResult result) throws IOException {}
+    protected void postProcess(QuerySearchResult result) throws IOException {}
 
     /**
      * Creates the collector tree from the provided <code>collectors</code>
@@ -99,7 +99,7 @@ abstract class QueryCollectorContext {
     static QueryCollectorContext createMinScoreCollectorContext(float minScore) {
         return new QueryCollectorContext(REASON_SEARCH_MIN_SCORE) {
             @Override
-            Collector create(Collector in) {
+            public Collector create(Collector in) {
                 return new MinimumScoreCollector(in, minScore);
             }
         };
@@ -111,7 +111,7 @@ abstract class QueryCollectorContext {
     static QueryCollectorContext createFilteredCollectorContext(IndexSearcher searcher, Query query) {
         return new QueryCollectorContext(REASON_SEARCH_POST_FILTER) {
             @Override
-            Collector create(Collector in) throws IOException {
+            public Collector create(Collector in) throws IOException {
                 final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 return new FilteredCollector(in, filterWeight);
             }
@@ -124,7 +124,7 @@ abstract class QueryCollectorContext {
     static QueryCollectorContext createMultiCollectorContext(Collection<Collector> subs) {
         return new QueryCollectorContext(REASON_SEARCH_MULTI) {
             @Override
-            Collector create(Collector in) {
+            public Collector create(Collector in) {
                 List<Collector> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
                 subCollectors.addAll(subs);
@@ -159,7 +159,7 @@ abstract class QueryCollectorContext {
              * can terminate the collection independently of the provided <code>in</code> {@link Collector}.
              */
             @Override
-            Collector create(Collector in) {
+            public Collector create(Collector in) {
                 assert collector == null;
 
                 List<Collector> subCollectors = new ArrayList<>();

@@ -147,6 +147,9 @@ public class QueryPhase {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
             }
+            if (searchContext.rankContext() != null) {
+                collectors.add(searchContext.rankContext().createRankContextCollector(searchContext));
+            }
 
             boolean timeoutSet = scrollContext == null
                 && searchContext.timeout() != null

@@ -13,9 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,11 +28,11 @@ public class RankBuilder implements Writeable, ToXContent {
 
     private static final ConstructingObjectParser<RankBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rank",
-        args -> new RankBuilder().toRankContext((RRFBuilder) args[0])
+        args -> new RankBuilder().toRankContext((RRFRankBuilder) args[0])
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> RRFBuilder.fromXContent(p), RRFBuilder.RANK_NAME);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> RRFRankBuilder.fromXContent(p), RRFRankBuilder.RANK_NAME);
     }
 
     public static RankBuilder fromXContent(XContentParser parser) throws IOException {
@@ -59,8 +57,8 @@ public class RankBuilder implements Writeable, ToXContent {
     public RankBuilder(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             String rankName = in.readString();
-            if (RRFBuilder.RANK_NAME.getPreferredName().equals(rankName)) {
-                toRankContext = in.readOptionalWriteable(RRFBuilder::new);
+            if (RRFRankBuilder.RANK_NAME.getPreferredName().equals(rankName)) {
+                toRankContext = in.readOptionalWriteable(RRFRankBuilder::new);
             } else {
                 throw new IllegalStateException("unknown rank name [" + rankName + "]");
             }

@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.rank.RRFBuilder;
+import org.elasticsearch.search.rank.RRFRankBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -54,7 +54,7 @@ public class RerankSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] queryVector = { 500.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50);
         SearchResponse response = client().prepareSearch("index")
-            .setRank(new RankBuilder().toRankContext(new RRFBuilder().windowSize(100).rankConstant(1)))
+            .setRank(new RankBuilder().toRankContext(new RRFRankBuilder().windowSize(100).rankConstant(1)))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(5))

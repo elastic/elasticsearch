@@ -8,6 +8,10 @@
 
 package org.elasticsearch.search.rank;
 
-public class RankContext {
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QueryCollectorContext;
 
+public interface RankContext {
+
+    public QueryCollectorContext createRankContextCollector(SearchContext searchContext);
 }

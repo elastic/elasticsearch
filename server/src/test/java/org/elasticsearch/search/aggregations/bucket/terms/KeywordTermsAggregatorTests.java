@@ -9,8 +9,10 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -19,6 +21,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -103,14 +106,16 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             true,
             Collections.emptyMap()
         );
+        FieldType luceneFieldType = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        if (keywordFieldType.isIndexed() == false) {
+            luceneFieldType.setIndexOptions(IndexOptions.NONE);
+        }
+        luceneFieldType.freeze();
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
-                    document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
-                    if (keywordFieldType.isIndexed()) {
-                        document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
-                    }
+                    document.add(new Field(KEYWORD_FIELD, new BytesRef(value), luceneFieldType));
                     indexWriter.addDocument(document);
                     document.clear();
                 }

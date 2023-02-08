@@ -12,6 +12,8 @@ import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
@@ -279,11 +281,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             indexableFields.getFields("field"),
             arrayContainingInAnyOrder(
                 keywordField("key1"),
-                sortedSetDocValuesField("key1"),
                 keywordField("key2"),
-                sortedSetDocValuesField("key2"),
-                keywordField("key3"),
-                sortedSetDocValuesField("key3")
+                keywordField("key3")
             )
         );
         assertThat(
@@ -418,11 +417,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(indexableFields.getFields("field.subsuggest2"), arrayContainingInAnyOrder(suggestField("suggestion")));
         assertThat(
             indexableFields.getFields("field.analyzed1"),
-            arrayContainingInAnyOrder(keywordField("suggestion"), sortedSetDocValuesField("suggestion"))
+            arrayContainingInAnyOrder(keywordField("suggestion"))
         );
         assertThat(
             indexableFields.getFields("field.analyzed2"),
-            arrayContainingInAnyOrder(keywordField("suggestion"), sortedSetDocValuesField("suggestion"))
+            arrayContainingInAnyOrder(keywordField("suggestion"))
         );
     }
 
@@ -459,18 +458,14 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             indexableFields.getFields("field.analyzed1"),
             arrayContainingInAnyOrder(
                 keywordField("New York"),
-                sortedSetDocValuesField("New York"),
-                keywordField("NY"),
-                sortedSetDocValuesField("NY")
+                keywordField("NY")
             )
         );
         assertThat(
             indexableFields.getFields("field.analyzed2"),
             arrayContainingInAnyOrder(
                 keywordField("New York"),
-                sortedSetDocValuesField("New York"),
-                keywordField("NY"),
-                sortedSetDocValuesField("NY")
+                keywordField("NY")
             )
         );
     }
@@ -515,18 +510,14 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             indexableFields.getFields("field.analyzed1"),
             arrayContainingInAnyOrder(
                 keywordField("New York"),
-                sortedSetDocValuesField("New York"),
-                keywordField("NY"),
-                sortedSetDocValuesField("NY")
+                keywordField("NY")
             )
         );
         assertThat(
             indexableFields.getFields("field.analyzed2"),
             arrayContainingInAnyOrder(
                 keywordField("New York"),
-                sortedSetDocValuesField("New York"),
-                keywordField("NY"),
-                sortedSetDocValuesField("NY")
+                keywordField("NY")
             )
         );
         // unable to assert about weight, covered in a REST test
@@ -927,13 +918,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         return Matchers.allOf(hasProperty(IndexableField::stringValue, equalTo(value)), Matchers.instanceOf(ContextSuggestField.class));
     }
 
-    private CombinableMatcher<IndexableField> sortedSetDocValuesField(String value) {
-        return Matchers.both(hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))))
-            .and(Matchers.instanceOf(SortedSetDocValuesField.class));
-    }
-
     private Matcher<IndexableField> keywordField(String value) {
-        return hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value)));
+        return Matchers.allOf(
+            hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))),
+            hasProperty(ft -> ft.fieldType().indexOptions(), equalTo(IndexOptions.DOCS)),
+            hasProperty(ft -> ft.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_SET)));
     }
 
     private <T, V> Matcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {

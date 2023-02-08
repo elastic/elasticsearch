@@ -142,7 +142,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             w.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 1),
-                    new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(KEYWORD_FIELD_VALUE)),
                     new KeywordFieldMapper.KeywordField(
                         KEYWORD_FIELD_NAME,
                         new BytesRef(KEYWORD_FIELD_VALUE),
@@ -155,7 +154,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             w.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 2),
-                    new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(KEYWORD_FIELD_VALUE)),
                     new KeywordFieldMapper.KeywordField(
                         KEYWORD_FIELD_NAME,
                         new BytesRef(KEYWORD_FIELD_VALUE),

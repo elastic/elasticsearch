@@ -321,7 +321,6 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
             String json = "{ \"text\" : \"" + text.toString() + "\"," + " \"json_only_field\" : \"" + text.toString() + "\"" + " }";
             doc.add(new StoredField("_source", new BytesRef(json)));
-            doc.add(new SortedSetDocValuesField("kwd", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd")));
             doc.add(new Field("kwd", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd"), KeywordFieldMapper.Defaults.FIELD_TYPE));
             writer.addDocument(doc);
         }

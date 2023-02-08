@@ -43,9 +43,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
             iw.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
-                    new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new Field("k1", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedSetDocValuesField("k2", new BytesRef("a")),
                     new Field("k2", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedNumericDocValuesField("n", 1)
                 )
@@ -53,9 +51,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
             iw.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-03-01T00:00:00Z")),
-                    new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new Field("k1", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedSetDocValuesField("k2", new BytesRef("a")),
                     new Field("k2", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedNumericDocValuesField("n", 2)
                 )
@@ -63,9 +59,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
             iw.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-02-01T00:00:00Z")),
-                    new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new Field("k1", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedSetDocValuesField("k2", new BytesRef("a")),
                     new Field("k2", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedNumericDocValuesField("n", 3)
                 )
@@ -73,9 +67,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
             iw.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-03-01T00:00:00Z")),
-                    new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new Field("k1", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedSetDocValuesField("k2", new BytesRef("b")),
                     new Field("k2", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedNumericDocValuesField("n", 4)
                 )
@@ -83,9 +75,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
             iw.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
-                    new SortedSetDocValuesField("k1", new BytesRef("b")),
                     new Field("k1", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedSetDocValuesField("k2", new BytesRef("b")),
                     new Field("k2", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedNumericDocValuesField("n", 5)
                 )

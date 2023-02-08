@@ -140,8 +140,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         Document document = new Document();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         for (String stringValue : stringValues) {
-            document.add(new Field("string", stringValue, KeywordFieldMapper.Defaults.FIELD_TYPE));
-            document.add(new SortedSetDocValuesField("string", new BytesRef(stringValue)));
+            document.add(new Field("string", new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         }
         return document;
     }

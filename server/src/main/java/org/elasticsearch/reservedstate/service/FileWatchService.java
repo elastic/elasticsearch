@@ -68,11 +68,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
         FileUpdateState previousUpdateState = fileUpdateState;
 
         BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-        fileUpdateState = new FileUpdateState(
-            attr.lastModifiedTime().toMillis(),
-            path.toRealPath().toString(),
-            attr.fileKey()
-        );
+        fileUpdateState = new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
 
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }

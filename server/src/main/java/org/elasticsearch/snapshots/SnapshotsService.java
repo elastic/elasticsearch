@@ -1500,7 +1500,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final StepListener<Metadata> metadataListener = new StepListener<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
             if (entry.isClone()) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(ActionRunnable.supply(metadataListener, () -> {
                     final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
                     final Metadata.Builder metaBuilder = Metadata.builder(existing);
                     final Set<Index> existingIndices = new HashSet<>();

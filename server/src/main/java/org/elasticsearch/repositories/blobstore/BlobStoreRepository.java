@@ -70,6 +70,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -394,6 +395,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ShardSnapshotTaskRunner shardSnapshotTaskRunner;
 
+    private final ThrottledTaskRunner snapshotDeleteTaskRunner;
+
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
@@ -432,6 +435,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             threadPool.executor(ThreadPool.Names.SNAPSHOT),
             this::doSnapshotShard,
             this::snapshotFile
+        );
+        snapshotDeleteTaskRunner = new ThrottledTaskRunner(
+            "DeleteSnapshotTaskRunner",
+            Math.max(1, threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax() / 3),
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
         );
     }
 
@@ -841,9 +849,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
         } else {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
+            snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
+                try (releasable) {
                     final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
                     final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
                     // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
@@ -859,12 +866,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         listener
                     );
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshots " + snapshotIds, e));
-                }
-            });
+            }, e -> listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshots " + snapshotIds, e))));
         }
     }
 
@@ -1022,15 +1024,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onResponse(null);
             return;
         }
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-            try {
+        snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
+            try (releasable) {
                 deleteFromContainer(blobContainer(), filesToDelete);
-                l.onResponse(null);
+                listener.onResponse(null);
             } catch (Exception e) {
                 logger.warn(() -> format("%s Failed to delete some blobs during snapshot delete", snapshotIds), e);
                 throw e;
             }
-        }));
+        }, listener::onFailure));
     }
 
     // updates the shard state metadata for shards of a snapshot that is to be deleted. Also computes the files to be cleaned up.
@@ -1041,7 +1043,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
     ) {
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
         final List<IndexId> indices = oldRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds);
 
         if (indices.isEmpty()) {
@@ -1204,22 +1206,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onResponse(deleteResult);
         }, listener::onFailure));
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         final List<String> staleRootBlobs = staleRootBlobs(newRepoData, rootBlobs.keySet());
         if (staleRootBlobs.isEmpty()) {
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
-            executor.execute(ActionRunnable.supply(groupedListener, () -> {
-                List<String> deletedBlobs = cleanupStaleRootFiles(newRepoData.getGenId() - 1, deletedSnapshots, staleRootBlobs);
-                return new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum());
-            }));
+            snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
+                try (releasable) {
+                    List<String> deletedBlobs = cleanupStaleRootFiles(newRepoData.getGenId() - 1, deletedSnapshots, staleRootBlobs);
+                    groupedListener.onResponse(
+                        new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum())
+                    );
+                }
+            }, groupedListener::onFailure));
         }
 
         final Set<String> survivingIndexIds = newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
         if (foundIndices.keySet().equals(survivingIndexIds)) {
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
-            executor.execute(ActionRunnable.supply(groupedListener, () -> cleanupStaleIndices(foundIndices, survivingIndexIds)));
+            snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
+                try (releasable) {
+                    groupedListener.onResponse(cleanupStaleIndices(foundIndices, survivingIndexIds));
+                }
+            }, groupedListener::onFailure));
         }
     }
 
@@ -2412,12 +2421,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
-                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
+                    snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
                         // Delete all now outdated index files up to 1000 blobs back from the new generation.
                         // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
                         // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
                         // two index-N blobs around.
-                        try {
+                        try (releasable) {
                             deleteFromContainer(
                                 blobContainer(),
                                 LongStream.range(Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
@@ -2427,8 +2436,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         } catch (IOException e) {
                             logger.warn(() -> "Failed to clean up old index blobs from before [" + newGen + "]", e);
                         }
-                        return newRepositoryData;
-                    }));
+                        listener.onResponse(newRepositoryData);
+                    }, listener::onFailure));
                 }
             });
         }, listener::onFailure);
@@ -3287,8 +3296,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Delete snapshot from shard level metadata.
      *
-     * @param indexGeneration generation to write the new shard level level metadata to. If negative a uuid id shard generation should be
-     *                        used
+     * @param indexGeneration generation to write the new shard level metadata to. If negative a uuid shard generation is used.
      */
     private ShardSnapshotMetaDeleteResult deleteFromShardSnapshotMeta(
         Set<SnapshotId> survivingSnapshots,

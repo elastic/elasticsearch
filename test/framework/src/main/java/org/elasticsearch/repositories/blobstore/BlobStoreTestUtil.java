@@ -428,6 +428,9 @@ public final class BlobStoreTestUtil {
         when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
             new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10))
         );
+        when(threadPool.info(ThreadPool.Names.SNAPSHOT_META)).thenReturn(
+            new ThreadPool.Info(ThreadPool.Names.SNAPSHOT_META, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10))
+        );
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);

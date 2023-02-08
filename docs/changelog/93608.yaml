@@ -1,0 +1,6 @@
+pr: 93608
+summary: Ingest-attachment error/stacktrace logging fix
+area: Ingest Node
+type: bug
+issues:
+ - 91964

@@ -72,12 +72,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.core.Strings.format;
@@ -315,14 +315,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    public void downloadSearchShardFiles(ShardId shardId, long primaryTerm, Store store, ActionListener<Set<String>> listener) {
+    public void downloadSearchShardFiles(
+        ShardId shardId,
+        long primaryTerm,
+        Store store,
+        ActionListener<Map<String, StoreFileMetadata>> listener
+    ) {
         try {
             // TODO ES-5310 must block the primary from deleting anything while we sort out at which commit to start
             // TODO ES-5258 This looks for a commit from the latest primary term only, is that sufficient?
             final var blobContainer = getBlobContainer(shardId, primaryTerm);
             final var allBlobs = Map.copyOf(blobContainer.listBlobs());
             if (allBlobs.keySet().stream().noneMatch(s -> s.startsWith(IndexFileNames.SEGMENTS))) {
-                listener.onResponse(Set.of());
+                listener.onResponse(Map.of());
                 return;
             }
             try (var directory = new SegmentInfoCachingDirectory(blobContainer, allBlobs)) {
@@ -350,9 +355,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     false // TODO ES-4993 we should start verifying output
                 );
 
+                final Map<String, StoreFileMetadata> result = blobs.entrySet()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> toStoreFileMetadata(entry.getValue())));
                 try (var listeners = new RefCountingListener(ActionListener.runAfter(listener.map(ignored -> {
                     multiFileWriter.renameAllTempFiles();
-                    return Set.copyOf(commitFiles);
+                    return result;
                 }), multiFileWriter::close))) {
 
                     for (final var blobIterator = blobs.entrySet().iterator(); blobIterator.hasNext();) {

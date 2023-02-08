@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexCommit;
@@ -42,7 +43,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -171,6 +171,14 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)) {
             indexModule.setIndexCommitListener(createIndexCommitListener());
         }
+        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
+            indexModule.setDirectoryWrapper((in, shardRouting) -> {
+                if (shardRouting.isSearchable() == false) {
+                    return in;
+                }
+                return new SearchDirectory(in);
+            });
+        }
         indexModule.addIndexEventListener(new IndexEventListener() {
 
             @Override
@@ -189,11 +197,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                         indexShard.getOperationPrimaryTerm(),
                         indexShard.store(),
                         ActionListener.wrap(blobs -> {
-                            if (blobs.isEmpty()) {
-                                // creates a new empty Lucene index
-                                Lucene.cleanLuceneIndex(store.directory());
-                                store.createEmpty();
-                            }
+                            SearchDirectory.unwrapDirectory(store.directory()).updateCommit(blobs);
                             wrappedListener.onResponse(null);
                         }, wrappedListener::onFailure)
                     );

@@ -55,6 +55,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -314,9 +315,9 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             expectThrows(IndexNotFoundException.class, () -> DirectoryReader.open(testHarness.searchStore.directory()));
 
-            Set<String> downloadedFiles = PlainActionFuture.get(
+            Set<String> downloadedFiles = PlainActionFuture.<Map<String, StoreFileMetadata>, RuntimeException>get(
                 future -> testHarness.objectStoreService.downloadSearchShardFiles(testHarness.shardId, 1, testHarness.searchStore, future)
-            );
+            ).keySet();
 
             assertEquals(permittedFiles, downloadedFiles);
 

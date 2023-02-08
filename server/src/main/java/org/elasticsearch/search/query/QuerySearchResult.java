@@ -26,6 +26,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.rank.RankResultContext;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -38,6 +39,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
     private boolean hasScoreDocs;
+    private RankResultContext rankResultContext;
     private TotalHits totalHits;
     private float maxScore = Float.NaN;
     private DocValueFormat[] sortValueFormats;
@@ -184,6 +186,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.totalHits = topDocsAndMaxScore.topDocs.totalHits;
         this.maxScore = topDocsAndMaxScore.maxScore;
         this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
+    }
+
+    public void setRankResultContext(RankResultContext rankResultContext) {
+        this.rankResultContext = rankResultContext;
+    }
+
+    public RankResultContext getRankResultContext() {
+        return rankResultContext;
     }
 
     public DocValueFormat[] sortValueFormats() {
@@ -373,6 +383,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
                 setRescoreDocIds(new RescoreDocIds(in));
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                rankResultContext = RankResultContext.readFrom(in);
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -424,6 +437,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
             getRescoreDocIds().writeTo(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeOptionalWriteable(rankResultContext);
         }
     }
 

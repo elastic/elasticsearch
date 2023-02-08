@@ -423,6 +423,19 @@ public class Lucene {
         }
     }
 
+    public static void writeTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
+        if (topDocs instanceof TopFieldDocs topFieldDocs) {
+            out.writeByte((byte) 1);
+            writeTotalHits(out, topDocs.totalHits);
+            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
+            out.writeArray((o, doc) -> writeFieldDoc(o, (FieldDoc) doc), topFieldDocs.scoreDocs);
+        } else {
+            out.writeByte((byte) 0);
+            writeTotalHits(out, topDocs.totalHits);
+            out.writeArray(Lucene::writeScoreDoc, topDocs.scoreDocs);
+        }
+    }
+
     private static void writeMissingValue(StreamOutput out, Object missingValue) throws IOException {
         if (missingValue == SortField.STRING_FIRST) {
             out.writeByte((byte) 1);

@@ -85,8 +85,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats x = avg(emp_no / 2) by emp_no")
         );
         assertEquals(
-            "1:19: Unknown function [count]\nline 1:25: argument of [avg(first_name)] must be [numeric], "
-                + "found value [first_name] type [keyword]",
+            "1:25: argument of [avg(first_name)] must be [numeric], found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(

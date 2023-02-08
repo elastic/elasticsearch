@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -24,9 +25,11 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -40,6 +43,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AnalyzerTests extends ESTestCase {
@@ -604,6 +608,56 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | eval date_format(date, date)
             """, "second argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
+    }
+
+    // check field declaration is validated even across duplicated declarations
+    public void testAggsWithDuplicatesAndNonExistingFunction() throws Exception {
+        verifyUnsupported("""
+            row a = 1, b = 2
+            | stats x = non_existing(a), x = count(a) by b
+            """, "Unknown function [non_existing]");
+    }
+
+    // check field declaration is validated even across duplicated declarations
+    public void testAggsWithDuplicatesAndNonExistingField() throws Exception {
+        verifyUnsupported("""
+            row a = 1, b = 2
+            | stats x = max(non_existing), x = count(a) by b
+            """, "Unknown column [non_existing]");
+    }
+
+    // duplicates get merged after stats and do not prevent following commands to blow up
+    // due to ambiguity
+    public void testAggsWithDuplicates() throws Exception {
+        var plan = analyze("""
+            row a = 1, b = 2
+            | stats x = count(a), x = min(a), x = max(a) by b
+            | sort x
+            """);
+
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var agg = as(order.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(2));
+        assertThat(Expressions.names(aggregates), contains("x", "b"));
+        var alias = as(aggregates.get(0), Alias.class);
+        var max = as(alias.child(), Max.class);
+    }
+
+    // expected stats b by b (grouping overrides the rest of the aggs)
+    public void testAggsWithOverridingInputAndGrouping() throws Exception {
+        var plan = analyze("""
+            row a = 1, b = 2
+            | stats b = count(a), b = max(a) by b
+            | sort b
+            """);
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var agg = as(order.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(1));
+        assertThat(Expressions.names(aggregates), contains("b"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

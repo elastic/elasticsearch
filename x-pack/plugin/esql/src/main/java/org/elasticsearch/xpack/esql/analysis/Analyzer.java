@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,7 +61,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-        var resolution = new Batch<>("Resolution", new ResolveTable(), new ResolveRefs(), new ResolveFunctions());
+        var resolution = new Batch<>(
+            "Resolution",
+            new ResolveTable(),
+            new ResolveRefs(),
+            new ResolveFunctions(),
+            new RemoveDuplicateProjections()
+        );
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddMissingProjection(), new AddImplicitLimit());
         rules = List.of(resolution, finish);
     }
@@ -124,7 +132,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveRefs extends AnalyzerRules.BaseAnalyzerRule {
+    private static class ResolveRefs extends BaseAnalyzerRule {
 
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
@@ -288,6 +296,55 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 UnresolvedFunction.class,
                 uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
             );
+        }
+    }
+
+    /**
+     * Rule that removes duplicate projects - this is done as a separate rule to allow
+     * full validation of the node before looking at the duplication.
+     * The duplication needs to be addressed to avoid ambiguity errors from commands further down
+     * the line.
+     */
+    private static class RemoveDuplicateProjections extends BaseAnalyzerRule {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan doRule(LogicalPlan plan) {
+            if (plan.resolved()) {
+                if (plan instanceof Aggregate agg) {
+                    plan = removeAggDuplicates(agg);
+                }
+            }
+            return plan;
+        }
+
+        private static LogicalPlan removeAggDuplicates(Aggregate agg) {
+            var groupings = agg.groupings();
+            var newGroupings = new LinkedHashSet<>(groupings);
+            // reuse existing objects
+            groupings = newGroupings.size() == groupings.size() ? groupings : new ArrayList<>(newGroupings);
+
+            var aggregates = agg.aggregates();
+            var newAggregates = new ArrayList<>(aggregates);
+            var nameSet = Sets.newHashSetWithExpectedSize(newAggregates.size());
+            // remove duplicates in reverse to preserve the last one appearing
+            for (int i = newAggregates.size() - 1; i >= 0; i--) {
+                var aggregate = newAggregates.get(i);
+                if (nameSet.add(aggregate.name()) == false) {
+                    newAggregates.remove(i);
+                }
+            }
+            // reuse existing objects
+            aggregates = newAggregates.size() == aggregates.size() ? aggregates : newAggregates;
+            // replace aggregate if needed
+            agg = (groupings == agg.groupings() && newAggregates == agg.aggregates())
+                ? agg
+                : new Aggregate(agg.source(), agg.child(), groupings, aggregates);
+            return agg;
         }
     }
 

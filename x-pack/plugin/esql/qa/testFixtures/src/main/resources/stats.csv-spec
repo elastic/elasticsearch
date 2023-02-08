@@ -171,3 +171,27 @@ from test | stats h = sum(height.scaled_float);
 h:double
 176.82
 ;
+
+IfDuplicateNamesLastOneWins
+from test | stats h = avg(height), h = min(height) by languages | sort languages;
+
+h:d  | languages:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+;
+
+
+IfDuplicateNamesGroupingHasPriority
+from test | stats languages = avg(height), languages = min(height) by languages | sort languages;
+
+languages:i
+1
+2
+3
+4
+5
+;
+

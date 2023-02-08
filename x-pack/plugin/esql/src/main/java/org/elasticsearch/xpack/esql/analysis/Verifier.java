@@ -27,6 +27,7 @@ public class Verifier {
     Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
+        // quick verification for unresolved attributes
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -34,17 +35,37 @@ public class Verifier {
             }
 
             if (p instanceof Unresolvable u) {
-                failures.add(Failure.fail(p, u.unresolvedMessage()));
+                failures.add(fail(p, u.unresolvedMessage()));
             }
             p.forEachExpression(e -> {
-                if (e instanceof Unresolvable u) {
-                    failures.add(Failure.fail(e, u.unresolvedMessage()));
+                // everything is fine, skip expression
+                if (e.resolved()) {
+                    return;
                 }
-                if (e.typeResolved().unresolved()) {
-                    failures.add(fail(e, e.typeResolved().message()));
-                }
-            });
 
+                e.forEachUp(ae -> {
+                    // we're only interested in the children
+                    if (ae.childrenResolved() == false) {
+                        return;
+                    }
+
+                    if (ae instanceof Unresolvable u) {
+                        failures.add(fail(ae, u.unresolvedMessage()));
+                    }
+                    if (ae.typeResolved().unresolved()) {
+                        failures.add(fail(ae, ae.typeResolved().message()));
+                    }
+                });
+            });
+        });
+
+        // in case of failures bail-out as all other checks will be redundant
+        if (failures.isEmpty() == false) {
+            return failures;
+        }
+
+        // Concrete verifications
+        plan.forEachDown(p -> {
             if (p instanceof Aggregate agg) {
                 agg.aggregates().forEach(e -> {
                     var exp = e instanceof Alias ? ((Alias) e).child() : e;

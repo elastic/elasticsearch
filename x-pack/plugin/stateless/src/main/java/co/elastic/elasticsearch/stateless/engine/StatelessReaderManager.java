@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
@@ -252,13 +253,14 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
 
                 RecoveryState.Index indexState = new RecoveryState.Index();
                 final String tempFilePrefix = "new_commit_" + commit.generation() + "_download_" + UUIDs.randomBase64UUID();
-                MultiFileWriter multiFileWriter = new MultiFileWriter(store, indexState, tempFilePrefix, logger, () -> {});
+                MultiFileWriter multiFileWriter = new MultiFileWriter(store, indexState, tempFilePrefix, logger, () -> {}, false);
 
                 for (StoreFileMetadata fileMetadata : toDownload.values()) {
                     indexState.addFileDetail(fileMetadata.name(), fileMetadata.length(), false);
                 }
 
                 incRef();
+                final var unwrappedDir = SearchDirectory.unwrapDirectory(store.directory());
                 objectStoreService.onNewCommitReceived(
                     shardId,
                     commit.primaryTerm(),
@@ -271,6 +273,7 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
                             boolean success = false;
                             try {
                                 multiFileWriter.renameAllTempFiles();
+                                unwrappedDir.updateCommit(commit.commitFiles());
                                 reloadReaderManager();
                                 success = true;
                             } catch (Exception e) {

@@ -136,4 +136,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
         }
     }
+
+    @Override
+    protected boolean addMockFSIndexStore() {
+        return false;
+    }
 }

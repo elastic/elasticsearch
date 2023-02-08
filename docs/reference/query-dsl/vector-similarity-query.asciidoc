@@ -11,6 +11,31 @@ query vector.
 [[vector-similarity-query-ex-request]]
 ==== Example request
 
+Let's assume we have an `l2_norm` <<dense-vector,`dense_vector`>> field.
+
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text"
+      },
+      "image-vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "l2_norm"
+      }
+    }
+  }
+}
+----
+
+The following query finds vectors that are within the sphere with radius `10`
+surrounding the query vector `[-5, 9, -12]`
+
 [source,console]
 ----
 GET /_search
@@ -21,6 +46,38 @@ GET /_search
       "query_vector": [-5, 9, -12],
       "num_candidates": 100,
       "similarity": 10.0
+    }
+  }
+}
+----
+
+Since this is a regular query, it can be used in filter contexts and combined with other queries
+within a <<query-dsl-bool-query,`bool`>> query.
+
+The following query is a <<query-dsl-term-query,`term`>> query against `title`. If the field `image-vector` is also
+within the sphere of radius `10` with origin at `[-5, 9, -12]`, `boost*similarity_score`
+is added to the matching document `_score`.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "term": {
+          "title": "snow"
+        }
+      },
+      "should": {
+        "vector_similarity": {
+          "field": "image-vector",
+          "query_vector": [-5, 9, -12],
+          "num_candidates": 100,
+          "similarity": 10.0,
+          "boost": 5.0
+        }
+      }
     }
   }
 }
@@ -53,7 +110,7 @@ and the provided `boost` is applied.
 The `similarity` parameter is the direct vector similarity calculation.
 
 * `l2_norm`: also known as Euclidean, will include documents where the vector is within
-the `dims` dimensional sphere with radius `similarity`.
+the `dims` dimensional hypersphere with radius `similarity` with origin at `query_vector`.
 * `cosine` & `dot_product`: Only return vectors where the cosine similarity or dot-product are at least the provided
 `similarity`.
 --

@@ -1,0 +1,6 @@
+pr: 92400
+summary: Ensure `final_pipeline` is executed once
+area: Ingest Node
+type: bug
+issues:
+ - 83653

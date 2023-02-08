@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -122,7 +123,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
-        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(client.settings());
+        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(client == null ? Settings.EMPTY : client.settings());
     }
 
     /**
@@ -386,10 +387,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             boolean internalRequest = internalOrigin != null;
             if (Access.INTERNAL.equals(access)) {
                 if (internalRequest == false) {
-                    responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+                    handleBadRequest(request.uri(), request.method(), responseChannel);
                 }
             } else if (Access.PUBLIC.equals(access) == false) {
-                responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+                handleBadRequest(request.uri(), request.method(), responseChannel);
             }
         }
         try {

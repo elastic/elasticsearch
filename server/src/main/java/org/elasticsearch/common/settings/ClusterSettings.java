@@ -102,6 +102,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
@@ -338,6 +339,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
         TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE,
         RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+        RestController.ENFORCE_API_PROTECTIONS_SETTING,
         SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
         RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
         RemoteClusterService.REMOTE_NODE_ATTRIBUTE,

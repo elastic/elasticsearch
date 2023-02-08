@@ -96,6 +96,11 @@ public class DeprecationRestHandler implements RestHandler {
     }
 
     @Override
+    public RestHandler getRootRestHandler() {
+        return handler;
+    }
+
+    @Override
     public boolean supportsContentStream() {
         return handler.supportsContentStream();
     }

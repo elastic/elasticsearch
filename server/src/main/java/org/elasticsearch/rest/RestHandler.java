@@ -46,6 +46,10 @@ public interface RestHandler {
         return false;
     }
 
+    default RestHandler getRootRestHandler() {
+        return this;
+    }
+
     /**
      * Indicates if the RestHandler supports working with pooled buffers. If the request handler will not escape the return
      * {@link RestRequest#content()} or any buffers extracted from it then there is no need to make a copies of any pooled buffers in the

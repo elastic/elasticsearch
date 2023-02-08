@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -72,7 +73,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
-
+    public static final Setting<Boolean> ENFORCE_API_PROTECTIONS_SETTING = Setting.boolSetting(
+        "rest.enforce_api_protections",
+        false,
+        Setting.Property.NodeScope
+    );
     private static final BytesReference FAVICON_RESPONSE;
 
     static {
@@ -97,6 +102,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
     private final Tracer tracer;
+    private final boolean enforceProtections;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
@@ -115,12 +121,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(
-            RestRequest.Method.GET,
-            "/favicon.ico",
-            RestApiVersion.current(),
-            (request, channel, clnt) -> channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
-        );
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
+        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(client.settings());
     }
 
     /**
@@ -307,7 +309,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * and {@code path} combinations.
      */
     public void registerHandler(final RestHandler handler) {
-        handler.routes().forEach(route -> registerHandler(route, handler));
+        if (enforceProtections == false || Access.HIDDEN.equals(getRestHandlerAccess(handler)) == false) {
+            handler.routes().forEach(route -> registerHandler(route, handler));
+        }
+    }
+
+    private Access getRestHandlerAccess(RestHandler handler) {
+        AccessLevel accessLevelAnnotation = handler.getRootRestHandler().getClass().getAnnotation(AccessLevel.class);
+        return accessLevelAnnotation == null ? Access.HIDDEN : accessLevelAnnotation.value();
     }
 
     @Override
@@ -371,6 +380,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
+        if (enforceProtections) {
+            Access access = getRestHandlerAccess(handler);
+            final String internalOrigin = request.header("X-elastic-internal-origin");
+            boolean internalRequest = internalOrigin != null;
+            if (Access.INTERNAL.equals(access)) {
+                if (internalRequest == false) {
+                    responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+                }
+            } else if (Access.PUBLIC.equals(access) == false) {
+                responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+            }
+        }
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -778,5 +799,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
         // We always obtain a fresh breaker to reflect changes to the breaker configuration.
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    }
+
+    @AccessLevel(Access.PUBLIC)
+    private static final class RestFavIconHandler implements RestHandler {
+
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE));
+        }
     }
 }

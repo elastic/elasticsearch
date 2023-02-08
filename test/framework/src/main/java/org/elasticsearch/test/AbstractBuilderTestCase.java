@@ -273,10 +273,31 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     /**
-     * Override this to handle {@link Client#get(GetRequest)} calls from parsers / builders
+     * Override this to handle {@link Client#multiTermVectors(MultiTermVectorsRequest, ActionListener)}
+     * calls from parsers / builders
      */
     protected MultiTermVectorsResponse executeMultiTermVectors(MultiTermVectorsRequest mtvRequest) {
         throw new UnsupportedOperationException("this test can't handle MultiTermVector requests");
+    }
+
+    /**
+     * Can the test simulate this {@code Method}.
+     * If this function returns true {@link #simulateRequest(Method, Object[])}
+     * should be implemented provide the expected response.
+     *
+     * @param method The method being proxied. In practice method will represent a client call.
+     * @param args Method arguments
+     * @return True if simulating the method call is supported
+     */
+    protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
+        return false;
+    }
+
+    /**
+     * Override this to simulate client calls.
+     */
+    protected Object simulateRequest(Method method, Object[] args) {
+        throw new UnsupportedOperationException("this test can't simulate [" + method.getName() + "] requests");
     }
 
     /**
@@ -324,6 +345,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 };
             } else if (method.equals(Object.class.getMethod("toString"))) {
                 return "MockClient";
+            } else if (delegate.canSimulateMethod(method, args)) {
+                return delegate.simulateRequest(method, args);
             }
             throw new UnsupportedOperationException("this test can't handle calls to: " + method);
         }

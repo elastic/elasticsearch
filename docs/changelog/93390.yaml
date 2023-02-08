@@ -1,0 +1,5 @@
+pr: 93390
+summary: Rewrite `FieldsExtractor` using `QueryVisitor` API
+area: Authorization
+type: tech debt
+issues: []

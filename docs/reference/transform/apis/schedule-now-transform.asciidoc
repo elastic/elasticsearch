@@ -8,7 +8,7 @@
 <titleabbrev>Schedule now {transform}</titleabbrev>
 ++++
 
-Causes a {transform} to process the data instantly.
+Instantly runs a {transform} to process data.
 
 [[schedule-now-transform-request]]
 == {api-request-title}

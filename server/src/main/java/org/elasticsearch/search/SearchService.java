@@ -1253,6 +1253,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw new SearchException(shardTarget, "failed to create SuggestionSearchContext", e);
             }
         }
+        if (source.rank() != null) {
+            context.rankContext(source.rank().toRankContext().toRankContext());
+        }
         if (source.rescores() != null) {
             try {
                 for (RescorerBuilder<?> rescore : source.rescores()) {

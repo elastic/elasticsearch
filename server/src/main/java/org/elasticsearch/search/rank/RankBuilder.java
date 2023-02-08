@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,15 +28,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class RankBuilder implements Writeable, ToXContent {
 
-    public static final ParseField RRF_FIELD = new ParseField("rrf");
-
     private static final ConstructingObjectParser<RankBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rank",
-        args -> new RankBuilder().rrfBuilder((RRFBuilder) args[0])
+        args -> new RankBuilder().toRankContext((RRFBuilder) args[0])
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> RRFBuilder.fromXContent(p), RRF_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> RRFBuilder.fromXContent(p), RRFBuilder.RANK_NAME);
     }
 
     public static RankBuilder fromXContent(XContentParser parser) throws IOException {
@@ -45,41 +44,47 @@ public class RankBuilder implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (rrfBuilder != null) {
-            builder.field(RRF_FIELD.getPreferredName(), rrfBuilder);
+        if (toRankContext != null) {
+            builder.field(toRankContext.getRankName().getPreferredName(), toRankContext);
         }
         builder.endObject();
 
         return builder;
     }
 
-    private RRFBuilder rrfBuilder;
+    private ToRankContext toRankContext;
 
     public RankBuilder() {}
 
     public RankBuilder(StreamInput in) throws IOException {
-        rrfBuilder = in.readOptionalWriteable(RRFBuilder::new);
+        if (in.readBoolean()) {
+            String rankName = in.readString();
+            if (RRFBuilder.RANK_NAME.getPreferredName().equals(rankName)) {
+                toRankContext = in.readOptionalWriteable(RRFBuilder::new);
+            } else {
+                throw new IllegalStateException("unknown rank name [" + rankName + "]");
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(rrfBuilder);
+        if (toRankContext == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(toRankContext.getRankName().getPreferredName());
+            out.writeWriteable(toRankContext);
+        }
     }
 
-    public RankBuilder rrfBuilder(RRFBuilder rrfBuilder) {
-        this.rrfBuilder = rrfBuilder;
+    public RankBuilder toRankContext(ToRankContext toRankContext) {
+        this.toRankContext = toRankContext;
         return this;
     }
 
-    public RRFBuilder rrfBuilder() {
-        return rrfBuilder;
-    }
-
-    public Ranker reranker(int size) {
-        if (rrfBuilder != null) {
-            return rrfBuilder().reranker(size);
-        }
-        return null;
+    public ToRankContext toRankContext() {
+        return toRankContext;
     }
 
     @Override
@@ -87,12 +92,12 @@ public class RankBuilder implements Writeable, ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RankBuilder that = (RankBuilder) o;
-        return Objects.equals(rrfBuilder, that.rrfBuilder);
+        return Objects.equals(toRankContext, that.toRankContext);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rrfBuilder);
+        return Objects.hash(toRankContext);
     }
 
     @Override

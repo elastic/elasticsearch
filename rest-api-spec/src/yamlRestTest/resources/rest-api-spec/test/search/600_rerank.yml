@@ -5,7 +5,7 @@ setup:
       reason: 'rerank added in 8.7'
 
 ---
-"Simple rerank with bm25 search and kNN search":
+"Simple rank with bm25 search and kNN search":
   - do:
       indices.create:
         index: test
@@ -63,7 +63,7 @@ setup:
           query:
             term:
               text: term
-          rerank:
+          rank:
             rrf:
               window_size: 100
               rank_constant: 1

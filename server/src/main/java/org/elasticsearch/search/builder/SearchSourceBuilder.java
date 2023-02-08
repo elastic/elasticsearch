@@ -85,7 +85,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
-    public static final ParseField RERANK_FIELD = new ParseField("rerank");
+    public static final ParseField RANK_FIELD = new ParseField("rank");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term");
@@ -400,12 +400,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Collections.unmodifiableList(knnSearch);
     }
 
-    public SearchSourceBuilder rerankBuilder(RankBuilder rankBuilder) {
+    public SearchSourceBuilder rank(RankBuilder rankBuilder) {
         this.rankBuilder = rankBuilder;
         return this;
     }
 
-    public RankBuilder rerankBuilder() {
+    public RankBuilder rank() {
         return rankBuilder;
     }
 
@@ -1279,7 +1279,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
-                } else if (RERANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     rankBuilder = RankBuilder.fromXContent(parser);
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);

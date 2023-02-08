@@ -54,7 +54,7 @@ public class RerankSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] queryVector = { 500.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50);
         SearchResponse response = client().prepareSearch("index")
-            .setRerankBuilder(new RankBuilder().rrfBuilder(new RRFBuilder().windowSize(100).rankConstant(1)))
+            .setRank(new RankBuilder().toRankContext(new RRFBuilder().windowSize(100).rankConstant(1)))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(5))

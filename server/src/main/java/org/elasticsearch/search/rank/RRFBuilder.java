@@ -25,7 +25,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RRFBuilder implements Writeable, ToXContent {
+public class RRFBuilder implements ToRankContext {
+
+    public static final ParseField RANK_NAME = new ParseField("rrf");
 
     public static final int RANK_CONSTANT_DEFAULT = 20;
     public static final int WINDOW_SIZE_DEFAULT = 10;
@@ -92,8 +94,14 @@ public class RRFBuilder implements Writeable, ToXContent {
         return rankConstant;
     }
 
-    public RRFRanker reranker(int size) {
-        return new RRFRanker(windowSize, size, rankConstant);
+    @Override
+    public ParseField getRankName() {
+        return RANK_NAME;
+    }
+
+    @Override
+    public RankContext toRankContext() {
+        return null;
     }
 
     @Override

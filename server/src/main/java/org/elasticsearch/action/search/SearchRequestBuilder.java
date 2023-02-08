@@ -192,10 +192,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Defines a rerank for scoring results.
+     * Defines a ranker for scoring results.
      */
-    public SearchRequestBuilder setRerankBuilder(RankBuilder rankBuilder) {
-        sourceBuilder().rerankBuilder(rankBuilder);
+    public SearchRequestBuilder setRank(RankBuilder rankBuilder) {
+        sourceBuilder().rank(rankBuilder);
         return this;
     }
 

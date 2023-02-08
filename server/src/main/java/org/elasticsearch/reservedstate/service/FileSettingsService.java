@@ -280,12 +280,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
-    /**
-     * Holds information about the last known state of the file we watched. We use this
-     * class to determine if a file has been changed.
-     */
-    record FileUpdateState(long timestamp, String path, Object fileKey) {}
-
     public void addFileSettingsChangedListener(FileSettingsChangedListener listener) {
         eventListeners.add(listener);
     }

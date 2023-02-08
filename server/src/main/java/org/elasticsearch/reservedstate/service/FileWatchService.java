@@ -39,7 +39,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
     private WatchService watchService; // null;
     private Thread watcherThread;
     // TODO[wrb]: move FileUpdateState to this class
-    FileSettingsService.FileUpdateState fileUpdateState;
+    FileUpdateState fileUpdateState;
     WatchKey settingsDirWatchKey;
     WatchKey configDirWatchKey;
 
@@ -65,10 +65,10 @@ public class FileWatchService extends AbstractLifecycleComponent {
             return false;
         }
 
-        FileSettingsService.FileUpdateState previousUpdateState = fileUpdateState;
+        FileUpdateState previousUpdateState = fileUpdateState;
 
         BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-        fileUpdateState = new FileSettingsService.FileUpdateState(
+        fileUpdateState = new FileUpdateState(
             attr.lastModifiedTime().toMillis(),
             path.toRealPath().toString(),
             attr.fileKey()
@@ -290,4 +290,10 @@ public class FileWatchService extends AbstractLifecycleComponent {
             }
         } while (true);
     }
+
+    /**
+     * Holds information about the last known state of the file we watched. We use this
+     * class to determine if a file has been changed.
+     */
+    record FileUpdateState(long timestamp, String path, Object fileKey) {}
 }

@@ -49,12 +49,7 @@ public class StartsWith extends ScalarFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isStringAndExact(prefix, sourceText(), SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
+        return isStringAndExact(prefix, sourceText(), SECOND);
     }
 
     @Override

@@ -106,7 +106,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Response resp = runESQLCommand(user, "row a = 5, b = 2 | stats count=sum(b) by a");
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
-        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "count", "type", "long"), Map.of("name", "a", "type", "integer"))));
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "count", "type", "long"), Map.of("name", "a", "type", "integer")))
+        );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(2, 5))));
     }
 

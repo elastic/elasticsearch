@@ -45,14 +45,11 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Min.class, Min::new, "min"),
                 def(Sum.class, Sum::new, "sum") },
             // math
-            new FunctionDefinition[] { def(Abs.class, Abs::new, "abs") },
-            new FunctionDefinition[] { def(Round.class, Round::new, "round") },
+            new FunctionDefinition[] { def(Abs.class, Abs::new, "abs"), def(Round.class, Round::new, "round") },
             // string
-            new FunctionDefinition[] { def(Length.class, Length::new, "length") },
+            new FunctionDefinition[] { def(Length.class, Length::new, "length"), def(StartsWith.class, StartsWith::new, "starts_with") },
             // date
-            new FunctionDefinition[] {
-                def(DateFormat.class, DateFormat::new, "date_format"),
-                def(StartsWith.class, StartsWith::new, "starts_with") } };
+            new FunctionDefinition[] { def(DateFormat.class, DateFormat::new, "date_format") } };
     }
 
     @Override

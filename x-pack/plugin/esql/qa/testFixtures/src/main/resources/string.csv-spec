@@ -24,17 +24,17 @@ emp_no:integer | first_name:keyword  | f_S:boolean
 ;
 
 startsWithField
-from test | sort emp_no | limit 10 | eval f_l = starts_with(first_name, last_name) | project emp_no, first_name, last_name, f_l;
+from test | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | project emp_no, last_name, gender, f_l;
 
-emp_no:integer | first_name:keyword | last_name:keyword | f_l:boolean
-10001 | Georgi    | Facello   | false
-10002 | Bezalel   | Simmel    | false
-10003 | Parto     | Bamford   | false
-10004 | Chirstian | Koblick   | false
-10005 | Kyoichi   | Maliniak  | false
-10006 | Anneke    | Preusig   | false
-10007 | Tzvetan   | Zielinski | false
-10008 | Saniya    | Kalloufi  | false
-10009 | Sumant    | Peac      | false
-10010 | Duangkaew | Piveteau  | false
+emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
+10001 | Facello   | M    | false
+10002 | Simmel    | F    | false
+10003 | Bamford   | M    | false
+10004 | Koblick   | M    | false
+10005 | Maliniak  | M    | true
+10006 | Preusig   | F    | false
+10007 | Zielinski | F    | false
+10008 | Kalloufi  | M    | false
+10009 | Peac      | F    | false
+10010 | Piveteau  | null | null
 ;

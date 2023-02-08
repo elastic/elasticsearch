@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Shedule now {transform}</titleabbrev>
+<titleabbrev>Schedule now {transform}</titleabbrev>
 ++++
 
 Causes a {transform} to process the data instantly.
@@ -24,9 +24,9 @@ in the `transform_admin` built-in role.
 [schedule-now-transform-desc]]
 == {api-description-title}
 
-If you `_schedule_now` a {transform}, it will process the new data instantly,
+When you run this API, the {transform} processes the new data instantly,
 without waiting for the configured `frequency` interval.
-After the _schedule_now API is called, the transform will be processed again at
+Subsequently, the transform will be processed again at
 `now + frequency` unless the API is called again in the meantime.
 
 [[schedule-now-transform-path-parms]]

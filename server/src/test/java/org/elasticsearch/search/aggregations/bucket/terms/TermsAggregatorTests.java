@@ -1920,21 +1920,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testWithFilterAndPreciseSize() throws IOException {
         KeywordFieldType kft = new KeywordFieldType("k", true, true, Collections.emptyMap());
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
-            iw.addDocument(
-                List.of(
-                    new Field("k", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE)
-                )
-            );
-            iw.addDocument(
-                List.of(
-                    new Field("k", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE)
-                )
-            );
-            iw.addDocument(
-                List.of(
-                    new Field("k", new BytesRef("c"), KeywordFieldMapper.Defaults.FIELD_TYPE)
-                )
-            );
+            iw.addDocument(List.of(new Field("k", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE)));
+            iw.addDocument(List.of(new Field("k", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE)));
+            iw.addDocument(List.of(new Field("k", new BytesRef("c"), KeywordFieldMapper.Defaults.FIELD_TYPE)));
         };
         TermsAggregationBuilder builder = new TermsAggregationBuilder("k").field("k");
         /*
@@ -2006,9 +1994,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         debugTestCase(new TermsAggregationBuilder("t").field("k"), query, iw -> {
             for (int d = 0; d < totalDocs; d++) {
                 BytesRef value = values[d % values.length];
-                iw.addDocument(
-                    List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE))
-                );
+                iw.addDocument(List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE)));
             }
         }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
@@ -2062,9 +2048,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         debugTestCase(new TermsAggregationBuilder("t").field("dummy"), new MatchAllDocsQuery(), iw -> {
             for (int d = 0; d < totalDocs; d++) {
                 BytesRef value = values[d % values.length];
-                iw.addDocument(
-                    List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE))
-                );
+                iw.addDocument(List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE)));
             }
         }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(

@@ -11,7 +11,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -49,7 +48,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.hamcrest.core.CombinableMatcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -279,11 +277,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         assertThat(
             indexableFields.getFields("field"),
-            arrayContainingInAnyOrder(
-                keywordField("key1"),
-                keywordField("key2"),
-                keywordField("key3")
-            )
+            arrayContainingInAnyOrder(keywordField("key1"), keywordField("key2"), keywordField("key3"))
         );
         assertThat(
             indexableFields.getFields("field.subsuggest"),
@@ -415,14 +409,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(suggestField("suggestion")));
         assertThat(indexableFields.getFields("field.subsuggest1"), arrayContainingInAnyOrder(suggestField("suggestion")));
         assertThat(indexableFields.getFields("field.subsuggest2"), arrayContainingInAnyOrder(suggestField("suggestion")));
-        assertThat(
-            indexableFields.getFields("field.analyzed1"),
-            arrayContainingInAnyOrder(keywordField("suggestion"))
-        );
-        assertThat(
-            indexableFields.getFields("field.analyzed2"),
-            arrayContainingInAnyOrder(keywordField("suggestion"))
-        );
+        assertThat(indexableFields.getFields("field.analyzed1"), arrayContainingInAnyOrder(keywordField("suggestion")));
+        assertThat(indexableFields.getFields("field.analyzed2"), arrayContainingInAnyOrder(keywordField("suggestion")));
     }
 
     public void testCompletionTypeWithSubfieldsAndArrayInsert() throws Exception {
@@ -454,20 +442,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             indexableFields.getFields("field.subcompletion2"),
             arrayContainingInAnyOrder(suggestField("New York"), suggestField("NY"))
         );
-        assertThat(
-            indexableFields.getFields("field.analyzed1"),
-            arrayContainingInAnyOrder(
-                keywordField("New York"),
-                keywordField("NY")
-            )
-        );
-        assertThat(
-            indexableFields.getFields("field.analyzed2"),
-            arrayContainingInAnyOrder(
-                keywordField("New York"),
-                keywordField("NY")
-            )
-        );
+        assertThat(indexableFields.getFields("field.analyzed1"), arrayContainingInAnyOrder(keywordField("New York"), keywordField("NY")));
+        assertThat(indexableFields.getFields("field.analyzed2"), arrayContainingInAnyOrder(keywordField("New York"), keywordField("NY")));
     }
 
     public void testCompletionTypeWithSubfieldsAndObjectInsert() throws Exception {
@@ -506,20 +482,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             indexableFields.getFields("field.subcompletion2"),
             arrayContainingInAnyOrder(suggestField("New York"), suggestField("NY"))
         );
-        assertThat(
-            indexableFields.getFields("field.analyzed1"),
-            arrayContainingInAnyOrder(
-                keywordField("New York"),
-                keywordField("NY")
-            )
-        );
-        assertThat(
-            indexableFields.getFields("field.analyzed2"),
-            arrayContainingInAnyOrder(
-                keywordField("New York"),
-                keywordField("NY")
-            )
-        );
+        assertThat(indexableFields.getFields("field.analyzed1"), arrayContainingInAnyOrder(keywordField("New York"), keywordField("NY")));
+        assertThat(indexableFields.getFields("field.analyzed2"), arrayContainingInAnyOrder(keywordField("New York"), keywordField("NY")));
         // unable to assert about weight, covered in a REST test
     }
 
@@ -922,7 +886,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         return Matchers.allOf(
             hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))),
             hasProperty(ft -> ft.fieldType().indexOptions(), equalTo(IndexOptions.DOCS)),
-            hasProperty(ft -> ft.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_SET)));
+            hasProperty(ft -> ft.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_SET))
+        );
     }
 
     private <T, V> Matcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {

@@ -11,9 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -717,7 +715,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             for (int i = 0; i < 10; i++) {
-                indexWriter.addDocument(List.of(new Field("foo", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i)));
+                indexWriter.addDocument(
+                    List.of(new Field("foo", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i))
+                );
             }
             indexWriter.close();
 
@@ -785,7 +785,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             for (int i = 0; i < 10; i++) {
-                indexWriter.addDocument(List.of(new Field("foo", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i)));
+                indexWriter.addDocument(
+                    List.of(new Field("foo", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i))
+                );
             }
             indexWriter.close();
 

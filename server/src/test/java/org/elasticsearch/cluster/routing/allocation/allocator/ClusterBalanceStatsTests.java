@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -25,6 +26,8 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
@@ -49,8 +52,11 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 startedIndex("index-3", null, null, "node-3", "node-1")
             )
         );
+        var clusterInfo = createClusterInfo(
+            List.of(indexSizes("index-1", 1L, 1L), indexSizes("index-2", 2L, 2L), indexSizes("index-3", 3L, 3L))
+        );
 
-        var stats = ClusterBalanceStats.createFrom(clusterState, TEST_WRITE_LOAD_FORECASTER);
+        var stats = ClusterBalanceStats.createFrom(clusterState, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
 
         assertThat(
             stats,
@@ -61,16 +67,14 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         new ClusterBalanceStats.TierBalanceStats(
                             new ClusterBalanceStats.MetricStats(6.0, 2.0, 2.0, 2.0, 0.0),
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
-                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0)
+                            new ClusterBalanceStats.MetricStats(12.0, 3.0, 5.0, 4.0, stdDev(3.0, 5.0, 4.0)),
+                            new ClusterBalanceStats.MetricStats(12.0, 3.0, 5.0, 4.0, stdDev(3.0, 5.0, 4.0))
                         )
                     ),
-                    Map.of(
-                        "node-1",
-                        new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 0L),
-                        "node-2",
-                        new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 0L),
-                        "node-3",
-                        new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 0L)
+                    Map.ofEntries(
+                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 4L, 4L)),
+                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 3L, 3L)),
+                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 5L, 5L))
                     )
                 )
             )
@@ -91,8 +95,12 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 startedIndex("index-3", 2.0, 6L, "node-3", "node-1")
             )
         );
+        // intentionally different from forecast
+        var clusterInfo = createClusterInfo(
+            List.of(indexSizes("index-1", 1L, 1L), indexSizes("index-2", 2L, 2L), indexSizes("index-3", 3L, 3L))
+        );
 
-        var stats = ClusterBalanceStats.createFrom(clusterState, TEST_WRITE_LOAD_FORECASTER);
+        var stats = ClusterBalanceStats.createFrom(clusterState, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
 
         assertThat(
             stats,
@@ -103,16 +111,14 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         new ClusterBalanceStats.TierBalanceStats(
                             new ClusterBalanceStats.MetricStats(6.0, 2.0, 2.0, 2.0, 0.0),
                             new ClusterBalanceStats.MetricStats(12.0, 3.5, 4.5, 4.0, stdDev(3.5, 4.0, 4.5)),
-                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 14.0, 12.0, stdDev(10.0, 12.0, 14.0))
+                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 14.0, 12.0, stdDev(10.0, 12.0, 14.0)),
+                            new ClusterBalanceStats.MetricStats(12.0, 3.0, 5.0, 4.0, stdDev(3.0, 5.0, 4.0))
                         )
                     ),
-                    Map.of(
-                        "node-1",
-                        new ClusterBalanceStats.NodeBalanceStats(2, 3.5, 14L),
-                        "node-2",
-                        new ClusterBalanceStats.NodeBalanceStats(2, 4.0, 12L),
-                        "node-3",
-                        new ClusterBalanceStats.NodeBalanceStats(2, 4.5, 10L)
+                    Map.ofEntries(
+                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats(2, 3.5, 14L, 4L)),
+                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats(2, 4.0, 12L, 3L)),
+                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats(2, 4.5, 10L, 5L))
                     )
                 )
             )
@@ -138,8 +144,18 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 startedIndex("index-warm-2", 0.0, 18L, "node-warm-3")
             )
         );
+        // intentionally different from forecast
+        var clusterInfo = createClusterInfo(
+            List.of(
+                indexSizes("index-hot-1", 4L, 4L, 4L),
+                indexSizes("index-hot-2", 5L, 5L),
+                indexSizes("index-hot-3", 6L, 6L),
+                indexSizes("index-warm-1", 12L, 12L),
+                indexSizes("index-warm-2", 18L)
+            )
+        );
 
-        var stats = ClusterBalanceStats.createFrom(clusterState, TEST_WRITE_LOAD_FORECASTER);
+        var stats = ClusterBalanceStats.createFrom(clusterState, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
 
         assertThat(
             stats,
@@ -150,34 +166,31 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         new ClusterBalanceStats.TierBalanceStats(
                             new ClusterBalanceStats.MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
                             new ClusterBalanceStats.MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
-                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0))
+                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0)),
+                            new ClusterBalanceStats.MetricStats(34.0, 9.0, 15.0, 34.0 / 3, stdDev(9.0, 10.0, 15.0))
                         ),
                         DATA_HOT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
                             new ClusterBalanceStats.MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
                             new ClusterBalanceStats.MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
-                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0))
+                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0)),
+                            new ClusterBalanceStats.MetricStats(34.0, 9.0, 15.0, 34.0 / 3, stdDev(9.0, 10.0, 15.0))
                         ),
                         DATA_WARM_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
                             new ClusterBalanceStats.MetricStats(3.0, 1.0, 1.0, 1.0, 0.0),
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0)),
                             new ClusterBalanceStats.MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0))
                         )
                     ),
-                    Map.of(
-                        "node-hot-1",
-                        new ClusterBalanceStats.NodeBalanceStats(3, 8.5, 16L),
-                        "node-hot-2",
-                        new ClusterBalanceStats.NodeBalanceStats(2, 6.0, 10L),
-                        "node-hot-3",
-                        new ClusterBalanceStats.NodeBalanceStats(2, 6.5, 10L),
-                        "node-warm-1",
-                        new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 12L),
-                        "node-warm-2",
-                        new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 12L),
-                        "node-warm-3",
-                        new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 18L)
+                    Map.ofEntries(
+                        Map.entry("node-hot-1", new ClusterBalanceStats.NodeBalanceStats(3, 8.5, 16L, 15L)),
+                        Map.entry("node-hot-2", new ClusterBalanceStats.NodeBalanceStats(2, 6.0, 10L, 9L)),
+                        Map.entry("node-hot-3", new ClusterBalanceStats.NodeBalanceStats(2, 6.5, 10L, 10L)),
+                        Map.entry("node-warm-1", new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 12L, 12L)),
+                        Map.entry("node-warm-2", new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 12L, 12L)),
+                        Map.entry("node-warm-3", new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 18L, 18L))
                     )
                 )
             )
@@ -194,8 +207,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             ),
             List.of()
         );
+        var clusterInfo = createClusterInfo(List.of());
 
-        var stats = ClusterBalanceStats.createFrom(clusterState, TEST_WRITE_LOAD_FORECASTER);
+        var stats = ClusterBalanceStats.createFrom(clusterState, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
 
         assertThat(
             stats,
@@ -206,16 +220,14 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         new ClusterBalanceStats.TierBalanceStats(
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0)
                         )
                     ),
-                    Map.of(
-                        "node-1",
-                        new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L),
-                        "node-2",
-                        new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L),
-                        "node-3",
-                        new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L)
+                    Map.ofEntries(
+                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L, 0L)),
+                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L, 0L)),
+                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L, 0L))
                     )
                 )
             )
@@ -265,6 +277,31 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 .shardSizeInBytesForecast(shardSizeInBytesForecast),
             nodeId
         );
+    }
+
+    private ClusterInfo createClusterInfo(List<Tuple<String, long[]>> shardSizes) {
+        return new ClusterInfo(
+            Map.of(),
+            Map.of(),
+            shardSizes.stream()
+                .flatMap(
+                    entry -> IntStream.range(0, entry.v2().length)
+                        .mapToObj(
+                            index -> Map.entry(
+                                ClusterInfo.shardIdentifierFromRouting(new ShardId(entry.v1(), "_na_", index), true),
+                                entry.v2()[index]
+                            )
+                        )
+                )
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
+    }
+
+    private static Tuple<String, long[]> indexSizes(String name, long... sizes) {
+        return Tuple.tuple(name, sizes);
     }
 
     private static double stdDev(double... data) {

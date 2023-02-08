@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -23,13 +26,13 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class QueryRulesPutAction extends ActionType<AcknowledgedResponse> {
+public class QueryRulesPutAction extends ActionType<QueryRulesPutAction.Response> {
 
     public static final QueryRulesPutAction INSTANCE = new QueryRulesPutAction();
     public static final String NAME = "cluster:admin/query_rules/put";
 
     private QueryRulesPutAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, QueryRulesPutAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -92,6 +95,33 @@ public class QueryRulesPutAction extends ActionType<AcknowledgedResponse> {
 
         public XContentType getContentType() {
             return contentType;
+        }
+    }
+
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        final DocWriteResponse.Result result;
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            result = DocWriteResponse.Result.readFrom(in);
+        }
+
+        public Response(DocWriteResponse.Result result) {
+            this.result = result;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            this.result.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("result", this.result.getLowercase());
+            builder.endObject();
+            return builder;
         }
     }
 

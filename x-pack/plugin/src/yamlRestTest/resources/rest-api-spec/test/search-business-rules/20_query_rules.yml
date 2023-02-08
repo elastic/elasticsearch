@@ -6,10 +6,20 @@
         ruleset_id: my-rules-id
         body:
           mappings:
+            user: integer
+          rules: [{ "condition" : {}, "action" : {}}]
+
+  - match: { result: created }
+
+  - do:
+      query_rules.put:
+        ruleset_id: my-rules-id
+        body:
+          mappings:
             user: string
           rules: [{ "condition" : {}, "action" : {}}]
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
   - do:
       query_rules.get:

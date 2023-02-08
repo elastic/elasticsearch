@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
@@ -26,7 +25,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.QUERY_RULES_MANAGEMENT_O
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules.QUERY_RULES_CONCRETE_INDEX_NAME;
 
-public class TransportQueryRulesPutAction extends HandledTransportAction<QueryRulesPutAction.Request, AcknowledgedResponse> {
+public class TransportQueryRulesPutAction extends HandledTransportAction<QueryRulesPutAction.Request, QueryRulesPutAction.Response> {
 
     private final Client client;
 
@@ -37,7 +36,7 @@ public class TransportQueryRulesPutAction extends HandledTransportAction<QueryRu
     }
 
     @Override
-    protected void doExecute(Task task, QueryRulesPutAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(Task task, QueryRulesPutAction.Request request, ActionListener<QueryRulesPutAction.Response> listener) {
         IndexRequest indexRequest = new IndexRequest(QUERY_RULES_CONCRETE_INDEX_NAME).id(request.getRuleSetId())
             .source(request.getContent(), request.getContentType())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -45,7 +44,7 @@ public class TransportQueryRulesPutAction extends HandledTransportAction<QueryRu
         executeAsyncWithOrigin(client, QUERY_RULES_MANAGEMENT_ORIGIN, IndexAction.INSTANCE, indexRequest, new ActionListener<>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
+                listener.onResponse(new QueryRulesPutAction.Response(indexResponse.getResult()));
             }
 
             @Override

@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
@@ -52,6 +53,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +72,7 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
     private final Store store;
     private final ThreadPool threadPool;
     private final LongSupplier globalCheckpointSupplier;
+    private final Comparator<LeafReader> leafSorter;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicInteger pendingReloadCount = new AtomicInteger();
 
@@ -82,7 +85,8 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         ShardId shardId,
         Store store,
         ThreadPool threadPool,
-        LongSupplier globalCheckpointSupplier
+        LongSupplier globalCheckpointSupplier,
+        Comparator<LeafReader> leafSorter
     ) {
         this.logger = Loggers.getLogger(StatelessReaderManager.class, shardId);
         this.objectStoreService = objectStoreService;
@@ -90,6 +94,7 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         this.store = store;
         this.threadPool = threadPool;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.leafSorter = leafSorter;
         this.store.incRef();
     }
 
@@ -112,7 +117,7 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
                     readerManager = currentState.readerManager;
                 } else {
                     ElasticsearchDirectoryReader reader = ElasticsearchDirectoryReader.wrap(
-                        new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory), Lucene.SOFT_DELETES_FIELD),
+                        new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory, leafSorter), Lucene.SOFT_DELETES_FIELD),
                         shardId
                     );
                     readerManager = new ElasticsearchReaderManager(reader);

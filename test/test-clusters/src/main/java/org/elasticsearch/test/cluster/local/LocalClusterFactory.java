@@ -66,16 +66,21 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final int DEFAULT_DEBUG_PORT = 5007;
 
-    private final Path baseWorkingDir;
     private final DistributionResolver distributionResolver;
+    private Path baseWorkingDir;
 
-    public LocalClusterFactory(Path baseWorkingDir, DistributionResolver distributionResolver) {
-        this.baseWorkingDir = baseWorkingDir;
+    public LocalClusterFactory(DistributionResolver distributionResolver) {
         this.distributionResolver = distributionResolver;
     }
 
     @Override
     public LocalClusterHandle create(LocalClusterSpec spec) {
+        try {
+            this.baseWorkingDir = Files.createTempDirectory(spec.getName());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         return new LocalClusterHandle(spec.getName(), spec.getNodes().stream().map(Node::new).toList());
     }
 
@@ -95,7 +100,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         public Node(LocalNodeSpec spec) {
             this.spec = spec;
-            this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
+            this.workingDir = baseWorkingDir.resolve(spec.getName());
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -127,6 +132,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 copyExtraConfigFiles();
             }
 
+            deleteGcLogs();
             writeConfiguration();
             createKeystore();
             addKeystoreSettings();
@@ -209,6 +215,20 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
+        private void deleteGcLogs() {
+            try (Stream<Path> logs = Files.list(logsDir)) {
+                logs.filter(l -> l.getFileName().toString().startsWith("gc.log")).forEach(path -> {
+                    try {
+                        IOUtils.deleteWithRetry(path);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
         private void createConfigDirectory() {
             try {
                 IOUtils.deleteWithRetry(configDir);
@@ -271,7 +291,8 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         private boolean canUseSharedDistribution() {
             return OS.current() != WINDOWS // Issues with long file paths on Windows in CI
                 && System.getProperty(TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP) == null
-                && (distributionDescriptor.getType() == DEFAULT || (getSpec().getPlugins().isEmpty() && getSpec().getModules().isEmpty()));
+                && getSpec().getPlugins().isEmpty()
+                && (distributionDescriptor.getType() == DEFAULT || getSpec().getModules().isEmpty());
         }
 
         private void copyExtraJarFiles() {
@@ -607,7 +628,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void runToolScript(String tool, String input, String... args) {
             try {
-                ProcessUtils.exec(
+                int exit = ProcessUtils.exec(
                     input,
                     distributionDir,
                     distributionDir.resolve("bin")
@@ -616,13 +637,17 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     false,
                     args
                 ).waitFor();
+
+                if (exit != 0) {
+                    throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
 
         private String getServiceName() {
-            return baseWorkingDir.getFileName() + "-" + spec.getCluster().getName() + "-" + spec.getName();
+            return baseWorkingDir.getFileName() + "-" + spec.getName();
         }
 
         @Override

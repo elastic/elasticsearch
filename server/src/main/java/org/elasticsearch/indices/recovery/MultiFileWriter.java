@@ -118,7 +118,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             }
 
             Store.verify(indexOutput);
-            assert Arrays.asList(store.directory().listAll()).contains(tempFileName)
+            assert verifyOutput == false || Arrays.asList(store.directory().listAll()).contains(tempFileName)
                 : "expected: [" + tempFileName + "] in " + Arrays.toString(store.directory().listAll());
             store.directory().sync(Collections.singleton(tempFileName));
         } catch (IOException e) {

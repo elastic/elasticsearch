@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -183,19 +184,30 @@ public class TransportStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    private static void histogramToXContent(XContentBuilder builder, long[] bucketFrequencies, String fieldName) throws IOException {
+    static void histogramToXContent(XContentBuilder builder, long[] bucketFrequencies, String fieldName) throws IOException {
         final int[] bucketBounds = HandlingTimeTracker.getBucketUpperBounds();
+
+        int firstBucket = 0;
+        long remainingCount = 0L;
+        for (int i = 0; i < bucketFrequencies.length; i++) {
+            if (remainingCount == 0) {
+                firstBucket = i;
+            }
+            remainingCount += bucketFrequencies[i];
+        }
+
         assert bucketFrequencies.length == bucketBounds.length + 1;
         builder.startArray(fieldName);
-        for (int i = 0; i < bucketFrequencies.length; i++) {
+        for (int i = firstBucket; i < bucketFrequencies.length && 0 < remainingCount; i++) {
             builder.startObject();
             if (i > 0 && i <= bucketBounds.length) {
-                builder.field("ge_millis", bucketBounds[i - 1]);
+                builder.humanReadableField("ge_millis", "ge", TimeValue.timeValueMillis(bucketBounds[i - 1]));
             }
             if (i < bucketBounds.length) {
-                builder.field("lt_millis", bucketBounds[i]);
+                builder.humanReadableField("lt_millis", "lt", TimeValue.timeValueMillis(bucketBounds[i]));
             }
             builder.field("count", bucketFrequencies[i]);
+            remainingCount -= bucketFrequencies[i];
             builder.endObject();
         }
         builder.endArray();

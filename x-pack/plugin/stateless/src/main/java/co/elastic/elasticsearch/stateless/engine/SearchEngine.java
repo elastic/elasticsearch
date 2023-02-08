@@ -83,7 +83,8 @@ public class SearchEngine extends Engine {
                     config.getShardId(),
                     store,
                     config.getThreadPool(),
-                    config.getGlobalCheckpointSupplier()
+                    config.getGlobalCheckpointSupplier(),
+                    config.getLeafSorter()
                 );
                 readerManager.reloadReaderManager();
                 var localCheckpoint = readerManager.getSeqNoStats().getLocalCheckpoint();

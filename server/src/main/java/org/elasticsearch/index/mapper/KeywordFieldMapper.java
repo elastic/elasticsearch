@@ -16,6 +16,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -97,6 +98,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
             FIELD_TYPE.freeze();
         }
 
@@ -312,6 +314,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
+            fieldtype.setDocValuesType(this.hasDocValues.getValue() ? DocValuesType.SORTED_SET : DocValuesType.NONE);
             if (fieldtype.equals(Defaults.FIELD_TYPE)) {
                 // deduplicate in the common default case to save some memory
                 fieldtype = Defaults.FIELD_TYPE;
@@ -1024,17 +1027,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(msg);
             }
 
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType().hasDocValues() || fieldType.stored()) {
                 Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
                 context.doc().add(field);
 
                 if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                     context.addToFieldNames(fieldType().name());
                 }
-            }
-
-            if (fieldType().hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
             }
         }
     }

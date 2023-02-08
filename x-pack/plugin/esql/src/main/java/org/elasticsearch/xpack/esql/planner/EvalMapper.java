@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -37,13 +38,22 @@ import java.util.List;
 final class EvalMapper {
 
     abstract static class ExpressionMapper<E extends Expression> {
-        private final Class<E> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
+        private final Class<E> typeToken;
+
+        protected ExpressionMapper() {
+            typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
+        }
+
+        protected ExpressionMapper(Class<E> typeToken) {
+            this.typeToken = typeToken;
+        }
 
         protected abstract ExpressionEvaluator map(E expression, Layout layout);
     }
 
     private static final List<ExpressionMapper<?>> MAPPERS = Arrays.asList(
         new Arithmetics(),
+        new Mapper<>(Abs.class),
         new Comparisons(),
         new BooleanLogic(),
         new Nots(),
@@ -319,6 +329,17 @@ final class EvalMapper {
             ExpressionEvaluator input = toEvaluator(sw.str(), layout);
             ExpressionEvaluator pattern = toEvaluator(sw.prefix(), layout);
             return new StartsWithEvaluator(input, pattern);
+        }
+    }
+
+    private static class Mapper<E extends Expression & Mappable> extends ExpressionMapper<E> {
+        protected Mapper(Class<E> typeToken) {
+            super(typeToken);
+        }
+
+        @Override
+        public ExpressionEvaluator map(E abs, Layout layout) {
+            return abs.toEvaluator(e -> toEvaluator(e, layout));
         }
     }
 }

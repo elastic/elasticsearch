@@ -1,0 +1,26 @@
+absLong
+from test | eval l = abs(0-languages.long) | project l | sort l asc | limit 3;
+
+l:long
+1
+1
+1
+;
+
+absInt
+from test | eval s = abs(0-salary) | project s | sort s asc | limit 3;
+
+s:integer
+25324
+25945
+25976
+;
+
+absDouble
+from test | eval s = abs(0.0-salary) | project s | sort s asc | limit 3;
+
+s:double
+25324.0
+25945.0
+25976.0
+;

@@ -57,8 +57,8 @@ public final class ProcessUtils {
         List<String> command = new ArrayList<>();
         command.addAll(
             OS.conditional(
-                c -> c.onWindows(() -> List.of("cmd", "/c", executable.toAbsolutePath().toString()))
-                    .onUnix(() -> List.of(executable.toAbsolutePath().toString()))
+                c -> c.onWindows(() -> List.of("cmd", "/c", workingDir.relativize(executable).toString()))
+                    .onUnix(() -> List.of(workingDir.relativize(executable).toString()))
             )
         );
         command.addAll(Arrays.asList(args));
@@ -67,6 +67,8 @@ public final class ProcessUtils {
         processBuilder.directory(workingDir.toFile());
         processBuilder.environment().clear();
         processBuilder.environment().putAll(environment);
+
+        LOGGER.info("Executing '{}' in '{}'", command, workingDir);
 
         try {
             process = processBuilder.start();

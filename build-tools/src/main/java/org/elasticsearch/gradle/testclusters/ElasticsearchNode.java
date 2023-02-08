@@ -1696,20 +1696,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     void configureHttpWait(WaitForHttpResource wait) {
-        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities")) {
-            wait.setCertificateAuthorities(
-                getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate_authorities").toString()).toFile()
-            );
-        }
         if (settings.containsKey("xpack.security.http.ssl.certificate")) {
-            wait.setCertificateAuthorities(getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate").toString()).toFile());
-        }
-        if (settings.containsKey("xpack.security.http.ssl.keystore.path")
-            && settings.containsKey("xpack.security.http.ssl.certificate_authorities") == false) { // Can not set both trust stores and CA
-            wait.setTrustStoreFile(getConfigDir().resolve(settings.get("xpack.security.http.ssl.keystore.path").toString()).toFile());
-        }
-        if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
-            wait.setTrustStorePassword(keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString());
+            wait.setServerCertificate(getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate").toString()).toFile());
+        } else {
+            if (settings.containsKey("xpack.security.http.ssl.keystore.path")) {
+                wait.setServerKeystoreFile(
+                    getConfigDir().resolve(settings.get("xpack.security.http.ssl.keystore.path").toString()).toFile()
+                );
+            }
+            if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
+                wait.setServerKeystorePassword(keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString());
+            }
         }
     }
 

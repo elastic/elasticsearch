@@ -331,11 +331,11 @@ public class ServerCliTests extends CommandTestCase {
 
     public void testSecureSettingsLoaderWithPassword() throws Exception {
         var loader = setupMockKeystoreLoader();
-        assertKeystorePassword("aaa");
+        assertKeystorePassword("aaaaaaaaaaaaaaaaaa");
         assertTrue(loader.loaded);
         assertTrue(loader.bootstrapped);
         // the password we read should match what we passed in
-        assertEquals("aaa", loader.password);
+        assertEquals("aaaaaaaaaaaaaaaaaa", loader.password);
         // after the command the secrets password is closed
         assertEquals(
             "SecureString has already been closed",
@@ -536,7 +536,7 @@ public class ServerCliTests extends CommandTestCase {
                     return mockSecureSettingsLoader;
                 }
 
-                return super.secureSettingsLoader(env);
+                return new KeystoreSecureSettingsLoader();
             }
         };
     }
@@ -605,6 +605,10 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             this.bootstrapped = true;
+            // make sure we don't fail in fips mode when we run with an empty password
+            if (inFipsJvm() && (password == null || password.isEmpty())) {
+                return KeyStoreWrapper.create();
+            }
             return super.bootstrap(environment, password);
         }
     }

@@ -305,6 +305,11 @@ public class MetadataUpdateSettingsService {
 
             return updatedState;
         }
+
+        @Override
+        public String toString() {
+            return request.toString();
+        }
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {

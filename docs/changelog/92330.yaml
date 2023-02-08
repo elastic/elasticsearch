@@ -1,0 +1,6 @@
+pr: 92330
+summary: Validates `IndexRequests` after ingest pipelines
+area: Ingest Node
+type: bug
+issues:
+ - 91777

@@ -12,6 +12,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -110,6 +111,8 @@ public class TopNOperator implements Operator {
             cmp = Long.compare(block1.getLong(0), block2.getLong(0));
         } else if (b1 instanceof DoubleBlock block1 && b2 instanceof DoubleBlock block2) {
             cmp = Double.compare(block1.getDouble(0), block2.getDouble(0));
+        } else if (b1 instanceof BooleanBlock block1 && b2 instanceof BooleanBlock block2) {
+            cmp = Boolean.compare(block1.getBoolean(0), block2.getBoolean(0));
         } else if (b1 instanceof BytesRefBlock block1 && b2 instanceof BytesRefBlock block2) {
             cmp = block1.getBytesRef(0, new BytesRef()).compareTo(block2.getBytesRef(0, new BytesRef()));
         } else if (b1.elementType() == ElementType.NULL) {

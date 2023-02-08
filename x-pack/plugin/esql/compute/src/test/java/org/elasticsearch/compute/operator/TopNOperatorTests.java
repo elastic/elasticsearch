@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -161,6 +162,26 @@ public class TopNOperatorTests extends OperatorTestCase {
             () -> TopNOperator.compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), randomFrom(i1, l1), b1)
         );
         assertThat(error.getMessage(), containsString("Blocks have incompatible element types"));
+    }
+
+    public void testCompareBooleans() {
+        Block[] bs = new Block[] { BooleanBlock.newConstantBlockWith(false, 1), BooleanBlock.newConstantBlockWith(true, 1) };
+        for (Block b : bs) {
+            assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b, b));
+            Block nullBlock = Block.constantNullBlock(1);
+            assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), true, b, nullBlock));
+            assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), false, b, nullBlock));
+            assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), true, nullBlock, b));
+            assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), false, nullBlock, b));
+        }
+        for (int i = 0; i < bs.length - 1; i++) {
+            for (int j = i + 1; j < bs.length; j++) {
+                assertEquals(1, compareFirstPositionsOfBlocks(true, randomBoolean(), bs[i], bs[j]));
+                assertEquals(-1, compareFirstPositionsOfBlocks(true, randomBoolean(), bs[j], bs[i]));
+                assertEquals(-1, compareFirstPositionsOfBlocks(false, randomBoolean(), bs[i], bs[j]));
+                assertEquals(1, compareFirstPositionsOfBlocks(false, randomBoolean(), bs[j], bs[i]));
+            }
+        }
     }
 
     public void testCompareWithNulls() {

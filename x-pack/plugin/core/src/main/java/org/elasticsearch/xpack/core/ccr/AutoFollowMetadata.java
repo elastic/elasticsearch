@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -267,7 +266,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             final List<String> leaderIndexPatterns = in.readStringList();
             final String followIndexPattern = in.readOptionalString();
             final Settings settings;
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
                 settings = Settings.readSettingsFromStream(in);
             } else {
                 settings = Settings.EMPTY;
@@ -287,12 +286,12 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
             this.settings = Objects.requireNonNull(settings);
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
                 this.active = in.readBoolean();
             } else {
                 this.active = true;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 this.leaderIndexExclusionPatterns = in.readStringList();
             } else {
                 this.leaderIndexExclusionPatterns = Collections.emptyList();
@@ -352,14 +351,14 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
                 settings.writeTo(out);
             }
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
                 out.writeBoolean(active);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }
         }

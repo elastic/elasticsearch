@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -426,12 +425,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.setPriorityPriority = in.readOptionalVInt();
             this.shrinkMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.shrinkNumberOfShards = in.readOptionalVInt();
-            if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 this.rolloverMaxPrimaryShardDocs = in.readOptionalVLong();
             } else {
                 this.rolloverMaxPrimaryShardDocs = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 this.rolloverMinAge = in.readOptionalTimeValue();
                 this.rolloverMinDocs = in.readOptionalVLong();
                 this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
@@ -457,10 +456,10 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeOptionalVInt(setPriorityPriority);
             out.writeOptionalWriteable(shrinkMaxPrimaryShardSize);
             out.writeOptionalVInt(shrinkNumberOfShards);
-            if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalTimeValue(rolloverMinAge);
                 out.writeOptionalVLong(rolloverMinDocs);
                 out.writeOptionalWriteable(rolloverMinPrimaryShardSize);

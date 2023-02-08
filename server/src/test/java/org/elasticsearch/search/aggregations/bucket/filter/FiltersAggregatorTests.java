@@ -11,9 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -174,28 +172,28 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         Document document = new Document();
-        document.add(new Field("field", "foo", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("foo"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "else", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("else"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         // make sure we have more than one segment to test the merge
         indexWriter.commit();
-        document.add(new Field("field", "foo", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("foo"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "foobar", KeywordFieldMapper.Defaults.FIELD_TYPE));
-        indexWriter.addDocument(document);
-        indexWriter.commit();
-        document.clear();
-        document.add(new Field("field", "something", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("foobar"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         indexWriter.commit();
         document.clear();
-        document.add(new Field("field", "foobar", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field("field", new BytesRef("something"), KeywordFieldMapper.Defaults.FIELD_TYPE));
+        indexWriter.addDocument(document);
+        indexWriter.commit();
+        document.clear();
+        document.add(new Field("field", new BytesRef("foobar"), KeywordFieldMapper.Defaults.FIELD_TYPE));
         indexWriter.addDocument(document);
         indexWriter.close();
 
@@ -241,7 +239,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             }
             int value = randomInt(maxTerm - 1);
             expectedBucketCount[value] += 1;
-            document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new Field("field", new BytesRef(Integer.toString(value)), KeywordFieldMapper.Defaults.FIELD_TYPE));
             indexWriter.addDocument(document);
             document.clear();
         }
@@ -600,7 +598,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(
                     List.of(
-                        new Field("a", Integer.toString(i % 2), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        new Field("a", new BytesRef(Integer.toString(i % 2)), KeywordFieldMapper.Defaults.FIELD_TYPE),
                         DocCountFieldMapper.field(i + 1)
                     )
                 );
@@ -717,7 +715,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             for (int i = 0; i < 10; i++) {
-                indexWriter.addDocument(List.of(new Field("foo", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i)));
+                indexWriter.addDocument(
+                    List.of(new Field("foo", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i))
+                );
             }
             indexWriter.close();
 
@@ -785,7 +785,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             for (int i = 0; i < 10; i++) {
-                indexWriter.addDocument(List.of(new Field("foo", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i)));
+                indexWriter.addDocument(
+                    List.of(new Field("foo", new BytesRef("bar"), KeywordFieldMapper.Defaults.FIELD_TYPE), new LongPoint("t", i))
+                );
             }
             indexWriter.close();
 
@@ -864,15 +866,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 List.of(
                     new LongPoint("date", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02")),
-                    new Field("kwd", "a", KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedDocValuesField("kwd", new BytesRef("a"))
+                    new Field("kwd", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE)
                 )
             );
             iw.addDocument(
                 List.of(
                     new LongPoint("date", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02")),
-                    new Field("kwd", "a", KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedDocValuesField("kwd", new BytesRef("a"))
+                    new Field("kwd", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE)
                 )
             );
         }, (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
@@ -1543,7 +1543,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, true, Map.of());
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             BytesRef text = new BytesRef(randomAlphaOfLength(5));
-            return List.of(new Field("f", text, KeywordFieldMapper.Defaults.FIELD_TYPE), new SortedSetDocValuesField("f", text));
+            return List.of(new Field("f", text, KeywordFieldMapper.Defaults.FIELD_TYPE));
         });
     }
 

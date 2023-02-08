@@ -2099,6 +2099,7 @@ public class DataStreamIT extends ESIntegTestCase {
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+        ensureGreen(dataStreamName);
 
         indexDocsAndEnsureThereIsCapturedWriteLoad(dataStreamName);
 

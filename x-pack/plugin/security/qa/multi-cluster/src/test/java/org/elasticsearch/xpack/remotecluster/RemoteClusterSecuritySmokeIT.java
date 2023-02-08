@@ -9,9 +9,13 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.ObjectPath;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -27,6 +31,12 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
     @Override
     protected boolean preserveDataStreamsUponCompletion() {
         return true;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private boolean isFulfillingCluster() {
@@ -46,11 +56,19 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
         } else {
             // Check that we can search the fulfilling cluster from the querying cluster
             Request searchRequest = new Request("GET", "/my_remote_cluster:test_idx/_search");
-            Response response = client().performRequest(searchRequest);
-            assertOK(response);
-            ObjectPath responseObj = ObjectPath.createFromResponse(response);
-            int totalHits = responseObj.evaluate("hits.total.value");
-            assertThat(totalHits, equalTo(1));
+
+            // Since authentication is not wired up on the FC side, getting a 401 response is sufficient
+            // for testing connection (port, SSL) is working
+            final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(e.getMessage(), containsString("missing authentication credentials"));
+
+            // TODO: uncomment once authentication is wired up on the FC side
+            // Response response = client().performRequest(searchRequest);
+            // assertOK(response);
+            // ObjectPath responseObj = ObjectPath.createFromResponse(response);
+            // int totalHits = responseObj.evaluate("hits.total.value");
+            // assertThat(totalHits, equalTo(1));
         }
     }
 

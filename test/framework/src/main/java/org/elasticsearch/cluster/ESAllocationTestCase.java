@@ -57,10 +57,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
-    private static final ClusterSettings EMPTY_CLUSTER_SETTINGS = new ClusterSettings(
-        Settings.EMPTY,
-        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
-    );
 
     public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES = () -> new SnapshotShardSizeInfo(Map.of()) {
         @Override

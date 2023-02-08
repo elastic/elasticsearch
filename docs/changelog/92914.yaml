@@ -1,6 +1,0 @@
-pr: 92914
-summary: Get repository metadata from the cluster state doesn't throw an exception
-  if a repo is missing
-area: ILM+SLM
-type: bug
-issues: []

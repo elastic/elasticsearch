@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -216,66 +217,78 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
         final RecoveryTarget recoveryTarget = recoveryRef.target();
         assert recoveryTarget.sourceNode() != null : "cannot do a recovery without a source node";
-        final RecoveryState.Timer timer = recoveryTarget.state().getTimer();
+        final RecoveryState recoveryState = recoveryTarget.state();
+        final RecoveryState.Timer timer = recoveryState.getTimer();
+        final IndexShard indexShard = recoveryTarget.indexShard();
+        final Releasable onCompletion = Releasables.wrap(recoveryTarget.disableRecoveryMonitor(), recoveryRef);
+
+        // async version of the catch/finally structure we need, but this does nothing with successes so needs further modification below
+        final var cleanupOnly = ActionListener.notifyOnce(ActionListener.runBefore(ActionListener.noop().delegateResponse((l, e) -> {
+            // this will be logged as warning later on...
+            logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
+            onGoingRecoveries.failRecovery(
+                recoveryId,
+                new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
+                true
+            );
+        }), onCompletion::close));
+
+        if (indexShard.routingEntry().isPromotableToPrimary() == false) {
+            assert preExistingRequest == null;
+            assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
+            ActionListener.run(cleanupOnly.map(v -> {
+                logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+                indexShard.prepareForIndexRecovery();
+                // Skip unnecessary intermediate stages
+                recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+                recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+                indexShard.openEngineAndSkipTranslogRecovery();
+                recoveryState.getIndex().setFileDetailsComplete();
+                recoveryState.setStage(RecoveryState.Stage.FINALIZE);
+                onGoingRecoveries.markRecoveryAsDone(recoveryId);
+                return null;
+            }), indexShard::preRecovery);
+            return;
+        }
 
         record StartRecoveryRequestToSend(StartRecoveryRequest startRecoveryRequest, String actionName, TransportRequest requestToSend) {}
-        final ActionListener<StartRecoveryRequestToSend> toSendListener = ActionListener.notifyOnce(
-            ActionListener.runBefore(new ActionListener<>() {
-                @Override
-                public void onResponse(StartRecoveryRequestToSend r) {
-                    logger.trace(
-                        "{} [{}]: recovery from {}",
-                        r.startRecoveryRequest().shardId(),
-                        r.actionName(),
-                        r.startRecoveryRequest().sourceNode()
-                    );
-                    transportService.sendRequest(
-                        r.startRecoveryRequest().sourceNode(),
-                        r.actionName(),
-                        r.requestToSend(),
-                        new RecoveryResponseHandler(r.startRecoveryRequest(), timer)
-                    );
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // this will be logged as warning later on...
-                    logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
-                    onGoingRecoveries.failRecovery(
-                        recoveryId,
-                        new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
-                        true
-                    );
-                }
-            }, recoveryRef::close)
-        );
+        final ActionListener<StartRecoveryRequestToSend> toSendListener = cleanupOnly.map(r -> {
+            logger.trace(
+                "{} [{}]: recovery from {}",
+                r.startRecoveryRequest().shardId(),
+                r.actionName(),
+                r.startRecoveryRequest().sourceNode()
+            );
+            transportService.sendRequest(
+                r.startRecoveryRequest().sourceNode(),
+                r.actionName(),
+                r.requestToSend(),
+                new RecoveryResponseHandler(r.startRecoveryRequest(), timer)
+            );
+            return null;
+        });
 
         if (preExistingRequest == null) {
-            try {
-                final IndexShard indexShard = recoveryTarget.indexShard();
-                indexShard.preRecovery(toSendListener.delegateFailure((l, v) -> ActionListener.completeWith(l, () -> {
-                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
-                    indexShard.prepareForIndexRecovery();
-                    if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
-                        // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
-                        indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
-                        final Store store = indexShard.store();
-                        store.incRef();
-                        try {
-                            StoreRecovery.bootstrap(indexShard, store);
-                        } finally {
-                            store.decRef();
-                        }
+            ActionListener.run(toSendListener.map(v -> {
+                logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+                indexShard.prepareForIndexRecovery();
+                if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
+                    // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
+                    indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
+                    final Store store = indexShard.store();
+                    store.incRef();
+                    try {
+                        StoreRecovery.bootstrap(indexShard, store);
+                    } finally {
+                        store.decRef();
                     }
-                    final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
-                    assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
-                        : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
-                    final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
-                    return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
-                })));
-            } catch (Exception e) {
-                toSendListener.onFailure(e);
-            }
+                }
+                final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
+                assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
+                    : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
+                final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
+                return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
+            }), indexShard::preRecovery);
         } else {
             toSendListener.onResponse(
                 new StartRecoveryRequestToSend(

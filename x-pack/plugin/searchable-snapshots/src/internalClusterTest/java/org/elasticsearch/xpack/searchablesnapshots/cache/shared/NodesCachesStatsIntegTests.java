@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93555")
     public void testNodesCachesStats() throws Exception {
         final String[] nodeNames = internalCluster().getNodeNames();
         // here to ensure no shard relocations after the snapshot is mounted,

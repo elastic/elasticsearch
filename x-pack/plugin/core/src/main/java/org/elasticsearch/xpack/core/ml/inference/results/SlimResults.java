@@ -26,9 +26,6 @@ public class SlimResults extends NlpInferenceResults {
 
     public record WeightedToken(int token, float weight) implements Writeable, ToXContentObject {
 
-        public static final String TOKEN = "token";
-        public static final String WEIGHT = "weight";
-
         public WeightedToken(StreamInput in) throws IOException {
             this(in.readVInt(), in.readFloat());
         }
@@ -42,14 +39,13 @@ public class SlimResults extends NlpInferenceResults {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(TOKEN, token);
-            builder.field(WEIGHT, weight);
+            builder.field(Integer.toString(token), weight);
             builder.endObject();
             return builder;
         }
 
         public Map<String, Object> asMap() {
-            return Map.of(TOKEN, token, WEIGHT, weight);
+            return Map.of(Integer.toString(token), weight);
         }
 
         @Override

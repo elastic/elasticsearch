@@ -243,17 +243,19 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             progressUpdater.accept(bytesCopied);
             remaining -= bytesRead;
         }
-        // ensure that last write is aligned on 4k boundaries (= page size)
-        final int remainder = buf.position() % SharedBytes.PAGE_SIZE;
-        final int adjustment = remainder == 0 ? 0 : SharedBytes.PAGE_SIZE - remainder;
-        buf.position(buf.position() + adjustment);
-        long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-        bytesCopied += bytesWritten;
-        final long adjustedBytesCopied = bytesCopied - adjustment; // adjust to not break RangeFileTracker
-        assert adjustedBytesCopied == length;
-        progressUpdater.accept(adjustedBytesCopied);
+        if (remaining > 0) {
+            // ensure that last write is aligned on 4k boundaries (= page size)
+            final int remainder = buf.position() % SharedBytes.PAGE_SIZE;
+            final int adjustment = remainder == 0 ? 0 : SharedBytes.PAGE_SIZE - remainder;
+            buf.position(buf.position() + adjustment);
+            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+            bytesCopied += bytesWritten;
+            final long adjustedBytesCopied = bytesCopied - adjustment; // adjust to not break RangeFileTracker
+            assert adjustedBytesCopied == length;
+            progressUpdater.accept(adjustedBytesCopied);
+        }
         final long endTimeNanos = stats.currentTimeNanos();
-        stats.addCachedBytesWritten(adjustedBytesCopied, endTimeNanos - startTimeNanos);
+        stats.addCachedBytesWritten(length, endTimeNanos - startTimeNanos);
     }
 
     @Override

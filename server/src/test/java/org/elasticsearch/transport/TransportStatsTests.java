@@ -18,32 +18,50 @@ import java.util.Arrays;
 
 public class TransportStatsTests extends ESTestCase {
     public void testToXContent() {
-        assertEquals(Strings.toString(new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6),
-            new long[0], new long[0]), false, true), """
-            {"transport":{"server_open":1,"total_outbound_connections":2,\
-            "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
-            "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456\
-            }}""");
+        assertEquals(
+            Strings.toString(
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), new long[0], new long[0]),
+                false,
+                true
+            ),
+            """
+                {"transport":{"server_open":1,"total_outbound_connections":2,\
+                "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
+                "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456\
+                }}"""
+        );
 
         final var histogram = new long[HandlingTimeTracker.BUCKET_COUNT];
-        assertEquals(Strings.toString(new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6),
-            histogram, histogram), false, true), """
-            {"transport":{"server_open":1,"total_outbound_connections":2,\
-            "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
-            "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
-            "inbound_handling_time_histogram":[],\
-            "outbound_handling_time_histogram":[]\
-            }}""");
+        assertEquals(
+            Strings.toString(
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram),
+                false,
+                true
+            ),
+            """
+                {"transport":{"server_open":1,"total_outbound_connections":2,\
+                "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
+                "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
+                "inbound_handling_time_histogram":[],\
+                "outbound_handling_time_histogram":[]\
+                }}"""
+        );
 
         histogram[4] = 10;
-        assertEquals(Strings.toString(new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6),
-            histogram, histogram), false, true), """
-            {"transport":{"server_open":1,"total_outbound_connections":2,\
-            "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
-            "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
-            "inbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}],\
-            "outbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}]\
-            }}""");
+        assertEquals(
+            Strings.toString(
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram),
+                false,
+                true
+            ),
+            """
+                {"transport":{"server_open":1,"total_outbound_connections":2,\
+                "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
+                "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
+                "inbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}],\
+                "outbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}]\
+                }}"""
+        );
     }
 
     private static void assertHistogram(long[] histogram, String expectedJson) {
@@ -89,11 +107,11 @@ public class TransportStatsTests extends ESTestCase {
             ]}""");
 
         Arrays.fill(histogram, 0L);
-        histogram[HandlingTimeTracker.BUCKET_COUNT-1] = 5;
+        histogram[HandlingTimeTracker.BUCKET_COUNT - 1] = 5;
         assertHistogram(histogram, """
             {"h":[{"ge":"1m","ge_millis":65536,"count":5}]}""");
 
-        histogram[HandlingTimeTracker.BUCKET_COUNT-3] = 6;
+        histogram[HandlingTimeTracker.BUCKET_COUNT - 3] = 6;
         assertHistogram(histogram, """
             {"h":[\
             {"ge":"16.3s","ge_millis":16384,"lt":"32.7s","lt_millis":32768,"count":6},\

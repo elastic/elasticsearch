@@ -37,5 +37,5 @@
       nodes.stats:
         metric: [ transport ]
 
-  - gte:    { nodes.$node_id.transport.inbound_handling_time_histogram.0.count: 0 }
-  - gte:    { nodes.$node_id.transport.outbound_handling_time_histogram.0.count: 0 }
+  - is_true: nodes.$node_id.transport.inbound_handling_time_histogram
+  - is_true: nodes.$node_id.transport.outbound_handling_time_histogram

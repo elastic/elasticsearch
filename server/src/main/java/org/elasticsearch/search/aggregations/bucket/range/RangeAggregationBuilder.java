@@ -17,14 +17,12 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.DoubleUnaryOperator;
 
@@ -48,17 +46,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            REGISTRY_KEY,
-            List.of(
-                CoreValuesSourceType.NUMERIC,
-                CoreValuesSourceType.DATE,
-                CoreValuesSourceType.BOOLEAN,
-                TimeSeriesValuesSourceType.COUNTER
-            ),
-            RangeAggregator::build,
-            true
-        );
+        builder.register(REGISTRY_KEY, CoreValuesSourceType.ALL_NUMERIC_LENIENT, RangeAggregator::build, true);
     }
 
     public RangeAggregationBuilder(String name) {

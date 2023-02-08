@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,7 +35,7 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             PercentilesAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            CoreValuesSourceType.ALL_NUMERIC_LENIENT,
             (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> percentilesConfig
                 .createPercentilesAggregator(name, valuesSource, context, parent, percents, keyed, formatter, metadata),
             true

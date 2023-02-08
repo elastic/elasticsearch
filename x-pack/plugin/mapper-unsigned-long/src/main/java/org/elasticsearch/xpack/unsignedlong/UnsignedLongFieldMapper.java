@@ -40,7 +40,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -317,7 +317,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
 
             ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.COUNTER
-                ? TimeSeriesValuesSourceType.COUNTER
+                ? CoreValuesSourceType.COUNTER
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {

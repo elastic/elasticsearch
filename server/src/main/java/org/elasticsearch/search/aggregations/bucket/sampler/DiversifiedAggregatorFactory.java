@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -30,7 +29,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            CoreValuesSourceType.ALL_NUMERIC_LENIENT,
             (
                 String name,
                 int shardSize,

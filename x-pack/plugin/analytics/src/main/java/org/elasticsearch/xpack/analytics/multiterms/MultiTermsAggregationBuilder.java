@@ -114,7 +114,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
         registry.registerUsage(NAME);
-        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC), MultiTermsAggregator::buildNumericTermValues, false);
+        registry.register(REGISTRY_KEY, CoreValuesSourceType.ALL_NUMERIC, MultiTermsAggregator::buildNumericTermValues, false);
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),

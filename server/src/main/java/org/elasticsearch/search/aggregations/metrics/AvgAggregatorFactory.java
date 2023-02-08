@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -39,12 +38,7 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            AvgAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            AvgAggregator::new,
-            true
-        );
+        builder.register(AvgAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_NUMERIC_LENIENT, AvgAggregator::new, true);
     }
 
     @Override

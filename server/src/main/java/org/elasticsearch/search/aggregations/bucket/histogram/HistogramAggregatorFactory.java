@@ -18,13 +18,11 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,12 +44,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
 
         builder.register(
             HistogramAggregationBuilder.REGISTRY_KEY,
-            List.of(
-                CoreValuesSourceType.NUMERIC,
-                CoreValuesSourceType.DATE,
-                CoreValuesSourceType.BOOLEAN,
-                TimeSeriesValuesSourceType.COUNTER
-            ),
+            CoreValuesSourceType.ALL_NUMERIC_LENIENT,
             NumericHistogramAggregator::new,
             true
         );

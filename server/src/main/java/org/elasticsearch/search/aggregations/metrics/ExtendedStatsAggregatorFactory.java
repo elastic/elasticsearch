@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -45,7 +44,7 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             ExtendedStatsAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            CoreValuesSourceType.ALL_NUMERIC_LENIENT,
             ExtendedStatsAggregator::new,
             true
         );

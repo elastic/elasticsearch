@@ -175,3 +175,42 @@ setup:
             the_string_avg:
               avg:
                 field: string_field
+
+---
+"Counter field":
+  - skip:
+      version: " - 8.6.99"
+      reason: "counter field support added in 8.7"
+
+  - do:
+      indices.create:
+        index: myindex
+        body:
+          mappings:
+            properties:
+              counter_field:
+                type : long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - create:
+              _index: myindex
+          - counter_field: 50
+          - create:
+              _index: myindex
+          - counter_field: 100
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: myindex
+        body:
+          aggs:
+            the_counter_avg:
+              avg:
+                field: counter_field
+  - match: { hits.total: 2 }
+  - match: { aggregations.the_counter_avg.value: 75.0 }

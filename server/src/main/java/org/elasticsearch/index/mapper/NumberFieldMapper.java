@@ -56,7 +56,7 @@ import org.elasticsearch.script.field.IntegerDocValuesField;
 import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -1590,7 +1590,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.COUNTER
-                ? TimeSeriesValuesSourceType.COUNTER
+                ? CoreValuesSourceType.COUNTER
                 : type.numericType.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {

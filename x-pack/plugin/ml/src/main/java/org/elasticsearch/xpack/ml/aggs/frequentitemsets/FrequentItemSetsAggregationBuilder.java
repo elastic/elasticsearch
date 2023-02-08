@@ -103,7 +103,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
         registry.register(
             REGISTRY_KEY,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
+            CoreValuesSourceType.ALL_NUMERIC_LENIENT,
             ItemSetMapReduceValueSource.NumericValueSource::new,
             false
         );

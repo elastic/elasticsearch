@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
@@ -431,6 +430,40 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public DocValueFormat getFormatter(String format, ZoneId tz) {
             return DocValueFormat.BOOLEAN;
         }
+    },
+    COUNTER {
+        @Override
+        public ValuesSource getEmpty() {
+            throw new IllegalArgumentException("Cannot use unmapped counter field");
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new IllegalArgumentException("Cannot use scripts for time-series counters");
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            if (script != null) {
+                throw new IllegalArgumentException("Cannot use scripts for time-series counters");
+            }
+            if (fieldContext.indexFieldData()instanceof IndexNumericFieldData fieldData) {
+                return new ValuesSource.Numeric.FieldData(fieldData);
+            }
+            throw new IllegalArgumentException(
+                "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+            );
+        }
+
+        @Override
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
+            throw new IllegalArgumentException("Cannot replace missing values for time-series counters");
+        }
     };
 
     public static final Logger log = LogManager.getLogger(CoreValuesSourceType.class);
@@ -449,5 +482,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     }
 
     /** List containing all members of the enumeration. */
-    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
+    public static final List<ValuesSourceType> ALL_CORE = List.of(CoreValuesSourceType.values());
+    public static final List<ValuesSourceType> ALL_NUMERIC = List.of(NUMERIC, COUNTER);
+    public static final List<ValuesSourceType> ALL_NUMERIC_LENIENT = List.of(NUMERIC, COUNTER, DATE, BOOLEAN);
 }

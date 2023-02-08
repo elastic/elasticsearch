@@ -132,6 +132,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 copyExtraConfigFiles();
             }
 
+            deleteGcLogs();
             writeConfiguration();
             createKeystore();
             addKeystoreSettings();
@@ -211,6 +212,20 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 throw new RuntimeException("Timed out after " + NODE_UP_TIMEOUT + " waiting for ports files for: " + this);
             } catch (ExecutionException e) {
                 throw new RuntimeException("An error occurred while waiting for ports file for: " + this, e);
+            }
+        }
+
+        private void deleteGcLogs() {
+            try (Stream<Path> logs = Files.list(logsDir)) {
+                logs.filter(l -> l.getFileName().toString().startsWith("gc.log")).forEach(path -> {
+                    try {
+                        IOUtils.deleteWithRetry(path);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
 

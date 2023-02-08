@@ -149,6 +149,8 @@ final class TikaImpl {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        // log4j needs to be able to check the environment
+        perms.add(new RuntimePermission("getenv.*"));
         // current hacks needed for POI/PDFbox issues:
         perms.add(new SecurityPermission("putProviderProperty.BC"));
         perms.add(new SecurityPermission("insertProvider"));

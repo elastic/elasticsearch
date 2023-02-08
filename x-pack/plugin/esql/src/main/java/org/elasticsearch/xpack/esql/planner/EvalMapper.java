@@ -273,7 +273,7 @@ final class EvalMapper {
             record LengthFunctionExpressionEvaluator(ExpressionEvaluator exp) implements ExpressionEvaluator {
                 @Override
                 public Object computeRow(Page page, int pos) {
-                    return Length.process(((BytesRef) exp.computeRow(page, pos)).utf8ToString());
+                    return Length.process(((BytesRef) exp.computeRow(page, pos)));
                 }
             }
             return new LengthFunctionExpressionEvaluator(toEvaluator(length.field(), layout));

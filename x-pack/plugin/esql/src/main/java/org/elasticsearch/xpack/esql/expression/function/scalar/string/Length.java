@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -46,16 +47,14 @@ public class Length extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        return process(((BytesRef) field().fold()).utf8ToString());
+        return process((BytesRef) field().fold());
     }
 
-    public static Integer process(String fieldVal) {
-        // TODO process in BytesRef natively
+    public static Integer process(BytesRef fieldVal) {
         if (fieldVal == null) {
             return null;
-        } else {
-            return fieldVal.length();
         }
+        return UnicodeUtil.codePointCount(fieldVal);
     }
 
     @Override

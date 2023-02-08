@@ -17,11 +17,12 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 public class StringFunctionsTests extends ESTestCase {
 
     public void testLength() {
-        assertEquals(Integer.valueOf(0), Length.process(""));
-        assertEquals(Integer.valueOf(1), Length.process("a"));
-        assertEquals(Integer.valueOf(2), Length.process("❗️"));
-        assertEquals(Integer.valueOf(100), Length.process(randomUnicodeOfLength(100)));
-        assertEquals(Integer.valueOf(100), Length.process(randomAlphaOfLength(100)));
+        assertEquals(Integer.valueOf(0), Length.process(new BytesRef("")));
+        assertEquals(Integer.valueOf(1), Length.process(new BytesRef("a")));
+        assertEquals(Integer.valueOf(1), Length.process(new BytesRef("☕"))); // 3 bytes, 1 code point
+        assertEquals(Integer.valueOf(2), Length.process(new BytesRef("❗️"))); // 6 bytes, 2 code points
+        assertEquals(Integer.valueOf(100), Length.process(new BytesRef(randomUnicodeOfCodepointLength(100))));
+        assertEquals(Integer.valueOf(100), Length.process(new BytesRef(randomAlphaOfLength(100))));
         assertNull(Length.process(null));
     }
 

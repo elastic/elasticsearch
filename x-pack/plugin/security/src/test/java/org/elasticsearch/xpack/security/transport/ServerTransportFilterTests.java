@@ -38,8 +38,10 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_HEADER_FILTERS;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -64,7 +66,6 @@ public class ServerTransportFilterTests extends ESTestCase {
     private TransportChannel channel;
     private boolean failDestructiveOperations;
     private DestructiveOperations destructiveOperations;
-
     private RemoteAccessAuthenticationService remoteAccessAuthcService;
 
     @Before
@@ -115,6 +116,30 @@ public class ServerTransportFilterTests extends ESTestCase {
             verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
             verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         }
+    }
+
+    public void testRemoteAccessInboundInvalidHeadersFail() {
+        TransportRequest request = mock(TransportRequest.class);
+        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
+        boolean allowlisted = randomBoolean();
+        String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
+        doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
+        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService)
+            .authenticate(eq(action), eq(request), eq(false), anyActionListener());
+        ServerTransportFilter filter = getNodeRemoteAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
+        @SuppressWarnings("unchecked")
+        PlainActionFuture<Void> listener = mock(PlainActionFuture.class);
+        filter.inbound(action, request, channel, listener);
+        // future.get(); // don't block it's not called really just mocked
+        if (allowlisted) {
+            verify(listener).onFailure(isA(IllegalArgumentException.class));
+            verifyNoMoreInteractions(authcService);
+            verifyNoMoreInteractions(authzService);
+        } else {
+            verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
+        }
+        verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
     }
 
     public void testInboundDestructiveOperations() throws Exception {
@@ -274,8 +299,24 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     private RemoteAccessServerTransportFilter getNodeRemoteAccessFilter() {
+        return getNodeRemoteAccessFilter(Collections.emptySet());
+    }
+
+    private RemoteAccessServerTransportFilter getNodeRemoteAccessFilter(Set<String> additionalHeadersKeys) {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
+        for (var header : additionalHeadersKeys) {
+            threadContext.putHeader(header, randomAlphaOfLength(20));
+        }
+        // Randomly include valid headers
+        if (randomBoolean()) {
+            for (var validHeader : RemoteAccessServerTransportFilter.ALLOWED_TRANSPORT_HEADERS) {
+                // don't overwrite additionalHeadersKeys
+                if (false == additionalHeadersKeys.contains(validHeader)) {
+                    threadContext.putHeader(validHeader, randomAlphaOfLength(20));
+                }
+            }
+        }
         return new RemoteAccessServerTransportFilter(
             remoteAccessAuthcService,
             authzService,

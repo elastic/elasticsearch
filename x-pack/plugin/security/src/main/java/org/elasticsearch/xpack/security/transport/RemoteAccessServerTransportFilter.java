@@ -22,7 +22,8 @@ import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentica
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 
 final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
-    private static final Set<String> ALLOWED_TRANSPORT_HEADERS = Set.of(
+    // pkg-private for testing
+    static final Set<String> ALLOWED_TRANSPORT_HEADERS = Set.of(
         REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
         REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
     );

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -95,6 +96,8 @@ public class RemoteAccessAuthenticationService {
             return;
         }
 
+        // This is ensured by the RemoteAccessServerTransportFilter -- validating the internal consistency here
+        assert threadContext.getHeaders().keySet().stream().noneMatch(ClientHelper.SECURITY_HEADER_FILTERS::contains);
         try (
             ThreadContext.StoredContext ignored = threadContext.newStoredContext(
                 Collections.emptyList(),

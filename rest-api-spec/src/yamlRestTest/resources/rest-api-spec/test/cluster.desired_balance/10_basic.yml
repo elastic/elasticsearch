@@ -23,8 +23,11 @@ setup:
 "Test cluster_balance_stats":
 
   - skip:
-      version: " - 8.6.99"
-      reason: "Field added in in 8.7.0"
+      version: all
+      reason: 'AwaitsFix: https://github.com/elastic/elasticsearch/issues/93605'
+#  - skip:
+#      version: " - 8.6.99"
+#      reason: "Field added in in 8.7.0"
 
   - do:
       _internal.get_desired_balance: { }

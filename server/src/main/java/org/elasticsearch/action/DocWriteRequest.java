@@ -19,11 +19,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Locale;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -229,14 +231,29 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      *                that does not have a unique shard id.
      */
     static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        return readDocumentRequest(shardId, in, false, null);
+    }
+
+    /**
+     * Read a document write (index/delete/update) request with the option to slice bytes off the stream
+     *
+     * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.elasticsearch.action.bulk.BulkRequest}
+     *                that does not have a unique shard id.
+     */
+    static DocWriteRequest<?> readDocumentRequest(
+        @Nullable ShardId shardId,
+        StreamInput in,
+        boolean sliceBytes,
+        @Nullable ArrayList<Releasable> toRelease
+    ) throws IOException {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
-            docWriteRequest = new IndexRequest(shardId, in);
+            docWriteRequest = new IndexRequest(shardId, in, sliceBytes, toRelease);
         } else if (type == 1) {
             docWriteRequest = new DeleteRequest(shardId, in);
         } else if (type == 2) {
-            docWriteRequest = new UpdateRequest(shardId, in);
+            docWriteRequest = new UpdateRequest(shardId, in, sliceBytes, toRelease);
         } else {
             throw new IllegalStateException("invalid request type [" + type + " ]");
         }

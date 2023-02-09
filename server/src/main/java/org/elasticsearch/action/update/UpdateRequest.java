@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,6 +43,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -134,6 +136,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        this(shardId, in, false, null);
+    }
+
+    public UpdateRequest(@Nullable ShardId shardId, StreamInput in, boolean sliceBytes, @Nullable ArrayList<Releasable> toRelease)
+        throws IOException {
         super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
@@ -148,11 +155,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         retryOnConflict = in.readVInt();
         refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
-            doc = new IndexRequest(shardId, in);
+            doc = new IndexRequest(shardId, in, sliceBytes, toRelease);
         }
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(shardId, in);
+            upsertRequest = new IndexRequest(shardId, in, sliceBytes, toRelease);
         }
         docAsUpsert = in.readBoolean();
         ifSeqNo = in.readZLong();

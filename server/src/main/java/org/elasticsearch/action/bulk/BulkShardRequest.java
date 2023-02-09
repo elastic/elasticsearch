@@ -18,10 +18,14 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Set;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
@@ -30,9 +34,23 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     private final BulkItemRequest[] items;
 
+    // Local, not serialized
+    private final Resources resources = new Resources();
+
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
-        items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        boolean success = false;
+        try {
+            items = in.readArray(
+                i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt, resources.toRelease)),
+                BulkItemRequest[]::new
+            );
+            success = true;
+        } finally {
+            if (success == false) {
+                resources.release();
+            }
+        }
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
@@ -43,8 +61,8 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     public long totalSizeInBytes() {
         long totalSizeInBytes = 0;
-        for (int i = 0; i < items.length; i++) {
-            DocWriteRequest<?> request = items[i].request();
+        for (BulkItemRequest item : items) {
+            DocWriteRequest<?> request = item.request();
             if (request instanceof IndexRequest) {
                 if (((IndexRequest) request).source() != null) {
                     totalSizeInBytes += ((IndexRequest) request).source().length();
@@ -143,6 +161,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         }
     }
 
+    public boolean bytesFromNetwork() {
+        return true;
+    }
+
+    public void releaseNetworkBytes() {
+        resources.release();
+    }
+
     @Override
     public long ramBytesUsed() {
         long sum = SHALLOW_SIZE;
@@ -150,5 +176,43 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    @Override
+    public void incRef() {
+        resources.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return resources.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return resources.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return resources.hasReferences();
+    }
+
+    private static class Resources extends AbstractRefCounted {
+
+        private final ArrayList<Releasable> toRelease = new ArrayList<>();
+
+        @Override
+        protected void closeInternal() {
+            release();
+        }
+
+        private void release() {
+            try {
+                Releasables.close(toRelease);
+            } finally {
+                toRelease.clear();
+            }
+        }
     }
 }

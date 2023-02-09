@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
@@ -340,9 +341,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
+            final BytesReference source = getSource(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
-                request.source(),
+                source,
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates()
@@ -608,9 +610,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         switch (docWriteRequest.opType()) {
             case CREATE, INDEX -> {
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
+                BytesReference source = getSource(indexRequest);
                 final SourceToParse sourceToParse = new SourceToParse(
                     indexRequest.id(),
-                    indexRequest.source(),
+                    source,
                     indexRequest.getContentType(),
                     indexRequest.routing(),
                     Map.of()
@@ -653,5 +656,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         }
         return result;
+    }
+
+    private static final ThreadLocal<byte[]> indexingBuffer = ThreadLocal.withInitial(() -> new byte[256 * 1024]);
+
+    private static BytesReference getSource(IndexRequest request) {
+        BytesReference source = request.source();
+        if (source.hasArray()) {
+            return source;
+        } else if (source.length() > 256 * 1024) {
+            return source;
+        } else {
+            byte[] bytes = indexingBuffer.get();
+            BytesReference.copyToByteArray(source, bytes);
+            return new BytesArray(bytes, 0, source.length());
+        }
     }
 }

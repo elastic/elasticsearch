@@ -75,6 +75,7 @@ public class BulkRequest extends ActionRequest
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
+    private RequestMemory requestMemory = RequestMemory.NO_OP;
 
     private long sizeInBytes = 0;
 
@@ -294,6 +295,17 @@ public class BulkRequest extends ActionRequest
 
     public ActiveShardCount waitForActiveShards() {
         return this.waitForActiveShards;
+    }
+
+    /**
+     * Set an optional releasable to early release unused resources.
+     */
+    public void requestMemory(RequestMemory requestMemory) {
+        this.requestMemory = requestMemory;
+    }
+
+    public RequestMemory requestMemory() {
+        return requestMemory;
     }
 
     @Override

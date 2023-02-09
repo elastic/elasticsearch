@@ -25,12 +25,14 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -41,6 +43,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -128,6 +131,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        this(shardId, in, false, null);
+    }
+
+    public IndexRequest(@Nullable ShardId shardId, StreamInput in, boolean sliceBytes, @Nullable ArrayList<Releasable> toRelease)
+        throws IOException {
         super(shardId, in);
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String type = in.readOptionalString();
@@ -135,7 +143,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readBytesReference();
+        if (sliceBytes == false) {
+            source = in.readBytesReference();
+        } else {
+            ReleasableBytesReference reference = in.readReleasableBytesReference();
+            toRelease.add(reference);
+            this.source = reference;
+        }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());

@@ -15,6 +15,8 @@ import java.io.Closeable;
  */
 public interface Releasable extends Closeable {
 
+    Releasable NO_OP = () -> {};
+
     @Override
     void close();
 

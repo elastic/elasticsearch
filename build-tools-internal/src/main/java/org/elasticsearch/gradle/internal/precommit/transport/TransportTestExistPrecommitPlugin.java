@@ -40,8 +40,9 @@ public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
             });
         } catch (Exception e) {
             // System.out.println(project +" failing");
-            // e.printStackTrace();
-            // :docs failing, what others?
+            // not all projects have main source set.
+            // :docs, docker etc
+            // TODO how to handle this
         }
         return transportTestExistTask;
 

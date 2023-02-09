@@ -27,6 +27,8 @@ import org.gradle.workers.WorkerExecutor;
 import org.objectweb.asm.ClassReader;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -109,33 +111,34 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             ClassHierarchyScanner transportClassesScanner = new ClassHierarchyScanner("org/elasticsearch/common/io/stream/Writeable");
             ClassReaders.forEach(mainClasses, cr -> cr.accept(transportClassesScanner, ClassReader.SKIP_CODE));
 
+            //this is always run.. should be cached?
             ClassHierarchyScanner testClassPathScanner = new ClassHierarchyScanner(
-                "org/elasticsearch/common/io/stream/AbstractWireTestCase"
+                "org/elasticsearch/test/AbstractWireTestCase"
             );
-            ClassReaders.forEach(testClasses, cr -> cr.accept(testClassPathScanner, ClassReader.SKIP_CODE));
+            ClassReaders.forEach(testClassPath, cr -> cr.accept(testClassPathScanner, ClassReader.SKIP_CODE));
 
             ClassHierarchyScanner transportTestsScanner = new ClassHierarchyScanner(
-                "org/elasticsearch/common/io/stream/AbstractWireTestCase"
+                "org/elasticsearch/test/AbstractWireTestCase"
             );
             ClassReaders.forEach(testClasses, cr -> cr.accept(transportTestsScanner, ClassReader.SKIP_CODE));
 
             Set<String> transportClasses = transportClassesScanner.subClassesOf(compileClassPathScanner.foundClasses());
             Set<String> transportTestClasses = transportTestsScanner.subClassesOf(testClassPathScanner.foundClasses());
 
-            var out = System.out;
-            out.println("transport classes");
-            transportClasses.forEach(out::println);
-            out.println("test classes");
-            transportTestClasses.forEach(out::println);
+            List<String> classesWithoutTests = new ArrayList<>();
             for (String transportClass : transportClasses) {
-                findTest(transportClass, transportTestClasses);
+                findTest(transportClass, transportTestClasses, classesWithoutTests);
+            }
+            if(classesWithoutTests.size()>0){
+                throw new GradleException("Missing tests for classes " + classesWithoutTests);
             }
         }
 
-        private void findTest(String transportClass, Set<String> transportTestClasses) {
-            Optional<String> any = transportTestClasses.stream().filter(p -> p.contains(transportClass)).findAny();
+        private void findTest(String transportClass, Set<String> transportTestClasses, List<String> classesWithoutTests) {
+            Optional<String> any = transportTestClasses.stream()
+                .filter(p -> p.contains(transportClass)).findAny();
             if (any.isPresent() == false) {
-                throw new GradleException("Missing test for class " + transportClass);
+                classesWithoutTests.add(transportClass);
             } else {
                 System.out.println("Test " + any.get() + " for class " + transportClass);
             }

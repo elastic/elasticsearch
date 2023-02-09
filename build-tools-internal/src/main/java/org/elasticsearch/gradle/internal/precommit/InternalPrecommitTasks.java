@@ -28,7 +28,6 @@ public class InternalPrecommitTasks {
         project.getPluginManager().apply(FilePermissionsPrecommitPlugin.class);
         project.getPluginManager().apply(LoggerUsagePrecommitPlugin.class);
         project.getPluginManager().apply(TestingConventionsPrecommitPlugin.class);
-        project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
         // tasks with just tests don't need certain tasks to run, so this flag makes adding
         // the task optional
         if (withProductiveCode) {
@@ -37,6 +36,7 @@ public class InternalPrecommitTasks {
             project.getPluginManager().apply(DependencyLicensesPrecommitPlugin.class);
             project.getPluginManager().apply(SplitPackagesAuditPrecommitPlugin.class);
             project.getPluginManager().apply(JavaModulePrecommitPlugin.class);
+            project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
         }
     }
 }

@@ -23,7 +23,10 @@ public class ClassReaders {
     private static final String MODULE_INFO = "module-info.class";
 
     public static void forEach(Set<File> paths, Consumer<ClassReader> consumer) {
-        paths.stream().filter(f -> f.toString().endsWith("main")).forEach(f -> forEachClassesInPath(f.getPath(), consumer));
+        paths.stream()
+            .filter(File::exists)
+            .filter(f -> f.toString().endsWith("main"))
+            .forEach(f -> forEachClassesInPath(f.getPath(), consumer));
 
     }
 

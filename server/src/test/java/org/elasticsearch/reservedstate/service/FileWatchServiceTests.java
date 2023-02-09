@@ -43,7 +43,6 @@ public class FileWatchServiceTests extends ESTestCase {
         fileWatchService = new FileWatchService(directory, filename);
     }
 
-    // TODO[wrb]: Move to file watch service tests
     public void testWatchedFile() throws Exception {
         Path tmpFile = createTempFile();
         Path tmpFile1 = createTempFile();

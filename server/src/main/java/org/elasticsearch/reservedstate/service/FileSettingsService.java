@@ -75,19 +75,12 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.fileWatchService = new FileWatchService(operatorSettings, SETTINGS_FILE_NAME);
     }
 
-    // TODO[wrb]: update for testing
     public Path operatorSettingsDir() {
         return fileWatchService.operatorSettingsDir;
     }
 
-    // TODO[wrb]: move to fileWatchService
     public Path operatorSettingsFile() {
         return fileWatchService.operatorSettingsDir.resolve(fileWatchService.settingsFileName);
-    }
-
-    // TODO[wrb]: rework usages to get rid of this
-    public List<Path> operatorSettingsFiles() {
-        return List.of(operatorSettingsFile());
     }
 
     // visible for testing
@@ -156,7 +149,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (fileWatchService.watching() && operatorSettingsFiles().stream().anyMatch(Files::exists)) {
+        if (fileWatchService.watching() && Files.exists(fileWatchService.operatorSettingsFile())) {
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
@@ -181,22 +174,16 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
             // like snapshot restores.
-            // TODO[wrb]: this should call the file watch service for manipulating the files
-            if (fileSettingsMetadata != null
-                && fileSettingsMetadata.version() == 0L
-                && operatorSettingsFiles().stream().anyMatch(Files::exists)) {
-                operatorSettingsFiles().forEach(file -> {
-                    try {
-                        Files.setLastModifiedTime(file, FileTime.from(Instant.now()));
-                    } catch (IOException e) {
-                        logger.warn("encountered I/O error trying to update file settings timestamp", e);
-                    }
-                });
+            if (fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L && Files.exists(operatorSettingsFile())) {
+                try {
+                    Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
+                } catch (IOException e) {
+                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
+                }
             }
         }
     }
 
-    // TODO[wrb]: thread management should be moved to watch service
     public boolean watching() {
         return fileWatchService.watching();
     }
@@ -226,9 +213,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     // package private for testing
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
-            for (Path settingsFile : operatorSettingsFiles()) {
-                processFileSettings(settingsFile).get();
-            }
+            processFileSettings(operatorSettingsFile()).get();
             for (var listener : eventListeners) {
                 listener.settingsChanged();
             }

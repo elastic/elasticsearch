@@ -96,7 +96,7 @@ public class RemoteAccessAuthenticationService {
             )
         ) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
-            authcContext.addAuthenticationToken(remoteAccessHeaders.getApiKeyCredentials());
+            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredentials());
             authenticationService.authenticate(
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {

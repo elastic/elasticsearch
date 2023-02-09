@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
@@ -984,6 +985,11 @@ public class ApiKeyService {
         return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"));
     }
 
+    public static String base64Encode(final ApiKeyCredentials apiKeyCredential) {
+        return Base64.getEncoder()
+            .encodeToString((apiKeyCredential.getId() + ":" + apiKeyCredential.getKey()).getBytes(StandardCharsets.UTF_8));
+    }
+
     private static ApiKeyCredentials parseApiKey(SecureString apiKeyString) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
@@ -1085,6 +1091,24 @@ public class ApiKeyService {
         @Override
         public void clearCredentials() {
             close();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            ApiKeyCredentials that = (ApiKeyCredentials) o;
+
+            if (false == id.equals(that.id)) return false;
+            return key.equals(that.key);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = id.hashCode();
+            result = 31 * result + key.hashCode();
+            return result;
         }
     }
 

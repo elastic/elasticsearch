@@ -6,6 +6,6 @@ issues: []
 highlight:
   title: Speed up ingest set and append processors
   body: |-
-    `set` and `append` ingest processors that use mustache templates are
+    The `set` and `append` ingest processors that use mustache templates are
     significantly faster.
   notable: true

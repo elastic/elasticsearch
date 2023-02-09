@@ -20,13 +20,139 @@ Other versions:
 | {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+
+[discrete]
+[[geohex_aggregations_on_both_geo_point_geo_shape_fields]]
+=== Geohex aggregations on both `geo_point` and `geo_shape` fields
+Previously Elasticsearch 8.1.0 expanded `geo_grid` aggregation support from rectangular tiles (geotile and geohash)
+to include hexagonal tiles, but for `geo_point` only. Now Elasticsearch 8.7.0 will support Geohex aggregations
+over `geo_shape` as well, which completes the long desired need to perform hexagonal aggregations on spatial data.
+
+[role="screenshot"]
+image::../images/spatial/geogrid_h3_aggregation.png[Kibana map with geohex aggregation inclusing polygons and lines]
+
+In 2018 [Uber announced they had open sourced their H3 library](https://www.uber.com/en-SE/blog/h3/),
+enabling hexagonal tiling of the planet for much better analytics of their traffic and regional pricing models.
+The use of hexagonal tiles for analytics has become increasingly popular, due to the fact that each tile represents
+a very similar geographic area on the planet, as well as the fact that the distance between tile centers is
+very similar in all directions, and consistent across the map.
+These benefits are now available to all Elasticsearch users.
+
+{es-pull}91956[#91956]
+
+[discrete]
+[[allow_more_than_one_knn_search_clause]]
+=== Allow more than one KNN search clause
+Some vector search scenarios require relevance ranking using a few kNN clauses,
+e.g. when ranking based on several fields, each with its own vector, or when a document
+includes a vector for the image and another vector for the text. The user may want to obtain
+relevance ranking based on a combination of all of these kNN clauses.
+
+{es-pull}92118[#92118]
+
+[discrete]
+[[speed_up_ingest_geoip_processors]]
+=== Speed up ingest geoip processors
+The `geoip` ingest processor is significantly faster.
+
+Previous versions of the geoip library needed special permission to execute
+databinding code, requiring an expensive permissions check and
+`AccessController.doPrivileged` call. The current version of the geoip
+library no longer requires that, however, so the expensive code has been
+removed, resulting in better performance for the ingest geoip processor.
+
+{es-pull}92372[#92372]
+
+[discrete]
+[[speed_up_ingest_set_append_processors]]
+=== Speed up ingest set and append processors
+The `set` and `append` ingest processors that use mustache templates are
+significantly faster.
+
+{es-pull}92395[#92395]
+
+[discrete]
+[[improved_downsampling_performance]]
+=== Improved downsampling performance
+Several improvements were made to the performance of downsampling.
+All hashmap lookups were removed.
+Also metrics/label producers were modified so that they extract the doc_values directly from the leaves.
+This allows for extra optimizations for cases such as labels/counters that do not extract doc_values
+unless they are consumed.
+
+{es-pull}92494[#92494]
+
+[discrete]
+[[health_api_generally_available]]
+=== The Health API is now generally available
+Elasticsearch introduces a new Health API designed to report the health of
+the cluster. The new API provides both a high level overview of the cluster
+health, and a very detailed report that can include a precise diagnosis and
+a resolution.
+
+{es-pull}92879[#92879]
+
+[discrete]
+[[improved_performance_for_get_mget_indexing_with_explicit_id_s]]
+=== Improved performance for get, mget and indexing with explicit `_id`s
+The false positive rate for the bloom filter on the `_id` field was reduced from ~10% to ~1%,
+reducing the I/O load if a term is not present in a segment.
+This improves performance when retrieving documents by `_id`, which happens when performing
+get or mget requests, or when issuing `_bulk` requests that provide explicit `_id`s.
+
+{es-pull}93283[#93283]
+
+[discrete]
+[[speed_up_ingest_processing_with_multiple_pipelines]]
+=== Speed up ingest processing with multiple pipelines
+Processing documents with both a request/default and a final
+pipeline is significantly faster.
+
+Rather than marshalling a document from and to json once per
+pipeline, a document is now marshalled from json before any
+pipelines execute and then back to json after all pipelines have
+executed.
+
+{es-pull}93329[#93329]
+
+[discrete]
+[[support_geo_grid_ingest_processor]]
+=== Support geo_grid ingest processor
+The `geo_grid` ingest processor supports creating indexable geometries from geohash, geotile and H3 cells.
+
+There already exists a `circle` ingest processor that creates a polygon from a point and radius definition.
+This concept is useful when there is need to use spatial operations that work with indexable geometries on
+geometric objects that are not defined spatially (or at least not indexable by lucene).
+In this case, the string `4/8/5` does not have spatial meaning, until we interpret it as the address
+of a rectangular `geotile`, and save the bounding box defining its border for further use.
+Likewise we can interpret `geohash` strings like `u0` as a tile, and H3 strings like `811fbffffffffff`
+as an hexagonal cell, saving the cell border as a polygon.
+
+[role="screenshot"]
+image::../images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: cell, children and intersecting non-children]
+
+{es-pull}93370[#93370]
+
+[discrete]
+[[make_frequent_item_sets_aggregation_ga]]
+=== Make `frequent_item_sets` aggregation GA
+The `frequent_item_sets` aggregation has been moved from technical preview to general availability.
+
+{es-pull}93421[#93421]
+
+[discrete]
+[[release_time_series_rate_on_counter_fields_aggegations_as_tech_preview]]
+=== Release time_series and rate (on counter fields) aggegations as tech preview
+Make `time_series` aggregation and `rate` aggregation (on counter
+fields) available without using the time series feature flag. This
+change makes these aggregations available as tech preview.
+
+Currently there is no documentation about the `time_series` aggregation.
+This will be added in a followup change.
+
+{es-pull}93546[#93546]
+
 // end::notable-highlights[]
 
 

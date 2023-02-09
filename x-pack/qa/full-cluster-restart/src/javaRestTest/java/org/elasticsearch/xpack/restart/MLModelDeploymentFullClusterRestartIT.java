@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.restart;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -106,8 +107,14 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
             }));
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
-                assertInfer(modelId);
-                assertNewInfer(modelId);
+                try {
+                    assertInfer(modelId);
+                    assertNewInfer(modelId);
+                } catch (ElasticsearchStatusException e) {
+                    // assertBusy only loops on AssertionErrors, so we have
+                    // to convert failure status exceptions to these
+                    throw new AssertionError("Inference failed", e);
+                }
             }, 90, TimeUnit.SECONDS);
             stopDeployment(modelId);
         }

@@ -24,6 +24,9 @@ def versions = [
   'mime4j': '0.8.9'
 ]
 
+// exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
+configurations.testRuntimeClasspath { exclude module: 'commons-logging' }
+
 dependencies {
   // take over logging for all dependencies
   api "org.slf4j:slf4j-api:2.0.6"

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -111,11 +112,15 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     protected class UnpromotableReplicasRefreshProxy extends ReplicasProxy {
 
         @Override
-        public void onPrimaryOperationComplete(BasicReplicationRequest replicaRequest, ActionListener<Void> listener) {
+        public void onPrimaryOperationComplete(
+            BasicReplicationRequest replicaRequest,
+            IndexShardRoutingTable indexShardRoutingTable,
+            ActionListener<Void> listener
+        ) {
             assert primaryRefreshResult.refreshed() : "primary has not refreshed";
             ShardId primary = replicaRequest.shardId();
             UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                primary,
+                indexShardRoutingTable,
                 primaryRefreshResult.generation()
             );
             transportService.sendRequest(

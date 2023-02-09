@@ -67,8 +67,8 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                 if (task != null) {
                     request.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
-                clusterState.routingTable().shardRoutingTable(request.primaryShardId()).unpromotableShards().forEach(shardRouting -> {
-                    final DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
+                request.indexShardRoutingTable.unpromotableShards().forEach(shardRouting -> {
+                    final DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId()); // TODO test this NPE
                     transportService.sendRequest(
                         node,
                         transportUnpromotableAction,

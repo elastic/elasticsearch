@@ -10,10 +10,10 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -23,8 +23,8 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
 
     private final long segmentGeneration;
 
-    public UnpromotableShardRefreshRequest(final ShardId primaryShardId, long segmentGeneration) {
-        super(primaryShardId);
+    public UnpromotableShardRefreshRequest(IndexShardRoutingTable indexShardRoutingTable, long segmentGeneration) {
+        super(indexShardRoutingTable);
         this.segmentGeneration = segmentGeneration;
     }
 
@@ -37,7 +37,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
-            validationException = addValidationError("segment generation is unknown", validationException);
+            validationException = addValidationError("segment generation is unknown", validationException); // TODO test this
         }
         return validationException;
     }

@@ -14,9 +14,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
@@ -33,6 +37,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,6 +51,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.allOf;
@@ -127,8 +134,8 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             super(in);
         }
 
-        TestBroadcastUnpromotableRequest(ShardId primaryShardId) {
-            super(primaryShardId);
+        TestBroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable) {
+            super(indexShardRoutingTable);
         }
 
     }
@@ -178,7 +185,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             ActionTestUtils.execute(
                 broadcastUnpromotableAction,
                 null,
-                new TestBroadcastUnpromotableRequest(primaryShardId.shardId()),
+                new TestBroadcastUnpromotableRequest(state.routingTable().shardRoutingTable(primaryShardId.shardId())),
                 response
             );
         });
@@ -249,7 +256,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(countRequestsForIndex(state, index), is(equalTo(numReachableUnpromotables)));
     }
 
-    public void testInvalidPrimaryShard() throws Exception {
+    public void testInvalidNodes() throws Exception {
         final String index = "test";
         ClusterState state = stateWithAssignedPrimariesAndReplicas(
             new String[] { index },
@@ -259,20 +266,41 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
 
-        ShardId shardId = state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).get(0).shardId();
-        ShardId wrongShardId = new ShardId(shardId.getIndex(), shardId.getId() + randomIntBetween(10, 100));
+        ShardId primaryShardId = state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).get(0).shardId();
+        IndexShardRoutingTable routingTable = state.routingTable().shardRoutingTable(primaryShardId);
+        IndexShardRoutingTable.Builder wrongRoutingTableBuilder = new IndexShardRoutingTable.Builder(primaryShardId);
+        for (int i = 0; i < routingTable.size(); i++) {
+            ShardRouting shardRouting = routingTable.shard(i);
+            ShardRouting wrongShardRouting = newShardRouting(
+                primaryShardId,
+                shardRouting.currentNodeId() + randomIntBetween(10, 100),
+                shardRouting.relocatingNodeId(),
+                shardRouting.primary(),
+                shardRouting.state(),
+                shardRouting.unassignedInfo(),
+                shardRouting.role()
+            );
+            wrongRoutingTableBuilder.addShard(wrongShardRouting);
+        }
+        IndexShardRoutingTable wrongRoutingTable = wrongRoutingTableBuilder.build();
+
         PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
-        logger.debug("--> executing for primary shard id: {}", wrongShardId);
+        logger.debug("--> executing for wrong shard routing table: {}", wrongRoutingTable);
         assertThat(
             expectThrows(
-                ShardNotFoundException.class,
+                NullPointerException.class,
                 () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
-                    f -> ActionTestUtils.execute(broadcastUnpromotableAction, null, new TestBroadcastUnpromotableRequest(wrongShardId), f),
+                    f -> ActionTestUtils.execute(
+                        broadcastUnpromotableAction,
+                        null,
+                        new TestBroadcastUnpromotableRequest(wrongRoutingTable),
+                        f
+                    ),
                     10,
                     TimeUnit.SECONDS
                 )
             ).toString(),
-            allOf(containsString("no such shard"), containsString(wrongShardId.toString()))
+            containsString("discovery node must not be null")
         );
     }
 

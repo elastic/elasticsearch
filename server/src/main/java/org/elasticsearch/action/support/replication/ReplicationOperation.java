@@ -132,10 +132,12 @@ public class ReplicationOperation<
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
+            final ReplicationGroup replicationGroup = primary.getReplicationGroup();
 
             pendingActions.incrementAndGet();
             replicasProxy.onPrimaryOperationComplete(
                 replicaRequest,
+                replicationGroup.getRoutingTable(),
                 ActionListener.wrap(ignored -> decPendingAndFinishIfNeeded(), this::finishAsFailed)
             );
 
@@ -152,7 +154,6 @@ public class ReplicationOperation<
             // on.
             final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
             assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
-            final ReplicationGroup replicationGroup = primary.getReplicationGroup();
             final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
             performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup, pendingReplicationActions);
@@ -613,9 +614,14 @@ public class ReplicationOperation<
          * Optional custom logic to execute when the primary operation is complete.
          *
          * @param replicaRequest             the operation that will be performed on replicas
+         * @param indexShardRoutingTable     the replication's group index shard routing table
          * @param listener                   callback for handling the response or failure
          */
-        default void onPrimaryOperationComplete(RequestT replicaRequest, ActionListener<Void> listener) {
+        default void onPrimaryOperationComplete(
+            RequestT replicaRequest,
+            IndexShardRoutingTable indexShardRoutingTable,
+            ActionListener<Void> listener
+        ) {
             listener.onResponse(null);
         }
     }

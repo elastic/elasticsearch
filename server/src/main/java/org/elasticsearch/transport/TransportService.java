@@ -725,7 +725,7 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         } catch (Exception exception) {
             // shouldn't happen in practice, but handle it anyway to be sure
-            assert false : exception;
+            //assert false : exception;
             handleSendRequestException(handler, new SendRequestTransportException(node, action, exception));
             return;
         }

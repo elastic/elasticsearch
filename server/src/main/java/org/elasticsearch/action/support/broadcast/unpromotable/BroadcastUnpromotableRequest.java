@@ -10,11 +10,14 @@ package org.elasticsearch.action.support.broadcast.unpromotable;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -23,15 +26,24 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class BroadcastUnpromotableRequest extends ActionRequest {
 
+    /**
+     * Holds the index shard routing table that will be used by {@link TransportBroadcastUnpromotableAction} to broadcast the requests to
+     * the unpromotable replicas. The routing table is not serialized over the wire, and will be null on the other end of the wire.
+     * For this reason, the field is package-private.
+     */
+    final @Nullable IndexShardRoutingTable indexShardRoutingTable;
+
     protected final ShardId primaryShardId;
 
     public BroadcastUnpromotableRequest(StreamInput in) throws IOException {
         super(in);
         primaryShardId = new ShardId(in);
+        indexShardRoutingTable = null;
     }
 
-    public BroadcastUnpromotableRequest(ShardId primaryShardId) {
-        this.primaryShardId = primaryShardId;
+    public BroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable) {
+        this.indexShardRoutingTable = Objects.requireNonNull(indexShardRoutingTable); // TODO test this
+        this.primaryShardId = indexShardRoutingTable.primary().shardId();
     }
 
     public ShardId primaryShardId() {
@@ -42,7 +54,7 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (primaryShardId == null) {
-            validationException = addValidationError("primary shard is missing", validationException);
+            validationException = addValidationError("primary shard is missing", validationException); // TODO test this if possible
         }
         return validationException;
     }
@@ -54,7 +66,13 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
     }
 
     @Override
+    public String toString() {
+        return "BroadcastUnpromotableRequest{" + "primaryShardId=" + primaryShardId() + '}';
+    }
+
+    @Override
     public String getDescription() {
         return toString();
     }
+
 }

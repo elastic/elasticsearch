@@ -1398,7 +1398,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e)
         );
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
 
         final boolean writeIndexGens = SnapshotsService.useIndexGenerations(repositoryMetaVersion);
 

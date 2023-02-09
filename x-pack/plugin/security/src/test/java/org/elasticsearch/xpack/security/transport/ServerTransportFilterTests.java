@@ -102,7 +102,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         boolean allowlisted = randomBoolean();
         String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
+        doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound(action, request, channel, future);
@@ -124,7 +124,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         boolean allowlisted = randomBoolean();
         String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
+        doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
         @SuppressWarnings("unchecked")
         PlainActionFuture<Void> listener = mock(PlainActionFuture.class);
@@ -192,7 +192,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         String action = allowListed ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(i -> {
             final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(4));
+            assertThat(args, arrayWithSize(3));
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) args[args.length - 1];
             callback.onFailure(authE);
@@ -232,8 +232,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().internal(XPackUser.INSTANCE).build();
         String action = SearchAction.NAME;
-        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
+        doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService)
             .authorize(eq(authentication), eq(action), eq(request), anyActionListener());
@@ -275,9 +275,13 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     private static Answer<Class<Void>> getAnswer(Authentication authentication) {
+        return getAnswer(authentication, false);
+    }
+
+    private static Answer<Class<Void>> getAnswer(Authentication authentication, boolean remoteAccess) {
         return i -> {
             final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(4));
+            assertThat(args, arrayWithSize(remoteAccess ? 3 : 4));
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) args[args.length - 1];
             callback.onResponse(authentication);

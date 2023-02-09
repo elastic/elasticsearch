@@ -12,24 +12,24 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
-import java.io.IOException;
 import java.util.List;
 
 public class RestSeekCountAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "index_seek_count_action";
+        return "seek_stats_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(RestRequest.Method.GET, "/{index}/_seek_count"));
+        return List.of(new RestHandler.Route(RestRequest.Method.GET, "/_seek_stats"));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return null;
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        return channel -> client.executeLocally(SeekStatsAction.INSTANCE, new SeekStatsRequest(), new RestToXContentListener<>(channel));
     }
 }

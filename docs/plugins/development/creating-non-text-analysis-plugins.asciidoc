@@ -84,7 +84,7 @@ AccessController.doPrivileged(
 );
 --------------------------------------------------
 
-See https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
+Check https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
 for more information.
 
 [[plugin-descriptor-file-other]]

@@ -10,9 +10,12 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BooleanArrayVector;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
@@ -28,8 +31,8 @@ public class BlockHashTests extends ESTestCase {
 
         IntBlock keysBlock;
         try (
-            BlockHash hashBlock = BlockHash.newHashForType(
-                BlockHash.Type.INT,
+            BlockHash hashBlock = BlockHash.newForElementType(
+                ElementType.INT,
                 new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService())
             )
         ) {
@@ -58,8 +61,8 @@ public class BlockHashTests extends ESTestCase {
 
         LongBlock keysBlock;
         try (
-            BlockHash longHash = BlockHash.newHashForType(
-                BlockHash.Type.LONG,
+            BlockHash longHash = BlockHash.newForElementType(
+                ElementType.LONG,
                 new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService())
             )
         ) {
@@ -87,8 +90,8 @@ public class BlockHashTests extends ESTestCase {
 
         DoubleBlock keysBlock;
         try (
-            BlockHash longHash = BlockHash.newHashForType(
-                BlockHash.Type.DOUBLE,
+            BlockHash longHash = BlockHash.newForElementType(
+                ElementType.DOUBLE,
                 new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService())
             )
         ) {
@@ -125,8 +128,8 @@ public class BlockHashTests extends ESTestCase {
 
         BytesRefBlock keysBlock;
         try (
-            BlockHash longHash = BlockHash.newHashForType(
-                BlockHash.Type.BYTES_REF,
+            BlockHash longHash = BlockHash.newForElementType(
+                ElementType.BYTES_REF,
                 new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService())
             )
         ) {
@@ -150,5 +153,77 @@ public class BlockHashTests extends ESTestCase {
         for (int i = 0; i < expectedKeys.length; i++) {
             assertEquals(expectedKeys[i], keysBlock.getBytesRef(i, new BytesRef()));
         }
+    }
+
+    public void testBasicBooleanFalseFirst() {
+        boolean[] values = new boolean[] { false, true, true, true, true };
+        BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
+
+        BooleanBlock keysBlock;
+        try (BlockHash hashBlock = BlockHash.newForElementType(ElementType.BOOLEAN, null)) {
+            assertEquals(0, hashBlock.add(block, 0));
+            assertEquals(1, hashBlock.add(block, 1));
+            assertEquals(-2, hashBlock.add(block, 2));
+            assertEquals(-2, hashBlock.add(block, 3));
+            assertEquals(-2, hashBlock.add(block, 4));
+            keysBlock = (BooleanBlock) hashBlock.getKeys();
+        }
+
+        assertEquals(2, keysBlock.getPositionCount());
+        assertFalse(keysBlock.getBoolean(0));
+        assertTrue(keysBlock.getBoolean(1));
+    }
+
+    public void testBasicBooleanTrueFirst() {
+        boolean[] values = new boolean[] { true, false, false, true, true };
+        BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
+
+        BooleanBlock keysBlock;
+        try (BlockHash hashBlock = BlockHash.newForElementType(ElementType.BOOLEAN, null)) {
+            assertEquals(0, hashBlock.add(block, 0));
+            assertEquals(1, hashBlock.add(block, 1));
+            assertEquals(-2, hashBlock.add(block, 2));
+            assertEquals(-1, hashBlock.add(block, 3));
+            assertEquals(-1, hashBlock.add(block, 4));
+            keysBlock = (BooleanBlock) hashBlock.getKeys();
+        }
+
+        assertEquals(2, keysBlock.getPositionCount());
+        assertTrue(keysBlock.getBoolean(0));
+        assertFalse(keysBlock.getBoolean(1));
+    }
+
+    public void testBasicBooleanTrueOnly() {
+        boolean[] values = new boolean[] { true, true, true, true };
+        BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
+
+        BooleanBlock keysBlock;
+        try (BlockHash hashBlock = BlockHash.newForElementType(ElementType.BOOLEAN, null)) {
+            assertEquals(0, hashBlock.add(block, 0));
+            assertEquals(-1, hashBlock.add(block, 1));
+            assertEquals(-1, hashBlock.add(block, 2));
+            assertEquals(-1, hashBlock.add(block, 3));
+            keysBlock = (BooleanBlock) hashBlock.getKeys();
+        }
+
+        assertEquals(1, keysBlock.getPositionCount());
+        assertTrue(keysBlock.getBoolean(0));
+    }
+
+    public void testBasicBooleanFalseOnly() {
+        boolean[] values = new boolean[] { false, false, false, false };
+        BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
+
+        BooleanBlock keysBlock;
+        try (BlockHash hashBlock = BlockHash.newForElementType(ElementType.BOOLEAN, null)) {
+            assertEquals(0, hashBlock.add(block, 0));
+            assertEquals(-1, hashBlock.add(block, 1));
+            assertEquals(-1, hashBlock.add(block, 2));
+            assertEquals(-1, hashBlock.add(block, 3));
+            keysBlock = (BooleanBlock) hashBlock.getKeys();
+        }
+
+        assertEquals(1, keysBlock.getPositionCount());
+        assertFalse(keysBlock.getBoolean(0));
     }
 }

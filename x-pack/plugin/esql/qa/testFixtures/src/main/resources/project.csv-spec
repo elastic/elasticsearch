@@ -81,15 +81,6 @@ avg:double | min:long | max:long | languages.long:long
 3.133013149047619E8 | 203838153 | 390266432 | 5
 ;
 
-avgOfIntegerByNotNullKeyword-Ignore
-// the returned results are correct but not in the expected order. Needs further investigation
-from test | stats avg(salary) by still_hired;
-
-avg(salary):double | still_hired:boolean
-50625.163636363635 | false
-45343.8 | true
-;
-
 avgOfIntegerWithSortByGroupingKey-Ignore
 // https://github.com/elastic/elasticsearch-internal/issues/414
 from test | stats avg(salary) by last_name | sort last_name desc | limit 10;

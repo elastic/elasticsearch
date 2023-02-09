@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -45,12 +46,12 @@ public class HashAggregationOperator implements Operator {
     public record HashAggregationOperatorFactory(
         int groupByChannel,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
-        BlockHash.Type blockHashType,
+        ElementType groupElementType,
         BigArrays bigArrays
     ) implements OperatorFactory {
         @Override
         public Operator get() {
-            return new HashAggregationOperator(groupByChannel, aggregators, () -> BlockHash.newHashForType(blockHashType, bigArrays));
+            return new HashAggregationOperator(groupByChannel, aggregators, () -> BlockHash.newForElementType(groupElementType, bigArrays));
         }
 
         @Override
@@ -104,6 +105,7 @@ public class HashAggregationOperator implements Operator {
             for (int i = 0; i < positionCount; i++) {
                 long bucketOrd = blockHash.add(block, i);
                 if (bucketOrd < 0) { // already seen
+                    // TODO can we use this "already seen"-ness?
                     bucketOrd = -1 - bucketOrd;
                 }
                 groups[i] = bucketOrd;
@@ -117,6 +119,7 @@ public class HashAggregationOperator implements Operator {
                 } else {
                     long bucketOrd = blockHash.add(block, i);
                     if (bucketOrd < 0) { // already seen
+                        // TODO can we use this "already seen"-ness?
                         bucketOrd = -1 - bucketOrd;
                     }
                     builder.appendLong(bucketOrd);

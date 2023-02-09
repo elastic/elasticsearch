@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValueSources;
@@ -99,7 +99,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
         Attribute attrSource,
-        BlockHash.Type blockHashType,
+        ElementType groupElementType,
         BigArrays bigArrays
     ) {
         var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());

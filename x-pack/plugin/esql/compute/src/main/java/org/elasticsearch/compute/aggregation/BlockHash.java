@@ -15,21 +15,20 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Locale;
 
 /**
  * A specialized hash table implementation maps values of a {@link Block} to ids (in longs).
@@ -42,8 +41,8 @@ public abstract sealed class BlockHash implements Releasable {
 
     /**
      * Try to add the value (as the key) at the given position of the Block to the hash.
-     * Return its newly allocated id if it wasn't in the hash table yet, or {@code -1}
-     * if it was already present in the hash table.
+     * Return its newly allocated {@code id} if it wasn't in the hash table yet, or
+     * {@code -1-id} if it was already present in the hash table.
      *
      * @see LongHash#add(long)
      * @see BytesRefHash#add(BytesRef)
@@ -55,49 +54,18 @@ public abstract sealed class BlockHash implements Releasable {
      */
     public abstract Block getKeys();
 
-    /** Element type that this block hash will accept as input. */
-    public enum Type {
-        INT,
-        LONG,
-        DOUBLE,
-        BYTES_REF;
-
-        /** Maps an ESQL data type name to a Block hash input element type. */
-        public static Type mapFromDataType(String name) {
-            return switch (name.toLowerCase(Locale.ROOT)) {
-                case "integer" -> INT;
-                case "long" -> LONG;
-                case "double" -> DOUBLE;
-                case "keyword" -> BYTES_REF;
-                default -> throw new UnsupportedOperationException("unknown type: " + name);
-            };
-        }
-    }
-
     /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
-    public static BlockHash newHashForType(Type type, BigArrays bigArrays) {
+    public static BlockHash newForElementType(ElementType type, BigArrays bigArrays) {
         return switch (type) {
+            case BOOLEAN -> new BooleanBlockHash();
             case INT -> new IntBlockHash(bigArrays);
             case LONG -> new LongBlockHash(bigArrays);
             case DOUBLE -> new DoubleBlockHash(bigArrays);
             case BYTES_REF -> new BytesRefBlockHash(bigArrays);
+            default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
-    }
-
-    public static BlockHash newHashForType(ValuesSource valuesSource, ValuesSourceType type, BigArrays bigArrays) {
-        if (CoreValuesSourceType.NUMERIC.equals(type)) {
-            ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
-            if (numericVS.isFloatingPoint()) {
-                return new DoubleBlockHash(bigArrays);
-            } else {
-                return new LongBlockHash(bigArrays);
-            }
-        } else if (CoreValuesSourceType.KEYWORD.equals(type)) {
-            return new BytesRefBlockHash(bigArrays);
-        }
-        throw new UnsupportedOperationException("unknown type: " + valuesSource + ", " + type);
     }
 
     private static final class LongBlockHash extends BlockHash {
@@ -221,6 +189,55 @@ public abstract sealed class BlockHash implements Releasable {
         @Override
         public void close() {
             bytesRefHash.close();
+        }
+    }
+
+    /**
+     * Assigns group {@code 0} to the first of {@code true} or{@code false}
+     * that it sees and {@code 1} to the second.
+     */
+    private static final class BooleanBlockHash extends BlockHash {
+        // TODO this isn't really a "hash" so maybe we should rename base class
+        private final int[] buckets = { -1, -1 };
+
+        @Override
+        public long add(Block block, int position) {
+            boolean b = ((BooleanBlock) block).getBoolean(position);
+            int pos = b ? 1 : 0;
+            int ord = buckets[pos];
+            if (ord == -1) {
+                ord = buckets[pos == 0 ? 1 : 0] + 1;
+                buckets[pos] = ord;
+                return ord;
+            } else {
+                return -ord - 1;
+            }
+        }
+
+        @Override
+        public BooleanBlock getKeys() {
+            BooleanVector.Builder builder = BooleanVector.newVectorBuilder(2);
+            if (buckets[0] < buckets[1]) {
+                if (buckets[0] >= 0) {
+                    builder.appendBoolean(false);
+                }
+                if (buckets[1] >= 0) {
+                    builder.appendBoolean(true);
+                }
+            } else {
+                if (buckets[1] >= 0) {
+                    builder.appendBoolean(true);
+                }
+                if (buckets[0] >= 0) {
+                    builder.appendBoolean(false);
+                }
+            }
+            return builder.build().asBlock();
+        }
+
+        @Override
+        public void close() {
+            // Nothing to close
         }
     }
 }

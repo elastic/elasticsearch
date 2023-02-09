@@ -20,6 +20,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -96,7 +97,7 @@ public class AggregatorBenchmark {
             return new HashAggregationOperator(
                 0,
                 List.of(new GroupingAggregator.GroupingAggregatorFactory(BIG_ARRAYS, factory, AggregatorMode.SINGLE, 1)),
-                () -> BlockHash.newHashForType(BlockHash.Type.LONG, BIG_ARRAYS)
+                () -> BlockHash.newForElementType(ElementType.LONG, BIG_ARRAYS)
             );
         }
         AggregatorFunction.Factory factory = AggregatorFunction.of(aggName, aggType);

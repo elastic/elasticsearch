@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
@@ -69,7 +70,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             0,
             List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), mode, 1)),
-            BlockHash.Type.LONG,
+            ElementType.LONG,
             bigArrays
         );
     }

@@ -376,7 +376,7 @@ public class OrdinalsGroupingOperator implements Operator {
             this.aggregator = new HashAggregationOperator(
                 channelIndex,
                 aggregatorFactories,
-                () -> BlockHash.newHashForType(sources.get(0).source(), sources.get(0).type(), bigArrays)
+                () -> BlockHash.newForElementType(sources.get(0).elementType(), bigArrays)
             );
         }
 

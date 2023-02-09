@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
@@ -99,7 +99,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             }
             layout.appendChannel(grpAttribIds);
 
-            final BlockHash.Type blockHashType = BlockHash.Type.mapFromDataType(grpAttrib.dataType().typeName());
+            final ElementType groupElementType = LocalExecutionPlanner.toElementType(grpAttrib.dataType());
 
             for (NamedExpression ne : aggregateExec.aggregates()) {
 
@@ -145,11 +145,16 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     aggregateExec,
                     aggregatorFactories,
                     attrSource,
-                    blockHashType,
+                    groupElementType,
                     context.bigArrays()
                 );
             } else {
-                operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHashType, context.bigArrays());
+                operatorFactory = new HashAggregationOperatorFactory(
+                    inputChannel,
+                    aggregatorFactories,
+                    groupElementType,
+                    context.bigArrays()
+                );
             }
         }
         if (operatorFactory != null) {
@@ -163,7 +168,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
         Attribute attrSource,
-        BlockHash.Type blockHashType,
+        ElementType groupType,
         BigArrays bigArrays
     );
 }

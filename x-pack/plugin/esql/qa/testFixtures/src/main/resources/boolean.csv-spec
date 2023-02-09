@@ -24,3 +24,25 @@ emp_no:integer | still_hired:boolean
 10006          | false
 10009          | false
 ;
+
+statsBy
+from employee | stats avg(salary) by still_hired | sort still_hired;
+
+avg(salary):double | still_hired:boolean
+50625.163636363635 | false
+           45343.8 | true
+;
+
+statsByAlwaysTrue
+from employee | eval always_true = starts_with(first_name, "") | stats avg(salary) by always_true;
+
+avg(salary):double | always_true:boolean
+ 48353.72222222222 | true
+;
+
+statsByAlwaysFalse
+from employee | eval always_false = starts_with(first_name, "nonestartwiththis") | stats avg(salary) by always_false;
+
+avg(salary):double | always_false:boolean
+ 48353.72222222222 | false
+;

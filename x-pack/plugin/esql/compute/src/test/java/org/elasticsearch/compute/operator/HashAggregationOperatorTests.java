@@ -11,11 +11,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.AvgLongGroupingAggregatorFunctionTests;
-import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
@@ -46,7 +46,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     mode.isInputPartial() ? 2 : 1
                 )
             ),
-            BlockHash.Type.LONG,
+            ElementType.LONG,
             bigArrays
         );
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -66,11 +67,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
         Attribute attrSource,
-        BlockHash.Type blockHashType,
+        ElementType groupElementType,
         BigArrays bigArrays
     ) {
         int channelIndex = source.layout.numberOfChannels();
-        return new TestHashAggregationOperatorFactory(channelIndex, aggregatorFactories, blockHashType, bigArrays, attrSource.name());
+        return new TestHashAggregationOperatorFactory(channelIndex, aggregatorFactories, groupElementType, bigArrays, attrSource.name());
     }
 
     private class TestSourceOperator extends SourceOperator {
@@ -216,20 +217,20 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private class TestHashAggregationOperatorFactory implements Operator.OperatorFactory {
         private int groupByChannel;
         private List<GroupingAggregator.GroupingAggregatorFactory> aggregators;
-        private BlockHash.Type blockHashType;
+        private ElementType groupElementType;
         private BigArrays bigArrays;
         private String columnName;
 
         TestHashAggregationOperatorFactory(
             int channelIndex,
             List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
-            BlockHash.Type blockHashType,
+            ElementType groupElementType,
             BigArrays bigArrays,
             String name
         ) {
             this.groupByChannel = channelIndex;
             this.aggregators = aggregatorFactories;
-            this.blockHashType = blockHashType;
+            this.groupElementType = groupElementType;
             this.bigArrays = bigArrays;
             this.columnName = name;
         }
@@ -239,7 +240,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return new TestHashAggregationOperator(
                 groupByChannel,
                 aggregators,
-                () -> BlockHash.newHashForType(blockHashType, bigArrays),
+                () -> BlockHash.newForElementType(groupElementType, bigArrays),
                 columnName
             );
         }

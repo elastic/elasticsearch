@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
@@ -37,10 +38,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.NoOpEngine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -62,6 +63,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -70,8 +72,10 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -159,8 +163,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         logger.error("Error creating empty store", e);
                         throw new RuntimeException(e);
                     }
-
-                    return new NoOpEngine(EngineTestCase.copy(config, () -> -1L));
+                    return new ReadOnlyEngine(config, null, new TranslogStats(), true, Function.identity(), false, false);
                 }
             });
         }
@@ -387,7 +390,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         && indexShard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
                         assertThat(engine, instanceOf(InternalEngine.class));
                     } else {
-                        assertThat(engine, instanceOf(NoOpEngine.class));
+                        assertThat(engine, instanceOf(ReadOnlyEngine.class));
                     }
                 }
             }
@@ -562,8 +565,8 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         .get()
                         .getProfileResults();
                     assertThat(profileResults, not(anEmptyMap()));
-                    for (final var searchShardProfileKey : profileResults.keySet()) {
-                        assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
+                    for (final var profileKey : profileResults.keySet()) {
+                        assertThat(profileKey, in(searchShardProfileKeys));
                     }
                 } finally {
                     client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId));
@@ -583,9 +586,30 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 for (ClusterSearchShardsGroup group : groups) {
                     for (ShardRouting shr : group.getShards()) {
                         String profileKey = "[" + shr.currentNodeId() + "][" + INDEX_NAME + "][" + shr.id() + "]";
-                        assertThat(searchShardProfileKeys, hasItem(profileKey));
+                        assertThat(profileKey, in(searchShardProfileKeys));
                     }
                 }
+            }
+            // GET API
+            for (int i = 0; i < 10; i++) {
+                final var getRequest = client().prepareGet(INDEX_NAME, randomAlphaOfLength(5));
+                switch (randomIntBetween(0, 2)) {
+                    case 0 -> getRequest.setRouting(randomAlphaOfLength(10));
+                    case 1 -> getRequest.setRouting(
+                        randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames())
+                    );
+                    default -> {
+                        // do nothing
+                    }
+                }
+                getRequest.get();
+                var profileKeys = Arrays.stream(client().admin().indices().prepareStats(INDEX_NAME).clear().setGet(true).get().getShards())
+                    .filter(shardStats -> shardStats.getStats().get.getCount() > 0)
+                    .map(ShardStats::getShardRouting)
+                    .map(shr -> "[" + shr.currentNodeId() + "][" + INDEX_NAME + "][" + shr.id() + "]")
+                    .toList();
+                assertThat(profileKeys, not(empty()));
+                assertThat(profileKeys, everyItem(in(searchShardProfileKeys)));
             }
         } finally {
             masterClusterService.removeListener(routingTableWatcher);

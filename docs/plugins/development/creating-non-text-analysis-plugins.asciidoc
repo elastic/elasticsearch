@@ -36,8 +36,8 @@ The {es} repository contains {es-repo}tree/main/plugins/examples[examples of plu
 * a script {es-repo}tree/main/plugins/examples/script-expert-scoring[implemented in Java]
 
 These examples provide the bare bones needed to get started. For more
-information about how to write a plugin, we recommend looking at the plugins
-listed in this documentation for inspiration.
+information about how to write a plugin, we recommend looking at the 
+{es-repo}tree/main/plugins/[source code of existing plugins] for inspiration.
 
 [discrete]
 ==== Testing your plugin

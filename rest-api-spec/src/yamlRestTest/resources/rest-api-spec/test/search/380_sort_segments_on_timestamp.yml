@@ -42,6 +42,7 @@
 
 ---
 "Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added":
+
   - skip:
       version: "all"
       reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/93572"

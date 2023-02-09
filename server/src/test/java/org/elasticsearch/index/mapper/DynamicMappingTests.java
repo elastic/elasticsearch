@@ -811,7 +811,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.array("something.myfield", "value2", "value3");
         }));
 
-        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(1));
         for (IndexableField field : doc.rootDoc().getFields("myfield")) {
             assertThat(field.binaryValue(), equalTo(new BytesRef("value1")));
         }
@@ -831,7 +831,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.array("myarray", "array1", "array2");
         }));
 
-        assertThat(doc.rootDoc().getFields("myarray"), arrayWithSize(4));
+        assertThat(doc.rootDoc().getFields("myarray"), arrayWithSize(2));
         assertThat(doc.rootDoc().getFields("unmapped"), arrayWithSize(0));
         assertNull(doc.dynamicMappingsUpdate());
     }
@@ -859,7 +859,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.endArray();
         }));
 
-        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(1));
         assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
         assertThat(doc.rootDoc().getFields("unmapped.subfield"), arrayWithSize(0));
         assertNull(doc.dynamicMappingsUpdate());
@@ -888,7 +888,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(1));
-        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(1));
         assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
         assertEquals(XContentHelper.stripWhitespace("""
             {

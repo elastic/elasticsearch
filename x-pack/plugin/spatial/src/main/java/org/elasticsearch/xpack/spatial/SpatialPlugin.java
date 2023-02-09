@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.ingest.GeoGridProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
@@ -188,7 +189,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
+        return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory(), GeoGridProcessor.TYPE, new GeoGridProcessor.Factory());
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {

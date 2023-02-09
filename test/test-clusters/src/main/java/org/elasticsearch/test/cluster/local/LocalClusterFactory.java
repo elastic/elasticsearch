@@ -132,7 +132,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 createConfigDirectory();
                 copyExtraConfigFiles();
             }
-            
+
             writeConfiguration(seedTransportAddress);
             createKeystore();
             addKeystoreSettings();
@@ -620,10 +620,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 expansions.put("logs/gc.log", logsDir.resolve("gc.log").toString());
             }
             if (spec.getVersion().getMajor() >= 7) {
-                expansions.put(
-                    "-XX:ErrorFile=logs/hs_err_pid%p.log",
-                    "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log").toString()
-                );
+                expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log").toString());
             }
             return expansions;
         }

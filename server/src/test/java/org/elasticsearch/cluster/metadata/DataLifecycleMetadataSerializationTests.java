@@ -24,17 +24,19 @@ public class DataLifecycleMetadataSerializationTests extends AbstractXContentSer
 
     @Override
     protected DataLifecycleMetadata createTestInstance() {
-        if (rarely()) {
+        if (randomBoolean()) {
             return new DataLifecycleMetadata();
         } else {
-            return new DataLifecycleMetadata(new TimeValue(randomMillisUpToYear9999()));
+            return new DataLifecycleMetadata(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
         }
     }
 
     @Override
     protected DataLifecycleMetadata mutateInstance(DataLifecycleMetadata instance) throws IOException {
-        // TODO do this better when we add the rollover config
-        return createTestInstance();
+        if (instance.getDataRetention() == null) {
+            return new DataLifecycleMetadata(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+        }
+        return new DataLifecycleMetadata(TimeValue.timeValueMillis(instance.getDataRetention().millis() + randomMillisUpToYear9999()));
     }
 
     @Override

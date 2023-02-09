@@ -132,8 +132,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 createConfigDirectory();
                 copyExtraConfigFiles();
             }
-
-            deleteGcLogs();
+            
             writeConfiguration(seedTransportAddress);
             createKeystore();
             addKeystoreSettings();
@@ -213,20 +212,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 throw new RuntimeException("Timed out after " + NODE_UP_TIMEOUT + " waiting for ports files for: " + this);
             } catch (ExecutionException e) {
                 throw new RuntimeException("An error occurred while waiting for ports file for: " + this, e);
-            }
-        }
-
-        private void deleteGcLogs() {
-            try (Stream<Path> logs = Files.list(logsDir)) {
-                logs.filter(l -> l.getFileName().toString().startsWith("gc.log")).forEach(path -> {
-                    try {
-                        IOUtils.deleteWithRetry(path);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
         }
 
@@ -628,17 +613,16 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private Map<String, String> getJvmOptionsReplacements() {
-            Path relativeLogsDir = workingDir.relativize(logsDir);
             Map<String, String> expansions = new HashMap<>();
             String heapDumpOrigin = spec.getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
-            expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + relativeLogsDir.toString());
+            expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + logsDir);
             if (spec.getVersion().onOrAfter("6.2.0")) {
-                expansions.put("logs/gc.log", relativeLogsDir.resolve("gc.log").toString());
+                expansions.put("logs/gc.log", logsDir.resolve("gc.log").toString());
             }
             if (spec.getVersion().getMajor() >= 7) {
                 expansions.put(
                     "-XX:ErrorFile=logs/hs_err_pid%p.log",
-                    "-XX:ErrorFile=" + relativeLogsDir.resolve("hs_err_pid%p.log").toString()
+                    "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log").toString()
                 );
             }
             return expansions;

@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -32,15 +33,16 @@ import static org.mockito.Mockito.verify;
 
 public class FileWatchServiceTests extends ESTestCase {
 
+    private Path directory;
     private FileWatchService fileWatchService;
+    private static final String FILENAME = "settings.json";
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
 
-        Path directory = createTempDir();
-        String filename = "settings.json";
-        fileWatchService = new FileWatchService(directory, filename);
+        directory = createTempDir();
+        fileWatchService = new FileWatchService(directory, FILENAME);
     }
 
     public void testWatchedFile() throws Exception {
@@ -89,58 +91,25 @@ public class FileWatchServiceTests extends ESTestCase {
     }
 
     public void testOperatorSettingsDir() {
-        // TODO[wrb]: add test
+        assertThat(fileWatchService.operatorSettingsDir(), equalTo(directory));
     }
 
     public void testOperatorSettingsFile() {
-        // TODO[wrb]: add test
-    }
-
-    public void testWatchedFileChanged() {
-        // TODO[wrb]: add test
-    }
-
-    public void testWatchService() {
-        // TODO[wrb]: add test
-    }
-
-    public void testDoStart() {
-        // TODO[wrb]: add test
-    }
-
-    public void testDoStop() {
-        // TODO[wrb]: add test
-    }
-
-    public void testDoClose() {
-        // TODO[wrb]: add test
-    }
-
-    public void testSetActive() {
-        // TODO[wrb]: add test
+        assertThat(fileWatchService.operatorSettingsFile(), equalTo(directory.resolve(FILENAME)));
     }
 
     public void testIsActive() {
-        // TODO[wrb]: add test
-    }
-
-    public void testWatching() {
-        // TODO[wrb]: add test
+        fileWatchService.doStart();
+        assertTrue(fileWatchService.isActive());
+        fileWatchService.doStop();
+        assertFalse(fileWatchService.isActive());
     }
 
     public void testStartWatcher() {
-        // TODO[wrb]: add test
-    }
-
-    public void testWatcherThread() {
-        // TODO[wrb]: add test
+        // TODO[wrb]: add test - need to test the callbacks
     }
 
     public void testStopWatcher() {
-        // TODO[wrb]: add test
-    }
-
-    public void testRetryDelayMillis() {
         // TODO[wrb]: add test
     }
 

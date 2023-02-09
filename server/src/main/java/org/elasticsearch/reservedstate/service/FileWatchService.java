@@ -22,7 +22,6 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
-import java.util.stream.Stream;
 
 // Settings have a path, a file update state, and a watch key
 // TODO[wrb]: is this really a service? does it need start/stop logic? Since it manages a thread,
@@ -38,7 +37,6 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
     private WatchService watchService; // null;
     private Thread watcherThread;
-    // TODO[wrb]: move FileUpdateState to this class
     FileUpdateState fileUpdateState;
     WatchKey settingsDirWatchKey;
     WatchKey configDirWatchKey;
@@ -73,23 +71,12 @@ public class FileWatchService extends AbstractLifecycleComponent {
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
 
-    // TODO[wrb]: remove/inline
-    WatchService watchService() {
-        return this.watchService;
-    }
-
     @Override
     protected void doStart() {
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        this.setActive(Stream.of(this).map(e -> e.operatorSettingsDir.getParent()).anyMatch(Files::exists));
-
-        // TODO[wrb]: remove
-        if (this.isActive() == false) {
-            // we don't have a config directory, we can't possibly launch the file settings service
-            return;
-        }
+        active = Files.exists(operatorSettingsDir().getParent());
     }
 
     @Override
@@ -104,12 +91,6 @@ public class FileWatchService extends AbstractLifecycleComponent {
         watchService = null;
     }
 
-    // TODO[wrb]: remove when possible
-    synchronized void setActive(boolean flag) {
-        active = flag;
-    }
-
-    // TODO[wrb]: remove when possible
     boolean isActive() {
         return active;
     }
@@ -158,7 +139,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
         watcherThread.start();
     }
 
-    void watcherThread(Runnable processOperation, Runnable listenOperation) {
+    private void watcherThread(Runnable processOperation, Runnable listenOperation) {
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
@@ -172,7 +153,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
             }
 
             WatchKey key;
-            while ((key = watchService().take()) != null) {
+            while ((key = this.watchService.take()) != null) {
                 /*
                  * Reading and interpreting watch service events can vary from platform to platform. E.g:
                  * MacOS symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
@@ -226,11 +207,12 @@ public class FileWatchService extends AbstractLifecycleComponent {
     }
 
     synchronized void stopWatcher() {
+        active = false;
         if (watching()) {
             logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever
             // this will also close any outstanding keys
-            try (var ws = watchService()) {
+            try (var ws = this.watchService) {
                 watcherThread.interrupt();
                 watcherThread.join();
 

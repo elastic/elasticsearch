@@ -102,7 +102,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     @Override
     protected void doStop() {
-        this.fileWatchService.setActive(false);
         logger.debug("Stopping file settings service");
         stopWatcher();
     }

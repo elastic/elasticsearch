@@ -116,10 +116,7 @@ public class FeatureFactory {
         // Get geometry in spherical mercator
         final org.locationtech.jts.geom.Geometry jtsGeometry = geometry.visit(builder);
         // clip the geometry to the tile
-        final List<org.locationtech.jts.geom.Geometry> flatGeometries = clipGeometries(
-            clipTile.copy(),
-            JtsAdapter.flatFeatureList(jtsGeometry)
-        );
+        final List<org.locationtech.jts.geom.Geometry> flatGeometries = clipGeometries(clipTile, JtsAdapter.flatFeatureList(jtsGeometry));
         // simplify geometry using the pixel precision
         simplifyGeometry(flatGeometries, pixelPrecision);
         // convert coordinates to MVT geometry
@@ -144,13 +141,13 @@ public class FeatureFactory {
                     intersected.add(geometry);
                 } else if (matrix.isWithin()) {
                     // the clipped geometry is the envelope
-                    intersected.add(envelope);
+                    intersected.add(envelope.copy());
                 } else if (matrix.isIntersects()) {
-                    // clip it
-                    intersected.add(envelope.intersection(geometry));
+                    // clip it (clone envelope as coordinates are copied by reference)
+                    intersected.add(envelope.copy().intersection(geometry));
                 } else {
                     // disjoint
-                    assert envelope.intersection(geometry).isEmpty();
+                    assert envelope.copy().intersection(geometry).isEmpty();
                 }
             } catch (TopologyException e) {
                 // ignore

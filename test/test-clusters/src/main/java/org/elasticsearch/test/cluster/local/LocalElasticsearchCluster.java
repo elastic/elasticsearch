@@ -16,8 +16,6 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-import java.nio.file.Path;
-
 public class LocalElasticsearchCluster implements ElasticsearchCluster {
     private final DefaultLocalClusterSpecBuilder builder;
     private LocalClusterSpec spec;
@@ -35,7 +33,6 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
                 try {
                     spec = builder.buildClusterSpec();
                     handle = new LocalClusterFactory(
-                        Path.of(System.getProperty("java.io.tmpdir")).resolve(description.getDisplayName()).toAbsolutePath(),
                         new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
                     ).create(spec);
                     handle.start();

@@ -53,7 +53,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
     public static final Setting<Integer> PROFILING_MAX_DETAIL_QUERY_SLICES = Setting.intSetting(
         "xpack.profiling.query.details.max_slices",
-        1,
+        16,
         1,
         Setting.Property.NodeScope
     );

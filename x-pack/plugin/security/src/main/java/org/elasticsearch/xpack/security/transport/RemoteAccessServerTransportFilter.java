@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
@@ -23,10 +25,14 @@ import static org.elasticsearch.xpack.security.transport.SecurityServerTransport
 
 final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
     // pkg-private for testing
-    static final Set<String> ALLOWED_TRANSPORT_HEADERS = Set.of(
-        REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
-        REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
-    );
+    static final Set<String> ALLOWED_TRANSPORT_HEADERS;
+    static {
+        final Set<String> allowedHeaders = new HashSet<>(
+            Set.of(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+        );
+        allowedHeaders.addAll(Task.HEADERS_TO_COPY);
+        ALLOWED_TRANSPORT_HEADERS = Set.copyOf(allowedHeaders);
+    }
 
     private final RemoteAccessAuthenticationService remoteAccessAuthcService;
 
@@ -65,7 +71,7 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
                 authenticationListener.onFailure(ex);
                 return;
             }
-            remoteAccessAuthcService.authenticate(securityAction, request, false, authenticationListener);
+            remoteAccessAuthcService.authenticate(securityAction, request, authenticationListener);
         }
     }
 

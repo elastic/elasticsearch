@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.security.remoteaccess;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -36,8 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
@@ -54,48 +51,42 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
     }
 
-    public void testInvalidHeaders() throws InterruptedException, IOException {
+    public void testInvalidHeaders() throws IOException {
         final String encodedRemoteAccessApiKey = getEncodedRemoteAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
         final RemoteAccessAuthenticationService service = internalCluster().getInstance(RemoteAccessAuthenticationService.class, nodeName);
 
         try (var ignored = threadContext.stashContext()) {
-            authenticateAndAssertExpectedFailure(service, ex -> {
-                assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-                assertThat(
-                    ex.getCause().getMessage(),
-                    equalTo("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required")
-                );
-            });
+            authenticateAndAssertExpectedErrorMessage(
+                service,
+                msg -> assertThat(msg, equalTo("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"))
+            );
         }
 
         try (var ignored = threadContext.stashContext()) {
             threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "abc");
-            authenticateAndAssertExpectedFailure(service, ex -> {
-                assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-                assertThat(
-                    ex.getCause().getMessage(),
+            authenticateAndAssertExpectedErrorMessage(
+                service,
+                msg -> assertThat(
+                    msg,
                     equalTo(
                         "remote access header ["
                             + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
                             + "] value must be a valid API key credential"
                     )
-                );
-            });
+                )
+            );
         }
 
         try (var ignored = threadContext.stashContext()) {
             final String randomApiKey = Base64.getEncoder()
                 .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
             threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + randomApiKey);
-            authenticateAndAssertExpectedFailure(service, ex -> {
-                assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-                assertThat(
-                    ex.getCause().getMessage(),
-                    equalTo("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required")
-                );
-            });
+            authenticateAndAssertExpectedErrorMessage(
+                service,
+                msg -> assertThat(msg, equalTo("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"))
+            );
         }
 
         try (var ignored = threadContext.stashContext()) {
@@ -105,13 +96,13 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                 AuthenticationTestHelper.builder().internal(internalUser).build(),
                 RoleDescriptorsIntersection.EMPTY
             ).writeToContext(threadContext);
-            authenticateAndAssertExpectedFailure(service, ex -> {
-                assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-                assertThat(
-                    ex.getCause().getMessage(),
+            authenticateAndAssertExpectedErrorMessage(
+                service,
+                msg -> assertThat(
+                    msg,
                     equalTo("received cross cluster request from an unexpected internal user [" + internalUser.principal() + "]")
-                );
-            });
+                )
+            );
         }
 
         try (var ignored = threadContext.stashContext()) {
@@ -128,25 +119,25 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                     )
                 )
             ).writeToContext(threadContext);
-            authenticateAndAssertExpectedFailure(service, ex -> {
-                assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-                assertThat(
-                    ex.getCause().getMessage(),
+            authenticateAndAssertExpectedErrorMessage(
+                service,
+                msg -> assertThat(
+                    msg,
                     containsString(
                         "role descriptor for remote access can only contain index privileges but other privileges found for subject"
                     )
-                );
-            });
+                )
+            );
         }
 
         try (var ignored = threadContext.stashContext()) {
             threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + encodedRemoteAccessApiKey);
             Authentication authentication = AuthenticationTestHelper.builder().apiKey().build();
             new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY).writeToContext(threadContext);
-            authenticateAndAssertExpectedFailure(service, ex -> {
-                assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-                assertThat(
-                    ex.getCause().getMessage(),
+            authenticateAndAssertExpectedErrorMessage(
+                service,
+                msg -> assertThat(
+                    msg,
                     containsString(
                         "subject ["
                             + authentication.getEffectiveSubject().getUser().principal()
@@ -154,12 +145,12 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                             + authentication.getEffectiveSubject().getType()
                             + "] which is not supported for remote access"
                     )
-                );
-            });
+                )
+            );
         }
     }
 
-    public void testSystemUserIsMappedToCrossClusterInternalRole() throws InterruptedException, IOException {
+    public void testSystemUserIsMappedToCrossClusterInternalRole() throws InterruptedException, IOException, ExecutionException {
         final String encodedRemoteAccessApiKey = getEncodedRemoteAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
@@ -172,21 +163,10 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                 new RoleDescriptorsIntersection(new RoleDescriptor("role", null, null, null, null, null, null, null))
             ).writeToContext(threadContext);
 
-            final AtomicReference<Authentication> actual = new AtomicReference<>();
-            final CountDownLatch latch = new CountDownLatch(1);
-            service.authenticate(ClusterStateAction.NAME, new SearchRequest(), false, new LatchedActionListener<>(new ActionListener<>() {
-                @Override
-                public void onResponse(Authentication authentication) {
-                    actual.set(authentication);
-                }
+            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+            service.authenticate(ClusterStateAction.NAME, new SearchRequest(), future);
+            final Authentication actualAuthentication = future.get();
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail();
-                }
-            }, latch));
-            latch.await();
-            final Authentication actualAuthentication = actual.get();
             assertNotNull(actualAuthentication);
             assertThat(actualAuthentication.getEffectiveSubject().getUser(), is(SystemUser.INSTANCE));
             @SuppressWarnings("unchecked")
@@ -204,26 +184,15 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         return Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8));
     }
 
-    private void authenticateAndAssertExpectedFailure(RemoteAccessAuthenticationService service, Consumer<Exception> assertions)
-        throws InterruptedException {
-        final AtomicReference<Exception> actual = new AtomicReference<>();
-        final AtomicReference<Authentication> actualAuthentication = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        service.authenticate(SearchAction.NAME, new SearchRequest(), false, new LatchedActionListener<>(new ActionListener<>() {
-            @Override
-            public void onResponse(Authentication authentication) {
-                actualAuthentication.set(authentication);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                actual.set(e);
-            }
-        }, latch));
-        latch.await();
-        assertNull(actualAuthentication.get());
-        final Exception actualException = actual.get();
-        assertNotNull(actual);
-        assertions.accept(actualException);
+    private void authenticateAndAssertExpectedErrorMessage(
+        RemoteAccessAuthenticationService service,
+        Consumer<String> errorMessageAssertion
+    ) {
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        service.authenticate(ClusterStateAction.NAME, new SearchRequest(), future);
+        final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
+        assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
+        assertThat(actualException.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        errorMessageAssertion.accept(actualException.getCause().getCause().getMessage());
     }
 }

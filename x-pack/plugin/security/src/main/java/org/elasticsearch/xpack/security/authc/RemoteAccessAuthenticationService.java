@@ -65,13 +65,8 @@ public class RemoteAccessAuthenticationService {
         this.authenticationService = authenticationService;
     }
 
-    public void authenticate(
-        final String action,
-        final TransportRequest request,
-        final boolean allowAnonymous,
-        final ActionListener<Authentication> listener
-    ) {
-        final Authenticator.Context authcContext = authenticationService.newContext(action, request, allowAnonymous);
+    public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {
+        final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
         final ThreadContext threadContext = authcContext.getThreadContext();
 
         // TODO revisit this once Node's Version is refactored

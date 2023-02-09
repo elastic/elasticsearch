@@ -85,7 +85,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         when(remoteAccessAuthcService.getAuthenticationService()).thenReturn(authcService);
     }
 
-    public void testInbound() throws Exception {
+    public void testInbound() {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq("_action"), eq(request), eq(true), anyActionListener());
@@ -102,19 +102,19 @@ public class ServerTransportFilterTests extends ESTestCase {
         boolean allowlisted = randomBoolean();
         String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService)
-            .authenticate(eq(action), eq(request), eq(false), anyActionListener());
+        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound(action, request, channel, future);
         // future.get(); // don't block it's not called really just mocked
         verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
         if (allowlisted) {
-            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
+            // TODO update once we switch to failing non-allow-listed actions on remote access port
             verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
         }
     }
 
@@ -124,8 +124,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         boolean allowlisted = randomBoolean();
         String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService)
-            .authenticate(eq(action), eq(request), eq(false), anyActionListener());
+        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
         @SuppressWarnings("unchecked")
         PlainActionFuture<Void> listener = mock(PlainActionFuture.class);
@@ -136,13 +135,14 @@ public class ServerTransportFilterTests extends ESTestCase {
             verifyNoMoreInteractions(authcService);
             verifyNoMoreInteractions(authzService);
         } else {
+            // TODO update once we switch to failing non-allow-listed actions on remote access port
             verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
             verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
         }
-        verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+        verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
     }
 
-    public void testInboundDestructiveOperations() throws Exception {
+    public void testInboundDestructiveOperations() {
         String action = randomFrom(CloseIndexAction.NAME, OpenIndexAction.NAME, DeleteIndexAction.NAME);
         TransportRequest request = new MockIndicesRequest(
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
@@ -162,7 +162,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         }
     }
 
-    public void testInboundAuthenticationException() throws Exception {
+    public void testInboundAuthenticationException() {
         TransportRequest request = mock(TransportRequest.class);
         Exception authE = authenticationError("authc failed");
         doAnswer(i -> {
@@ -197,7 +197,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) args[args.length - 1];
             callback.onFailure(authE);
             return Void.TYPE;
-        }).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), eq(false), anyActionListener());
+        }).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
@@ -217,22 +217,22 @@ public class ServerTransportFilterTests extends ESTestCase {
         }
         verifyNoMoreInteractions(authzService);
         if (allowListed) {
-            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
+            // TODO update once we switch to failing non-allow-listed actions on remote access port
             verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
         }
     }
 
-    public void testInboundAuthorizationException() throws Exception {
+    public void testInboundAuthorizationException() {
         boolean remoteAccess = randomBoolean();
         ServerTransportFilter filter = remoteAccess ? getNodeRemoteAccessFilter() : getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().internal(XPackUser.INSTANCE).build();
         String action = SearchAction.NAME;
-        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService)
-            .authenticate(eq(action), eq(request), eq(false), anyActionListener());
+        doAnswer(getAnswer(authentication)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService)
@@ -243,15 +243,15 @@ public class ServerTransportFilterTests extends ESTestCase {
         });
         assertThat(e.getMessage(), equalTo("authz failed"));
         if (remoteAccess) {
-            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
             verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
         }
     }
 
-    public void testAllowsNodeActions() throws Exception {
+    public void testAllowsNodeActions() {
         final String internalAction = "internal:foo/bar";
         final String nodeOrShardAction = "indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]");
         ServerTransportFilter filter = getNodeFilter();

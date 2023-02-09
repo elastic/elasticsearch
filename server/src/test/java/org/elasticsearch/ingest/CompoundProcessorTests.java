@@ -90,9 +90,15 @@ public class CompoundProcessorTests extends ESTestCase {
     public void testIgnoreFailure() throws Exception {
         TestProcessor processor1 = getTestProcessor(null, randomBoolean(), true);
         TestProcessor processor2 = new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue("field", "value"); });
+        TestProcessor processor3 = new TestProcessor(ingestDocument -> fail("ignoreFailure is true, processor shouldn't be called"));
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
-        CompoundProcessor compoundProcessor = new CompoundProcessor(true, List.of(processor1, processor2), List.of(), relativeTimeProvider);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            true,
+            List.of(processor1, processor2),
+            List.of(processor3), // when ignoreFailure is true, onFailureProcessors are not called (regardless of whether a failure occurs)
+            relativeTimeProvider
+        );
         executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertStats(0, compoundProcessor, 0, 1, 1, 0);

@@ -302,9 +302,8 @@ public class ApiKeyService {
         } else {
             // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
             final TransportVersion version = clusterService.state().nodes().getMinNodeVersion().transportVersion;
-            final boolean requestHasRemoteIndicesPrivileges = request.getRoleDescriptors()
-                .stream()
-                .anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
+            final boolean requestHasRemoteIndicesPrivileges = request.getRoleDescriptors() != null
+                && request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
 
             if (requestHasRemoteIndicesPrivileges && version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
@@ -410,9 +409,8 @@ public class ApiKeyService {
 
         // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
         final TransportVersion version = clusterService.state().nodes().getMinNodeVersion().transportVersion;
-        final boolean requestHasRemoteIndicesPrivileges = request.getRoleDescriptors()
-            .stream()
-            .anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
+        final boolean requestHasRemoteIndicesPrivileges = request.getRoleDescriptors() != null
+            && request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
 
         if (requestHasRemoteIndicesPrivileges && version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
@@ -542,11 +540,12 @@ public class ApiKeyService {
         final TransportVersion version,
         final String... apiKeyIds
     ) {
-        final boolean requestHasRemoteIndicesPrivileges = requestedRoleDescriptors.stream()
-            .anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
 
-        if ((false == requestHasRemoteIndicesPrivileges && false == requestedRoleDescriptors.isEmpty())
-            || version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+        final boolean requestHasRoleDescriptorsWithoutRemoteIndicesPrivileges = requestedRoleDescriptors != null
+            && false == requestedRoleDescriptors.isEmpty()
+            && requestedRoleDescriptors.stream().noneMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
+
+        if (requestHasRoleDescriptorsWithoutRemoteIndicesPrivileges || version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             return userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
                     final String warningMessage = Strings.format(

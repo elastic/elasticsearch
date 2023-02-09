@@ -18,12 +18,13 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType;
+import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -32,6 +33,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -55,7 +57,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -313,20 +314,16 @@ public class ObjectStoreServiceTests extends ESTestCase {
             );
             assertEquals(Math.min(1L, commitCount), permittedFiles.stream().filter(s -> s.startsWith(IndexFileNames.SEGMENTS)).count());
 
-            expectThrows(IndexNotFoundException.class, () -> DirectoryReader.open(testHarness.searchStore.directory()));
+            final var dir = SearchDirectory.unwrapDirectory(testHarness.searchStore.directory());
+            final var blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, 1);
+            dir.init(blobContainer);
 
-            Set<String> downloadedFiles = PlainActionFuture.<Map<String, StoreFileMetadata>, RuntimeException>get(
-                future -> testHarness.objectStoreService.downloadSearchShardFiles(testHarness.shardId, 1, testHarness.searchStore, future)
-            ).keySet();
+            if (commitCount > 0) {
+                assertEquals(permittedFiles, Set.of(dir.listAll()));
+            }
 
-            assertEquals(permittedFiles, downloadedFiles);
-
-            if (commitCount == 0) {
-                expectThrows(IndexNotFoundException.class, () -> DirectoryReader.open(testHarness.searchStore.directory()));
-            } else {
-                try (var indexReader = DirectoryReader.open(testHarness.searchStore.directory())) {
-                    assertEquals(commitCount, indexReader.numDocs());
-                }
+            try (var indexReader = DirectoryReader.open(testHarness.searchStore.directory())) {
+                assertEquals(commitCount, indexReader.numDocs());
             }
         }
     }
@@ -396,7 +393,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 client = localCloseables.add(new NodeClient(nodeSettings, threadPool));
                 indexingDirectory = localCloseables.add(new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath));
                 indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
-                searchDirectory = localCloseables.add(new FsDirectoryFactory().newDirectory(indexSettings, searchShardPath));
+                final var nodeEnv = newNodeEnvironment(nodeSettings);
+                localCloseables.add(nodeEnv);
+                final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(nodeEnv, nodeSettings, threadPool);
+                localCloseables.add(sharedCacheService);
+                searchDirectory = localCloseables.add(new SearchDirectory(sharedCacheService, searchShardPath.getShardId()));
                 searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
                 transportService = transport.createTransportService(

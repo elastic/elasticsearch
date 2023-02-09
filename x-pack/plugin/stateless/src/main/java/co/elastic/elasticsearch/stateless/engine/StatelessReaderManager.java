@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.logging.log4j.Logger;
@@ -32,7 +31,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -47,15 +45,12 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.indices.recovery.MultiFileWriter;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -67,7 +62,6 @@ import java.util.function.LongSupplier;
 public class StatelessReaderManager extends AbstractRefCounted implements Closeable {
 
     private final Logger logger;
-    private final ObjectStoreService objectStoreService;
     private final PriorityQueue<NewCommit> commitsToDownload = new PriorityQueue<>();
     private final ShardId shardId;
     private final Store store;
@@ -79,10 +73,9 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
 
     private volatile CurrentState currentState;
     // TODO: ensure we release the listeners when the search shard is relocated.
-    private Map<Long, ListenableActionFuture<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
+    private final Map<Long, ListenableActionFuture<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
 
     public StatelessReaderManager(
-        ObjectStoreService objectStoreService,
         ShardId shardId,
         Store store,
         ThreadPool threadPool,
@@ -90,7 +83,6 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         Comparator<LeafReader> leafSorter
     ) {
         this.logger = Loggers.getLogger(StatelessReaderManager.class, shardId);
-        this.objectStoreService = objectStoreService;
         this.shardId = shardId;
         this.store = store;
         this.threadPool = threadPool;
@@ -234,70 +226,15 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
                 final NewCommit commit = commitsToDownload.peek();
                 assert commit != null;
 
-                var toDownload = new HashMap<>(commit.commitFiles());
                 store.incRef();
                 try {
-                    Store.MetadataSnapshot target = store.getMetadata(null);
-                    var localFiles = new HashMap<>(target.fileMetadataMap());
-                    var currentSegmentFile = target.getSegmentsFile();
-                    if (currentSegmentFile != null) {
-                        // TODO: Bootstrap workaround
-                        // We always download the current segment file to avoid scenarios where the existing segment files
-                        // is from the local bootstrap process. Hopefully we can remove this once bootstrap is cleaner.
-                        localFiles.remove(currentSegmentFile.name());
-                    }
-                    toDownload.keySet().removeAll(localFiles.keySet());
+                    final SearchDirectory dir = SearchDirectory.unwrapDirectory(store.directory());
+                    dir.updateCommit(commit.commitFiles());
+                    reloadReaderManager();
+                    finish(null);
                 } finally {
                     store.decRef();
                 }
-
-                RecoveryState.Index indexState = new RecoveryState.Index();
-                final String tempFilePrefix = "new_commit_" + commit.generation() + "_download_" + UUIDs.randomBase64UUID();
-                MultiFileWriter multiFileWriter = new MultiFileWriter(store, indexState, tempFilePrefix, logger, () -> {}, false);
-
-                for (StoreFileMetadata fileMetadata : toDownload.values()) {
-                    indexState.addFileDetail(fileMetadata.name(), fileMetadata.length(), false);
-                }
-
-                incRef();
-                final var unwrappedDir = SearchDirectory.unwrapDirectory(store.directory());
-                objectStoreService.onNewCommitReceived(
-                    shardId,
-                    commit.primaryTerm(),
-                    commit.generation(),
-                    toDownload,
-                    multiFileWriter,
-                    ActionListener.runAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {
-                            boolean success = false;
-                            try {
-                                multiFileWriter.renameAllTempFiles();
-                                unwrappedDir.updateCommit(commit.commitFiles());
-                                reloadReaderManager();
-                                success = true;
-                            } catch (Exception e) {
-                                logger.error("failed to reload reader after new commit", e);
-                                success = false;
-                                finish(e);
-                            } finally {
-                                IOUtils.closeWhileHandlingException(multiFileWriter);
-                                if (success) {
-                                    finish(null);
-                                }
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            try {
-                                finish(e);
-                            } finally {
-                                IOUtils.closeWhileHandlingException(multiFileWriter);
-                            }
-                        }
-                    }, () -> decRef())
-                );
             }
         });
     }

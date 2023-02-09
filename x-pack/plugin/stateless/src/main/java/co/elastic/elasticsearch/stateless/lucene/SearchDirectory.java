@@ -17,23 +17,35 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
+
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-public class SearchDirectory extends FilterDirectory {
+public class SearchDirectory extends BaseDirectory {
 
     /**
      * In-memory directory containing an empty commit only. This is used in search shards before they are initialized from the repository.
@@ -66,10 +78,26 @@ public class SearchDirectory extends FilterDirectory {
         }
     }
 
+    private final ShardId shardId;
+
+    private final SharedBlobCacheService<FileCacheKey> cacheService;
+
+    private final SetOnce<BlobContainer> blobContainer = new SetOnce<>();
+
     private volatile Map<String, Long> currentMetadata = Map.of();
 
-    public SearchDirectory(Directory in) {
-        super(in);
+    public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
+        super(new SingleInstanceLockFactory());
+        this.cacheService = cacheService;
+        this.shardId = shardId;
+    }
+
+    public void init(BlobContainer blobContainer) throws IOException {
+        this.blobContainer.set(blobContainer);
+        this.currentMetadata = ObjectStoreService.findSearchShardFiles(blobContainer)
+            .entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().length()));
     }
 
     /**
@@ -94,6 +122,11 @@ public class SearchDirectory extends FilterDirectory {
     }
 
     @Override
+    public void deleteFile(String name) {
+        throw unsupportedException();
+    }
+
+    @Override
     public long fileLength(String name) throws IOException {
         final var current = currentMetadata;
         if (current.isEmpty()) {
@@ -103,11 +136,62 @@ public class SearchDirectory extends FilterDirectory {
     }
 
     @Override
+    public IndexOutput createOutput(String name, IOContext context) {
+        throw unsupportedException();
+    }
+
+    @Override
+    public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
+        throw unsupportedException();
+    }
+
+    @Override
+    public void sync(Collection<String> names) {
+        throw unsupportedException();
+    }
+
+    @Override
+    public void syncMetaData() {
+        throw unsupportedException();
+    }
+
+    @Override
+    public void rename(String source, String dest) {
+        throw unsupportedException();
+    }
+
+    @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        if (currentMetadata.isEmpty()) {
+        final var current = currentMetadata;
+        if (current.isEmpty()) {
             return EMPTY_COMMIT_DIRECTORY.openInput(name, context);
         }
-        return super.openInput(name, context);
+        final Long len = current.get(name);
+        assert len != null : "unknown file [" + name + "] accessed";
+        return new SearchIndexInput(
+            name,
+            cacheService.getCacheFile(new FileCacheKey(shardId, name), len),
+            context,
+            blobContainer.get(),
+            cacheService,
+            len,
+            0
+        );
+    }
+
+    @Override
+    public void close() throws IOException {
+
+    }
+
+    @Override
+    public Set<String> getPendingDeletions() {
+        throw unsupportedException();
+    }
+
+    private static UnsupportedOperationException unsupportedException() {
+        assert false : "this operation is not supported and should have not be called";
+        return new UnsupportedOperationException("stateless directory does not support this operation");
     }
 
     public static SearchDirectory unwrapDirectory(final Directory directory) {

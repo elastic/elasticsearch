@@ -23,19 +23,16 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,8 +50,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.indices.recovery.MultiFileWriter;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -64,7 +59,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -77,9 +71,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.core.Strings.format;
 
 public class ObjectStoreService extends AbstractLifecycleComponent {
@@ -180,7 +172,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
-    private final PrioritizedThrottledTaskRunner<ObjectStoreTask> downloadTaskRunner;
     private final Semaphore permits;
 
     private BlobStoreRepository objectStore;
@@ -208,11 +199,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
-            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
-            threadPool.executor(ThreadPool.Names.SNAPSHOT) // TODO use dedicated object store thread pool
-        );
-        this.downloadTaskRunner = new PrioritizedThrottledTaskRunner<>(
-            getClass().getSimpleName() + "#download-task-runner",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT) // TODO use dedicated object store thread pool
         );
@@ -315,95 +301,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    public void downloadSearchShardFiles(
-        ShardId shardId,
-        long primaryTerm,
-        Store store,
-        ActionListener<Map<String, StoreFileMetadata>> listener
-    ) {
-        try {
-            // TODO ES-5310 must block the primary from deleting anything while we sort out at which commit to start
-            // TODO ES-5258 This looks for a commit from the latest primary term only, is that sufficient?
-            final var blobContainer = getBlobContainer(shardId, primaryTerm);
-            final var allBlobs = Map.copyOf(blobContainer.listBlobs());
-            if (allBlobs.keySet().stream().noneMatch(s -> s.startsWith(IndexFileNames.SEGMENTS))) {
-                listener.onResponse(Map.of());
-                return;
-            }
-            try (var directory = new SegmentInfoCachingDirectory(blobContainer, allBlobs)) {
-                // SegmentInfos#readLatestCommit lists segments_N files, picks the latest, then loads it and all the .si files it mentions:
-                final var segmentInfos = SegmentInfos.readLatestCommit(directory);
-                // TODO ES-5310 can now notify the primary which commit we're going to be using, allowing cleanup of other commits
-
-                final Collection<String> commitFiles = segmentInfos.files(true);
-                final var blobs = new HashMap<String, BlobMetadata>();
-                for (String commitFile : commitFiles) {
-                    final BlobMetadata blob = allBlobs.get(commitFile);
-                    if (blob == null) {
-                        throw new FileNotFoundException(commitFile + " not found");
-                    }
-                    blobs.put(commitFile, blob);
-                }
-
-                RecoveryState.Index indexState = new RecoveryState.Index();
-                MultiFileWriter multiFileWriter = new MultiFileWriter(
-                    store,
-                    indexState,
-                    "prepare_index_recovery_download_" + UUIDs.randomBase64UUID(),
-                    org.apache.logging.log4j.LogManager.getLogger(getClass()),
-                    () -> {},
-                    false // TODO ES-4993 we should start verifying output
-                );
-
-                final Map<String, StoreFileMetadata> result = blobs.entrySet()
-                    .stream()
-                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> toStoreFileMetadata(entry.getValue())));
-                try (var listeners = new RefCountingListener(ActionListener.runAfter(listener.map(ignored -> {
-                    multiFileWriter.renameAllTempFiles();
-                    return result;
-                }), multiFileWriter::close))) {
-
-                    for (final var blobIterator = blobs.entrySet().iterator(); blobIterator.hasNext();) {
-                        final var entry = blobIterator.next();
-                        final var name = entry.getKey();
-                        final var metadata = entry.getValue();
-                        indexState.addFileDetail(name, metadata.length(), false);
-
-                        if (SegmentInfoCachingDirectory.isCached(name)) {
-                            blobIterator.remove();
-                            assert directory.assertFileInCache(name);
-                            ActionRunnable.run(listeners.acquire(), () -> {
-                                try (var indexInput = directory.openInput(name, IOContext.READONCE)) {
-                                    multiFileWriter.writeFile(
-                                        toStoreFileMetadata(metadata),
-                                        getObjectStore().getReadBufferSizeInBytes(),
-                                        new InputStreamIndexInput(indexInput, Long.MAX_VALUE)
-                                    );
-                                }
-                            }).run();
-                        }
-                    }
-
-                    downloadTaskRunner.enqueueTask(
-                        new CommitDownloadTask(
-                            multiFileWriter,
-                            toStoreFileMetadata(blobs),
-                            shardId,
-                            primaryTerm,
-                            -1,
-                            threadPool.relativeTimeInNanos(),
-                            listeners.acquire()
-                        )
-                    );
-                }
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
+    public static Map<String, StoreFileMetadata> findSearchShardFiles(BlobContainer blobContainer) throws IOException {
+        // TODO ES-5310 must block the primary from deleting anything while we sort out at which commit to start
+        // TODO ES-5258 This looks for a commit from the latest primary term only, is that sufficient?
+        final var allBlobs = Map.copyOf(blobContainer.listBlobs());
+        if (allBlobs.keySet().stream().noneMatch(s -> s.startsWith(IndexFileNames.SEGMENTS))) {
+            return Map.of();
         }
-    }
+        try (var directory = new SegmentInfoCachingDirectory(blobContainer, allBlobs)) {
+            // SegmentInfos#readLatestCommit lists segments_N files, picks the latest, then loads it and all the .si files it mentions:
+            final var segmentInfos = SegmentInfos.readLatestCommit(directory);
+            // TODO ES-5310 can now notify the primary which commit we're going to be using, allowing cleanup of other commits
 
-    private static Map<String, StoreFileMetadata> toStoreFileMetadata(Map<String, BlobMetadata> metadata) {
-        return metadata.entrySet().stream().collect(toMap(Map.Entry::getKey, it -> toStoreFileMetadata(it.getValue())));
+            // TODO ES-5258 search shards are not aware of previous primary terms
+            final Collection<String> commitFiles = segmentInfos.files(true);
+            final var blobs = new HashMap<String, StoreFileMetadata>();
+            for (String commitFile : commitFiles) {
+                final BlobMetadata blob = allBlobs.get(commitFile);
+                if (blob == null) {
+                    throw new FileNotFoundException(commitFile + " not found");
+                }
+                blobs.put(commitFile, toStoreFileMetadata(blob));
+            }
+            return blobs;
+        }
     }
 
     private static StoreFileMetadata toStoreFileMetadata(BlobMetadata metadata) {
@@ -678,165 +599,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
 
         record Result(String name, long length, String checksum, long elapsedInMillis) {}
-    }
-
-    public void onNewCommitReceived(
-        final ShardId shardId,
-        final long primaryTerm,
-        final long generation,
-        final Map<String, StoreFileMetadata> toDownload,
-        final MultiFileWriter multiFileWriter,
-        final ActionListener<Void> listener
-    ) {
-        logger.debug("{} downloading new commit [{}]", shardId, generation);
-        ensureRunning();
-        if (permits.tryAcquire()) {
-            downloadTaskRunner.enqueueTask(
-                new CommitDownloadTask(
-                    multiFileWriter,
-                    toDownload,
-                    shardId,
-                    primaryTerm,
-                    generation,
-                    threadPool.relativeTimeInNanos(),
-                    ActionListener.runAfter(listener, permits::release)
-                )
-            );
-        } else {
-            listener.onFailure(new AlreadyClosedException("ObjectStoreService is not running"));
-        }
-    }
-
-    private class CommitDownloadTask extends ObjectStoreTask {
-
-        private final Map<String, StoreFileMetadata> files;
-        private final MultiFileWriter multiFileWriter;
-        private final ShardId shardId;
-        private final long primaryTerm;
-        private final ActionListener<Void> listener;
-
-        CommitDownloadTask(
-            MultiFileWriter multiFileWriter,
-            Map<String, StoreFileMetadata> files,
-            ShardId shardId,
-            long primaryTerm,
-            long generation,
-            long timeInNanos,
-            ActionListener<Void> listener
-        ) {
-            super(shardId, generation, timeInNanos);
-            this.files = files;
-            this.shardId = shardId;
-            this.primaryTerm = primaryTerm;
-            this.multiFileWriter = multiFileWriter;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-
-        @Override
-        protected void doRun() {
-            logger.trace("{} downloading commit [{}] with [{}] new files", shardId, generation, files.size());
-
-            final AtomicLong successCount = new AtomicLong();
-            final AtomicLong successSize = new AtomicLong();
-            final ActionListener<Void> finalListener = ActionListener.wrap(ignored -> {
-                final long end = threadPool.relativeTimeInNanos();
-                logger.debug(
-                    () -> format(
-                        "%s commit [%s] downloaded in [%s] ms (%s files, %s total bytes)",
-                        shardId,
-                        generation,
-                        TimeValue.nsecToMSec(end - timeInNanos),
-                        successCount.get(),
-                        successSize.get()
-                    )
-                );
-                listener.onResponse(null);
-            }, e -> {
-                logger.error(() -> format("%s failed to download files of commit [%s] to object store", shardId, generation), e);
-                listener.onFailure(e);
-            });
-
-            try (var listeners = new RefCountingListener(finalListener)) {
-                final BlobContainer blobContainer = getBlobContainer(shardId, primaryTerm);
-                files.entrySet()
-                    .forEach(
-                        file -> downloadTaskRunner.enqueueTask(
-                            new FileDownloadTask(
-                                shardId,
-                                generation,
-                                timeInNanos,
-                                file,
-                                multiFileWriter,
-                                blobContainer,
-                                listeners.acquire(r -> {
-                                    successCount.incrementAndGet();
-                                    successSize.addAndGet(r.length());
-                                })
-                            )
-                        )
-                    );
-            }
-        }
-    }
-
-    private class FileDownloadTask extends ObjectStoreTask {
-
-        private final String objectStoreFileName;
-        private final StoreFileMetadata fileMetadata;
-        private final MultiFileWriter multiFileWriter;
-        private final BlobContainer blobContainer;
-        private final ActionListener<Result> listener;
-
-        FileDownloadTask(
-            ShardId shardId,
-            long generation,
-            long startTimeInNanos,
-            Map.Entry<String, StoreFileMetadata> fileToDownload,
-            MultiFileWriter multiFileWriter,
-            BlobContainer blobContainer,
-            ActionListener<Result> listener
-        ) {
-            super(shardId, generation, startTimeInNanos);
-            this.objectStoreFileName = Objects.requireNonNull(fileToDownload.getKey());
-            this.fileMetadata = Objects.requireNonNull(fileToDownload.getValue());
-            this.multiFileWriter = Objects.requireNonNull(multiFileWriter);
-            this.blobContainer = Objects.requireNonNull(blobContainer);
-            this.listener = Objects.requireNonNull(listener);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            try (InputStream inputStream = blobContainer.readBlob(objectStoreFileName)) {
-                int readBufferSizeInBytes = getObjectStore().getReadBufferSizeInBytes();
-                blobContainer.readBlobPreferredLength();
-                var before = threadPool.relativeTimeInMillis();
-                multiFileWriter.writeFile(fileMetadata, readBufferSizeInBytes, inputStream);
-                var after = threadPool.relativeTimeInMillis();
-                logger.debug(
-                    () -> format(
-                        "%s file %s of size [%s] bytes from commit [%s] uploaded in [%s] ms",
-                        shardId,
-                        blobContainer.path().add(objectStoreFileName),
-                        fileMetadata.length(),
-                        generation,
-                        TimeValue.timeValueNanos(after - before).millis()
-                    )
-                );
-                listener.onResponse(new Result(objectStoreFileName, fileMetadata.length(), after - before));
-            }
-        }
-
-        record Result(String name, long length, long elapsedInMillis) {}
     }
 
 }

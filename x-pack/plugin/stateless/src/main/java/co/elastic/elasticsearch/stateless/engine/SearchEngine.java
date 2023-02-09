@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
-
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.action.ActionListener;
@@ -26,7 +24,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.Engine.RefreshResult;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
@@ -70,7 +67,7 @@ public class SearchEngine extends Engine {
 
     private final StatelessReaderManager statelessReaderManager;
 
-    public SearchEngine(EngineConfig config, ObjectStoreService objectStoreService) {
+    public SearchEngine(EngineConfig config) {
         super(config);
         assert config.isPromotableToPrimary() == false;
         store.incRef();
@@ -79,7 +76,6 @@ public class SearchEngine extends Engine {
             boolean success = false;
             try {
                 readerManager = new StatelessReaderManager(
-                    objectStoreService,
                     config.getShardId(),
                     store,
                     config.getThreadPool(),

@@ -144,7 +144,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         this.sharedBlobCacheService.set(sharedBlobCache);
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService::pushTranslogFile);
         this.translogReplicator.set(translogReplicator);
-        return List.of(objectStoreService, translogReplicator);
+        return List.of(objectStoreService, translogReplicator, sharedBlobCache);
     }
 
     @Override
@@ -176,11 +176,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 if (shardRouting.isSearchable() == false) {
                     return in;
                 }
-                return new SearchDirectory(in);
+                in.close();
+                return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
             });
         }
         indexModule.addIndexEventListener(new IndexEventListener() {
-
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
                 if (indexShard.routingEntry().role().isPromotableToPrimary()) {
@@ -190,17 +190,16 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 assert indexShard.routingEntry().role().isSearchable();
                 final Store store = indexShard.store();
                 store.incRef();
-                var wrappedListener = ActionListener.runBefore(listener, store::decRef);
-                objectStoreService.get()
-                    .downloadSearchShardFiles(
-                        indexShard.shardId(),
-                        indexShard.getOperationPrimaryTerm(),
-                        indexShard.store(),
-                        ActionListener.wrap(blobs -> {
-                            SearchDirectory.unwrapDirectory(store.directory()).updateCommit(blobs);
-                            wrappedListener.onResponse(null);
-                        }, wrappedListener::onFailure)
-                    );
+                try {
+                    var dir = SearchDirectory.unwrapDirectory(store.directory());
+                    dir.init(objectStoreService.get().getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm()));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                } finally {
+                    store.decRef();
+                }
+                listener.onResponse(null);
             }
         });
     }
@@ -251,7 +250,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 );
                 return new IndexEngine(newConfig);
             } else {
-                return new SearchEngine(config, getObjectStoreService());
+                return new SearchEngine(config);
             }
         });
     }

@@ -2029,6 +2029,128 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("authentication realm must be [_es_api_key]"));
     }
 
+    public void testMaybeRemoveRemoteIndicesPrivilegesWithUnsupportedVersion() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean()))
+        );
+        final List<RoleDescriptor> requestedRoleDescriptors = randomList(
+            0,
+            1,
+            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean())
+        );
+
+        // Selecting random unsupported version.
+        final TransportVersion minNodeVersion = randomFrom(
+            Version.getDeclaredVersions(Version.class)
+                .stream()
+                .filter(v -> v.transportVersion.before(RoleDescriptor.VERSION_REMOTE_INDICES))
+                .map(v -> v.transportVersion)
+                .toList()
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
+            userRoleDescriptors,
+            requestedRoleDescriptors,
+            minNodeVersion,
+            apiKeyId
+        );
+        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
+        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
+
+        // Roles for which warning headers are added.
+        final String[] userRoleNamesWithRemoteIndicesPrivileges = userRoleDescriptors.stream()
+            .filter(RoleDescriptor::hasRemoteIndicesPrivileges)
+            .map(RoleDescriptor::getName)
+            .toArray(String[]::new);
+
+        if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
+            assertRoleWarnings(apiKeyId, userRoleNamesWithRemoteIndicesPrivileges);
+        }
+    }
+
+    public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), true))
+        );
+        final List<RoleDescriptor> requestedRoleDescriptors = randomList(
+            0,
+            1,
+            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), true)
+        );
+
+        // Selecting random supported version.
+        final TransportVersion minNodeVersion = randomFrom(
+            Version.getDeclaredVersions(Version.class)
+                .stream()
+                .filter(v -> v.transportVersion.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES))
+                .map(v -> v.transportVersion)
+                .toList()
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
+            userRoleDescriptors,
+            requestedRoleDescriptors,
+            minNodeVersion,
+            apiKeyId
+        );
+
+        // User roles should be unchanged.
+        assertThat(result, equalTo(userRoleDescriptors));
+    }
+
+    public void testMaybeRemoveRemoteIndicesPrivilegesWithRequestedRoleDescriptorsWithoutRemoteIndices() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean()))
+        );
+
+        // Requested role descriptors do not include remote indices privileges,
+        // hence we should always remove remote indices privileges (if any) from user's role descriptors.
+        final List<RoleDescriptor> requestedRoleDescriptors = randomList(
+            1,
+            2,
+            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false)
+        );
+
+        // Selecting random supported version.
+        final TransportVersion minNodeVersion = randomFrom(
+            Version.getDeclaredVersions(Version.class)
+                .stream()
+                .filter(v -> v.transportVersion.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES))
+                .map(v -> v.transportVersion)
+                .toList()
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
+            userRoleDescriptors,
+            requestedRoleDescriptors,
+            minNodeVersion,
+            apiKeyId
+        );
+        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
+        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
+
+        // Roles for which warning headers are added.
+        final String[] userRoleNamesWithRemoteIndicesPrivileges = userRoleDescriptors.stream()
+            .filter(RoleDescriptor::hasRemoteIndicesPrivileges)
+            .map(RoleDescriptor::getName)
+            .toArray(String[]::new);
+
+        if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
+            assertRoleWarnings(apiKeyId, userRoleNamesWithRemoteIndicesPrivileges);
+        }
+    }
+
+    private void assertRoleWarnings(String apiKey, String... roleNames) {
+        String[] warnings = new String[roleNames.length];
+        for (int i = 0; i < roleNames.length; ++i) {
+            warnings[i] = "Removed remote indices privileges from role [" + roleNames[i] + "] for API key(s) [" + apiKey + "]";
+        }
+        assertWarnings(warnings);
+    }
+
     public static class Utils {
 
         private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();

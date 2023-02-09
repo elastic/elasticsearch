@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.cache.RemovalNotification.RemovalReason;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -298,7 +300,32 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            createApiKeyAndIndexIt(authentication, request, userRoleDescriptors, listener);
+            // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
+            final TransportVersion version = clusterService.state().nodes().getMinNodeVersion().transportVersion;
+            final boolean requestHasRemoteIndicesPrivileges = request.getRoleDescriptors()
+                .stream()
+                .anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
+
+            if (requestHasRemoteIndicesPrivileges && version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+                // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+                listener.onFailure(
+                    new IllegalStateException(
+                        "all nodes must have version ["
+                            + RoleDescriptor.VERSION_REMOTE_INDICES
+                            + "] or higher to support remote indices privileges for API keys"
+                    )
+                );
+                return;
+            }
+
+            final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
+                userRoleDescriptors,
+                request.getRoleDescriptors(),
+                version,
+                request.getId()
+            );
+
+            createApiKeyAndIndexIt(authentication, request, filteredUserRoleDescriptors, listener);
         }
     }
 
@@ -381,12 +408,38 @@ public class ApiKeyService {
             return;
         }
 
-        logger.debug("Updating [{}] API keys", request.getIds().size());
+        // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
+        final TransportVersion version = clusterService.state().nodes().getMinNodeVersion().transportVersion;
+        final boolean requestHasRemoteIndicesPrivileges = request.getRoleDescriptors()
+            .stream()
+            .anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
+
+        if (requestHasRemoteIndicesPrivileges && version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+            // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+            listener.onFailure(
+                new IllegalStateException(
+                    "all nodes must have version ["
+                        + RoleDescriptor.VERSION_REMOTE_INDICES
+                        + "] or higher to support remote indices privileges for API keys"
+                )
+            );
+            return;
+        }
+
+        final String[] apiKeyIds = request.getIds().toArray(new String[0]);
+        final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
+            userRoleDescriptors,
+            request.getRoleDescriptors(),
+            version,
+            apiKeyIds
+        );
+
+        logger.debug("Updating [{}] API keys", apiKeyIds.length);
         findVersionedApiKeyDocsForSubject(
             authentication,
-            request.getIds().toArray(new String[0]),
+            apiKeyIds,
             ActionListener.wrap(
-                versionedDocs -> updateApiKeys(authentication, request, userRoleDescriptors, versionedDocs, listener),
+                versionedDocs -> updateApiKeys(authentication, request, filteredUserRoleDescriptors, versionedDocs, listener),
                 ex -> listener.onFailure(traceLog("bulk update", ex))
             )
         );
@@ -464,6 +517,64 @@ public class ApiKeyService {
         if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
             throw new IllegalArgumentException("cannot update legacy API key [" + apiKeyId + "] without name");
         }
+    }
+
+    /**
+     * This method removes remote indices privileges (if defined) from the given user's (i.e. limited-by) role descriptors in two cases:
+     *
+     * <ol>
+     * <li>
+     *     When the provided roles in the request do not define remote indices privileges.
+     *     This means that regardless if user's roles have remote access or not the user choose not to define it for an API key.
+     *     Removing remote indices privileges from the user's role descriptors (in this case) would allow the API key to be used
+     *     to search clusters (using legacy CCS) running a version before {@link RoleDescriptor#VERSION_REMOTE_INDICES}.
+     *  </li>
+     *  <li>
+     *      When we are in a mixed cluster in which some of the nodes do not support remote indices.
+     *      Storing these roles would cause parsing issues on old nodes
+     *      (i.e. nodes running on version before {@link RoleDescriptor#VERSION_REMOTE_INDICES}).
+     * </li>
+     *</ol>
+     */
+    static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
+        final Set<RoleDescriptor> userRoleDescriptors,
+        final Collection<RoleDescriptor> requestedRoleDescriptors,
+        final TransportVersion version,
+        final String... apiKeyIds
+    ) {
+        final boolean requestHasRemoteIndicesPrivileges = requestedRoleDescriptors.stream()
+            .anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
+
+        if ((false == requestHasRemoteIndicesPrivileges && false == requestedRoleDescriptors.isEmpty())
+            || version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+            return userRoleDescriptors.stream().map(roleDescriptor -> {
+                if (roleDescriptor.hasRemoteIndicesPrivileges()) {
+                    final String warningMessage = Strings.format(
+                        "Removed remote indices privileges from role [%s] for API key(s) [%s]",
+                        roleDescriptor.getName(),
+                        String.join(", ", apiKeyIds)
+                    );
+
+                    logger.warn(warningMessage);
+                    HeaderWarning.addWarning(warningMessage);
+
+                    return new RoleDescriptor(
+                        roleDescriptor.getName(),
+                        roleDescriptor.getClusterPrivileges(),
+                        roleDescriptor.getIndicesPrivileges(),
+                        roleDescriptor.getApplicationPrivileges(),
+                        roleDescriptor.getConditionalClusterPrivileges(),
+                        roleDescriptor.getRunAs(),
+                        roleDescriptor.getMetadata(),
+                        roleDescriptor.getTransientMetadata(),
+                        null
+                    );
+                }
+                return roleDescriptor;
+
+            }).collect(Collectors.toSet());
+        }
+        return userRoleDescriptors;
     }
 
     /**

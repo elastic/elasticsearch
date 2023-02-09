@@ -106,7 +106,7 @@ runtime.
 ----
 gradle bundlePlugin
 ----
-The resulting plugin ZIP file will be written to the  `build/distributions` 
+The resulting plugin ZIP file is written to the  `build/distributions` 
 directory.
 
 [discrete]

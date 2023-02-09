@@ -43,8 +43,8 @@
 ---
 "Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added":
   - skip:
-      version: " - 7.99.99"
-      reason: "sorting segments was added in 7.16"
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/93572"
       features: allowed_warnings
 
   - do:

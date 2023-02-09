@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin;
+import org.elasticsearch.gradle.internal.precommit.transport.TransportTestExistPrecommitPlugin;
 import org.gradle.api.Project;
 
 /**
@@ -27,6 +28,7 @@ public class InternalPrecommitTasks {
         project.getPluginManager().apply(FilePermissionsPrecommitPlugin.class);
         project.getPluginManager().apply(LoggerUsagePrecommitPlugin.class);
         project.getPluginManager().apply(TestingConventionsPrecommitPlugin.class);
+        project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
         // tasks with just tests don't need certain tasks to run, so this flag makes adding
         // the task optional
         if (withProductiveCode) {

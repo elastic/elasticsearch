@@ -17,6 +17,7 @@ import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
@@ -343,7 +344,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so no additional checks are needed here.
                     listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
-            } else if (action.equals(ClosePointInTimeAction.NAME)) {
+            } else if (action.equals(ClosePointInTimeAction.NAME) || action.equals(TransportUnpromotableShardRefreshAction.NAME)) {
                 listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
                 assert false

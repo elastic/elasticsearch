@@ -23,7 +23,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportUnpromotableShardRefreshAction extends TransportBroadcastUnpromotableAction<UnpromotableShardRefreshRequest> {
 
-    public static final String NAME = RefreshAction.NAME + "[u]";
+    public static final String NAME = RefreshAction.NAME + "/unpromotable";
 
     private final IndicesService indicesService;
 

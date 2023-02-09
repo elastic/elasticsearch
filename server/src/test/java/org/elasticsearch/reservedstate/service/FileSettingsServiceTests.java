@@ -33,12 +33,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.WatchKey;
-import java.nio.file.attribute.FileTime;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -48,9 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -112,30 +104,6 @@ public class FileSettingsServiceTests extends ESTestCase {
         Path operatorSettingsFile = fileSettingsService.operatorSettingsFile();
         assertTrue(operatorSettingsFile.startsWith(operatorPath));
         assertTrue(operatorSettingsFile.endsWith("settings.json"));
-    }
-
-    // TODO[wrb]: Move to file watch service tests
-    public void testWatchedFile() throws Exception {
-        Path tmpFile = createTempFile();
-        Path tmpFile1 = createTempFile();
-        Path otherFile = tmpFile.getParent().resolve("other.json");
-        // we return false on non-existent paths, we don't remember state
-        assertFalse(fileSettingsService.watchedFileChanged(otherFile));
-
-        // we remember the previous state
-        assertTrue(fileSettingsService.watchedFileChanged(tmpFile));
-        assertFalse(fileSettingsService.watchedFileChanged(tmpFile));
-
-        // we modify the timestamp of the file, it should trigger a change
-        Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
-        Files.setLastModifiedTime(tmpFile, FileTime.from(now));
-
-        assertTrue(fileSettingsService.watchedFileChanged(tmpFile));
-        assertFalse(fileSettingsService.watchedFileChanged(tmpFile));
-
-        // we change to another real file, it should be changed
-        assertTrue(fileSettingsService.watchedFileChanged(tmpFile1));
-        assertFalse(fileSettingsService.watchedFileChanged(tmpFile1));
     }
 
     public void testStartStop() {
@@ -344,29 +312,6 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.close();
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
-    }
-
-    // TODO[wrb]: move to FileWatchServiceTests
-    public void testRegisterWatchKeyRetry() throws IOException, InterruptedException {
-        var service = spy(fileWatchService);
-        doAnswer(i -> 0L).when(service).retryDelayMillis(anyInt());
-
-        Files.createDirectories(service.operatorSettingsDir);
-
-        var mockedPath = spy(service.operatorSettingsDir);
-        var prevWatchKey = mock(WatchKey.class);
-        var newWatchKey = mock(WatchKey.class);
-
-        doThrow(new IOException("can't register")).doThrow(new IOException("can't register - attempt 2"))
-            .doAnswer(i -> newWatchKey)
-            .when(mockedPath)
-            .register(any(), any());
-
-        var result = service.enableSettingsWatcher(prevWatchKey, mockedPath);
-        assertNotNull(result);
-        assertTrue(result != prevWatchKey);
-
-        verify(service, times(2)).retryDelayMillis(anyInt());
     }
 
     // helpers

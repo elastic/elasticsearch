@@ -90,11 +90,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return List.of(operatorSettingsFile());
     }
 
-    // TODO[wrb]: inline/remove?
-    boolean watchedFileChanged(Path path) throws IOException {
-        return this.fileWatchService().watchedFileChanged(path);
-    }
-
     // visible for testing
     FileWatchService fileWatchService() {
         return fileWatchService;

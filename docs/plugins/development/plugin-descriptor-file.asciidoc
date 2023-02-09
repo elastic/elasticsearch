@@ -17,7 +17,7 @@ include::{plugin-properties-files}/plugin-descriptor.properties[]
 ----
 
 [discrete]
-==== Mandatory elements for plugins
+==== Properties
 
 
 [cols="<,<,<",options="header",]
@@ -29,16 +29,28 @@ include::{plugin-properties-files}/plugin-descriptor.properties[]
 |`version`                  |String  | plugin's version
 
 |`name`                     |String  | the plugin name
+
 ifeval::["{plugin-type}" ==  "analysis"]
 |`classname`                |String  | this property is for non-text analysis 
 plugins. Do not include this property.
 endif::[]
+
 ifeval::["{plugin-type}" == "other"]
-|`classname`                |String  | the name of the class to load, fully-qualified.
+|`classname`                |String  | the name of the class to load, 
+fully-qualified.
+
+|`extended.plugins`         |String  | other plugins this plugin extends through
+SPI.
+
+|`modulename`               |String  | the name of the module to load classname
+from. Only applies to "isolated" plugins. This is optional. Specifying it causes
+the plugin to be loaded as a module.
 endif::[]
+
 |`java.version`             |String  | version of java the code is built against.
-Use the system property `java.specification.version`. Version string must be a sequence
-of nonnegative decimal integers separated by "."'s and may have leading zeros.
+Use the system property `java.specification.version`. Version string must be a
+sequence of nonnegative decimal integers separated by "."'s and may have leading
+zeros.
 
 |`elasticsearch.version`    |String  | version of {es} compiled against.
 

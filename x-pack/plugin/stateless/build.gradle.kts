@@ -26,6 +26,7 @@ dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("blob-cache"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
+    testImplementation(testArtifact(xpackModule("searchable-snapshots")))
     testImplementation("com.amazonaws:aws-java-sdk-core")
     testImplementation("org.elasticsearch.test:s3-fixture")
     testImplementation("org.elasticsearch.test:gcs-fixture")

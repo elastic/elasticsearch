@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -55,11 +56,22 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return List.of(BlobCachePlugin.class, Stateless.class);
     }
 
+    private boolean useBasePath;
+
+    @Before
+    public void setup() {
+        useBasePath = randomBoolean();
+    }
+
     protected Settings.Builder nodeSettings() {
-        return Settings.builder()
+        final Settings.Builder builder = Settings.builder()
             .put(Stateless.STATELESS_ENABLED.getKey(), true)
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.FS)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), getTestName() + "_bucket");
+        if (useBasePath) {
+            builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
+        }
+        return builder;
     }
 
     protected String startIndexNode() {

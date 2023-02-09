@@ -8,5 +8,4 @@
 
 package org.elasticsearch.gradle.internal.precommit.transport.test_classes;
 
-public interface WriteableSubInterface extends Writeable {
-}
+public interface WriteableSubInterface extends Writeable {}

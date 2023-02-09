@@ -9,6 +9,8 @@
 package org.elasticsearch.gradle.internal.precommit.transport;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
+import org.gradle.api.GradleException;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
@@ -16,12 +18,6 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
-import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.PathSensitive;
-import org.gradle.api.tasks.PathSensitivity;
-import org.gradle.api.tasks.SkipWhenEmpty;
-import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 import org.gradle.workers.WorkAction;
@@ -33,6 +29,7 @@ import org.objectweb.asm.ClassReader;
 import java.io.File;
 import java.util.Optional;
 import java.util.Set;
+
 import javax.inject.Inject;
 
 /**
@@ -46,6 +43,10 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     private final ListProperty<FileCollection> classesDirs;
 
     private ObjectFactory objectFactory;
+    private FileCollection mainSources;
+    private FileCollection testSources;
+    private Configuration compileClasspath;
+    private Configuration testClasspath;
 
     @Inject
     public TransportTestExistTask(ObjectFactory objectFactory) {
@@ -61,35 +62,32 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     public void runLoggerUsageTask() {
         WorkQueue workQueue = getWorkerExecutor().noIsolation();
         workQueue.submit(TransportTestExistWorkAction.class, parameters -> {
-            parameters.getClasspath().setFrom(getClasspath());
-            parameters.getClassDirectories().setFrom(getClassDirectories());
+            parameters.getMainSources().setFrom(mainSources);
+            parameters.getTestSources().setFrom(testSources);
+            parameters.getCompileClasspath().setFrom(compileClasspath);
+            parameters.getTestClasspath().setFrom(testClasspath);
         });
     }
 
-    @Classpath
-    public FileCollection getClasspath() {
-        return classpath;
+    public void setMainSources(FileCollection mainSources) {
+        this.mainSources = mainSources;
     }
 
-    public void setClasspath(FileCollection classpath) {
-        this.classpath = classpath;
+    public void setTestSources(FileCollection testSources) {
+        this.testSources = testSources;
     }
 
-    @InputFiles
-    @PathSensitive(PathSensitivity.RELATIVE)
-    @SkipWhenEmpty
-    public FileCollection getClassDirectories() {
-        return classesDirs.get().stream().reduce(FileCollection::plus).orElse(objectFactory.fileCollection()).filter(File::exists);
+    public void setCompileClasspath(Configuration compileClasspath) {
+        this.compileClasspath = compileClasspath;
     }
 
-    public void addSourceSet(SourceSet sourceSet) {
-        classesDirs.add(sourceSet.getOutput().getClassesDirs());
+    public void setTestClasspath(Configuration testClasspath) {
+        this.testClasspath = testClasspath;
     }
 
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
 
-        private  final Logger logger = Logging.getLogger(TransportTestExistTask.class);
-
+        private final Logger logger = Logging.getLogger(TransportTestExistTask.class);
 
         private final ExecOperations execOperations;
 
@@ -100,61 +98,60 @@ public abstract class TransportTestExistTask extends PrecommitTask {
 
         @Override
         public void execute() {
-            logger.info("xxxx" +getParameters().getClasspath());
+            Set<File> mainClasses = getParameters().getMainSources().getFiles();
+            Set<File> testClasses = getParameters().getTestSources().getFiles();
+            Set<File> compileClassPath = getParameters().getCompileClasspath().getFiles();
+            Set<File> testClassPath = getParameters().getTestClasspath().getFiles();
 
-            var pathSeparator = System.getProperty("path.separator");
-            var paths = getParameters().getClassDirectories().getAsPath().split(pathSeparator);
-            String mainClasses = mainClasses(paths);
-            String testClasses = testClasses(paths);
-            ClassHierarchyScanner transportClassesScanner =
-                new ClassHierarchyScanner("org/elasticsearch/common/io/stream/Writeable");
-            ClassReaders.forEachClassesInPath(mainClasses, cr -> cr.accept(transportClassesScanner, ClassReader.SKIP_CODE));
+            ClassHierarchyScanner compileClassPathScanner = new ClassHierarchyScanner("org/elasticsearch/common/io/stream/Writeable");
+            ClassReaders.forEach(compileClassPath, cr -> cr.accept(compileClassPathScanner, ClassReader.SKIP_CODE));
 
-            ClassHierarchyScanner transportTestsScanner =
-                new ClassHierarchyScanner("org/elasticsearch/common/io/stream/AbstractWireTestCase");
-            ClassReaders.forEachClassesInPath(testClasses, cr -> cr.accept(transportTestsScanner, ClassReader.SKIP_CODE));
+            ClassHierarchyScanner transportClassesScanner = new ClassHierarchyScanner("org/elasticsearch/common/io/stream/Writeable");
+            ClassReaders.forEach(mainClasses, cr -> cr.accept(transportClassesScanner, ClassReader.SKIP_CODE));
 
-//            Set<String> transportClasses = transportClassesScanner.subClassesOf();
-//            Set<String> transportTestClasses = transportTestsScanner.subClassesOf();
-//            System.out.println("xxx"+transportClasses);
-//            for (String transportClass : transportClasses) {
-//                findTest(transportClass, transportTestClasses);
-//            }
+            ClassHierarchyScanner testClassPathScanner = new ClassHierarchyScanner(
+                "org/elasticsearch/common/io/stream/AbstractWireTestCase"
+            );
+            ClassReaders.forEach(testClasses, cr -> cr.accept(testClassPathScanner, ClassReader.SKIP_CODE));
+
+            ClassHierarchyScanner transportTestsScanner = new ClassHierarchyScanner(
+                "org/elasticsearch/common/io/stream/AbstractWireTestCase"
+            );
+            ClassReaders.forEach(testClasses, cr -> cr.accept(transportTestsScanner, ClassReader.SKIP_CODE));
+
+            Set<String> transportClasses = transportClassesScanner.subClassesOf(compileClassPathScanner.foundClasses());
+            Set<String> transportTestClasses = transportTestsScanner.subClassesOf(testClassPathScanner.foundClasses());
+
+            var out = System.out;
+            out.println("transport classes");
+            transportClasses.forEach(out::println);
+            out.println("test classes");
+            transportTestClasses.forEach(out::println);
+            for (String transportClass : transportClasses) {
+                findTest(transportClass, transportTestClasses);
+            }
         }
 
         private void findTest(String transportClass, Set<String> transportTestClasses) {
             Optional<String> any = transportTestClasses.stream().filter(p -> p.contains(transportClass)).findAny();
-            if(any.isPresent() == false){
-                System.out.println("Missing test for class "+transportClass);
+            if (any.isPresent() == false) {
+                throw new GradleException("Missing test for class " + transportClass);
             } else {
-                System.out.println("Test "+ any.get()+ " for class "+transportClass);
+                System.out.println("Test " + any.get() + " for class " + transportClass);
             }
 
         }
 
-        private String testClasses(String[] paths) {
-            return find(paths, "test");
-        }
-
-        private String mainClasses(String[] paths) {
-            return find(paths, "main");
-        }
-    }
-
-    private static String find(String[] paths, String suffix) {
-        var separator = File.separatorChar;
-        for (String path : paths) {
-            if (path.contains("java" + separator + suffix)) {
-                return path;
-            }
-        }
-        return null;
     }
 
     interface Parameters extends WorkParameters {
-        ConfigurableFileCollection getClassDirectories();
+        ConfigurableFileCollection getMainSources();
 
-        ConfigurableFileCollection getClasspath();
+        ConfigurableFileCollection getTestSources();
+
+        ConfigurableFileCollection getCompileClasspath();
+
+        ConfigurableFileCollection getTestClasspath();
     }
 
 }

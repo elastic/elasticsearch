@@ -11,15 +11,14 @@ package org.elasticsearch.gradle.internal.precommit.transport;
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.ExampleImpl;
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.ExampleSubInterface;
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.ExampleSubclass;
+import org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable;
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.WriteableSubClass;
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.WriteableSubInterface;
-import org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -34,11 +33,9 @@ public class ClassHierarchyScannerTests {
 
         classReader.accept(scanner, ClassReader.SKIP_CODE);
 
-        String canonicalName = classNameToPath(Writeable.class.getCanonicalName());
-        Set<String> transportClasses = scanner.subClassesOf(Map.of(canonicalName, canonicalName));
+        Set<String> transportClasses = scanner.getSubclasses();
 
-        assertThat(transportClasses,
-            Matchers.contains("org/elasticsearch/gradle/internal/precommit/transport/test_classes/ExampleImpl"));
+        assertThat(transportClasses, Matchers.contains("org/elasticsearch/gradle/internal/precommit/transport/test_classes/ExampleImpl"));
     }
 
     private String classNameToPath(String className) {
@@ -57,22 +54,24 @@ public class ClassHierarchyScannerTests {
         ClassReader cr2 = new ClassReader(ExampleSubclass.class.getCanonicalName());
         ClassReader cr3 = new ClassReader(ExampleImpl.class.getCanonicalName());
 
-        Stream.of(cr1, cr2, cr3)
+        Stream.of(writeable, subInterfaceWriteable, subclassWriteable, cr1, cr2, cr3)
             .forEach(cr -> cr.accept(scanner, ClassReader.SKIP_CODE));
 
-        Set<String> transportClasses = scanner.subClassesOf(Map.of(
-            classNameToPath(Writeable.class.getCanonicalName()), classNameToPath(Writeable.class.getCanonicalName()),
-            classNameToPath(WriteableSubInterface.class.getCanonicalName()), classNameToPath(Writeable.class.getCanonicalName()),
-            classNameToPath(WriteableSubClass.class.getCanonicalName()), classNameToPath(Writeable.class.getCanonicalName())
-        ));
+        // Set<String> transportClasses = scanner.subClassesOf(Map.of(
+        // classNameToPath(Writeable.class.getCanonicalName()), classNameToPath(Writeable.class.getCanonicalName()),
+        // classNameToPath(WriteableSubInterface.class.getCanonicalName()), classNameToPath(Writeable.class.getCanonicalName()),
+        // classNameToPath(WriteableSubClass.class.getCanonicalName()), classNameToPath(Writeable.class.getCanonicalName())
+        // ));
+        Set<String> transportClasses = scanner.getSubclasses();
 
-        assertThat(transportClasses,
+        assertThat(
+            transportClasses,
             Matchers.allOf(
                 Matchers.hasItem("org/elasticsearch/gradle/internal/precommit/transport/test_classes/ExampleImpl"),
                 Matchers.hasItem("org/elasticsearch/gradle/internal/precommit/transport/test_classes/ExampleSubclass"),
                 Matchers.hasItem("org/elasticsearch/gradle/internal/precommit/transport/test_classes/ExampleSubInterface")
-            ));
+            )
+        );
     }
-
 
 }

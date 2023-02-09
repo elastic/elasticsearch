@@ -8,5 +8,4 @@
 
 package org.elasticsearch.gradle.internal.precommit.transport.test_classes;
 
-public interface Writeable {
-}
+public interface Writeable {}

@@ -23,7 +23,8 @@ import static org.objectweb.asm.Opcodes.ASM9;
 public class ClassHierarchyScanner extends ClassVisitor {
     private final String descriptor;
     private static final String OBJECT_NAME = Object.class.getCanonicalName().replace('.', '/');
-    private final Map<String, Set<String>> classToSubclasses = new HashMap<>();//parent-child
+    private final Map<String, Set<String>> classToSubclasses = new HashMap<>();// parent-child
+    // transport class cannot not be abstract and must be public
     private final Set<String> concreteClasses = new HashSet<>();
 
     public ClassHierarchyScanner(String classCannonicalName) {
@@ -49,7 +50,15 @@ public class ClassHierarchyScanner extends ClassVisitor {
         }
     }
 
-    public Set<String> subClassesOf(Map<String,String> root) {
+    public Map<String, String> foundClasses() {
+        return findSubclasses(Map.of(descriptor, descriptor));
+    }
+
+    public Set<String> getSubclasses() {
+        return findSubclasses(Map.of(descriptor, descriptor)).keySet();
+    }
+
+    public Set<String> subClassesOf(Map<String, String> root) {
         return findSubclasses(root).keySet();
     }
 

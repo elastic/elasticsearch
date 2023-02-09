@@ -41,8 +41,7 @@ public class RoleReferenceIntersectionTests extends ESTestCase {
         roleReferenceIntersection.buildRole(singleRoleBuilder, future);
         assertThat(future.actionGet(), is(role));
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93395")
+    
     public void testBuildRoleForListOfRoleReferences() {
         final int size = randomIntBetween(2, 3);
         final List<RoleReference> roleReferences = new ArrayList<>(size);

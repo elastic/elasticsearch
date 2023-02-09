@@ -57,6 +57,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
+    private boolean fetching;
 
     @SuppressWarnings("unchecked")
     protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath) {
@@ -64,6 +65,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
+        this.fetching = false;
     }
 
     @Override
@@ -76,10 +78,15 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     public synchronized int getNumberOfInFlightFetches() {
         int count = 0;
-        for (NodeEntry<T> nodeEntry : cache.values()) {
-            if (nodeEntry.isFetching()) {
-                count++;
+        if (fetching) {
+            for (NodeEntry<T> nodeEntry : cache.values()) {
+                if (nodeEntry.isFetching()) {
+                    count++;
+                }
             }
+        }
+        if (count == 0) {
+            fetching = false;
         }
         return count;
     }
@@ -104,6 +111,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             final long fetchingRound = round.incrementAndGet();
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
                 nodeEntry.markAsFetching(fetchingRound);
+                fetching = true;
             }
             DiscoveryNode[] discoNodesToFetch = nodesToFetch.stream()
                 .map(NodeEntry::getNodeId)

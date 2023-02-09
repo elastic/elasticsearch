@@ -1,6 +1,10 @@
 ---
 "Index Sort":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/93599"
+
   - do:
       indices.create:
         index: test

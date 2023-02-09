@@ -33,12 +33,10 @@ import static org.mockito.Mockito.when;
 public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
 
     private ClusterService clusterService;
-    private ApiKeyService apiKeyService;
     private AuthenticationService authenticationService;
 
     @Before
     public void init() throws Exception {
-        this.apiKeyService = mock(ApiKeyService.class);
         this.authenticationService = mock(AuthenticationService.class);
         this.clusterService = mock(ClusterService.class);
     }
@@ -52,11 +50,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
         );
         when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
-            clusterService,
-            apiKeyService,
-            authenticationService
-        );
+        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(clusterService, authenticationService);
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         service.authenticate("action", mock(TransportRequest.class), future);

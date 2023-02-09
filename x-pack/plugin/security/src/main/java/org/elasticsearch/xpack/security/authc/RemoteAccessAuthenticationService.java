@@ -52,16 +52,10 @@ public class RemoteAccessAuthenticationService {
     private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticationService.class);
 
     private final ClusterService clusterService;
-    private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
 
-    public RemoteAccessAuthenticationService(
-        ClusterService clusterService,
-        ApiKeyService apiKeyService,
-        AuthenticationService authenticationService
-    ) {
+    public RemoteAccessAuthenticationService(ClusterService clusterService, AuthenticationService authenticationService) {
         this.clusterService = clusterService;
-        this.apiKeyService = apiKeyService;
         this.authenticationService = authenticationService;
     }
 
@@ -120,7 +114,7 @@ public class RemoteAccessAuthenticationService {
         }
     }
 
-    private static RemoteAccessAuthentication maybeRewriteForSystemUser(RemoteAccessAuthentication remoteAccessAuthentication)
+    private static RemoteAccessAuthentication maybeRewriteForSystemUser(final RemoteAccessAuthentication remoteAccessAuthentication)
         throws IOException {
         final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
         final User user = receivedEffectiveSubject.getUser();

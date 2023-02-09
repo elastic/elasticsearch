@@ -136,7 +136,7 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
             assertOK(adminClient().performRequest(putUserRequest));
 
             // Check that we can search the fulfilling cluster from the querying cluster
-            final boolean alsoSearchLocally = false;
+            final boolean alsoSearchLocally = randomBoolean();
             final var searchRequest = new Request(
                 "GET",
                 String.format(

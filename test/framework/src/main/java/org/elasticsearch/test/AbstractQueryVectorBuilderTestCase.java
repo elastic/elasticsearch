@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.vectors;
+package org.elasticsearch.test;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -20,8 +20,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Before;
@@ -29,7 +29,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -108,8 +107,8 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
                 Rewriteable.rewriteAndFetch(randomFrom(serialized, searchBuilder), context, future);
                 KnnSearchBuilder rewritten = future.get();
-                assertThat(rewritten.queryVector, equalTo(expected));
-                assertThat(rewritten.queryVectorBuilder, nullValue());
+                assertThat(rewritten.getQueryVector(), equalTo(expected));
+                assertThat(rewritten.getQueryVectorBuilder(), nullValue());
             }
         }
     }
@@ -129,7 +128,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
      * @param request The built request to be executed by the client
      * @param builder The builder used when generating this request
      */
-    abstract void doAssertClientRequest(ActionRequest request, T builder);
+    protected abstract void doAssertClientRequest(ActionRequest request, T builder);
 
     /**
      * Create a response given this expected array that is acceptable to the query builder
@@ -137,7 +136,15 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
      * @param builder The original randomly built query vector builder
      * @return An action response to be handled by the query vector builder
      */
-    abstract ActionResponse createResponse(float[] array, T builder);
+    protected abstract ActionResponse createResponse(float[] array, T builder);
+
+    protected static float[] randomVector(int dim) {
+        float[] vector = new float[dim];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = randomFloat();
+        }
+        return vector;
+    }
 
     private class AssertingClient extends NoOpClient {
 

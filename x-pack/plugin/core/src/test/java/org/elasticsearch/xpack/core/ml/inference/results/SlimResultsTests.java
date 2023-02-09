@@ -32,7 +32,7 @@ public class SlimResultsTests extends InferenceResultsTestCase<SlimResults> {
 
     @Override
     protected SlimResults mutateInstance(SlimResults instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        return new SlimResults(instance.getResultsField() + "-FOO", instance.getWeightedTokens(), instance.isTruncated() == false);
     }
 
     @Override
@@ -45,8 +45,11 @@ public class SlimResultsTests extends InferenceResultsTestCase<SlimResults> {
         var originalTokens = createdInstance.getWeightedTokens();
         assertEquals(originalTokens.size(), ingestedTokens.size());
         for (int i = 0; i < createdInstance.getWeightedTokens().size(); i++) {
-            assertEquals(originalTokens.get(i).token(), (int) ingestedTokens.get(i).get("token"));
-            assertEquals(originalTokens.get(i).weight(), (float) ingestedTokens.get(i).get("weight"), 0.0001);
+            assertEquals(
+                originalTokens.get(i).weight(),
+                (float) ingestedTokens.get(i).get(Integer.toString(originalTokens.get(i).token())),
+                0.0001
+            );
         }
     }
 }

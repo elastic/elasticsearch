@@ -14,7 +14,13 @@ apply plugin: 'elasticsearch.rest-resources'
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
-  setting 'xpack.security.enabled', 'true'
+
+  module ':modules:analysis-common'
+  module ':modules:lang-painless'
+  module ':modules:data-streams'
+  module ':x-pack:plugin:mapper-constant-keyword'
+  module ':x-pack:plugin:async-search'
+
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'remote_cluster.enabled', 'true'
   setting 'remote_cluster.port', '0'
@@ -22,6 +28,9 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   extraConfigFile 'transport.key', file("src/test/resources/ssl/transport.key")
   extraConfigFile 'transport.cert', file("src/test/resources/ssl/transport.crt")
   extraConfigFile 'transport.ca', file("src/test/resources/ssl/transport-ca.crt")
+
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
 
   // Transport SSL can be enabled or disabled. It is independent from the remote cluster server SSL
   if (BuildParams.random.nextBoolean()) {
@@ -55,6 +64,13 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
 
 def queryingCluster = testClusters.register('querying-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
+
+  module ':modules:analysis-common'
+  module ':modules:lang-painless'
+  module ':modules:data-streams'
+  module ':x-pack:plugin:mapper-constant-keyword'
+  module ':x-pack:plugin:async-search'
+
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'cluster.remote.connections_per_cluster', "1"
@@ -94,6 +110,7 @@ tasks.register('querying-cluster', RestIntegTestTask) {
   useCluster queryingCluster
   useCluster fulfillingCluster
   systemProperty 'tests.rest.suite', 'querying_cluster'
+  nonInputProperties.systemProperty 'tests.fulfilling_cluster_host', fulfillingCluster.map(c -> c.allHttpSocketURI.get(0))
 }
 
 // runs the fulfilling-cluster cluster tests then the querying-cluster tests

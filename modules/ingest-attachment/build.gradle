@@ -22,6 +22,9 @@ versions << [
   'mime4j': '0.8.5'
 ]
 
+// exclude commons-logging from all dependencies to avoid jar-hell, we use jcl-over-slf4j here
+configurations.all { exclude module: 'commons-logging' }
+
 dependencies {
   // take over logging for all dependencies, route slf4j and jcl over log4j
   api "org.slf4j:slf4j-api:${versions.slf4j}"

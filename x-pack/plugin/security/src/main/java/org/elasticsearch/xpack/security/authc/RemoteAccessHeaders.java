@@ -17,13 +17,11 @@ import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentica
 public record RemoteAccessHeaders(String clusterCredential, RemoteAccessAuthentication remoteAccessAuthentication) {
 
     public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
+    private static final String API_KEY_PREFIX = "ApiKey ";
 
-    public RemoteAccessHeaders(RemoteAccessCredentials credentials, RemoteAccessAuthentication remoteAccessAuthentication) {
-        this(credentials.credential, remoteAccessAuthentication);
-    }
-
-    public void writeToContext(final ThreadContext ctx) {
-        ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, withApiKeyPrefix(clusterCredential));
+    public void writeToContext(final ThreadContext ctx) throws IOException {
+        ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, withPrefix(clusterCredential));
+        remoteAccessAuthentication.writeToContext(ctx);
     }
 
     public static RemoteAccessHeaders readFromContext(final ThreadContext ctx) throws IOException {
@@ -34,11 +32,11 @@ public record RemoteAccessHeaders(String clusterCredential, RemoteAccessAuthenti
         if (ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null) {
             throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
         }
-        return new RemoteAccessHeaders(clusterCredentialHeader, RemoteAccessAuthentication.readFromContext(ctx));
+        return new RemoteAccessHeaders(stripPrefix(clusterCredentialHeader), RemoteAccessAuthentication.readFromContext(ctx));
     }
 
     public ApiKeyService.ApiKeyCredentials getApiKeyCredentials() {
-        final ApiKeyService.ApiKeyCredentials apiKeyCredential = ApiKeyService.getCredentialsFromHeader(clusterCredential);
+        final ApiKeyService.ApiKeyCredentials apiKeyCredential = ApiKeyService.getCredentialsFromHeader(withPrefix(clusterCredential));
         if (apiKeyCredential == null) {
             throw new IllegalArgumentException(
                 "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential"
@@ -47,9 +45,14 @@ public record RemoteAccessHeaders(String clusterCredential, RemoteAccessAuthenti
         return apiKeyCredential;
     }
 
-    public record RemoteAccessCredentials(String clusterAlias, String credential) {}
+    private static String withPrefix(final String clusterCredential) {
+        return API_KEY_PREFIX + clusterCredential;
+    }
 
-    private String withApiKeyPrefix(final String clusterCredential) {
-        return "ApiKey " + clusterCredential;
+    private static String stripPrefix(final String clusterCredential) {
+        if (false == clusterCredential.startsWith(API_KEY_PREFIX)) {
+            throw new IllegalArgumentException("credential must start with [" + API_KEY_PREFIX + "]");
+        }
+        return clusterCredential.substring(API_KEY_PREFIX.length());
     }
 }

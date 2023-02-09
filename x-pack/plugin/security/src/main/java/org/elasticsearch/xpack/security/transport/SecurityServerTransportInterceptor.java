@@ -278,10 +278,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                final Optional<RemoteAccessHeaders.RemoteAccessCredentials> remoteAccessCredentials = getRemoteAccessCredentials(
-                    connection,
-                    action
-                );
+                final Optional<RemoteClusterCredentials> remoteAccessCredentials = getRemoteAccessCredentials(connection, action);
                 if (remoteAccessCredentials.isPresent()) {
                     sendWithRemoteAccessHeaders(remoteAccessCredentials.get(), connection, action, request, options, handler);
                 } else {
@@ -300,10 +297,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
              * this method does not return credentials even if they are configured, to signify that the request should be sent according to
              * the basic security model
              */
-            private Optional<RemoteAccessHeaders.RemoteAccessCredentials> getRemoteAccessCredentials(
-                Transport.Connection connection,
-                String action
-            ) {
+            private Optional<RemoteClusterCredentials> getRemoteAccessCredentials(Transport.Connection connection, String action) {
                 final Optional<String> optionalRemoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 if (optionalRemoteClusterAlias.isEmpty()) {
                     logger.trace("Connection is not remote");
@@ -334,18 +328,18 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     return Optional.empty();
                 }
 
-                return Optional.of(new RemoteAccessHeaders.RemoteAccessCredentials(remoteClusterAlias, remoteClusterCredential));
+                return Optional.of(new RemoteClusterCredentials(remoteClusterAlias, remoteClusterCredential));
             }
 
             private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
-                final RemoteAccessHeaders.RemoteAccessCredentials remoteAccessCredentials,
+                final RemoteClusterCredentials remoteClusterCredentials,
                 final Transport.Connection connection,
                 final String action,
                 final TransportRequest request,
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
-                final String remoteClusterAlias = remoteAccessCredentials.clusterAlias();
+                final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
                 if (connection.getTransportVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["
@@ -372,7 +366,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (SystemUser.is(user)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         new RemoteAccessHeaders(
-                            remoteAccessCredentials,
+                            remoteClusterCredentials.credential(),
                             // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
                             // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
                             // authentication instance
@@ -393,7 +387,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                                 new RemoteAccessHeaders(
-                                    remoteAccessCredentials,
+                                    remoteClusterCredentials.credential(),
                                     new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection)
                                 ).writeToContext(threadContext);
                                 sender.sendRequest(connection, action, request, options, contextRestoreHandler);
@@ -404,6 +398,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
         };
     }
+
+    // TODO move this to RemoteClusterAuthorizationResolver;
+    public record RemoteClusterCredentials(String clusterAlias, String credential) {}
 
     private <T extends TransportResponse> void sendWithUser(
         Transport.Connection connection,

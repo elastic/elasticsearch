@@ -59,7 +59,7 @@ when upgrading {es}.
 ==== Development process
 
 Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it
-easier to develop and package plugins. The steps below assume you use this 
+easier to develop and package plugins. The steps in this section assume you use this 
 plugin. However, you don't need Gradle to create plugins.
 
 The {es} Github repository contains

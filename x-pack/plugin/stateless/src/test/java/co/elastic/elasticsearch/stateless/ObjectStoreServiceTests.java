@@ -50,6 +50,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -66,7 +67,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -88,8 +88,10 @@ import static co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreT
 import static co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType.GCS;
 import static co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType.S3;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ObjectStoreServiceTests extends ESTestCase {
+
     public void testNoBucket() {
         ObjectStoreType type = randomFrom(ObjectStoreType.values());
         Settings.Builder builder = Settings.builder();
@@ -107,14 +109,19 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
     public void testFSSettings() {
         String bucket = randomAlphaOfLength(5);
+        String basePath = randomBoolean() ? randomAlphaOfLength(5) : null;
+
         Settings.Builder builder = Settings.builder();
         builder.put(ObjectStoreService.TYPE_SETTING.getKey(), FS.name());
-        builder.put(BUCKET_SETTING.getKey(), bucket);
+        builder.put(ObjectStoreService.BUCKET_SETTING.getKey(), bucket);
+        if (basePath != null) {
+            builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), basePath);
+        }
         // no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.repositorySettings(bucket, null);
-        assertThat(settings.keySet().size(), Matchers.equalTo(1));
-        assertThat(settings.get("location"), Matchers.equalTo(bucket));
+        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath);
+        assertThat(settings.keySet().size(), equalTo(1));
+        assertThat(settings.get("location"), equalTo(basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket));
     }
 
     public void testObjectStoreSettings() {
@@ -126,16 +133,22 @@ public class ObjectStoreServiceTests extends ESTestCase {
     private void validateObjectStoreSettings(ObjectStoreType type, String bucketName) {
         String bucket = randomAlphaOfLength(5);
         String client = randomAlphaOfLength(5);
+        String basePath = randomBoolean() ? randomAlphaOfLength(5) : null;
+
         Settings.Builder builder = Settings.builder();
         builder.put(ObjectStoreService.TYPE_SETTING.getKey(), type.name());
-        builder.put(BUCKET_SETTING.getKey(), bucket);
+        builder.put(ObjectStoreService.BUCKET_SETTING.getKey(), bucket);
         builder.put(ObjectStoreService.CLIENT_SETTING.getKey(), client);
+        if (basePath != null) {
+            builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), basePath);
+        }
         // check no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.repositorySettings(bucket, client);
-        assertThat(settings.keySet().size(), Matchers.equalTo(2));
-        assertThat(settings.get(bucketName), Matchers.equalTo(bucket));
-        assertThat(settings.get("client"), Matchers.equalTo(client));
+        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath);
+        assertThat(settings.keySet().size(), equalTo(basePath != null ? 3 : 2));
+        assertThat(settings.get(bucketName), equalTo(bucket));
+        assertThat(settings.get("client"), equalTo(client));
+        assertThat(settings.get("base_path"), equalTo(basePath));
     }
 
     public void testBlobUploadFailureBlocksSegmentsUpload() throws IOException {

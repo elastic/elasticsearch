@@ -76,7 +76,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -119,7 +118,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(NewCommitNotificationAction.INSTANCE, TransportNewCommitNotificationAction.class));
+        return List.of(new ActionHandler<>(NewCommitNotificationAction.INSTANCE, TransportNewCommitNotificationAction.class));
     }
 
     @Override
@@ -159,6 +158,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,
+            ObjectStoreService.BASE_PATH_SETTING,
             IndexEngine.INDEX_FLUSH_INTERVAL_SETTING,
             ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT,
             TranslogReplicator.FLUSH_INTERVAL_SETTING

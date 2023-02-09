@@ -45,7 +45,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -68,7 +70,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -86,35 +87,41 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public static final Setting<String> CLIENT_SETTING = Setting.simpleString("stateless.object_store.client", Setting.Property.NodeScope);
 
+    public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString(
+        "stateless.object_store.base_path",
+        Setting.Property.NodeScope
+    );
+
     public enum ObjectStoreType {
-        FS((bucket, builder) -> builder.put("location", bucket), (client, builder) -> {}, false),
-        S3((bucket, builder) -> builder.put("bucket", bucket), (client, builder) -> builder.put("client", client), true),
-        GCS((bucket, builder) -> builder.put("bucket", bucket), (client, builder) -> builder.put("client", client), true),
-        AZURE((bucket, builder) -> builder.put("container", bucket), (client, builder) -> builder.put("client", client), true);
+        FS("location") {
+            @Override
+            @SuppressForbidden(reason = "creates path to external blobstore")
+            public Settings createRepositorySettings(String bucket, String client, String basePath) {
+                return Settings.builder().put("location", basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket).build();
+            }
+        },
+        S3("bucket"),
+        GCS("bucket"),
+        AZURE("container");
 
-        private final BiConsumer<String, Settings.Builder> bucketConsumer;
-        private final BiConsumer<String, Settings.Builder> clientConsumer;
-        private final boolean needsClient;
+        private final String bucketSettingName;
 
-        ObjectStoreType(
-            BiConsumer<String, Settings.Builder> bucketConsumer,
-            BiConsumer<String, Settings.Builder> clientConsumer,
-            boolean needsClient
-        ) {
-            this.bucketConsumer = bucketConsumer;
-            this.clientConsumer = clientConsumer;
-            this.needsClient = needsClient;
+        ObjectStoreType(String bucketSettingName) {
+            this.bucketSettingName = bucketSettingName;
         }
 
-        public Settings repositorySettings(String bucket, String client) {
+        public Settings createRepositorySettings(String bucket, String client, String basePath) {
             Settings.Builder builder = Settings.builder();
-            bucketConsumer.accept(bucket, builder);
-            clientConsumer.accept(client, builder);
+            builder.put(bucketSettingName, bucket);
+            builder.put("client", client);
+            if (basePath != null) {
+                builder.put("base_path", basePath);
+            }
             return builder.build();
         }
 
         public boolean needsClient() {
-            return needsClient;
+            return this != FS;
         }
 
         @Override
@@ -123,12 +130,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    private static final List<Setting<?>> TYPE_VALIDATOR_SETTINGS_LIST = List.of(BUCKET_SETTING, CLIENT_SETTING);
     public static final Setting<ObjectStoreType> TYPE_SETTING = Setting.enumSetting(
         ObjectStoreType.class,
         "stateless.object_store.type",
         ObjectStoreType.FS,
-        new Setting.Validator<ObjectStoreType>() {
+        new Setting.Validator<>() {
             @Override
             public void validate(ObjectStoreType value) {}
 
@@ -141,18 +147,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         "setting " + BUCKET_SETTING.getKey() + " must be set for an object store of type " + value
                     );
                 }
-                if (value.needsClient()) {
-                    if (client.isEmpty()) {
-                        throw new IllegalArgumentException(
-                            "setting " + CLIENT_SETTING.getKey() + " must be set for an object store of type " + value
-                        );
-                    }
+                if (value.needsClient() && client.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "setting " + CLIENT_SETTING.getKey() + " must be set for an object store of type " + value
+                    );
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                return TYPE_VALIDATOR_SETTINGS_LIST.iterator();
+                return List.<Setting<?>>of(BUCKET_SETTING, CLIENT_SETTING).iterator();
             }
         },
         Setting.Property.NodeScope
@@ -233,10 +237,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     private static RepositoryMetadata getRepositoryMetadata(Settings settings) {
         ObjectStoreType type = TYPE_SETTING.get(settings);
-        String bucket = BUCKET_SETTING.get(settings);
-        String client = CLIENT_SETTING.get(settings);
-
-        return new RepositoryMetadata(Stateless.NAME, type.toString(), type.repositorySettings(bucket, client));
+        return new RepositoryMetadata(
+            Stateless.NAME,
+            type.toString(),
+            type.createRepositorySettings(BUCKET_SETTING.get(settings), CLIENT_SETTING.get(settings), BASE_PATH_SETTING.get(settings))
+        );
     }
 
     @Override

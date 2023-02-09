@@ -446,14 +446,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);
-        final boolean remoteClusterSSLEnabled = remoteClusterPortEnabled && XPackSettings.REMOTE_CLUSTER_SSL_ENABLED.get(settings);
+        final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
 
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
             final String profileName = entry.getKey();
             final boolean extractClientCert;
             if (remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(profileName)) {
-                extractClientCert = remoteClusterSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+                extractClientCert = remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
             } else {
                 extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
             }

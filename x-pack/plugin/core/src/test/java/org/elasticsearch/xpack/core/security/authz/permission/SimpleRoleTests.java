@@ -189,29 +189,25 @@ public class SimpleRoleTests extends ESTestCase {
             intersection,
             equalTo(
                 new RoleDescriptorsIntersection(
-                    List.of(
-                        Set.of(
-                            new RoleDescriptor(
-                                Role.REMOTE_USER_ROLE_NAME,
-                                null,
-                                new RoleDescriptor.IndicesPrivileges[] {
-                                    RoleDescriptor.IndicesPrivileges.builder()
-                                        .privileges(IndexPrivilege.READ.name())
-                                        .indices("remote-index-a-3")
-                                        .allowRestrictedIndices(false)
-                                        .build(),
-                                    RoleDescriptor.IndicesPrivileges.builder()
-                                        .privileges(IndexPrivilege.READ.name())
-                                        .indices("remote-index-a-1", "remote-index-a-2")
-                                        .allowRestrictedIndices(true)
-                                        .build() },
-                                null,
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        )
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(IndexPrivilege.READ.name())
+                                .indices("remote-index-a-3")
+                                .allowRestrictedIndices(false)
+                                .build(),
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(IndexPrivilege.READ.name())
+                                .indices("remote-index-a-1", "remote-index-a-2")
+                                .allowRestrictedIndices(true)
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 )
             )

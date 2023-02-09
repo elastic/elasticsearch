@@ -51,7 +51,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     /**
      * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_16_0;
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
 
     private final SystemIndices systemIndices;
     PersistentTasksService persistentTasksService;

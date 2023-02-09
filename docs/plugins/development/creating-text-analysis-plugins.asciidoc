@@ -50,7 +50,7 @@ configurations. For example, the keyword analyzer is referenced in configuration
 with the name `"keyword"`. Once your custom plugin is installed in your cluster,
 your named components may be referenced by name in these configurations as well.
 
-It's also possible to create text analysis plugins using the method described in
+You can also create text analysis plugins using the method described in
 <<creating-non-text-analysis-plugins>>. However, plugins created using that 
 method are pinned to a specific version of {es}. You will need to recompile them
 when upgrading {es}.

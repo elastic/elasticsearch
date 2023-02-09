@@ -38,3 +38,35 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10009 | Peac      | F    | false
 10010 | Piveteau  | null | null
 ;
+
+concat
+from test | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | project emp_no, name;
+
+emp_no:integer | name:keyword
+10001 | Georgi Facello
+10002 | Bezalel Simmel
+10003 | Parto Bamford
+10004 | Chirstian Koblick
+10005 | Kyoichi Maliniak
+10006 | Anneke Preusig
+10007 | Tzvetan Zielinski
+10008 | Saniya Kalloufi
+10009 | Sumant Peac
+10010 | Duangkaew Piveteau
+;
+
+concatComplex
+from test | sort emp_no | limit 10 | eval foo = " - ", x = concat(gender, foo) | eval name = concat(x, first_name, " ", last_name, ", ", concat(first_name, last_name)) | project emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | M - Georgi Facello, GeorgiFacello
+10002          | F - Bezalel Simmel, BezalelSimmel
+10003          | M - Parto Bamford, PartoBamford
+10004          | M - Chirstian Koblick, ChirstianKoblick
+10005          | M - Kyoichi Maliniak, KyoichiMaliniak
+10006          | F - Anneke Preusig, AnnekePreusig
+10007          | F - Tzvetan Zielinski, TzvetanZielinski
+10008          | M - Saniya Kalloufi, SaniyaKalloufi
+10009          | F - Sumant Peac, SumantPeac
+10010          | null
+;

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -62,7 +63,8 @@ final class EvalMapper {
         new RoundFunction(),
         new LengthFunction(),
         new DateFormatFunction(),
-        new StartsWithFunction()
+        new StartsWithFunction(),
+        new Mapper<>(Concat.class)
     );
 
     private EvalMapper() {}

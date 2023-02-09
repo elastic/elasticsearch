@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.profiler;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -29,12 +30,7 @@ public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<G
         Map<String, StackTrace> stackTraces = randomNullable(
             Map.of(
                 "QjoLteG7HX3VUUXr-J4kHQ",
-                new StackTrace(
-                    new int[] { 1083999 },
-                    new String[] { "QCCDqjSg3bMK1C4YRK6Tiw" },
-                    new String[] { "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf" },
-                    new int[] { 2 }
-                )
+                new StackTrace(List.of(1083999), List.of("QCCDqjSg3bMK1C4YRK6Tiw"), List.of("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"), List.of(2))
             )
         );
         int maxInlined = randomInt(5);

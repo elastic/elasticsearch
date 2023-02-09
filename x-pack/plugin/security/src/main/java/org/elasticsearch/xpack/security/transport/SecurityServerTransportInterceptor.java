@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
@@ -102,6 +103,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
+    private final RemoteAccessAuthenticationService remoteAccessAuthcService;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
 
@@ -113,6 +115,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
+        RemoteAccessAuthenticationService remoteAccessAuthcService,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
         this(
@@ -123,6 +126,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             sslService,
             securityContext,
             destructiveOperations,
+            remoteAccessAuthcService,
             remoteClusterAuthorizationResolver,
             RemoteConnectionManager::resolveRemoteClusterAlias
         );
@@ -136,6 +140,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
+        RemoteAccessAuthenticationService remoteAccessAuthcService,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
@@ -146,6 +151,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.authzService = authzService;
         this.sslService = sslService;
         this.securityContext = securityContext;
+        this.remoteAccessAuthcService = remoteAccessAuthcService;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
@@ -451,23 +457,32 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
             final String profileName = entry.getKey();
-            final boolean extractClientCert;
-            if (remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(profileName)) {
-                extractClientCert = remoteClusterSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+            final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
+            if (useRemoteClusterProfile) {
+                profileFilters.put(
+                    profileName,
+                    new RemoteAccessServerTransportFilter(
+                        remoteAccessAuthcService,
+                        authzService,
+                        threadPool.getThreadContext(),
+                        remoteClusterSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                        destructiveOperations,
+                        securityContext
+                    )
+                );
             } else {
-                extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+                profileFilters.put(
+                    profileName,
+                    new ServerTransportFilter(
+                        authcService,
+                        authzService,
+                        threadPool.getThreadContext(),
+                        transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                        destructiveOperations,
+                        securityContext
+                    )
+                );
             }
-            profileFilters.put(
-                profileName,
-                new ServerTransportFilter(
-                    authcService,
-                    authzService,
-                    threadPool.getThreadContext(),
-                    extractClientCert,
-                    destructiveOperations,
-                    securityContext
-                )
-            );
         }
 
         return Collections.unmodifiableMap(profileFilters);

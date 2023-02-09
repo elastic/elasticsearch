@@ -3269,14 +3269,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
-        final boolean isTimeseriesIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
+        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
         return new EngineConfig(
             shardId,
             threadPool,
             indexSettings,
             warmer,
             store,
-            indexSettings.getMergePolicy(),
+            indexSettings.getMergePolicy(isTimeBasedIndex),
             buildIndexAnalyzer(mapperService),
             similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
             codecService,
@@ -3293,7 +3293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             this::getOperationPrimaryTerm,
             snapshotCommitSupplier,
-            isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
+            isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
             routingEntry().isPromotableToPrimary()

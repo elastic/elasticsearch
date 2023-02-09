@@ -63,10 +63,10 @@ spurious permissions!
 If you are using the {es} Gradle build system, place this file in
 `src/main/plugin-metadata` and it will be applied during unit tests as well.
 
-Keep in mind that the Java security model is stack-based, and the additional
-permissions will only be granted to the jars in your plugin, so you will have
+The Java security model is stack-based, and additional
+permissions are granted to the jars in your plugin, so you have to
 write proper security code around operations requiring elevated privileges.
-It is recommended to add a check to prevent unprivileged code (such as scripts)
+You might add a check to prevent unprivileged code (such as scripts)
 from gaining escalated permissions. For example:
 
 [source,java]

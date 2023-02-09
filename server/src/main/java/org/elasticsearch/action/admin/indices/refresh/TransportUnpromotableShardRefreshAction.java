@@ -25,7 +25,6 @@ import org.elasticsearch.transport.TransportService;
 public class TransportUnpromotableShardRefreshAction extends TransportBroadcastUnpromotableAction<UnpromotableShardRefreshRequest> {
 
     public static final String NAME = RefreshAction.NAME + "/unpromotable";
-    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(NAME, ignored -> ActionResponse.Empty.INSTANCE);
 
     private final IndicesService indicesService;
 

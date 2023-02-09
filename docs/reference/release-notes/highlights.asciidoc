@@ -129,9 +129,6 @@ of a rectangular `geotile`, and save the bounding box defining its border for fu
 Likewise we can interpret `geohash` strings like `u0` as a tile, and H3 strings like `811fbffffffffff`
 as an hexagonal cell, saving the cell border as a polygon.
 
-[role="screenshot"]
-image::../images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: cell, children and intersecting non-children]
-
 {es-pull}93370[#93370]
 
 [discrete]

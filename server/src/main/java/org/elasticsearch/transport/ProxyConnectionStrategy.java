@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -316,7 +317,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
-            if (input.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (input.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
                 serverName = input.readString();
             } else {
                 serverName = null;
@@ -337,7 +338,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
                 out.writeString(serverName);
             }
             out.writeVInt(maxSocketConnections);

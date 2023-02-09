@@ -11,10 +11,14 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
@@ -26,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,7 +38,6 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -42,9 +46,10 @@ public class RestIndicesActionTests extends ESTestCase {
     public void testBuildTable() {
         final int numIndices = randomIntBetween(3, 20);
         final Map<String, Settings> indicesSettings = new LinkedHashMap<>();
-        final Map<String, IndexMetadata> indicesMetadatas = new LinkedHashMap<>();
-        final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
-        final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
+        final Map<String, IndexStats> indicesStats = new HashMap<>();
+
+        final Metadata.Builder metadata = Metadata.builder();
+        final RoutingTable.Builder routingTable = RoutingTable.builder();
 
         for (int i = 0; i < numIndices; i++) {
             String indexName = "index-" + i;
@@ -68,7 +73,7 @@ public class RestIndicesActionTests extends ESTestCase {
                     .numberOfReplicas(numberOfReplicas)
                     .state(indexState)
                     .build();
-                indicesMetadatas.put(indexName, indexMetadata);
+                metadata.put(indexMetadata, false);
 
                 if (frequently()) {
                     Index index = indexMetadata.getIndex();
@@ -101,7 +106,7 @@ public class RestIndicesActionTests extends ESTestCase {
                         case RED:
                             break;
                     }
-                    indicesHealths.put(indexName, new ClusterIndexHealth(indexMetadata, indexRoutingTable.build()));
+                    routingTable.add(indexRoutingTable);
 
                     if (frequently()) {
                         IndexStats indexStats = mock(IndexStats.class);
@@ -113,8 +118,13 @@ public class RestIndicesActionTests extends ESTestCase {
             }
         }
 
+        final ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(metadata)
+            .routingTable(randomBoolean() ? routingTable : RoutingTable.builder())
+            .build();
+
         final RestIndicesAction action = new RestIndicesAction();
-        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetadatas);
+        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, clusterState, indicesStats);
 
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
@@ -126,14 +136,16 @@ public class RestIndicesActionTests extends ESTestCase {
         assertThat(headers.get(5).value, equalTo("rep"));
 
         final List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(indicesMetadatas.size()));
+        assertThat(rows.size(), equalTo(clusterState.metadata().indices().size()));
+
+        final var clusterStateHealth = new ClusterStateHealth(clusterState);
 
         for (final List<Table.Cell> row : rows) {
             final String indexName = (String) row.get(2).value;
 
-            ClusterIndexHealth indexHealth = indicesHealths.get(indexName);
+            ClusterIndexHealth indexHealth = clusterStateHealth.getIndices().get(indexName);
             IndexStats indexStats = indicesStats.get(indexName);
-            IndexMetadata indexMetadata = indicesMetadatas.get(indexName);
+            IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
 
             if (indexHealth != null) {
                 assertThat(row.get(0).value, equalTo(indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)));
@@ -146,13 +158,8 @@ public class RestIndicesActionTests extends ESTestCase {
             assertThat(row.get(1).value, equalTo(indexMetadata.getState().toString().toLowerCase(Locale.ROOT)));
             assertThat(row.get(2).value, equalTo(indexName));
             assertThat(row.get(3).value, equalTo(indexMetadata.getIndexUUID()));
-            if (indexHealth != null) {
-                assertThat(row.get(4).value, equalTo(indexMetadata.getNumberOfShards()));
-                assertThat(row.get(5).value, equalTo(indexMetadata.getNumberOfReplicas()));
-            } else {
-                assertThat(row.get(4).value, nullValue());
-                assertThat(row.get(5).value, nullValue());
-            }
+            assertThat(row.get(4).value, equalTo(indexMetadata.getNumberOfShards()));
+            assertThat(row.get(5).value, equalTo(indexMetadata.getNumberOfReplicas()));
         }
     }
 }

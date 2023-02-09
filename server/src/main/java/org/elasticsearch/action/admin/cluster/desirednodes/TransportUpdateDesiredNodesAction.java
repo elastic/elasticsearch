@@ -79,9 +79,9 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         Task task,
         UpdateDesiredNodesRequest request,
         ClusterState state,
-        ActionListener<UpdateDesiredNodesResponse> listener
+        ActionListener<UpdateDesiredNodesResponse> responseListener
     ) throws Exception {
-        try {
+        ActionListener.run(responseListener, listener -> {
             settingsValidator.validate(request.getNodes());
             clusterService.submitStateUpdateTask(
                 "update-desired-nodes",
@@ -89,15 +89,13 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
                 taskExecutor
             );
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        });
     }
 
     @Override
     protected void doExecute(Task task, UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener) {
         final var minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        if (request.isCompatibleWithVersion(minNodeVersion) == false) {
+        if (request.isCompatibleWithVersion(minNodeVersion.transportVersion) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "Unable to use processor ranges, floating-point (with greater precision) processors "

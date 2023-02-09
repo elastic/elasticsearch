@@ -8,9 +8,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -544,11 +548,12 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final float f = value.floatValue();
-                if (indexed) {
-                    document.add(new FloatPoint(name, f));
-                }
-                if (docValued) {
+                if (indexed && docValued) {
+                    document.add(new FloatField(name, f));
+                } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(f)));
+                } else if (indexed) {
+                    document.add(new FloatPoint(name, f));
                 }
                 if (stored) {
                     document.add(new StoredField(name, f));
@@ -673,11 +678,12 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final double d = value.doubleValue();
-                if (indexed) {
-                    document.add(new DoublePoint(name, d));
-                }
-                if (docValued) {
+                if (indexed && docValued) {
+                    document.add(new DoubleField(name, d));
+                } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(d)));
+                } else if (indexed) {
+                    document.add(new DoublePoint(name, d));
                 }
                 if (stored) {
                     document.add(new StoredField(name, d));
@@ -1022,11 +1028,12 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final int i = value.intValue();
-                if (indexed) {
-                    document.add(new IntPoint(name, i));
-                }
-                if (docValued) {
+                if (indexed && docValued) {
+                    document.add(new IntField(name, i));
+                } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, i));
+                } else if (indexed) {
+                    document.add(new IntPoint(name, i));
                 }
                 if (stored) {
                     document.add(new StoredField(name, i));
@@ -1148,11 +1155,12 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final long l = value.longValue();
-                if (indexed) {
-                    document.add(new LongPoint(name, l));
-                }
-                if (docValued) {
+                if (indexed && docValued) {
+                    document.add(new LongField(name, l));
+                } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, l));
+                } else if (indexed) {
+                    document.add(new LongPoint(name, l));
                 }
                 if (stored) {
                     document.add(new StoredField(name, l));

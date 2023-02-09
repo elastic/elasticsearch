@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -35,6 +36,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -42,6 +44,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationTests extends ESTestCase {
 
@@ -127,6 +130,14 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
             randomApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
         );
+
+        // No resource sharing for remote access authentication for now
+        final RemoteAccessAuthentication randomRemoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder()
+            .remoteAccess(apiKeyId1, randomRemoteAccessAuthentication)
+            .build(false);
+        assertCannotAccessResources(remoteAccessAuthentication, remoteAccessAuthentication);
+        assertCannotAccessResources(remoteAccessAuthentication, randomRemoteAccessAuthentication.getAuthentication());
     }
 
     public void testTokenAccessResourceOf() {
@@ -229,6 +240,28 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
+    public void testIsRemoteAccess() {
+        final boolean isRemoteAccess = randomBoolean();
+        final Authentication authentication;
+        if (isRemoteAccess) {
+            authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        } else {
+            authentication = randomValueOtherThanMany(
+                authc -> AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(authc.getAuthenticatingSubject().getRealm().getType()),
+                () -> AuthenticationTestHelper.builder().build()
+            );
+        }
+
+        if (isRemoteAccess) {
+            assertThat(authentication.isRemoteAccess(), is(true));
+            // Also validate that this does not clash with API keys
+            assertThat(authentication.isApiKey(), is(false));
+            assertThat(authentication.isAuthenticatedAsApiKey(), is(false));
+        } else {
+            assertThat(authentication.isRemoteAccess(), is(false));
+        }
+    }
+
     public void testNonRealmAuthenticationsNoDomain() {
         final String apiKeyId = randomAlphaOfLengthBetween(10, 20);
         Authentication apiAuthentication = randomApiKeyAuthentication(randomUser(), apiKeyId);
@@ -246,6 +279,9 @@ public class AuthenticationTests extends ESTestCase {
         Authentication internalAuthentication = randomInternalAuthentication();
         assertThat(internalAuthentication.isAssignedToDomain(), is(false));
         assertThat(internalAuthentication.getDomain(), nullValue());
+        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        assertThat(remoteAccessAuthentication.isAssignedToDomain(), is(false));
+        assertThat(remoteAccessAuthentication.getDomain(), nullValue());
     }
 
     public void testRealmAuthenticationIsAssignedToDomain() {
@@ -410,6 +446,44 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
+    public void testRemoteAccessAuthentication() throws IOException {
+        final String remoteAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
+        final RemoteAccessAuthentication remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(remoteAccessApiKeyId, remoteAccessAuthentication)
+            .build(false);
+
+        assertThat(authentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.API_KEY));
+        assertThat(authentication.getEffectiveSubject(), sameInstance(authentication.getAuthenticatingSubject()));
+        assertThat(
+            authentication.getEffectiveSubject().getUser(),
+            equalTo(AuthenticationTestHelper.stripRoles(authentication.getEffectiveSubject().getUser()))
+        );
+        assertThat(authentication.isRemoteAccess(), is(true));
+        assertThat(
+            authentication.getAuthenticatingSubject().getRealm(),
+            equalTo(
+                new RealmRef(
+                    AuthenticationField.REMOTE_ACCESS_REALM_NAME,
+                    AuthenticationField.REMOTE_ACCESS_REALM_TYPE,
+                    authentication.getAuthenticatingSubject().getRealm().getNodeName()
+                )
+            )
+        );
+        assertThat(
+            authentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.API_KEY_ID_KEY, remoteAccessApiKeyId)
+        );
+        assertThat(
+            authentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication().encode())
+        );
+        assertThat(
+            authentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthentication.getRoleDescriptorsBytesList())
+        );
+    }
+
     public void testSupportsRunAs() {
         final Settings.Builder settingsBuilder = Settings.builder();
         if (randomBoolean()) {
@@ -440,6 +514,9 @@ public class AuthenticationTests extends ESTestCase {
         // Neither anonymous user nor its token can run-as
         assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().supportsRunAs(anonymousUser), is(false));
         assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().token().supportsRunAs(anonymousUser), is(false));
+
+        // Remote access cannot run-as
+        assertThat(AuthenticationTestHelper.builder().remoteAccess().build().supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
@@ -463,6 +540,23 @@ public class AuthenticationTests extends ESTestCase {
 
         final Authentication authentication2 = authentication1.runAs(randomUser(), randomRealmRef(false));
         runWithAuthenticationToXContent(authentication2, m -> assertThat(m, not(hasKey("api_key"))));
+    }
+
+    public void testToXContentWithRemoteAccess() throws IOException {
+        final String apiKeyId = randomAlphaOfLength(20);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(apiKeyId, AuthenticationTestHelper.randomRemoteAccessAuthentication())
+            .build(false);
+        final String apiKeyName = (String) authentication.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.API_KEY_NAME_KEY);
+        runWithAuthenticationToXContent(
+            authentication,
+            m -> assertThat(
+                m,
+                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+            )
+        );
     }
 
     public void testToXContentWithServiceAccount() throws IOException {
@@ -506,6 +600,92 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV7.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
         assertThat(authenticationV7.isRunAs(), is(false));
         assertThat(authenticationV7.encode(), equalTo(headerV7));
+    }
+
+    public void testMaybeRewriteForOlderVersionWithRemoteAccessThrowsOnUnsupportedVersion() {
+        final Authentication authentication = randomBoolean()
+            ? AuthenticationTestHelper.builder().remoteAccess().build()
+            : AuthenticationTestHelper.builder().build();
+
+        final Version versionBeforeRemoteAccessRealm = VersionUtils.getPreviousVersion(Version.V_8_7_0);
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteAccessRealm.minimumCompatibilityVersion(),
+            versionBeforeRemoteAccessRealm
+        );
+
+        if (authentication.isRemoteAccess()) {
+            final var ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> authentication.maybeRewriteForOlderVersion(version.transportVersion)
+            );
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before ["
+                        + Authentication.VERSION_REMOTE_ACCESS_REALM
+                        + "] can't handle remote access authentication and attempted to rewrite for ["
+                        + version.transportVersion
+                        + "]"
+                )
+            );
+        } else {
+            // Assert that rewriting took place; the details of rewriting logic are checked in other tests
+            assertThat(authentication.maybeRewriteForOlderVersion(version.transportVersion), not(equalTo(authentication)));
+        }
+    }
+
+    public void testMaybeRewriteForOlderVersionWithRemoteAccessRewritesAuthenticationInMetadata() throws IOException {
+        // This is a hack for 8.7, to enable testing a scenario where a remote access authentication is rewritten for a node on an older
+        // version. There are two factors why we need this hack:
+        // We introduced a new rewrite mechanism for remote access authentication in 8.7, to stay future-proof.
+        // Rewriting a remote access authentication is only valid if it's towards a node on version 8.7 or later (it's prevented by an
+        // internal validation check).
+        // To test the new rewrite mechanism in 8.7, we call authentication.maybeRewriteForOlderVersion(version, remoteAccessRealmVersion)
+        // with a version that precedes 8.7, thus circumventing the internal validation error
+        // TODO in 8.8, simply set remoteAccessRealmVersion to Authentication.VERSION_REMOTE_ACCESS_REALM
+        final TransportVersion remoteAccessRealmVersion = TransportVersion.CURRENT.equals(Authentication.VERSION_REMOTE_ACCESS_REALM)
+            ? TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REMOTE_ACCESS_REALM)
+            : Authentication.VERSION_REMOTE_ACCESS_REALM;
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            remoteAccessRealmVersion,
+            TransportVersion.CURRENT
+        );
+        final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(randomAlphaOfLength(20), new RemoteAccessAuthentication(innerAuthentication, RoleDescriptorsIntersection.EMPTY))
+            .build();
+        final TransportVersion maybeOldVersion = TransportVersionUtils.randomVersionBetween(random(), remoteAccessRealmVersion, version);
+
+        final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion, remoteAccessRealmVersion);
+
+        final Authentication innerActualAuthentication = AuthenticationContextSerializer.decode(
+            (String) actual.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+        );
+        assertThat(innerActualAuthentication, equalTo(innerAuthentication.maybeRewriteForOlderVersion(maybeOldVersion)));
+    }
+
+    public void testMaybeRewriteMetadataForRemoteAccessAuthentication() throws IOException {
+        final Authentication innerAuthentication = AuthenticationTestHelper.builder().build();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(randomAlphaOfLength(20), new RemoteAccessAuthentication(innerAuthentication, RoleDescriptorsIntersection.EMPTY))
+            .build();
+        // pick a version before that of the authentication instance to force a rewrite
+        final TransportVersion olderVersion = TransportVersionUtils.randomPreviousCompatibleVersion(
+            random(),
+            authentication.getEffectiveSubject().getTransportVersion()
+        );
+
+        final Map<String, Object> rewrittenMetadata = Authentication.maybeRewriteMetadataForRemoteAccessAuthentication(
+            olderVersion,
+            authentication
+        );
+
+        final Authentication innerRewritten = AuthenticationContextSerializer.decode(
+            (String) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+        );
+        assertThat(innerRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(olderVersion)));
     }
 
     public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {

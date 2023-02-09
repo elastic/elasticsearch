@@ -39,7 +39,12 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         this.stackTraces = in.readBoolean()
             ? in.readMap(
                 StreamInput::readString,
-                i -> new StackTrace(i.readIntArray(), i.readStringArray(), i.readStringArray(), i.readIntArray())
+                i -> new StackTrace(
+                    i.readList(StreamInput::readInt),
+                    i.readList(StreamInput::readString),
+                    i.readList(StreamInput::readString),
+                    i.readList(StreamInput::readInt)
+                )
             )
             : null;
         this.stackFrames = in.readBoolean()
@@ -95,10 +100,10 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         if (stackTraces != null) {
             out.writeBoolean(true);
             out.writeMap(stackTraces, StreamOutput::writeString, (o, v) -> {
-                o.writeIntArray(v.addressOrLines);
-                o.writeStringArray(v.fileIds);
-                o.writeStringArray(v.frameIds);
-                o.writeIntArray(v.typeIds);
+                o.writeCollection(v.addressOrLines, StreamOutput::writeInt);
+                o.writeCollection(v.fileIds, StreamOutput::writeString);
+                o.writeCollection(v.frameIds, StreamOutput::writeString);
+                o.writeCollection(v.typeIds, StreamOutput::writeInt);
             });
         } else {
             out.writeBoolean(false);

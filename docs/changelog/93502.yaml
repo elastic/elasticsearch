@@ -1,0 +1,5 @@
+pr: 93502
+summary: Health API fix the reporting of initializing shards
+area: Health
+type: bug
+issues: [90327]

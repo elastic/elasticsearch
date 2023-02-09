@@ -20,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -3036,6 +3037,59 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(exception.getMessage(), containsString("fail-to-send-action"));
         assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
         assertThat(exception.getCause().getMessage(), equalTo("fail to send"));
+    }
+
+    public void testChannelToString() {
+        final String ACTION = "internal:action";
+        serviceA.registerRequestHandler(ACTION, ThreadPool.Names.SAME, TransportRequest.Empty::new, (request, channel, task) -> {
+            assertThat(
+                channel.toString(),
+                allOf(
+                    containsString("DirectResponseChannel"),
+                    containsString('{' + ACTION + '}'),
+                    containsString("TaskTransportChannel{task=" + task.getId() + '}')
+                )
+            );
+            assertThat(new ChannelActionListener<>(channel, ACTION, request).toString(), containsString(channel.toString()));
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
+        serviceB.registerRequestHandler(ACTION, ThreadPool.Names.SAME, TransportRequest.Empty::new, (request, channel, task) -> {
+            assertThat(
+                channel.toString(),
+                allOf(
+                    containsString("TcpTransportChannel"),
+                    containsString('{' + ACTION + '}'),
+                    containsString("TaskTransportChannel{task=" + task.getId() + '}'),
+                    containsString("localAddress="),
+                    containsString(serviceB.getLocalNode().getAddress().toString())
+                )
+            );
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
+
+        PlainActionFuture.get(
+            f -> submitRequest(
+                serviceA,
+                serviceA.getLocalNode(),
+                ACTION,
+                TransportRequest.Empty.INSTANCE,
+                new ActionListenerResponseHandler<>(f, ignored -> TransportResponse.Empty.INSTANCE)
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
+
+        PlainActionFuture.get(
+            f -> submitRequest(
+                serviceA,
+                serviceB.getLocalNode(),
+                ACTION,
+                TransportRequest.Empty.INSTANCE,
+                new ActionListenerResponseHandler<>(f, ignored -> TransportResponse.Empty.INSTANCE)
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     // test that the response handler is invoked on a failure to send

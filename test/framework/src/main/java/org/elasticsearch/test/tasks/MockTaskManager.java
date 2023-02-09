@@ -79,21 +79,6 @@ public class MockTaskManager extends TaskManager {
     }
 
     @Override
-    public void waitForTaskCompletion(Task task, long untilInNanos) {
-        for (MockTaskManagerListener listener : listeners) {
-            try {
-                listener.waitForTaskCompletion(task);
-            } catch (Exception e) {
-                logger.warn(
-                    () -> format("failed to notify task manager listener about waitForTaskCompletion the task with id %s", task.getId()),
-                    e
-                );
-            }
-        }
-        super.waitForTaskCompletion(task, untilInNanos);
-    }
-
-    @Override
     public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
         for (MockTaskManagerListener listener : listeners) {
             listener.subscribeForRemovedTasks(removedTaskListener);

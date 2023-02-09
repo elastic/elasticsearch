@@ -35,11 +35,7 @@ public final class ChannelActionListener<Response extends TransportResponse, Req
 
     @Override
     public void onResponse(Response response) {
-        try {
-            channel.sendResponse(response);
-        } catch (Exception e) {
-            onFailure(e);
-        }
+        ActionListener.run(this, l -> l.channel.sendResponse(response));
     }
 
     @Override
@@ -48,12 +44,20 @@ public final class ChannelActionListener<Response extends TransportResponse, Req
             channel.sendResponse(e);
         } catch (Exception sendException) {
             sendException.addSuppressed(e);
-            logger.warn(() -> format("Failed to send error response for action [%s] and request [%s]", actionName, request), sendException);
+            logger.warn(
+                () -> format(
+                    "Failed to send error response on channel [%s] for action [%s] and request [%s]",
+                    channel,
+                    actionName,
+                    request
+                ),
+                sendException
+            );
         }
     }
 
     @Override
     public String toString() {
-        return "ChannelActionListener{" + channel + "}{" + request + "}{" + actionName + "}";
+        return "ChannelActionListener{" + channel + "}{" + actionName + "}{" + request + "}";
     }
 }

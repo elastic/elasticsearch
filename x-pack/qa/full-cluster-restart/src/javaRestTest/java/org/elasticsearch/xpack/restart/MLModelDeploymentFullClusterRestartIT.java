@@ -88,6 +88,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93325")
     public void testDeploymentSurvivesRestart() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
 

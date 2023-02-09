@@ -37,7 +37,6 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
 /**
  * File based settings applier service which watches an 'operator` directory inside the config directory.
  * <p>
- * // TODO[wrb]: update javadoc
  * The service expects that the operator directory will contain a single JSON file with all the settings that
  * need to be applied to the cluster state. The name of the file is fixed to be settings.json. The operator
  * directory name can be configured by setting the 'path.config.operator_directory' in the node properties.
@@ -46,11 +45,9 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  * the service as a listener to cluster state changes, so that we can enable the file watcher thread when this
  * node becomes a master node.
  */
-// this will become file watch service, and it can take file-action objects?
 public class FileSettingsService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
-    // TODO[wrb]: settings file may be moved for initialization logic
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
 
@@ -74,12 +71,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.stateService = stateService;
         this.eventListeners = new CopyOnWriteArrayList<>();
 
-        // we have listeners and state service, now we should create file watcher service
-        // and register the operator settings
-
-        // TODO[wrb] this state should go in the file watch service
         Path operatorSettings = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
-        fileWatchService = new FileWatchService(operatorSettings, SETTINGS_FILE_NAME);
+        this.fileWatchService = new FileWatchService(operatorSettings, SETTINGS_FILE_NAME);
     }
 
     // TODO[wrb]: update for testing
@@ -121,7 +114,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     @Override
     protected void doStop() {
-        // TODO[wrb]: remove or delegate, then remove setActive
         this.fileWatchService.setActive(false);
         logger.debug("Stopping file settings service");
         stopWatcher();
@@ -169,7 +161,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (watching() && operatorSettingsFiles().stream().anyMatch(Files::exists)) {
+        if (fileWatchService.watching() && operatorSettingsFiles().stream().anyMatch(Files::exists)) {
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
@@ -190,7 +182,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * metadata version must be reset to 0 and saved in the cluster state.
      */
     private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
-        if (watching()) {
+        if (fileWatchService.watching()) {
             ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
             // like snapshot restores.
@@ -214,9 +206,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return fileWatchService.watching();
     }
 
-    // need to start all the watchers here
     synchronized void startWatcher(ClusterState clusterState) {
-        if (watching() || this.fileWatchService.isActive() == false) {
+        if (fileWatchService.watching() || this.fileWatchService.isActive() == false) {
             refreshExistingFileStateIfNeeded(clusterState);
 
             return;

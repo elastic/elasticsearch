@@ -95,7 +95,6 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
-        // TODO[wrb]: this object will eventually be constructed before the service is
         fileWatchService = fileSettingsService.fileWatchService();
     }
 
@@ -106,8 +105,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     public void testOperatorDirName() {
-        // we will need to retrieve the operator...
-        // maybe: fileSettingService.getRegisteredFiles("OPERATOR")
         Path operatorPath = fileSettingsService.operatorSettingsDir();
         assertTrue(operatorPath.startsWith(env.configFile()));
         assertTrue(operatorPath.endsWith("operator"));
@@ -117,8 +114,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(operatorSettingsFile.endsWith("settings.json"));
     }
 
-    // the tricky thing with this test/method is that it sets state for _any_ file we use it on,
-    // whether or not it has anything to do with the configured path
+    // TODO[wrb]: Move to file watch service tests
     public void testWatchedFile() throws Exception {
         Path tmpFile = createTempFile();
         Path tmpFile1 = createTempFile();

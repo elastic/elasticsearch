@@ -10,18 +10,18 @@ analyzers, token filters, character filters, and tokenizers].
 Text analysis plugins can be written against the analysis plugin API. This API
 consists of the following dependencies:
 
-* `plugin-api`- an API used by plugin developers to implement custom {es} 
-plugins (stable).
+* `plugin-api` - an API used by plugin developers to implement custom {es} 
+plugins.
 * `plugin-analysis-api` - an API used by plugin developers to implement analysis
 plugins and integrate them into {es}.
 * `lucene-analysis-common` - a dependency of `plugin-analysis-api` that contains
 core Lucene analysis interfaces like `Tokenizer`, `Analyzer`, and `TokenStream`.
 
-The advantage of using this API is that the resulting plugin is
-forward-compatible with new minor versions of {es}. While elements may be added
-to the API, existing element will not be changed or removed, except in a new
-major release. In other words, once you have a working artifact, you can re-use
-it when you upgrade {es} to a new bugfix or minor version.
+For new versions of {es} within the same major version, plugins built against
+this API do not need to be recompiled. Future versions of the API will be
+backwards compatible and plugins are binary compatible with future versions of
+{es}. In other words, once you have a working artifact, you can re-use it when
+you upgrade {es} to a new bugfix or minor version.
 
 A text analysis plugin can implement four factory classes that are provided by
 the analysis plugin API.

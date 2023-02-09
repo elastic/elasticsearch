@@ -5,7 +5,7 @@ endif::[]
 ifeval::["{plugin-type}" == "other"]
 `plugin-descriptor.properties`
 endif::[]
-that describes the plugin. The file will be automatically created if you are 
+that describes the plugin. The file is automatically created if you are 
 using {es}'s Gradle build system. If you're not using the gradle plugin, you 
 can create it manually using the following template.
 

@@ -53,8 +53,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
 import org.elasticsearch.xpack.security.authz.RBACEngine;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -393,9 +393,9 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
     }
 
     private void assertContainsRemoteClusterCredential(String clusterCredential, CapturedActionWithHeaders actual) {
-        assertThat(actual.headers(), hasKey(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY));
+        assertThat(actual.headers(), hasKey(RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY));
         assertThat(
-            actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY),
+            actual.headers().get(RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY),
             equalTo("ApiKey " + clusterCredential)
         );
     }
@@ -480,7 +480,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             actualHeaders.keySet(),
             containsInAnyOrder(
                 RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
-                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
             )
         );
     }

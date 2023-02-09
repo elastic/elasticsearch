@@ -980,12 +980,11 @@ public class ApiKeyService {
         return getCredentialsFromHeader(threadContext.getHeader("Authorization"));
     }
 
-    ApiKeyCredentials getCredentialsFromHeader(final String header) {
-        assert isEnabled() : "API keys must be enabled";
+    static ApiKeyCredentials getCredentialsFromHeader(final String header) {
         return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"));
     }
 
-    private ApiKeyCredentials parseApiKey(SecureString apiKeyString) {
+    private static ApiKeyCredentials parseApiKey(SecureString apiKeyString) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;

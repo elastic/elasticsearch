@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -901,8 +900,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         document.add(new Field(NestedPathFieldMapper.NAME, "book", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         sequenceIDFields.addFields(document);
         for (String author : authors) {
-            document.add(new Field("author", author, KeywordFieldMapper.Defaults.FIELD_TYPE));
-            document.add(new SortedSetDocValuesField("author", new BytesRef(author)));
+            document.add(new Field("author", new BytesRef(author), KeywordFieldMapper.Defaults.FIELD_TYPE));
         }
         documents.add(document);
 

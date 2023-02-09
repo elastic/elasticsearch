@@ -129,7 +129,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
 
             IngestStats.ProcessorStat setB = processorStats.get(1);
             assertThat(setB.getName(), equalTo("set:set-b"));
-            assertThat(setB.getType(), equalTo("conditional"));
+            assertThat(setB.getType(), equalTo("set"));
             assertThat(setB.getStats().getIngestCount(), equalTo(0L)); // see false_script above
 
             IngestStats.ProcessorStat setC = processorStats.get(2);
@@ -138,8 +138,8 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
             assertThat(setC.getStats().getIngestCount(), equalTo(1L));
 
             IngestStats.ProcessorStat setD = processorStats.get(3);
-            assertThat(setD.getName(), equalTo("compound:CompoundProcessor-set-d"));
-            assertThat(setD.getType(), equalTo("conditional"));
+            assertThat(setD.getName(), equalTo("set:set-d"));
+            assertThat(setD.getType(), equalTo("set"));
             assertThat(setD.getStats().getIngestCount(), equalTo(1L));
         }
 
@@ -154,9 +154,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
             Map<String, Object> stats = createParser(JsonXContent.jsonXContent, Strings.toString(builder)).map();
 
             int setProcessorCount = path(stats, "nodes.ingest.processor_stats.set.count");
-            assertThat(setProcessorCount, equalTo(2));
-            int conditionalProcessorCount = path(stats, "nodes.ingest.processor_stats.conditional.count");
-            assertThat(conditionalProcessorCount, equalTo(1));
+            assertThat(setProcessorCount, equalTo(3));
         }
     }
 

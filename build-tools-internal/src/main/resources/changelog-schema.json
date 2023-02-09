@@ -265,6 +265,7 @@
         "Command line tool",
         "CRUD",
         "Index setting",
+        "Ingest",
         "JVM option",
         "Java API",
         "Logging",

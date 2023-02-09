@@ -91,6 +91,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         return count;
     }
 
+    // Non-private for testing
+    public boolean isFetching() {
+        return fetching;
+    }
+
     /**
      * Fetches the data for the relevant shard. If there any ongoing async fetches going on, or new ones have
      * been initiated by this call, the result will have no data.

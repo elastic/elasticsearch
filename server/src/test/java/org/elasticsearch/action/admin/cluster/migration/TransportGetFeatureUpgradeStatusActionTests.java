@@ -29,7 +29,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
     public static String TEST_SYSTEM_INDEX_PATTERN = ".test*";
     private static final ClusterState CLUSTER_STATE = getClusterState();
     private static final SystemIndices.Feature FEATURE = getFeature();
-    private static final Version TEST_OLD_VERSION = Version.fromId(6_00_00_99);
+    private static final Version TEST_OLD_VERSION = Version.fromString("6.0.0");
 
     public void testGetFeatureStatus() {
         GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status = TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus(
@@ -85,7 +85,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
         assert Version.CURRENT.major < 9;
 
         IndexMetadata indexMetadata2 = IndexMetadata.builder(".test-index-2")
-            .settings(Settings.builder().put("index.version.created", Version.fromId(6_00_00_99)).build())
+            .settings(Settings.builder().put("index.version.created", Version.fromString("6.0.0")).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

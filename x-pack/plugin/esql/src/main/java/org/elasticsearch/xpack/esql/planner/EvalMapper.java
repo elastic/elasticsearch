@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -205,6 +206,19 @@ final class EvalMapper {
                     }
                 }
                 return new Keywords(channel);
+            }
+            if (attr.dataType() == DataTypes.BOOLEAN) {
+                record Booleans(int channel) implements ExpressionEvaluator {
+                    @Override
+                    public Object computeRow(Page page, int pos) {
+                        BooleanBlock block = page.getBlock(channel);
+                        if (block.isNull(pos)) {
+                            return null;
+                        }
+                        return block.getBoolean(pos);
+                    }
+                }
+                return new Booleans(channel);
             }
             throw new UnsupportedOperationException("unsupported field type [" + attr.dataType() + "]");
         }

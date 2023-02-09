@@ -1814,25 +1814,21 @@ public class RBACEngineTests extends ESTestCase {
                 future.actionGet(),
                 equalTo(
                     new RoleDescriptorsIntersection(
-                        List.of(
-                            Set.of(
-                                new RoleDescriptor(
-                                    RBACEngine.REMOTE_USER_ROLE_NAME,
-                                    null,
-                                    new IndicesPrivileges[] {
-                                        IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
-                                        IndicesPrivileges.builder()
-                                            .indices("*")
-                                            .privileges("monitor", "read", "read_cross_cluster", "view_index_metadata")
-                                            .allowRestrictedIndices(true)
-                                            .build() },
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null
-                                )
-                            )
+                        new RoleDescriptor(
+                            RBACEngine.REMOTE_USER_ROLE_NAME,
+                            null,
+                            new IndicesPrivileges[] {
+                                IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
+                                IndicesPrivileges.builder()
+                                    .indices("*")
+                                    .privileges("monitor", "read", "read_cross_cluster", "view_index_metadata")
+                                    .allowRestrictedIndices(true)
+                                    .build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
                         )
                     )
                 )
@@ -1854,37 +1850,21 @@ public class RBACEngineTests extends ESTestCase {
                 future.actionGet(),
                 equalTo(
                     new RoleDescriptorsIntersection(
-                        List.of(
-                            Set.of(
-                                new RoleDescriptor(
-                                    RBACEngine.REMOTE_USER_ROLE_NAME,
-                                    null,
-                                    new IndicesPrivileges[] {
-                                        IndicesPrivileges.builder()
-                                            .indices(".monitoring-*")
-                                            .privileges("read", "read_cross_cluster")
-                                            .build(),
-                                        IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
-                                        IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "read_cross_cluster").build(),
-                                        IndicesPrivileges.builder()
-                                            .indices("metrics-apm.*")
-                                            .privileges("read", "read_cross_cluster")
-                                            .build(),
-                                        IndicesPrivileges.builder()
-                                            .indices("traces-apm-*")
-                                            .privileges("read", "read_cross_cluster")
-                                            .build(),
-                                        IndicesPrivileges.builder()
-                                            .indices("traces-apm.*")
-                                            .privileges("read", "read_cross_cluster")
-                                            .build() },
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null
-                                )
-                            )
+                        new RoleDescriptor(
+                            RBACEngine.REMOTE_USER_ROLE_NAME,
+                            null,
+                            new IndicesPrivileges[] {
+                                IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
                         )
                     )
                 )
@@ -1906,27 +1886,17 @@ public class RBACEngineTests extends ESTestCase {
                 future.actionGet(),
                 equalTo(
                     new RoleDescriptorsIntersection(
-                        List.of(
-                            Set.of(
-                                new RoleDescriptor(
-                                    RBACEngine.REMOTE_USER_ROLE_NAME,
-                                    null,
-                                    new IndicesPrivileges[] {
-                                        IndicesPrivileges.builder()
-                                            .indices(".monitoring-*")
-                                            .privileges("read", "read_cross_cluster")
-                                            .build(),
-                                        IndicesPrivileges.builder()
-                                            .indices("metricbeat-*")
-                                            .privileges("read", "read_cross_cluster")
-                                            .build() },
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null
-                                )
-                            )
+                        new RoleDescriptor(
+                            RBACEngine.REMOTE_USER_ROLE_NAME,
+                            null,
+                            new IndicesPrivileges[] {
+                                IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("metricbeat-*").privileges("read", "read_cross_cluster").build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
                         )
                     )
                 )

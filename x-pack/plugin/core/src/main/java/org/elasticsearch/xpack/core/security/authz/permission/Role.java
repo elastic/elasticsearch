@@ -351,7 +351,8 @@ public interface Role {
 
         for (RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges : roleDescriptor.getRemoteIndicesPrivileges()) {
             final String[] clusterAliases = remoteIndicesPrivileges.remoteClusters();
-            assert Arrays.equals(new String[] { "*" }, clusterAliases);
+            assert Arrays.equals(new String[] { "*" }, clusterAliases)
+                : "reserved role should not define remote indices privileges for specific clusters";
             final RoleDescriptor.IndicesPrivileges indicesPrivileges = remoteIndicesPrivileges.indicesPrivileges();
             builder.addRemoteGroup(
                 Set.of(clusterAliases),

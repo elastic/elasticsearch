@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.AbstractHttpServerTransport;
@@ -54,6 +55,7 @@ import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
@@ -165,7 +167,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Tracer tracer,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate
-
     ) {
         super(
             settings,
@@ -325,6 +326,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             super.onException(channel, cause);
         }
     }
+
+    @Override
+    protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {}
 
     public ChannelHandler configureServerChannelHandler() {
         return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, headerValidator);

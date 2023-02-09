@@ -789,6 +789,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 networkService,
                 restController,
+                restController::populateRequestThreadContext,
                 clusterService.getClusterSettings(),
                 tracer
             );

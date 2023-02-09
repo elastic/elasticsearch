@@ -25,6 +25,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -76,6 +78,7 @@ public interface NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {

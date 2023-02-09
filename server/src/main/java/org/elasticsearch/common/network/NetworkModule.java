@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -47,6 +48,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -122,6 +125,7 @@ public final class NetworkModule {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -136,6 +140,7 @@ public final class NetworkModule {
                 xContentRegistry,
                 networkService,
                 dispatcher,
+                dispatcherContext,
                 clusterSettings,
                 tracer
             );

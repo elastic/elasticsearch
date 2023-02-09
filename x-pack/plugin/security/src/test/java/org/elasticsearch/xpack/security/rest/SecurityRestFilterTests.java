@@ -79,7 +79,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService);
-        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler);
     }
 
     public void testProcess() throws Exception {
@@ -142,7 +142,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(false, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(false, threadContext, authcService, secondaryAuthenticator, restHandler);
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
@@ -150,7 +150,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessAuthenticationFailedNoTrace() throws Exception {
-        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler);
         testProcessAuthenticationFailed(
             randomBoolean()
                 ? authenticationError("failed authn")
@@ -266,7 +266,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(AuthenticationTestHelper.builder().realmRef(new RealmRef("test", "test", "t")).build(false));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), anyActionListener());
-        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler);
 
         filter.handleRequest(restRequest, channel, null);
 

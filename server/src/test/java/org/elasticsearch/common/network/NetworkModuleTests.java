@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ESTestCase {
@@ -120,6 +122,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
+                BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -166,6 +169,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
+                BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -210,6 +214,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
+                BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -293,6 +298,7 @@ public class NetworkModuleTests extends ESTestCase {
             xContentRegistry(),
             null,
             new NullDispatcher(),
+            (requestHeaders, threadContext) -> {},
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             Tracer.NOOP
         );

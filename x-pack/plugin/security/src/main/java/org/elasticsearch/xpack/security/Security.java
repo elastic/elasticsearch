@@ -74,6 +74,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -280,6 +281,7 @@ import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
+import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
@@ -340,6 +342,7 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.RemoteClusterAuthorizationResolver;
+import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -1559,6 +1562,7 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -1582,8 +1586,9 @@ public class Security extends Plugin
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
         httpTransports.put(SecurityField.NAME4, () -> {
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
-            SSLService sslService = getSslService();
+            final SSLService sslService = getSslService();
             final SslConfiguration sslConfiguration;
+            final BiConsumer<RestRequest, ThreadContext> populateClientCertificate;
             if (ssl) {
                 sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
@@ -1592,8 +1597,16 @@ public class Security extends Plugin
                             + "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting"
                     );
                 }
+                if (SSLService.isSSLClientAuthEnabled(sslConfiguration)) {
+                    populateClientCertificate = (restRequest, threadContext) -> {
+                        SSLEngineUtils.extractClientCertificates(logger, threadContext, restRequest.getHttpChannel());
+                    };
+                } else {
+                    populateClientCertificate = (restRequest, threadContext) -> {};
+                }
             } else {
                 sslConfiguration = null;
+                populateClientCertificate = (restRequest, threadContext) -> {};
             }
             return new Netty4HttpServerTransport(
                 settings,
@@ -1606,28 +1619,21 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate
-            );
+            ) {
+                @Override
+                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    dispatcherContext.accept(restRequest::getAllHeaderValues, threadContext);
+                    populateClientCertificate.accept(restRequest, threadContext);
+                    RemoteHostHeader.process(restRequest, threadContext);
+                }
+            };
         });
         return httpTransports;
     }
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        final boolean extractClientCertificate;
-        if (enabled && HTTP_SSL_ENABLED.get(settings)) {
-            final SslConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-            extractClientCertificate = SSLService.isSSLClientAuthEnabled(httpSSLConfig);
-        } else {
-            extractClientCertificate = false;
-        }
-        return handler -> new SecurityRestFilter(
-            enabled,
-            threadContext,
-            authcService.get(),
-            secondayAuthc.get(),
-            handler,
-            extractClientCertificate
-        );
+        return handler -> new SecurityRestFilter(enabled, threadContext, authcService.get(), secondayAuthc.get(), handler);
     }
 
     @Override

@@ -12,23 +12,17 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -101,7 +95,6 @@ public class RestControllerTests extends ESTestCase {
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
         tracer = mock(Tracer.class);
         restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracer);
@@ -115,7 +108,6 @@ public class RestControllerTests extends ESTestCase {
             new Route(GET, "/error"),
             (request, channel, client) -> { throw new IllegalArgumentException("test error"); }
         );
-        httpServerTransport.start();
     }
 
     @After
@@ -134,8 +126,7 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.2", Collections.singletonList("true"));
         restHeaders.put("header.3", Collections.singletonList("false"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
-        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        restController.populateRequestThreadContext(fakeRequest::getAllHeaderValues, threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
         assertEquals("true", threadContext.getHeader("header.1"));
@@ -205,9 +196,8 @@ public class RestControllerTests extends ESTestCase {
         final String traceParentValue = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
 
-        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        restController.populateRequestThreadContext(fakeRequest::getAllHeaderValues, threadContext);
 
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
@@ -315,7 +305,6 @@ public class RestControllerTests extends ESTestCase {
         AtomicBoolean handlerCalled = new AtomicBoolean(false);
         AtomicBoolean wrapperCalled = new AtomicBoolean(false);
         final RestHandler handler = (RestRequest request, RestChannel channel, NodeClient client) -> handlerCalled.set(true);
-        final HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         final RestController restController = new RestController(Collections.emptySet(), h -> {
             assertSame(handler, h);
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
@@ -324,7 +313,6 @@ public class RestControllerTests extends ESTestCase {
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        httpServerTransport.start();
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());
     }
@@ -950,36 +938,6 @@ public class RestControllerTests extends ESTestCase {
                 );
             });
             assertThat(iae.getMessage(), containsString("path [" + path + "] is a reserved path and may not be registered"));
-        }
-    }
-
-    private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
-
-        TestHttpServerTransport() {}
-
-        @Override
-        protected void doStart() {}
-
-        @Override
-        protected void doStop() {}
-
-        @Override
-        protected void doClose() {}
-
-        @Override
-        public BoundTransportAddress boundAddress() {
-            TransportAddress transportAddress = buildNewFakeTransportAddress();
-            return new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress);
-        }
-
-        @Override
-        public HttpInfo info() {
-            return null;
-        }
-
-        @Override
-        public HttpStats stats() {
-            return null;
         }
     }
 

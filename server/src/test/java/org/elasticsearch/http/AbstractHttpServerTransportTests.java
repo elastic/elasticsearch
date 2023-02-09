@@ -182,6 +182,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
+                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+
+                }
+
+                @Override
                 public HttpStats stats() {
                     return null;
                 }
@@ -297,6 +302,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             protected void stopInternal() {}
 
             @Override
+            protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+
+            }
+
+            @Override
             public HttpStats stats() {
                 return null;
             }
@@ -348,6 +358,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void stopInternal() {
+
+                }
+
+                @Override
+                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
 
                 }
 
@@ -508,6 +523,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
+                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+
+                }
+
+                @Override
                 public HttpStats stats() {
                     return null;
                 }
@@ -560,6 +580,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void stopInternal() {}
+
+                @Override
+                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+
+                }
             }
         ) {
 
@@ -636,6 +661,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void stopInternal() {}
+
+                @Override
+                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+
+                }
             }
         ) {
 

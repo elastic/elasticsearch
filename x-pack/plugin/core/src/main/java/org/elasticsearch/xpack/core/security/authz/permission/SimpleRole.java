@@ -210,7 +210,7 @@ public class SimpleRole implements Role {
             final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
                 .getFieldPermissionsDefinitions();
             assert fieldPermissionsDefinitions.size() == 1
-                : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
+                : "a simple role can only have up to one field permissions definition per remote indices privilege";
             final FieldPermissionsDefinition definition = fieldPermissionsDefinitions.get(0);
             return definition.getFieldGrantExcludeGroups();
         } else {

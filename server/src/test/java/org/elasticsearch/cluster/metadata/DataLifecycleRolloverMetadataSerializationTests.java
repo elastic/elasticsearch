@@ -48,7 +48,7 @@ public class DataLifecycleRolloverMetadataSerializationTests extends AbstractXCo
         switch (randomIntBetween(0, 2)) {
             case 0 -> maxAge = TimeValue.timeValueMillis((maxAge == null ? 0 : maxAge.millis()) + randomMillisUpToYear9999());
             case 1 -> maxPrimaryShardSize = ByteSizeValue.ofGb(
-                (maxPrimaryShardSize == null ? 0 : maxPrimaryShardSize.getBytes()) + randomIntBetween(1, 100)
+                (maxPrimaryShardSize == null ? 0 : maxPrimaryShardSize.getGb()) + randomIntBetween(1, 100)
             );
             default -> minDocs += randomIntBetween(1, 1000);
         }

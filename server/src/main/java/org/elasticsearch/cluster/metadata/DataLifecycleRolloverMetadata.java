@@ -56,7 +56,7 @@ public class DataLifecycleRolloverMetadata implements SimpleDiffable<DataLifecyc
             ConstructingObjectParser.constructorArg(),
             (p, c) -> p.longValue(),
             MIN_DOCS_FIELD,
-            ObjectParser.ValueType.STRING_OR_NULL
+            ObjectParser.ValueType.LONG
         );
     }
 
@@ -76,7 +76,7 @@ public class DataLifecycleRolloverMetadata implements SimpleDiffable<DataLifecyc
                     + " set."
             );
         }
-        if (minDocs == null || minDocs > 0) {
+        if (minDocs == null || minDocs <= 0) {
             throw new IllegalArgumentException(MIN_DOCS_FIELD.getPreferredName() + " needs to be greater than 0.");
 
         }
@@ -128,7 +128,7 @@ public class DataLifecycleRolloverMetadata implements SimpleDiffable<DataLifecyc
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(maxAge);
-        out.writeOptionalString(maxPrimaryShardSize.getStringRep());
+        out.writeOptionalString(maxPrimaryShardSize == null ? null : maxPrimaryShardSize.getStringRep());
         out.writeVLong(minDocs);
     }
 

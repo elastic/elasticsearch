@@ -10,7 +10,7 @@ There are two ways to create a plugin, depending on the type of plugin you wish
 to create:
 
 <<creating-text-analysis-plugins>>::
-Text analysis plugins provide Elasticsearch with custom Lucene analyzers, token
+Text analysis plugins provide {es} with custom Lucene analyzers, token
 filters, character filters, and tokenizers.
 
 <<creating-non-text-analysis-plugins>>::

@@ -211,10 +211,10 @@ sudo bin/elasticsearch-plugin remove [pluginname] [pluginname] ... [pluginname]
 [discrete]
 === Updating plugins
 
-Apart from text analysis plugins that have been created using the method
+Except for text analysis plugins that are created using the method
 outlined in <<creating-text-analysis-plugins>>, plugins are built for a specific
-version of Elasticsearch, and therefore must be reinstalled each time
-Elasticsearch is updated.
+version of {es}, and must be reinstalled each time
+{es} is updated.
 
 [source,shell]
 -----------------------------------

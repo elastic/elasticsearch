@@ -10,7 +10,7 @@ easier to develop and package plugins. The steps in this guide assume you use
 this plugin. However, you don't need Gradle to create plugins.
 
 . Create a new directory for your project.
-. In this example, the source code  will be organized under the `main` and 
+. In this example, the source code is organized under the `main` and 
 `test` directories. In your project's home directory, create `src/` `src/main/`,
 and `src/test/` directories.
 . Create the following `build.gradle` build script in your project's home 

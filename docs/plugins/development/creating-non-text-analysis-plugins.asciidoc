@@ -42,12 +42,12 @@ listed in this documentation for inspiration.
 [discrete]
 ==== Testing your plugin
 
-When testing a Java plugin, it will only be auto-loaded if it is in the
-`plugins/` directory. Use `bin/elasticsearch-plugin install file:///path/to/your/plugin`
-to install your plugin for testing.
+Use `bin/elasticsearch-plugin install file:///path/to/your/plugin`
+to install your plugin for testing. The Java plugin is auto-loaded only if it's in the
+`plugins/` directory.
 
 You may also load your plugin within the test framework for integration tests.
-Read more in {ref}/integration-tests.html#changing-node-configuration[Changing Node Configuration].
+Check {ref}/integration-tests.html#changing-node-configuration[Changing Node Configuration] for more information.
 
 [discrete]
 [[plugin-authors-jsm]]
@@ -60,13 +60,13 @@ with a large warning, and they will have to confirm them when installing the
 plugin interactively. So if possible, it is best to avoid requesting any
 spurious permissions!
 
-If you are using the Elasticsearch Gradle build system, place this file in
+If you are using the {es} Gradle build system, place this file in
 `src/main/plugin-metadata` and it will be applied during unit tests as well.
 
-Keep in mind that the Java security model is stack-based, and the additional
-permissions will only be granted to the jars in your plugin, so you will have
+The Java security model is stack-based, and additional
+permissions are granted to the jars in your plugin, so you have to
 write proper security code around operations requiring elevated privileges.
-It is recommended to add a check to prevent unprivileged code (such as scripts)
+You might add a check to prevent unprivileged code (such as scripts)
 from gaining escalated permissions. For example:
 
 [source,java]
@@ -84,7 +84,7 @@ AccessController.doPrivileged(
 );
 --------------------------------------------------
 
-See https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
+Check https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
 for more information.
 
 [[plugin-descriptor-file-other]]

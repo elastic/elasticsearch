@@ -37,9 +37,9 @@ configurations. For example, the keyword analyzer is referenced in configuration
 with the name `"keyword"`. Once your custom plugin is installed in your cluster,
 your named components may be referenced by name in these configurations as well.
 
-It's also possible to create text analysis plugins using the method described in
+You can also create text analysis plugins using the method described in
 <<creating-non-text-analysis-plugins>>. However, plugins created using that 
-method are pinned to a specific version of {es}. You will need to recompile them
+method are pinned to a specific version of {es}. You need to recompile them
 when upgrading {es}.
 
 [discrete]
@@ -59,7 +59,7 @@ for the plugin. If you need other resources, package them into a resources JAR.
 ==== Development process
 
 Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it
-easier to develop and package plugins. The steps below assume you use this 
+easier to develop and package plugins. The steps in this section assume you use this 
 plugin. However, you don't need Gradle to create plugins.
 
 The {es} Github repository contains
@@ -106,7 +106,7 @@ runtime.
 ----
 gradle bundlePlugin
 ----
-The resulting plugin ZIP file will be written to the  `build/distributions` 
+The resulting plugin ZIP file is written to the  `build/distributions` 
 directory.
 
 [discrete]

@@ -139,7 +139,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return "favicon";
             }
         });
-        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(client.settings());
+        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(client == null ? Settings.EMPTY : client.settings());
     }
 
     private Map<String, String> createHandlerToProtectionLevelMap(Settings serverlessApiMappings) {
@@ -406,13 +406,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             boolean internalRequest = internalOrigin != null;
             String protectionLevel = handlerToProtectionLevelMap.get(handlerName);
             if (protectionLevel == null) {
-                responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+                handleBadRequest(request.uri(), request.method(), responseChannel);
             } else if (protectionLevel.equals("internal")) {
                 if (internalRequest == false) {
-                    responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+                    handleBadRequest(request.uri(), request.method(), responseChannel);
                 }
             } else if (protectionLevel.equals("public") == false) {
-                responseChannel.sendResponse(new RestResponse(RestStatus.NOT_FOUND, ""));
+                handleBadRequest(request.uri(), request.method(), responseChannel);
             }
         }
         try {

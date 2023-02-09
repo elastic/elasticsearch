@@ -14,12 +14,14 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryCollectorContext;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -31,15 +33,22 @@ import java.util.List;
 
 public class RRFRankContext implements RankContext {
 
-    public static class RRFRankCollector implements Collector {
+    public static class RRFRankCollector extends RankCollector {
 
         private final List<TopDocsCollector<?>> topDocsCollectors = new ArrayList<>();
 
-        public RRFRankCollector(int windowSize, SearchContext searchContext) {
+        private List<LeafCollector> leafCollectors;
+        private List<Scorable> scorables;
+
+        public RRFRankCollector(Collector childCollector, int windowSize, SearchContext searchContext) {
+            super(childCollector);
+
             assert searchContext.query() instanceof BooleanQuery;
             BooleanQuery booleanQuery = (BooleanQuery) searchContext.query();
+
             for (BooleanClause booleanClause : booleanQuery.clauses()) {
                 assert booleanClause.getOccur() == BooleanClause.Occur.SHOULD;
+
                 SortAndFormats sortAndFormats = searchContext.sort();
                 FieldDoc searchAfter = searchContext.searchAfter();
                 if (searchContext.sort() == null) {
@@ -51,43 +60,42 @@ public class RRFRankContext implements RankContext {
         }
 
         @Override
-        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-            List<LeafCollector> leafCollectors = new ArrayList<>();
-            for (TopDocsCollector<?> topDocsCollector : topDocsCollectors) {
-                leafCollectors.add(topDocsCollector.getLeafCollector(context));
-            }
-
-            return new LeafCollector() {
-
-                private List<Scorable> scorables;
-
-                @Override
-                public void setScorer(Scorable scorer) throws IOException {
-                    assert scorer.getChildren().size() == leafCollectors.size();
-                    scorables = scorer.getChildren().stream().map(sc -> sc.child).toList();
-
-                    int index = 0;
-                    for (Scorable scorable : scorables) {
-                        leafCollectors.get(index++).setScorer(scorable);
-                    }
-                }
-
-                @Override
-                public void collect(int doc) throws IOException {
-                    int index = 0;
-                    for (Scorable scorable : scorables) {
-                        if (scorable.docID() == doc) {
-                            leafCollectors.get(index).collect(doc);
-                        }
-                        ++index;
-                    }
-                }
-            };
+        public ScoreMode scoreMode() {
+            // TODO: make this work with child collector
+            return ScoreMode.COMPLETE;
         }
 
         @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.TOP_SCORES;
+        public void setNextReader(LeafReaderContext context) throws IOException {
+            leafCollectors = new ArrayList<>();
+            for (TopDocsCollector<?> topDocsCollector : topDocsCollectors) {
+                leafCollectors.add(topDocsCollector.getLeafCollector(context));
+            }
+        }
+
+        public void doSetWeight(Weight weight) {
+
+        }
+
+        @Override
+        public void doSetScorer(Scorable scorable) throws IOException {
+            scorables = scorable.getChildren().stream().map(sc -> sc.child).toList();
+
+            int index = 0;
+            for (Scorable child : scorables) {
+                leafCollectors.get(index++).setScorer(child);
+            }
+        }
+
+        @Override
+        public void doCollect(int doc) throws IOException {
+            int index = 0;
+            for (Scorable scorable : scorables) {
+                if (scorable.docID() == doc) {
+                    leafCollectors.get(index).collect(doc);
+                }
+                ++index;
+            }
         }
     }
 
@@ -100,14 +108,14 @@ public class RRFRankContext implements RankContext {
     }
 
     @Override
-    public QueryCollectorContext createRankContextCollector(SearchContext searchContext) {
+    public QueryCollectorContext createQueryCollectorContext(SearchContext searchContext) {
         return new QueryCollectorContext("rrf") {
 
             RRFRankCollector rrfRankCollector;
 
             @Override
             public Collector create(Collector in) throws IOException {
-                rrfRankCollector = new RRFRankCollector(windowSize, searchContext);
+                rrfRankCollector = new RRFRankCollector(in, windowSize, searchContext);
                 return rrfRankCollector;
             }
 
@@ -117,7 +125,7 @@ public class RRFRankContext implements RankContext {
                 for (TopDocsCollector<?> topDocsCollector : rrfRankCollector.topDocsCollectors) {
                     topDocs.add(topDocsCollector.topDocs());
                 }
-                //if (true) throw new IllegalArgumentException(topDocs + "");
+                result.setRankResultContext(new RRFRankShardResult(topDocs));
             }
         };
     }

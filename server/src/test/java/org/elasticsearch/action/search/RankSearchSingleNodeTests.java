@@ -11,10 +11,8 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.rank.RRFRankBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,7 +21,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 
-public class RerankSearchSingleNodeTests extends ESSingleNodeTestCase {
+public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSimpleRRFRerank() throws IOException {
         int numShards = 1;// + randomInt(3);
@@ -55,12 +53,12 @@ public class RerankSearchSingleNodeTests extends ESSingleNodeTestCase {
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50);
         SearchResponse response = client().prepareSearch("index")
             .setRank(new RankBuilder().toRankContext(new RRFRankBuilder().windowSize(100).rankConstant(1)))
-            .setTrackTotalHits(false)
+            //.setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(5))
             //.addSort("int", SortOrder.ASC)
             //.addFetchField("*")
-            //.setSize(10)
+            .setSize(10)
             //.addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
             .get();
 

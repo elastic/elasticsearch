@@ -13,5 +13,7 @@ import org.elasticsearch.search.query.QueryCollectorContext;
 
 public interface RankContext {
 
-    public QueryCollectorContext createRankContextCollector(SearchContext searchContext);
+    public QueryCollectorContext createQueryCollectorContext(SearchContext searchContext);
+
+
 }

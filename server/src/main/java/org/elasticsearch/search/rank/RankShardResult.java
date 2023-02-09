@@ -14,10 +14,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public abstract class RankResultContext implements Writeable {
+public abstract class RankShardResult implements Writeable {
 
-    public static RankResultContext readFrom(StreamInput in) throws IOException {
+    public static RankShardResult readFrom(StreamInput in) throws IOException {
         String name = in.readString();
+
+        if (RRFRankBuilder.RANK_NAME.getPreferredName().equals(name)) {
+            return new RRFRankShardResult(in);
+        }
 
         return null;
     }

@@ -26,7 +26,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
-import org.elasticsearch.search.rank.RankResultContext;
+import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
     private boolean hasScoreDocs;
-    private RankResultContext rankResultContext;
+    private RankShardResult rankShardResult;
     private TotalHits totalHits;
     private float maxScore = Float.NaN;
     private DocValueFormat[] sortValueFormats;
@@ -188,12 +188,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
     }
 
-    public void setRankResultContext(RankResultContext rankResultContext) {
-        this.rankResultContext = rankResultContext;
+    public void setRankResultContext(RankShardResult rankShardResult) {
+        this.rankShardResult = rankShardResult;
     }
 
-    public RankResultContext getRankResultContext() {
-        return rankResultContext;
+    public RankShardResult getRankResultContext() {
+        return rankShardResult;
     }
 
     public DocValueFormat[] sortValueFormats() {
@@ -384,7 +384,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 setRescoreDocIds(new RescoreDocIds(in));
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                rankResultContext = RankResultContext.readFrom(in);
+                rankShardResult = RankShardResult.readFrom(in);
             }
             success = true;
         } finally {
@@ -439,7 +439,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             getRescoreDocIds().writeTo(out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-            out.writeOptionalWriteable(rankResultContext);
+            out.writeOptionalWriteable(rankShardResult);
         }
     }
 

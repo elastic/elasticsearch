@@ -129,6 +129,10 @@ public class QueryPhase {
             }
 
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+            if (searchContext.rankContext() != null) {
+                // add in the rank collector just before top docs
+                collectors.add(searchContext.rankContext().createQueryCollectorContext(searchContext));
+            }
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
@@ -146,9 +150,6 @@ public class QueryPhase {
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
-            }
-            if (searchContext.rankContext() != null) {
-                collectors.add(searchContext.rankContext().createRankContextCollector(searchContext));
             }
 
             boolean timeoutSet = scrollContext == null

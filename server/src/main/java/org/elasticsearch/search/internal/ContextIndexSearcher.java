@@ -223,7 +223,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return new Weight(weight.getQuery()) {
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                    throw new UnsupportedOperationException();
+                    return weight.explain(context, doc);
+                    //throw new UnsupportedOperationException();
                 }
 
                 @Override

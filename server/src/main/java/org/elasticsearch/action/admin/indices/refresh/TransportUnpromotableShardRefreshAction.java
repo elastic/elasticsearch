@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
 import org.elasticsearch.client.internal.Client;

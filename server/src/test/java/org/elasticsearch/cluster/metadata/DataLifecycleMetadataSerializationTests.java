@@ -15,30 +15,30 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DataStreamLifecycleMetadataSerializationTests extends AbstractXContentSerializingTestCase<DataStreamLifecycleMetadata> {
+public class DataLifecycleMetadataSerializationTests extends AbstractXContentSerializingTestCase<DataLifecycleMetadata> {
 
     @Override
-    protected Writeable.Reader<DataStreamLifecycleMetadata> instanceReader() {
-        return DataStreamLifecycleMetadata::new;
+    protected Writeable.Reader<DataLifecycleMetadata> instanceReader() {
+        return DataLifecycleMetadata::new;
     }
 
     @Override
-    protected DataStreamLifecycleMetadata createTestInstance() {
+    protected DataLifecycleMetadata createTestInstance() {
         if (rarely()) {
-            return new DataStreamLifecycleMetadata();
+            return new DataLifecycleMetadata();
         } else {
-            return new DataStreamLifecycleMetadata(new TimeValue(randomMillisUpToYear9999()));
+            return new DataLifecycleMetadata(new TimeValue(randomMillisUpToYear9999()));
         }
     }
 
     @Override
-    protected DataStreamLifecycleMetadata mutateInstance(DataStreamLifecycleMetadata instance) throws IOException {
+    protected DataLifecycleMetadata mutateInstance(DataLifecycleMetadata instance) throws IOException {
         // TODO do this better when we add the rollover config
         return createTestInstance();
     }
 
     @Override
-    protected DataStreamLifecycleMetadata doParseInstance(XContentParser parser) throws IOException {
-        return DataStreamLifecycleMetadata.fromXContent(parser);
+    protected DataLifecycleMetadata doParseInstance(XContentParser parser) throws IOException {
+        return DataLifecycleMetadata.fromXContent(parser);
     }
 }

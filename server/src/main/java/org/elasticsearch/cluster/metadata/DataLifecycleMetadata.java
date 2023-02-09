@@ -28,16 +28,16 @@ import java.util.Objects;
 /**
  * Holds the Data Lifecycle metadata that configure a data stream.
  */
-public class DataStreamLifecycleMetadata implements SimpleDiffable<DataStreamLifecycleMetadata>, ToXContentFragment {
+public class DataLifecycleMetadata implements SimpleDiffable<DataLifecycleMetadata>, ToXContentFragment {
 
-    public static final DataStreamLifecycleMetadata EMPTY = new DataStreamLifecycleMetadata();
+    public static final DataLifecycleMetadata EMPTY = new DataLifecycleMetadata();
 
     private static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
 
-    private static final ConstructingObjectParser<DataStreamLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<DataLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "data_lifecycle_metadata_parser",
         false,
-        (args, unused) -> new DataStreamLifecycleMetadata((TimeValue) args[0])
+        (args, unused) -> new DataLifecycleMetadata((TimeValue) args[0])
     );
 
     static {
@@ -52,11 +52,11 @@ public class DataStreamLifecycleMetadata implements SimpleDiffable<DataStreamLif
     @Nullable
     private final TimeValue dataRetention;
 
-    public DataStreamLifecycleMetadata() {
+    public DataLifecycleMetadata() {
         this.dataRetention = null;
     }
 
-    public DataStreamLifecycleMetadata(@Nullable TimeValue dataRetention) {
+    public DataLifecycleMetadata(@Nullable TimeValue dataRetention) {
         this.dataRetention = dataRetention;
     }
 
@@ -70,7 +70,7 @@ public class DataStreamLifecycleMetadata implements SimpleDiffable<DataStreamLif
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        final DataStreamLifecycleMetadata that = (DataStreamLifecycleMetadata) o;
+        final DataLifecycleMetadata that = (DataLifecycleMetadata) o;
         return Objects.equals(dataRetention, that.dataRetention);
     }
 
@@ -84,12 +84,12 @@ public class DataStreamLifecycleMetadata implements SimpleDiffable<DataStreamLif
         out.writeOptionalTimeValue(dataRetention);
     }
 
-    public DataStreamLifecycleMetadata(StreamInput in) throws IOException {
+    public DataLifecycleMetadata(StreamInput in) throws IOException {
         dataRetention = in.readOptionalTimeValue();
     }
 
-    public static Diff<DataStreamLifecycleMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(DataStreamLifecycleMetadata::new, in);
+    public static Diff<DataLifecycleMetadata> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(DataLifecycleMetadata::new, in);
     }
 
     @Override
@@ -104,7 +104,7 @@ public class DataStreamLifecycleMetadata implements SimpleDiffable<DataStreamLif
         return builder;
     }
 
-    public static DataStreamLifecycleMetadata fromXContent(XContentParser parser) throws IOException {
+    public static DataLifecycleMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 }

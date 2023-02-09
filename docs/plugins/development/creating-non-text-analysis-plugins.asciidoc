@@ -60,7 +60,7 @@ with a large warning, and they will have to confirm them when installing the
 plugin interactively. So if possible, it is best to avoid requesting any
 spurious permissions!
 
-If you are using the Elasticsearch Gradle build system, place this file in
+If you are using the {es} Gradle build system, place this file in
 `src/main/plugin-metadata` and it will be applied during unit tests as well.
 
 Keep in mind that the Java security model is stack-based, and the additional

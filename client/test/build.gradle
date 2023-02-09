@@ -26,6 +26,7 @@ dependencies {
 
   // mockito
   api 'org.mockito:mockito-core:5.1.1'
+  api 'org.mockito:mockito-subclass:5.1.1'
   api 'net.bytebuddy:byte-buddy:1.12.22'
   api 'org.objenesis:objenesis:3.3'
 }

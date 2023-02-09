@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 import org.mockito.ArgumentCaptor;
@@ -87,6 +88,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -141,6 +143,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -191,6 +194,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -234,6 +238,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         ) {
             @Override
@@ -295,6 +300,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -362,6 +368,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -425,6 +432,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 
@@ -592,6 +600,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
@@ -710,6 +719,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias)
         );
@@ -777,6 +787,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
@@ -889,13 +900,16 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
         assertThat(profileFilters.keySet(), containsInAnyOrder("default", "_remote_cluster"));
         assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
+        assertThat(profileFilters.get("default"), not(instanceOf(RemoteAccessServerTransportFilter.class)));
         assertThat(profileFilters.get("_remote_cluster").isExtractClientCert(), is(false));
+        assertThat(profileFilters.get("_remote_cluster"), instanceOf(RemoteAccessServerTransportFilter.class));
     }
 
     public void testNoProfileFilterForRemoteClusterWhenTheFeatureIsDisabled() {
@@ -931,6 +945,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 

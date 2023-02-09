@@ -136,7 +136,7 @@ public class ReplicationOperation<
             pendingActions.incrementAndGet();
             replicasProxy.onPrimaryOperationComplete(
                 replicaRequest,
-                ActionListener.wrap(ignored -> decPendingAndFinishIfNeeded(), e -> { finishAsFailed(e); })
+                ActionListener.wrap(ignored -> decPendingAndFinishIfNeeded(), this::finishAsFailed)
             );
 
             // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.

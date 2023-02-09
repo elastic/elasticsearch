@@ -71,6 +71,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ThreadPool.Names.REFRESH
         );
         this.client = client;
+        new TransportUnpromotableShardRefreshAction(clusterService, transportService, actionFilters, indicesService, client);
     }
 
     @Override

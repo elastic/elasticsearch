@@ -14,12 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
@@ -90,21 +90,11 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
 
         @Override
         public void messageReceived(Request request, TransportChannel channel, Task task) throws Exception {
-            final ActionListener<ActionResponse.Empty> listener = ActionListener.wrap(channel::sendResponse, e -> {
-                try {
-                    channel.sendResponse(e);
-                } catch (Exception e2) {
-                    logger.warn(
-                        () -> Strings.format(
-                            "Could not send error response for action [%s] and request [%s] on channel [%s]",
-                            actionName,
-                            request,
-                            channel
-                        ),
-                        e2
-                    );
-                }
-            });
+            final ActionListener<ActionResponse.Empty> listener = new ChannelActionListener<>(
+                channel,
+                transportUnpromotableAction,
+                request
+            );
             transportService.getThreadPool().executor(executor).execute(() -> unpromotableShardOperation(task, request, listener));
         }
 

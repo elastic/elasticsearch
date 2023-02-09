@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -38,7 +39,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -47,9 +47,9 @@ import static org.elasticsearch.action.support.replication.ClusterStateCreationU
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
 public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
@@ -263,10 +263,17 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         ShardId wrongShardId = new ShardId(shardId.getIndex(), shardId.getId() + randomIntBetween(10, 100));
         PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
         logger.debug("--> executing for primary shard id: {}", wrongShardId);
-        ActionTestUtils.execute(broadcastUnpromotableAction, null, new TestBroadcastUnpromotableRequest(wrongShardId), response);
-
-        ExecutionException e = expectThrows(ExecutionException.class, () -> response.get());
-        assertThat(e, hasToString(containsString("no such shard")));
+        assertThat(
+            expectThrows(
+                ShardNotFoundException.class,
+                () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
+                    f -> ActionTestUtils.execute(broadcastUnpromotableAction, null, new TestBroadcastUnpromotableRequest(wrongShardId), f),
+                    10,
+                    TimeUnit.SECONDS
+                )
+            ).toString(),
+            allOf(containsString("no such shard"), containsString(wrongShardId.toString()))
+        );
     }
 
 }

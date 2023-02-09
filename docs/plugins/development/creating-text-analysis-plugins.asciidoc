@@ -52,7 +52,7 @@ your named components may be referenced by name in these configurations as well.
 
 You can also create text analysis plugins using the method described in
 <<creating-non-text-analysis-plugins>>. However, plugins created using that 
-method are pinned to a specific version of {es}. You will need to recompile them
+method are pinned to a specific version of {es}. You need to recompile them
 when upgrading {es}.
 
 [discrete]

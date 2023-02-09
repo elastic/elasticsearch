@@ -30,7 +30,7 @@ to include hexagonal tiles, but for `geo_point` only. Now Elasticsearch 8.7.0 wi
 over `geo_shape` as well, which completes the long desired need to perform hexagonal aggregations on spatial data.
 
 [role="screenshot"]
-image::../images/spatial/geogrid_h3_aggregation.png[Kibana map with geohex aggregation inclusing polygons and lines]
+image:images/spatial/geogrid_h3_aggregation.png[Kibana map with geohex aggregation inclusing polygons and lines]
 
 In 2018 [Uber announced they had open sourced their H3 library](https://www.uber.com/en-SE/blog/h3/),
 enabling hexagonal tiling of the planet for much better analytics of their traffic and regional pricing models.
@@ -128,6 +128,10 @@ In this case, the string `4/8/5` does not have spatial meaning, until we interpr
 of a rectangular `geotile`, and save the bounding box defining its border for further use.
 Likewise we can interpret `geohash` strings like `u0` as a tile, and H3 strings like `811fbffffffffff`
 as an hexagonal cell, saving the cell border as a polygon.
+
+
+[role="screenshot"]
+image::images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: cell, children and intersecting non-children]
 
 {es-pull}93370[#93370]
 

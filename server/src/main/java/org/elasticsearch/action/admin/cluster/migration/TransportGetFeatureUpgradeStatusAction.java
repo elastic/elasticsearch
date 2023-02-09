@@ -49,9 +49,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusResponse> {
 
     /**
-     * This version is only valid for >=8.0.0 and should be changed on backport.
+     * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_16_0;
 
     private final SystemIndices systemIndices;
     PersistentTasksService persistentTasksService;

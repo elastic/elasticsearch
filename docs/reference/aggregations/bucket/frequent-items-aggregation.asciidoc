@@ -6,6 +6,8 @@
 
 experimental::[]
 
+IMPORTANT: This aggregation is renamed to `frequent item sets` in 8.7.
+
 A bucket aggregation which finds frequent item sets. It is a form of association 
 rules mining that identifies items that often occur together. Items that are 
 frequently purchased together or log events that tend to co-occur are examples 

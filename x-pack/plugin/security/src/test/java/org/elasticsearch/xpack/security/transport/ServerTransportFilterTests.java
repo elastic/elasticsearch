@@ -28,9 +28,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -87,7 +85,7 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testInbound() {
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq("_action"), eq(request), eq(true), anyActionListener());
         ServerTransportFilter filter = getNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -98,7 +96,7 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testRemoteAccessInbound() {
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
         String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
@@ -120,7 +118,7 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testRemoteAccessInboundInvalidHeadersFail() {
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
         String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
@@ -148,7 +146,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomFrom("*", "_all", "test*")
         );
-        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         ServerTransportFilter filter = randomBoolean() ? getNodeFilter() : getNodeRemoteAccessFilter();
         @SuppressWarnings("unchecked")
@@ -230,7 +228,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         boolean remoteAccess = randomBoolean();
         ServerTransportFilter filter = remoteAccess ? getNodeRemoteAccessFilter() : getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = AuthenticationTestHelper.builder().internal(XPackUser.INSTANCE).build();
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         String action = SearchAction.NAME;
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());

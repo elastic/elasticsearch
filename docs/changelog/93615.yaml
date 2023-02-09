@@ -1,0 +1,5 @@
+pr: 93615
+summary: Exclude unsearchable shards in search/get API
+area: Search
+type: enhancement
+issues: []

@@ -10,7 +10,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
@@ -18,25 +19,25 @@ import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.supercsv.io.CsvListReader;
-import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
+import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvValues;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
-    private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
-
+    private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
     private final String testName;
@@ -60,8 +61,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(DataLoader.TEST_INDEX_SIMPLE) == false) {
-            DataLoader.loadDatasetIntoEs(client(), this::createParser);
+        if (indexExists(TEST_INDEX_SIMPLE) == false) {
+            loadDataSetIntoEs(client());
         }
     }
 
@@ -79,7 +80,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeFalse("Test " + testName + " is not enabled", testName.endsWith("-Ignore"));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
@@ -89,41 +90,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
         Map<String, Object> answer = runEsql(builder.query(testCase.query).build());
-
-        var expectedColumnsWithValues = expectedColumnsWithValues(testCase.expectedResults);
+        var expectedColumnsWithValues = loadCsvValues(testCase.expectedResults);
 
         assertNotNull(answer.get("columns"));
         @SuppressWarnings("unchecked")
-        List<Map<String, String>> actualColumns = (List<Map<String, String>>) answer.get("columns");
-        assertColumns(expectedColumnsWithValues.v1(), actualColumns);
+        var actualColumns = (List<Map<String, String>>) answer.get("columns");
+        assertMetadata(expectedColumnsWithValues, actualColumns, LOGGER);
 
         assertNotNull(answer.get("values"));
         @SuppressWarnings("unchecked")
         List<List<Object>> actualValues = (List<List<Object>>) answer.get("values");
-        assertValues(expectedColumnsWithValues.v2(), actualValues);
-    }
-
-    private void assertColumns(List<Tuple<String, String>> expectedColumns, List<Map<String, String>> actualColumns) {
-        assertEquals("Unexpected number of columns in " + actualColumns, expectedColumns.size(), actualColumns.size());
-
-        for (int i = 0; i < expectedColumns.size(); i++) {
-            assertEquals(expectedColumns.get(i).v1(), actualColumns.get(i).get("name"));
-            String expectedType = expectedColumns.get(i).v2();
-            if (expectedType != null) {
-                assertEquals("incorrect type for [" + expectedColumns.get(i).v1() + "]", expectedType, actualColumns.get(i).get("type"));
-            }
-        }
-    }
-
-    private void assertValues(List<List<String>> expectedValues, List<List<Object>> actualValues) {
-        assertEquals("Unexpected number of columns in " + actualValues, expectedValues.size(), actualValues.size());
-
-        for (int i = 0; i < expectedValues.size(); i++) {
-            assertEquals(
-                expectedValues.get(i),
-                actualValues.get(i).stream().map(o -> { return o == null ? "null" : o.toString(); }).toList()
-            );
-        }
+        assertData(expectedColumnsWithValues, actualValues, LOGGER, value -> value == null ? "null" : value.toString());
     }
 
     private Throwable reworkException(Throwable th) {
@@ -134,29 +111,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         th.setStackTrace(redone);
         return th;
-    }
-
-    private Tuple<List<Tuple<String, String>>, List<List<String>>> expectedColumnsWithValues(String csv) {
-        try (CsvListReader listReader = new CsvListReader(new StringReader(csv), CSV_SPEC_PREFERENCES)) {
-            String[] header = listReader.getHeader(true);
-            List<Tuple<String, String>> columns = Arrays.stream(header).map(c -> {
-                String[] nameWithType = c.split(":");
-                String name = nameWithType[0].trim();
-                String type = nameWithType.length > 1 ? nameWithType[1].trim() : null;
-                return Tuple.tuple(name, type);
-            }).toList();
-
-            List<List<String>> values = new LinkedList<>();
-
-            List<String> row;
-            while ((row = listReader.read()) != null) {
-                values.add(row.stream().map(String::trim).toList());
-            }
-
-            return Tuple.tuple(columns, values);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override

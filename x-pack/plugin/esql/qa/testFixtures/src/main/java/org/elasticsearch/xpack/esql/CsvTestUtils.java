@@ -38,14 +38,18 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat.DEFAULT_DATE_FORMATTER;
+import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-final class CsvTestUtils {
+public final class CsvTestUtils {
     private static final int MAX_WIDTH = 20;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
 
     private CsvTestUtils() {}
+
+    public static boolean isEnabled(String testName) {
+        return testName.endsWith("-Ignore") == false;
+    }
 
     public static Tuple<Page, List<String>> loadPage(URL source) throws Exception {
 
@@ -222,9 +226,9 @@ final class CsvTestUtils {
         throw new IllegalArgumentException("unsupported type " + type);
     }
 
-    record ExpectedResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
+    public record ExpectedResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
 
-    static ExpectedResults loadCsvValues(String csv) {
+    public static ExpectedResults loadCsvValues(String csv) {
         List<String> columnNames;
         List<Type> columnTypes;
 
@@ -282,7 +286,7 @@ final class CsvTestUtils {
         SCALED_FLOAT(Double::parseDouble),
         KEYWORD(Object::toString),
         NULL(s -> null),
-        DATETIME(x -> x == null ? null : DateFormatters.from(DEFAULT_DATE_FORMATTER.parse(x)).toInstant().toEpochMilli()),
+        DATETIME(x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli()),
         BOOLEAN(Booleans::parseBoolean);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
@@ -339,22 +343,19 @@ final class CsvTestUtils {
         }
     }
 
-    static void logMetaData(ActualResults actual, Logger logger) {
-        var names = actual.columnNames();
-        var types = actual.columnTypes();
-
+    static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
 
-        for (int i = 0; i < names.size(); i++) {
+        for (int i = 0; i < actualColumnNames.size(); i++) {
             if (i > 0) {
                 sb.append(" | ");
             }
             column.setLength(0);
-            column.append(names.get(i));
+            column.append(actualColumnNames.get(i));
             column.append("(");
-            column.append(types.get(i));
+            column.append(actualColumnTypes.get(i));
             column.append(")");
 
             sb.append(trimOrPad(column));

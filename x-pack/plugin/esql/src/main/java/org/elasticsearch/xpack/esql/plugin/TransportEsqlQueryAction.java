@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -43,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
@@ -128,7 +128,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     }
                     if (dataTypes.get(b) == DataTypes.DATETIME) {
                         long longVal = ((LongBlock) block).getLong(p);
-                        row.add(DateFormat.DEFAULT_DATE_FORMATTER.formatMillis(longVal));
+                        row.add(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
                         continue;
                     }
                     if (dataTypes.get(b) == DataTypes.BOOLEAN) {

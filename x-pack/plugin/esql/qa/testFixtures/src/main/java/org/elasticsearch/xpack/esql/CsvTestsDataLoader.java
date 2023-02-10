@@ -8,6 +8,10 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -32,6 +36,7 @@ import org.elasticsearch.xpack.ql.TestUtils;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,16 +49,59 @@ public class CsvTestsDataLoader {
     public static final String MAPPING = "mapping-default.json";
     public static final String DATA = "employees.csv";
 
+    /**
+     * <p>
+     * Loads spec data on a local ES server.
+     * </p>
+     * <p>
+     * Accepts an URL as first argument, eg. http://localhost:9200 or http://user:pass@localhost:9200
+     *</p>
+     * <p>
+     * If no arguments are specified, the default URL is http://localhost:9200 without authentication
+     * </p>
+     * <p>
+     * It also supports HTTPS
+     * </p>
+     * @param args the URL to connect
+     * @throws IOException
+     */
     public static void main(String[] args) throws IOException {
-        String protocol = "http";
-        String host = "localhost";
-        int port = 9200;
-
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
 
+        String protocol = "http";
+        String host = "localhost";
+        int port = 9200;
+        String username = null;
+        String password = null;
+        if (args.length > 0) {
+            URL url = URI.create(args[0]).toURL();
+            protocol = url.getProtocol();
+            host = url.getHost();
+            port = url.getPort();
+            if (port < 0 || port > 65535) {
+                throw new IllegalArgumentException("Please specify a valid port [0 - 65535], found [" + port + "]");
+            }
+            String userInfo = url.getUserInfo();
+            if (userInfo != null) {
+                if (userInfo.contains(":") == false || userInfo.split(":").length != 2) {
+                    throw new IllegalArgumentException("Invalid user credentials [username:password], found [" + userInfo + "]");
+                }
+                String[] userPw = userInfo.split(":");
+                username = userPw[0];
+                password = userPw[1];
+            }
+        }
         RestClientBuilder builder = RestClient.builder(new HttpHost(host, port, protocol));
+        if (username != null) {
+            CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
+            builder = builder.setHttpClientConfigCallback(
+                httpClientBuilder -> httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider)
+            );
+        }
+
         try (RestClient client = builder.build()) {
             loadDataSetIntoEs(client);
         }

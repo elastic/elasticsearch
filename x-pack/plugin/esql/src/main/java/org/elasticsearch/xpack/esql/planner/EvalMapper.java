@@ -37,6 +37,8 @@ import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+
 final class EvalMapper {
 
     abstract static class ExpressionMapper<E extends Expression> {
@@ -316,7 +318,7 @@ final class EvalMapper {
             ExpressionEvaluator fieldEvaluator = toEvaluator(df.field(), layout);
             Expression format = df.format();
             if (format == null) {
-                return new ConstantDateFormatEvaluator(fieldEvaluator, DateFormat.DEFAULT_DATE_FORMATTER);
+                return new ConstantDateFormatEvaluator(fieldEvaluator, UTC_DATE_TIME_FORMATTER);
             }
             if (format.dataType() != DataTypes.KEYWORD) {
                 throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
@@ -328,7 +330,7 @@ final class EvalMapper {
         }
 
         private static DateFormatter toFormatter(Object format) {
-            return format == null ? DateFormat.DEFAULT_DATE_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
+            return format == null ? UTC_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
         }
     }
 

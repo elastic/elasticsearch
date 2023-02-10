@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 
@@ -26,11 +24,9 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
 public class DateFormat extends ScalarFunction implements OptionalArgument {
-
-    public static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
-        .withZone(ZoneOffset.UTC);
 
     private final Expression field;
     private final Expression format;
@@ -78,7 +74,7 @@ public class DateFormat extends ScalarFunction implements OptionalArgument {
 
     private DateFormatter foldedFormatter() {
         if (format == null) {
-            return DEFAULT_DATE_FORMATTER;
+            return UTC_DATE_TIME_FORMATTER;
         } else {
             return DateFormatter.forPattern((String) format.fold());
         }

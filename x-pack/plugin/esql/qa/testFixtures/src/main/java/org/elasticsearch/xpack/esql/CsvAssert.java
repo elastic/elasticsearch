@@ -7,23 +7,27 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
+import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-final class CsvAssert {
+public final class CsvAssert {
     private CsvAssert() {}
 
     static void assertResults(ExpectedResults expected, ActualResults actual, Logger logger) {
@@ -32,15 +36,31 @@ final class CsvAssert {
     }
 
     static void assertMetadata(ExpectedResults expected, ActualResults actual, Logger logger) {
+        assertMetadata(expected, actual.columnNames(), actual.columnTypes(), actual.pages(), logger);
+    }
+
+    public static void assertMetadata(ExpectedResults expected, List<Map<String, String>> actualColumns, Logger logger) {
+        var actualColumnNames = new ArrayList<String>(actualColumns.size());
+        var actualColumnTypes = actualColumns.stream()
+            .peek(c -> actualColumnNames.add(c.get("name")))
+            .map(c -> CsvTestUtils.Type.asType(c.get("type")))
+            .toList();
+        assertMetadata(expected, actualColumnNames, actualColumnTypes, List.of(), logger);
+    }
+
+    private static void assertMetadata(
+        ExpectedResults expected,
+        List<String> actualNames,
+        List<Type> actualTypes,
+        List<Page> pages,
+        Logger logger
+    ) {
         if (logger != null) {
-            logMetaData(actual, logger);
+            logMetaData(actualNames, actualTypes, logger);
         }
 
         var expectedNames = expected.columnNames();
-        var actualNames = actual.columnNames();
-
         var expectedTypes = expected.columnTypes();
-        var actualTypes = actual.columnTypes();
 
         assertThat(
             format(
@@ -86,8 +106,6 @@ final class CsvAssert {
             );
 
             // perform another check against each returned page to make sure they have the same metadata
-            var pages = actual.pages();
-
             for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
                 var page = pages.get(pageIndex);
                 var block = page.getBlock(column);
@@ -115,9 +133,17 @@ final class CsvAssert {
     }
 
     static void assertData(ExpectedResults expected, ActualResults actual, Logger logger) {
+        assertData(expected, actual.values(), logger, Function.identity());
+    }
+
+    public static void assertData(
+        ExpectedResults expected,
+        List<List<Object>> actualValues,
+        Logger logger,
+        Function<Object, Object> valueTransformer
+    ) {
         var columns = expected.columnNames();
         var expectedValues = expected.values();
-        var actualValues = actual.values();
 
         int row = 0;
         try {
@@ -140,9 +166,9 @@ final class CsvAssert {
 
                     // convert the long from CSV back to its STRING form
                     if (expectedValue != null && expected.columnTypes().get(column) == Type.DATETIME) {
-                        expectedValue = DateFormat.DEFAULT_DATE_FORMATTER.formatMillis((long) expectedValue);
+                        expectedValue = UTC_DATE_TIME_FORMATTER.formatMillis((long) expectedValue);
                     }
-                    assertEquals(expectedValue, actualValue);
+                    assertEquals(valueTransformer.apply(expectedValue), valueTransformer.apply(actualValue));
                 }
 
                 var delta = actualRow.size() - expectedRow.size();

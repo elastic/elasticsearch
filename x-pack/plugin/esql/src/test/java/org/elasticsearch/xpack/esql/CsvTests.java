@@ -60,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPage;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
@@ -154,15 +155,11 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled());
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
-    }
-
-    public boolean isEnabled() {
-        return testName.endsWith("-Ignore") == false;
     }
 
     public boolean logResults() {

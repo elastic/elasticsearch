@@ -2,6 +2,10 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
+dependencies {
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+}
+
 restResources {
   restApi {
     include '_common', 'bulk', 'indices', 'esql'

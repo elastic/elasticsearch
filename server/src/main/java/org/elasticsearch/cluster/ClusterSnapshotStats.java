@@ -172,7 +172,7 @@ public record ClusterSnapshotStats(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(snapshotsInProgressCount);
-        out.writeVLong(incompleteShardSnapshotCount);
+        out.writeVInt(incompleteShardSnapshotCount);
         out.writeVInt(deletionsInProgressCount);
         out.writeVInt(cleanupsInProgressCount);
         out.writeList(statsByRepository);

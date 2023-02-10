@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.blobcache.store;
+package org.elasticsearch.xpack.searchablesnapshots.store;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;

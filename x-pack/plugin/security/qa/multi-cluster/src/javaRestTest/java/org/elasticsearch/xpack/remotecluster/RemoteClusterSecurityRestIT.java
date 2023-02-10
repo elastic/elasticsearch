@@ -7,19 +7,18 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,82 +26,65 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * This test suite will be run twice: Once against the fulfilling cluster, then again against the querying cluster. The typical usage is to
- * conditionalize on whether the test is running against the fulfilling or the querying cluster.
- */
-public class RemoteClusterSecurityRestIT extends ESRestTestCase {
-    private static final String USER = "test_user";
-    private static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());
-    private static final String REMOTE_SEARCH_USER = "remote_search_user";
-    private static final String REMOTE_SEARCH_ROLE = "remote_search";
+public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
+    static {
+        fulfillingCluster = ElasticsearchCluster.local()
+            .name("fulfilling-cluster")
+            .apply(commonClusterConfig)
+            .setting("remote_cluster.enabled", "true")
+            .setting("remote_cluster.port", "0")
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
+            .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
+            .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
+            .build();
+
+        queryCluster = ElasticsearchCluster.local()
+            .name("query-cluster")
+            .apply(commonClusterConfig)
+            .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
+            .build();
     }
 
-    @Override
-    protected boolean preserveDataStreamsUponCompletion() {
-        return true;
-    }
+    @ClassRule
+    // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
+    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    @Override
-    protected Settings restClientSettings() {
-        final String token = basicAuthHeaderValue(USER, PASS);
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    private boolean isFulfillingCluster() {
-        return "fulfilling_cluster".equals(System.getProperty("tests.rest.suite"));
-    }
-
-    /**
-     * This test really depends on the local build.gradle, which configures cross-cluster search using the `remote_cluster.*` settings.
-     */
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
-        if (isFulfillingCluster()) {
-            final var createApiKeyRequest = new Request("POST", "/_security/api_key");
-            createApiKeyRequest.setJsonEntity("""
-                {
-                  "name": "remote_access_key",
-                  "role_descriptors": {
-                    "role": {
-                      "cluster": ["cluster:monitor/state"],
-                      "index": [
-                        {
-                          "names": ["index*", "not_found_index"],
-                          "privileges": ["read", "read_cross_cluster"]
-                        }
-                      ]
-                    }
-                  }
-                }""");
-            // Index API key so querying cluster can retrieve and add it to its cluster settings
-            createAndIndexRemoteAccessApiKey(createApiKeyRequest);
+        configureRemoteClustersWithApiKey("""
+            [
+               {
+                 "names": ["index*", "not_found_index"],
+                 "privileges": ["read", "read_cross_cluster"]
+               }
+             ]""");
 
+        // Fulfilling cluster
+        {
             // Index some documents, so we can attempt to search them from the querying cluster
             final var indexDocRequest = new Request("POST", "/index1/_doc?refresh=true");
             indexDocRequest.setJsonEntity("{\"foo\": \"bar\"}");
-            assertOK(client().performRequest(indexDocRequest));
+            assertOK(performRequestAgainstFulfillingCluster(indexDocRequest));
 
             final var indexDocRequest2 = new Request("POST", "/index2/_doc?refresh=true");
             indexDocRequest2.setJsonEntity("{\"bar\": \"foo\"}");
-            assertOK(client().performRequest(indexDocRequest2));
+            assertOK(performRequestAgainstFulfillingCluster(indexDocRequest2));
 
             final var indexDocRequest3 = new Request("POST", "/prefixed_index/_doc?refresh=true");
             indexDocRequest3.setJsonEntity("{\"baz\": \"fee\"}");
-            assertOK(client().performRequest(indexDocRequest3));
-        } else {
-            getRemoteAccessApiKeyAndStoreInSettings();
+            assertOK(performRequestAgainstFulfillingCluster(indexDocRequest3));
+        }
 
+        // Query cluster
+        {
             // Index some documents, to use them in a mixed-cluster search
             final var indexDocRequest = new Request("POST", "/local_index/_doc?refresh=true");
             indexDocRequest.setJsonEntity("{\"local_foo\": \"local_bar\"}");
@@ -201,40 +183,7 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    private void getRemoteAccessApiKeyAndStoreInSettings() throws IOException {
-        try (var fulfillingClusterClient = buildClient(System.getProperty("tests.fulfilling_cluster_host"))) {
-            final var request = new Request("GET", "/apikey/_search");
-            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
-            final SearchResponse apiKeyResponse = SearchResponse.fromXContent(
-                responseAsParser(fulfillingClusterClient.performRequest(request))
-            );
-            final String encodedKey = (String) apiKeyResponse.getHits().getHits()[0].getSourceAsMap().get("apikey");
-            updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.authorization", encodedKey).build());
-        }
-    }
-
-    private void createAndIndexRemoteAccessApiKey(Request createApiKeyRequest) throws IOException {
-        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
-        assertOK(createApiKeyResponse);
-        final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
-        final var indexDocRequest = new Request("POST", "/apikey/_doc");
-        // Store API key credential so that QC can fetch and use it for authentication
-        indexDocRequest.setJsonEntity("{\"apikey\": \"" + encodedRemoteAccessApiKey + "\"}");
-        assertOK(adminClient().performRequest(indexDocRequest));
-    }
-
-    private RestClient buildClient(final String url) throws IOException {
-        final int portSeparator = url.lastIndexOf(':');
-        final var httpHost = new HttpHost(
-            url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)),
-            getProtocol()
-        );
-        return buildClient(Settings.EMPTY, new HttpHost[] { httpHost });
-    }
-
-    public static String randomEncodedApiKey() {
+    private static String randomEncodedApiKey() {
         return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
     }
 }

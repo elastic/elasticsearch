@@ -171,15 +171,25 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             return readPortsFile(portsFile).get(0);
         }
 
+        public String getRemoteClusterServerEndpoint() {
+            Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
+            if (Files.notExists(portsFile)) {
+                waitUntilReady();
+            }
+            return readPortsFile(portsFile).get(0);
+        }
+
         public void deletePortsFiles() {
             try {
                 Path hostsFile = workingDir.resolve("config").resolve("unicast_hosts.txt");
                 Path httpPortsFile = workingDir.resolve("logs").resolve("http.ports");
                 Path transportPortsFile = workingDir.resolve("logs").resolve("transport.ports");
+                Path remoteClusterServerPortsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
 
                 Files.deleteIfExists(hostsFile);
                 Files.deleteIfExists(httpPortsFile);
                 Files.deleteIfExists(transportPortsFile);
+                Files.deleteIfExists(remoteClusterServerPortsFile);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + this, e);
             }

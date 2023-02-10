@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -15,7 +14,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,29 +29,29 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response> {
+public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.Response> {
 
-    public static final RollupIndexerAction INSTANCE = new RollupIndexerAction();
+    public static final DownsampleIndexerAction INSTANCE = new DownsampleIndexerAction();
     public static final String NAME = "indices:admin/xpack/downsample_indexer";
 
-    private RollupIndexerAction() {
-        super(NAME, RollupIndexerAction.Response::new);
+    private DownsampleIndexerAction() {
+        super(NAME, DownsampleIndexerAction.Response::new);
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
-        private DownsampleAction.Request rollupRequest;
+        private DownsampleAction.Request downsampleRequest;
         private String[] dimensionFields;
         private String[] metricFields;
         private String[] labelFields;
 
         public Request(
-            DownsampleAction.Request rollupRequest,
+            DownsampleAction.Request downsampleRequest,
             final String[] dimensionFields,
             final String[] metricFields,
             final String[] labelFields
         ) {
-            super(rollupRequest.indices());
-            this.rollupRequest = rollupRequest;
+            super(downsampleRequest.indices());
+            this.downsampleRequest = downsampleRequest;
             this.dimensionFields = dimensionFields;
             this.metricFields = metricFields;
             this.labelFields = labelFields;
@@ -63,7 +61,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.rollupRequest = new DownsampleAction.Request(in);
+            this.downsampleRequest = new DownsampleAction.Request(in);
             this.dimensionFields = in.readStringArray();
             this.metricFields = in.readStringArray();
             this.labelFields = in.readStringArray();
@@ -71,16 +69,16 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         @Override
         public String[] indices() {
-            return rollupRequest.indices();
+            return downsampleRequest.indices();
         }
 
         @Override
         public IndicesOptions indicesOptions() {
-            return rollupRequest.indicesOptions();
+            return downsampleRequest.indicesOptions();
         }
 
-        public DownsampleAction.Request getRollupRequest() {
-            return rollupRequest;
+        public DownsampleAction.Request getDownsampleRequest() {
+            return downsampleRequest;
         }
 
         public String[] getDimensionFields() {
@@ -97,13 +95,13 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupTask(
+            return new DownsampleTask(
                 id,
                 type,
                 action,
                 parentTaskId,
-                rollupRequest.getTargetIndex(),
-                rollupRequest.getDownsampleConfig(),
+                downsampleRequest.getTargetIndex(),
+                downsampleRequest.getDownsampleConfig(),
                 headers
             );
         }
@@ -111,7 +109,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            rollupRequest.writeTo(out);
+            downsampleRequest.writeTo(out);
             out.writeStringArray(dimensionFields);
             out.writeStringArray(metricFields);
             out.writeStringArray(labelFields);
@@ -125,7 +123,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("downsample_request", rollupRequest);
+            builder.field("downsample_request", downsampleRequest);
             builder.array("dimension_fields", dimensionFields);
             builder.array("metric_fields", metricFields);
             builder.array("label_fields", labelFields);
@@ -135,7 +133,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         @Override
         public int hashCode() {
-            int result = rollupRequest.hashCode();
+            int result = downsampleRequest.hashCode();
             result = 31 * result + Arrays.hashCode(dimensionFields);
             result = 31 * result + Arrays.hashCode(metricFields);
             result = 31 * result + Arrays.hashCode(labelFields);
@@ -147,17 +145,10 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            if (rollupRequest.equals(request.rollupRequest) == false) return false;
+            if (downsampleRequest.equals(request.downsampleRequest) == false) return false;
             if (Arrays.equals(dimensionFields, request.dimensionFields) == false) return false;
             if (Arrays.equals(labelFields, request.labelFields) == false) return false;
             return Arrays.equals(metricFields, request.metricFields);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, RollupIndexerAction action) {
-            super(client, action, new Request());
         }
     }
 
@@ -221,25 +212,25 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
     /**
      * Internal rollup request executed directly against a specific index shard.
      */
-    public static class ShardRollupRequest extends BroadcastShardRequest {
+    public static class ShardDownsampleRequest extends BroadcastShardRequest {
         private final Request request;
 
-        public ShardRollupRequest(StreamInput in) throws IOException {
+        public ShardDownsampleRequest(StreamInput in) throws IOException {
             super(in);
             this.request = new Request(in);
         }
 
-        public ShardRollupRequest(ShardId shardId, Request request) {
+        public ShardDownsampleRequest(ShardId shardId, Request request) {
             super(shardId, request);
             this.request = request;
         }
 
         public String getRollupIndex() {
-            return request.getRollupRequest().getTargetIndex();
+            return request.getDownsampleRequest().getTargetIndex();
         }
 
         public DownsampleConfig getRollupConfig() {
-            return request.getRollupRequest().getDownsampleConfig();
+            return request.getDownsampleRequest().getDownsampleConfig();
         }
 
         public String[] getDimensionFields() {
@@ -267,24 +258,24 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
                 type,
                 action,
                 parentTaskId,
-                request.rollupRequest.getSourceIndex(),
-                request.rollupRequest.getDownsampleConfig(),
+                request.downsampleRequest.getSourceIndex(),
+                request.downsampleRequest.getDownsampleConfig(),
                 headers,
                 shardId()
             );
         }
     }
 
-    public static class ShardRollupResponse extends BroadcastShardResponse {
+    public static class ShardDownsampleResponse extends BroadcastShardResponse {
 
         private final long numIndexed;
 
-        public ShardRollupResponse(ShardId shardId, long numIndexed) {
+        public ShardDownsampleResponse(ShardId shardId, long numIndexed) {
             super(shardId);
             this.numIndexed = numIndexed;
         }
 
-        public ShardRollupResponse(StreamInput in) throws IOException {
+        public ShardDownsampleResponse(StreamInput in) throws IOException {
             super(in);
             numIndexed = in.readLong();
         }

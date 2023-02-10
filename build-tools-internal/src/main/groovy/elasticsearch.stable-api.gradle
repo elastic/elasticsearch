@@ -8,7 +8,9 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin.buildBwcTaskName
 
 configurations {
-  newJar
+  newJar {
+    transitive = false
+  }
 }
 
 dependencies {

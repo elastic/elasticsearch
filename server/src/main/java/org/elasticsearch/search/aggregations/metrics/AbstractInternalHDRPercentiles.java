@@ -28,7 +28,7 @@ import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    private static final DoubleHistogram EMPTY_HISTOGRAM = new DoubleHistogram(3);
+    private static final DoubleHistogram EMPTY_HISTOGRAM = new DoubleHistogram(0);
 
     protected final double[] keys;
     protected final DoubleHistogram state;

@@ -63,6 +63,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
 
+    // Constructor which doesn't wrap and doesn't throw an exception.
+    public ContextIndexSearcher(IndexReader reader, Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
+        super(reader);
+        setSimilarity(similarity);
+        setQueryCache(queryCache);
+        setQueryCachingPolicy(queryCachingPolicy);
+        this.cancellable = new MutableQueryTimeout();
+    }
+
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,

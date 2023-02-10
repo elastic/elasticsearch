@@ -44,12 +44,16 @@ public class AggregationPhase {
         if (context.aggregations().factories().context() != null
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
+            searcher.setProfiler(context);
             try {
                 searcher.search(context.rewrittenQuery(), bucketCollector);
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
-            context.registerAggsCollector(BucketCollector.NO_OP_COLLECTOR);
+            Collector collector = context.getProfilers() == null
+                ? BucketCollector.NO_OP_COLLECTOR
+                : new InternalProfileCollector(BucketCollector.NO_OP_COLLECTOR, CollectorResult.REASON_AGGREGATION, List.of());
+            context.registerAggsCollector(collector);
         } else {
             Collector collector = context.getProfilers() == null
                 ? bucketCollector.asCollector()

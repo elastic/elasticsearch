@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -58,7 +57,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
-    private final AtomicInteger fetchingCount = new AtomicInteger();
+    private volatile int fetchingCount;
 
     @SuppressWarnings("unchecked")
     protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath) {
@@ -66,6 +65,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
+        this.fetchingCount = 0;
     }
 
     @Override
@@ -77,7 +77,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Returns the number of async fetches that are currently ongoing.
      */
     public int getNumberOfInFlightFetches() {
-        return fetchingCount.get();
+        return fetchingCount;
     }
 
     /**
@@ -100,7 +100,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             final long fetchingRound = round.incrementAndGet();
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
                 nodeEntry.markAsFetching(fetchingRound);
-                fetchingCount.incrementAndGet();
+                fetchingCount++;
             }
             DiscoveryNode[] discoNodesToFetch = nodesToFetch.stream()
                 .map(NodeEntry::getNodeId)
@@ -188,7 +188,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                         // if the entry is there, for the right fetching round and not marked as failed already, process it
                         logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
                         nodeEntry.doneFetching(response);
-                        fetchingCount.decrementAndGet();
+                        fetchingCount--;
                     }
                 }
             }
@@ -216,20 +216,21 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                             || unwrappedCause instanceof ReceiveTimeoutTransportException
                             || unwrappedCause instanceof ElasticsearchTimeoutException) {
                             nodeEntry.restartFetching();
-                            fetchingCount.decrementAndGet();
+                            fetchingCount--;
                         } else {
                             logger.warn(
                                 () -> format("%s: failed to list shard for %s on node [%s]", shardId, type, failure.nodeId()),
                                 failure
                             );
                             nodeEntry.doneFetching(failure.getCause());
-                            fetchingCount.decrementAndGet();
+                            fetchingCount--;
                         }
                     }
                 }
             }
         }
         reroute(shardId, "post_response");
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -243,8 +244,9 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     synchronized void clearCacheForNode(String nodeId) {
         NodeEntry<T> nodeEntry = cache.remove(nodeId);
         if (nodeEntry != null && nodeEntry.fetching) {
-            fetchingCount.decrementAndGet();
+            fetchingCount--;
         }
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -266,11 +268,12 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             NodeEntry<T> nodeEntry = entry.getValue();
             if (nodes.nodeExists(nodeId) == false) {
                 if (nodeEntry.fetching) {
-                    fetchingCount.decrementAndGet();
+                    fetchingCount--;
                 }
                 iterator.remove();
             }
         }
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -291,8 +294,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Are there any nodes that are fetching data?
      */
     // visible for testing
-    public boolean hasAnyNodeFetching() {
-        return fetchingCount.get() != 0;
+    private boolean hasAnyNodeFetching() {
+        return fetchingCount != 0;
     }
 
     /**
@@ -457,5 +460,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         long getFetchingRound() {
             return fetchingRound;
         }
+    }
+
+    private boolean assertFetchingCountConsistent() {
+        assert Thread.holdsLock(this);
+        assert fetchingCount == cache.values().stream().filter(NodeEntry::isFetching).count();
+        return true;
     }
 }

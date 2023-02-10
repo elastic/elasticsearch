@@ -28,7 +28,8 @@ import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    private static final DoubleHistogram EMPTY_HISTOGRAM = new DoubleHistogram(3);
+    private static final DoubleHistogram EMPTY_HISTOGRAM_THREE_DIGITS = new DoubleHistogram(3);
+    private static final DoubleHistogram EMPTY_HISTOGRAM_ZERO_DIGITS = new DoubleHistogram(0);
 
     protected final double[] keys;
     protected final DoubleHistogram state;
@@ -91,7 +92,9 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
                 out.writeBoolean(false);
             }
         } else {
-            DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+            DoubleHistogram state = this.state != null ? this.state
+                : out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0) ? EMPTY_HISTOGRAM_ZERO_DIGITS
+                : EMPTY_HISTOGRAM_THREE_DIGITS;
             encode(state, out);
         }
         out.writeBoolean(keyed);
@@ -160,7 +163,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             merged = merge(merged, percentiles.state);
         }
         if (merged == null) {
-            merged = EMPTY_HISTOGRAM;
+            merged = EMPTY_HISTOGRAM_ZERO_DIGITS;
         }
         return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
@@ -200,7 +203,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+        DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM_ZERO_DIGITS;
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {

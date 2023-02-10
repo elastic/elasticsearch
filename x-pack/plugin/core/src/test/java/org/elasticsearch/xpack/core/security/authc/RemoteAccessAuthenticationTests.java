@@ -58,6 +58,10 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
     }
 
+    public void testThrowsOnMissingEntry() {
+        expectThrows(IllegalArgumentException.class, () -> RemoteAccessAuthentication.readFromContext(new ThreadContext(Settings.EMPTY)));
+    }
+
     private RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {
         return new RoleDescriptorsIntersection(randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1))));
     }

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteAccessHeadersTests extends ESTestCase {
 
-    public void testWriteAndReadContext() throws IOException {
+    public void testWriteReadContextRoundtrip() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final var expected = new RemoteAccessHeaders(
             randomEncodedApiKey(),

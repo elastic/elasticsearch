@@ -2097,13 +2097,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            RoleDescriptorTests.randomIndicesPrivileges(),
+            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
             RoleDescriptorTests.randomApplicationPrivileges(),
             RoleDescriptorTests.randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
-            RoleDescriptorTests.randomRemoteIndicesPrivileges()
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3)
         );
     }
 

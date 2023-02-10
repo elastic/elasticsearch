@@ -892,13 +892,13 @@ public class RoleDescriptorTests extends ESTestCase {
         if (false == allowRemoteIndices || randomBoolean()) {
             remoteIndexPrivileges = null;
         } else {
-            remoteIndexPrivileges = randomRemoteIndicesPrivileges();
+            remoteIndexPrivileges = randomRemoteIndicesPrivileges(0, 3);
         }
 
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            randomIndicesPrivileges(),
+            randomIndicesPrivileges(0, 3),
             randomApplicationPrivileges(),
             randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
@@ -971,8 +971,8 @@ public class RoleDescriptorTests extends ESTestCase {
         return applicationPrivileges;
     }
 
-    public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges() {
-        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges();
+    public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max) {
+        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max);
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges =
             new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
         for (int i = 0; i < remoteIndexPrivileges.length; i++) {
@@ -984,8 +984,8 @@ public class RoleDescriptorTests extends ESTestCase {
         return remoteIndexPrivileges;
     }
 
-    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges() {
-        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
+    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max) {
+        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(min, max)];
         for (int i = 0; i < indexPrivileges.length; i++) {
             indexPrivileges[i] = randomIndicesPrivilegesBuilder().build();
         }

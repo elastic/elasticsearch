@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
@@ -2069,14 +2070,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
-        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), true))
-        );
-        final List<RoleDescriptor> requestedRoleDescriptors = randomList(
-            0,
-            1,
-            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), true)
-        );
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(randomList(1, 3, () -> randomRoleDescriptorWithRemoteIndexPrivileges()));
+        final List<RoleDescriptor> requestedRoleDescriptors = randomList(0, 1, () -> randomRoleDescriptorWithRemoteIndexPrivileges());
 
         // Selecting random supported version.
         final TransportVersion minNodeVersion = randomFrom(
@@ -2096,6 +2091,20 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         // User roles should be unchanged.
         assertThat(result, equalTo(userRoleDescriptors));
+    }
+
+    private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
+        return new RoleDescriptor(
+            randomAlphaOfLengthBetween(3, 90),
+            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+            RoleDescriptorTests.randomIndicesPrivileges(),
+            RoleDescriptorTests.randomApplicationPrivileges(),
+            RoleDescriptorTests.randomClusterPrivileges(),
+            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
+            RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
+            Map.of(),
+            RoleDescriptorTests.randomRemoteIndicesPrivileges()
+        );
     }
 
     public void testMaybeRemoveRemoteIndicesPrivilegesWithRequestedRoleDescriptorsWithoutRemoteIndices() {

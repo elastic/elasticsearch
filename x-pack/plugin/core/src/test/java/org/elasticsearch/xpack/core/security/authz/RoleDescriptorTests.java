@@ -888,36 +888,40 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices) {
-        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = randomIndicesPriveleges();
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
         if (false == allowRemoteIndices || randomBoolean()) {
             remoteIndexPrivileges = null;
         } else {
-            final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPriveleges();
-            remoteIndexPrivileges = new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
-            for (int i = 0; i < remoteIndexPrivileges.length; i++) {
-                remoteIndexPrivileges[i] = new RoleDescriptor.RemoteIndicesPrivileges(
-                    innerIndexPrivileges[i],
-                    generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
-                );
-            }
+            remoteIndexPrivileges = randomRemoteIndicesPrivileges();
         }
-        final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
-        for (int i = 0; i < applicationPrivileges.length; i++) {
-            final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.builder();
-            builder.application(randomAlphaOfLengthBetween(5, 12) + (randomBoolean() ? "*" : ""));
-            if (randomBoolean()) {
-                builder.privileges("*");
-            } else {
-                builder.privileges(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
+
+        return new RoleDescriptor(
+            randomAlphaOfLengthBetween(3, 90),
+            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+            randomIndicesPrivileges(),
+            randomApplicationPrivileges(),
+            randomClusterPrivileges(),
+            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
+            randomRoleDescriptorMetadata(allowReservedMetadata),
+            Map.of(),
+            remoteIndexPrivileges
+        );
+    }
+
+    public static Map<String, Object> randomRoleDescriptorMetadata(boolean allowReservedMetadata) {
+        final Map<String, Object> metadata = new HashMap<>();
+        while (randomBoolean()) {
+            String key = randomAlphaOfLengthBetween(4, 12);
+            if (allowReservedMetadata && randomBoolean()) {
+                key = MetadataUtils.RESERVED_PREFIX + key;
             }
-            if (randomBoolean()) {
-                builder.resources("*");
-            } else {
-                builder.resources(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
-            }
-            applicationPrivileges[i] = builder.build();
+            final Object value = randomBoolean() ? randomInt() : randomAlphaOfLengthBetween(3, 50);
+            metadata.put(key, value);
         }
+        return metadata;
+    }
+
+    public static ConfigurableClusterPrivilege[] randomClusterPrivileges() {
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = switch (randomIntBetween(0, 4)) {
             case 0 -> new ConfigurableClusterPrivilege[0];
             case 1 -> new ConfigurableClusterPrivilege[] {
@@ -944,30 +948,43 @@ public class RoleDescriptorTests extends ESTestCase {
                 ) };
             default -> throw new IllegalStateException("Unexpected value");
         };
-        final Map<String, Object> metadata = new HashMap<>();
-        while (randomBoolean()) {
-            String key = randomAlphaOfLengthBetween(4, 12);
-            if (allowReservedMetadata && randomBoolean()) {
-                key = MetadataUtils.RESERVED_PREFIX + key;
-            }
-            final Object value = randomBoolean() ? randomInt() : randomAlphaOfLengthBetween(3, 50);
-            metadata.put(key, value);
-        }
-
-        return new RoleDescriptor(
-            randomAlphaOfLengthBetween(3, 90),
-            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            indexPrivileges,
-            applicationPrivileges,
-            configurableClusterPrivileges,
-            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            metadata,
-            Map.of(),
-            remoteIndexPrivileges
-        );
+        return configurableClusterPrivileges;
     }
 
-    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPriveleges() {
+    public static ApplicationResourcePrivileges[] randomApplicationPrivileges() {
+        final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
+        for (int i = 0; i < applicationPrivileges.length; i++) {
+            final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.builder();
+            builder.application(randomAlphaOfLengthBetween(5, 12) + (randomBoolean() ? "*" : ""));
+            if (randomBoolean()) {
+                builder.privileges("*");
+            } else {
+                builder.privileges(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
+            }
+            if (randomBoolean()) {
+                builder.resources("*");
+            } else {
+                builder.resources(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
+            }
+            applicationPrivileges[i] = builder.build();
+        }
+        return applicationPrivileges;
+    }
+
+    public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges() {
+        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges();
+        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges =
+            new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
+        for (int i = 0; i < remoteIndexPrivileges.length; i++) {
+            remoteIndexPrivileges[i] = new RoleDescriptor.RemoteIndicesPrivileges(
+                innerIndexPrivileges[i],
+                generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
+            );
+        }
+        return remoteIndexPrivileges;
+    }
+
+    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges() {
         final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
         for (int i = 0; i < indexPrivileges.length; i++) {
             indexPrivileges[i] = randomIndicesPrivilegesBuilder().build();

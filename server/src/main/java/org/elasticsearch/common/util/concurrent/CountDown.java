@@ -22,7 +22,7 @@ public final class CountDown {
 
     public CountDown(int count) {
         if (count <= 0) {
-            final String message = "count must be greater or equal to 0 but was: " + count;
+            final String message = "count must be greater then 0 but was: " + count;
             assert false : message;
             throw new IllegalArgumentException(message);
         }

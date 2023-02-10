@@ -8,7 +8,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;

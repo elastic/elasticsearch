@@ -98,7 +98,9 @@ avg(salary):double | last_name:keyword
 ;
 
 avgOfInteger-Ignore
-// returns incorrect results after TestFieldExtractOperator is returning now only Long blocks. Something else is fishy
+// Without "sort last_name" the results are randomly returned by CSV tests infrastructure, while ES sorts them by last_name.
+// The OrdinalsGroupingOperator is doing this by default (using ordinals for keywords).
+// https://github.com/elastic/elasticsearch-internal/issues/767
 from test | stats avg(salary) by last_name | limit 10;
 
 avg(salary):double | last_name:keyword
@@ -112,6 +114,32 @@ avg(salary):double | last_name:keyword
 41933.0 | Bierman
 29175.0 | Billingsley
 58715.0 | Bouloucos
+;
+
+avgOfIntegerSortedExplicitly
+from test | stats avg(salary) by last_name | sort last_name | limit 10;
+
+avg(salary):double | last_name:keyword
+50249.0 | Awdeh
+46595.0 | Azuma
+52833.0 | Baek
+61805.0 | Bamford
+38992.0 | Bernatsky
+33370.0 | Bernini
+28336.0 | Berztiss
+41933.0 | Bierman
+29175.0 | Billingsley
+58715.0 | Bouloucos
+;
+
+statsOfInteger
+from test | where starts_with(last_name, "L") | stats a=avg(salary), s=sum(salary), c=count(last_name) by last_name;
+
+   a:double    |    s:long     |     c:long    |last_name:keyword   
+42520.0        |85040          |2              |Lortz          
+56415.0        |56415          |1              |Lenart         
+52121.0        |52121          |1              |Leonhardt      
+40612.0        |40612          |1              |Lipner
 ;
 
 medianByFieldAndSortedByValue

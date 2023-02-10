@@ -1400,7 +1400,8 @@ other operations to finish.
 `shards`:::
 (object)
 Contains statistics which report the shard-level progress of ongoing snapshot
-activities for a repository.
+activities for a repository. Note that these statistics relate only to ongoing
+snapshots.
 +
 .Properties of `shards`
 [%collapsible%open]
@@ -1408,12 +1409,16 @@ activities for a repository.
 
 `total`:::
 (integer)
-The total number of shard snapshots currently tracked by this repository.
+The total number of shard snapshots currently tracked by this repository. This
+statistic only counts shards in ongoing snapshots, so it will drop when a
+snapshot completes and will be `0` if there are no ongoing snapshots.
 
 `complete`:::
 (integer)
 The total number of tracked shard snapshots which have completed in this
-repository.
+repository. This statistic only counts shards in ongoing snapshots, so it will
+drop when a snapshot completes and will be `0` if there are no ongoing
+snapshots.
 
 `incomplete`:::
 (integer)

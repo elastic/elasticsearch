@@ -10,8 +10,7 @@ package org.elasticsearch.compute.lucene;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-
-import java.io.IOException;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -46,54 +45,44 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
     }
 
     @Override
-    protected LuceneSourceOperator.Status mutateInstance(LuceneSourceOperator.Status instance) throws IOException {
-        switch (between(0, 4)) {
-            case 0:
-                return new LuceneSourceOperator.Status(
-                    randomValueOtherThan(instance.currentLeaf(), this::randomNonNegativeInt),
-                    instance.totalLeaves(),
-                    instance.pagesEmitted(),
-                    instance.leafPosition(),
-                    instance.leafSize()
-                );
-            case 1:
-                return new LuceneSourceOperator.Status(
-                    instance.currentLeaf(),
-                    randomValueOtherThan(instance.totalLeaves(), this::randomNonNegativeInt),
-                    instance.pagesEmitted(),
-                    instance.leafPosition(),
-                    instance.leafSize()
-                );
-            case 2:
-                return new LuceneSourceOperator.Status(
-                    instance.currentLeaf(),
-                    instance.totalLeaves(),
-                    randomValueOtherThan(instance.pagesEmitted(), this::randomNonNegativeInt),
-                    instance.leafPosition(),
-                    instance.leafSize()
-                );
-            case 3:
-                return new LuceneSourceOperator.Status(
-                    instance.currentLeaf(),
-                    instance.totalLeaves(),
-                    instance.pagesEmitted(),
-                    randomValueOtherThan(instance.leafPosition(), this::randomNonNegativeInt),
-                    instance.leafSize()
-                );
-            case 4:
-                return new LuceneSourceOperator.Status(
-                    instance.currentLeaf(),
-                    instance.totalLeaves(),
-                    instance.pagesEmitted(),
-                    instance.leafPosition(),
-                    randomValueOtherThan(instance.leafSize(), this::randomNonNegativeInt)
-                );
-            default:
-                throw new UnsupportedOperationException();
-        }
-    }
-
-    private int randomNonNegativeInt() {
-        return between(0, Integer.MAX_VALUE);
+    protected LuceneSourceOperator.Status mutateInstance(LuceneSourceOperator.Status instance) {
+        return switch (between(0, 4)) {
+            case 0 -> new LuceneSourceOperator.Status(
+                randomValueOtherThan(instance.currentLeaf(), ESTestCase::randomNonNegativeInt),
+                instance.totalLeaves(),
+                instance.pagesEmitted(),
+                instance.leafPosition(),
+                instance.leafSize()
+            );
+            case 1 -> new LuceneSourceOperator.Status(
+                instance.currentLeaf(),
+                randomValueOtherThan(instance.totalLeaves(), ESTestCase::randomNonNegativeInt),
+                instance.pagesEmitted(),
+                instance.leafPosition(),
+                instance.leafSize()
+            );
+            case 2 -> new LuceneSourceOperator.Status(
+                instance.currentLeaf(),
+                instance.totalLeaves(),
+                randomValueOtherThan(instance.pagesEmitted(), ESTestCase::randomNonNegativeInt),
+                instance.leafPosition(),
+                instance.leafSize()
+            );
+            case 3 -> new LuceneSourceOperator.Status(
+                instance.currentLeaf(),
+                instance.totalLeaves(),
+                instance.pagesEmitted(),
+                randomValueOtherThan(instance.leafPosition(), ESTestCase::randomNonNegativeInt),
+                instance.leafSize()
+            );
+            case 4 -> new LuceneSourceOperator.Status(
+                instance.currentLeaf(),
+                instance.totalLeaves(),
+                instance.pagesEmitted(),
+                instance.leafPosition(),
+                randomValueOtherThan(instance.leafSize(), ESTestCase::randomNonNegativeInt)
+            );
+            default -> throw new UnsupportedOperationException();
+        };
     }
 }

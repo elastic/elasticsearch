@@ -220,11 +220,7 @@ public class ComputeService {
     private class AcquireSearchContextHandler implements TransportRequestHandler<AcquireSearchContextsRequest> {
         @Override
         public void messageReceived(AcquireSearchContextsRequest request, TransportChannel channel, Task task) {
-            ChannelActionListener<AcquireSearchContextsResponse, AcquireSearchContextsRequest> listener = new ChannelActionListener<>(
-                channel,
-                NODE_ACTION,
-                request
-            );
+            ChannelActionListener<AcquireSearchContextsResponse> listener = new ChannelActionListener<>(channel);
             doAcquireSearchContexts(request.indices, listener.map(AcquireSearchContextsResponse::new));
         }
 

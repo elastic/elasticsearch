@@ -3050,7 +3050,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     containsString("TaskTransportChannel{task=" + task.getId() + '}')
                 )
             );
-            assertThat(new ChannelActionListener<>(channel, ACTION, request).toString(), containsString(channel.toString()));
+            assertThat(new ChannelActionListener<>(channel).toString(), containsString(channel.toString()));
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         });
         serviceB.registerRequestHandler(ACTION, ThreadPool.Names.SAME, TransportRequest.Empty::new, (request, channel, task) -> {

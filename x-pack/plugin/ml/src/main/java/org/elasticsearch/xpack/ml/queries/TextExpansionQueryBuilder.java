@@ -92,7 +92,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_7_0;
+        return TransportVersion.V_8_8_0;
     }
 
     @Override

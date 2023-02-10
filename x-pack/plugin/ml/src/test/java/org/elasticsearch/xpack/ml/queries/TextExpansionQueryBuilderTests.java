@@ -64,7 +64,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     @Override
-    protected Object simulateRequest(Method method, Object[] args) {
+    protected Object simulateMethod(Method method, Object[] args) {
         InferModelAction.Request request = (InferModelAction.Request) args[1];
 
         var tokens = new ArrayList<SlimResults.WeightedToken>();

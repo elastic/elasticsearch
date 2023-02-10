@@ -282,7 +282,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     /**
      * Can the test simulate this {@code Method}.
-     * If this function returns true {@link #simulateRequest(Method, Object[])}
+     * If this function returns true {@link #simulateMethod(Method, Object[])}
      * should be implemented provide the expected response.
      *
      * @param method The method being proxied. In practice method will represent a client call.
@@ -296,8 +296,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     /**
      * Override this to simulate client calls.
      */
-    protected Object simulateRequest(Method method, Object[] args) {
-        throw new UnsupportedOperationException("this test can't simulate [" + method.getName() + "] requests");
+    protected Object simulateMethod(Method method, Object[] args) {
+        throw new UnsupportedOperationException("this test can't simulate method [" + method.getName() + "]");
     }
 
     /**
@@ -346,7 +346,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             } else if (method.equals(Object.class.getMethod("toString"))) {
                 return "MockClient";
             } else if (delegate.canSimulateMethod(method, args)) {
-                return delegate.simulateRequest(method, args);
+                return delegate.simulateMethod(method, args);
             }
             throw new UnsupportedOperationException("this test can't handle calls to: " + method);
         }

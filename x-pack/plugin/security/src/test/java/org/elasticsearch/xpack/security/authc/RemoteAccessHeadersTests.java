@@ -27,12 +27,12 @@ public class RemoteAccessHeadersTests extends ESTestCase {
         final var expected = new RemoteAccessHeaders("bar", AuthenticationTestHelper.randomRemoteAccessAuthentication(rds));
 
         expected.writeToContext(ctx);
-        final var actual = RemoteAccessHeaders.readFromContext(ctx);
+        final RemoteAccessHeaders actual = RemoteAccessHeaders.readFromContext(ctx);
 
         assertThat(actual, equalTo(expected));
     }
 
-    private RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {
+    private static RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {
         return new RoleDescriptorsIntersection(randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1))));
     }
 }

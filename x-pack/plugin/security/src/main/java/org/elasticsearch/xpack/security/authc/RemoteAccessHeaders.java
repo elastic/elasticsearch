@@ -16,14 +16,14 @@ import java.util.Objects;
 public final class RemoteAccessHeaders {
 
     public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
-    private final ApiKeyHeaderWithPrefix clusterCredentials;
+    private final EncodedApiKeyWithPrefix clusterCredentials;
     private final RemoteAccessAuthentication remoteAccessAuthentication;
 
     public RemoteAccessHeaders(String encodedCredentials, RemoteAccessAuthentication remoteAccessAuthentication) {
-        this(new ApiKeyHeaderWithPrefix(encodedCredentials), remoteAccessAuthentication);
+        this(new EncodedApiKeyWithPrefix(encodedCredentials), remoteAccessAuthentication);
     }
 
-    private RemoteAccessHeaders(ApiKeyHeaderWithPrefix clusterCredentials, RemoteAccessAuthentication remoteAccessAuthentication) {
+    private RemoteAccessHeaders(EncodedApiKeyWithPrefix clusterCredentials, RemoteAccessAuthentication remoteAccessAuthentication) {
         this.clusterCredentials = clusterCredentials;
         this.remoteAccessAuthentication = remoteAccessAuthentication;
     }
@@ -34,7 +34,7 @@ public final class RemoteAccessHeaders {
     }
 
     public static RemoteAccessHeaders readFromContext(final ThreadContext ctx) throws IOException {
-        return new RemoteAccessHeaders(ApiKeyHeaderWithPrefix.readFromContext(ctx), RemoteAccessAuthentication.readFromContext(ctx));
+        return new RemoteAccessHeaders(EncodedApiKeyWithPrefix.readFromContext(ctx), RemoteAccessAuthentication.readFromContext(ctx));
     }
 
     public ApiKeyService.ApiKeyCredentials clusterCredentials() {
@@ -59,7 +59,7 @@ public final class RemoteAccessHeaders {
         return Objects.hash(clusterCredentials, remoteAccessAuthentication);
     }
 
-    private record ApiKeyHeaderWithPrefix(String encodedApiKey) {
+    private record EncodedApiKeyWithPrefix(String encodedApiKey) {
 
         private static final String PREFIX = "ApiKey";
 
@@ -67,14 +67,14 @@ public final class RemoteAccessHeaders {
             ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, withApiKeyPrefix(encodedApiKey));
         }
 
-        static ApiKeyHeaderWithPrefix readFromContext(final ThreadContext ctx) {
+        static EncodedApiKeyWithPrefix readFromContext(final ThreadContext ctx) {
             final String clusterCredentialHeader = ctx.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
             if (clusterCredentialHeader == null) {
                 throw new IllegalArgumentException(
                     "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"
                 );
             }
-            return new ApiKeyHeaderWithPrefix(stripApiKeyPrefix(clusterCredentialHeader));
+            return new EncodedApiKeyWithPrefix(stripApiKeyPrefix(clusterCredentialHeader));
         }
 
         ApiKeyService.ApiKeyCredentials toApiKeyCredentials() {

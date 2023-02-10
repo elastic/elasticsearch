@@ -132,7 +132,7 @@ buildScan {
         def count = 'buildkite-agent meta-data keys'.execute().text.readLines()
           .findAll { it.startsWith('build-scan-') }
           .collect { Integer.parseInt(it.substring(11)) }
-          .max()
+          .max() ?: -1
         "buildkite-agent meta-data set 'build-scan-${count + 1}' '${scan.buildScanUri}'"
       }
     } else {

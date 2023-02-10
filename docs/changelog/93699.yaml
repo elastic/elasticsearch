@@ -1,0 +1,5 @@
+pr: 93699
+summary: Avoid NPE in `DiskThresholdMonitor`
+area: Allocation
+type: bug
+issues: []

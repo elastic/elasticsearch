@@ -575,10 +575,16 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSendWithRemoteAccessHeaders() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
-        final boolean internalUser = randomBoolean();
-        final Authentication authentication = internalUser
-            ? AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
-            : AuthenticationTestHelper.builder().user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
+        final String authType = randomFrom("internal", "user", "apikey");
+        final Authentication authentication = switch (authType) {
+            case "internal" -> AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
+            case "user" -> AuthenticationTestHelper.builder()
+                .user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles()))
+                .realm()
+                .build();
+            case "apikey" -> AuthenticationTestHelper.builder().apiKey().build();
+            default -> throw new IllegalStateException("unexpected case");
+        };
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
         final String remoteClusterCredential = randomAlphaOfLengthBetween(10, 42);
@@ -654,7 +660,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection;
-        if (internalUser) {
+        if (authType.equals("internal")) {
             expectedRoleDescriptorsIntersection = RoleDescriptorsIntersection.EMPTY;
         } else {
             expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
@@ -671,7 +677,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
         verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
-        verify(authzService, times(internalUser ? 0 : 1)).retrieveRemoteAccessRoleDescriptorsIntersection(
+        verify(authzService, times(authType.equals("internal") ? 0 : 1)).retrieveRemoteAccessRoleDescriptorsIntersection(
             eq(remoteClusterAlias),
             eq(authentication.getEffectiveSubject()),
             anyActionListener()
@@ -698,9 +704,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
         final Authentication authentication;
         if (unsupportedAuthentication) {
-            authentication = randomFrom(builder.apiKey().build(), builder.serviceAccount().build());
+            authentication = builder.serviceAccount().build();
         } else {
-            authentication = builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
+            authentication = randomFrom(
+                builder.apiKey().build(),
+                builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build()
+            );
         }
         authentication.writeToContext(threadContext);
         final Tuple<String, TransportRequest> actionAndReq = nonAllowlistedRequest

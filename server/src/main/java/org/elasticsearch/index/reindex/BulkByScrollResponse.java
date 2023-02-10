@@ -9,9 +9,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -257,7 +257,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
                 return new SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
             }
         } else {
-            throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
+            throw new ParsingException("failed to parse failures array. At least one of {reason,cause} must be present");
         }
     }
 

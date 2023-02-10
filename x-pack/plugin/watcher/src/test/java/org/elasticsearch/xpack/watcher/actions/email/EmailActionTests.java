@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.email;
 
 import io.netty.handler.codec.http.HttpHeaders;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -442,7 +442,7 @@ public class EmailActionTests extends ESTestCase {
                 randomAlphaOfLength(7),
                 parser
             );
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("unexpected string field [unknown_field]"));
         }
     }

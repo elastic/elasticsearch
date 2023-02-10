@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.security.action.role;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -280,7 +280,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         Throwable t = throwableRef.get();
-        assertThat(t, instanceOf(ElasticsearchParseException.class));
+        assertThat(t, instanceOf(ParsingException.class));
         assertThat(
             t.getMessage(),
             containsString(
@@ -332,7 +332,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         Throwable t = throwableRef.get();
-        assertThat(t, instanceOf(ElasticsearchParseException.class));
+        assertThat(t, instanceOf(ParsingException.class));
         assertThat(
             t.getMessage(),
             containsString(

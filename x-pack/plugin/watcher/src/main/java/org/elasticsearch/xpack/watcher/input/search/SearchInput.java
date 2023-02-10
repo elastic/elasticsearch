@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -131,8 +131,8 @@ public class SearchInput implements Input {
             } else if (Field.REQUEST.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
-                } catch (ElasticsearchParseException srpe) {
-                    throw new ElasticsearchParseException(
+                } catch (ParsingException srpe) {
+                    throw new ParsingException(
                         "could not parse [{}] input for watch [{}]. failed to parse [{}]",
                         srpe,
                         TYPE,
@@ -147,7 +147,7 @@ public class SearchInput implements Input {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             extract.add(parser.text());
                         } else {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "could not parse [{}] input for watch [{}]. expected a string value in "
                                     + "[{}] array, but found [{}] instead",
                                 TYPE,
@@ -158,7 +158,7 @@ public class SearchInput implements Input {
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] input for watch [{}]. unexpected array field [{}]",
                         TYPE,
                         watchId,
@@ -174,7 +174,7 @@ public class SearchInput implements Input {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateUtils.of(parser.text());
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] input for watch [{}]. failed to parse [{}]. must be a "
                             + "string value (e.g. 'UTC' or '+01:00').",
                         TYPE,
@@ -183,17 +183,12 @@ public class SearchInput implements Input {
                     );
                 }
             } else {
-                throw new ElasticsearchParseException(
-                    "could not parse [{}] input for watch [{}]. unexpected token [{}]",
-                    TYPE,
-                    watchId,
-                    token
-                );
+                throw new ParsingException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
             }
         }
 
         if (request == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] input for watch [{}]. missing required [{}] field",
                 TYPE,
                 watchId,

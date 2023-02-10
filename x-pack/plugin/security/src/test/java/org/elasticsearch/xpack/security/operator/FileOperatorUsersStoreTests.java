@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.operator;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -210,10 +210,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         // Mal-formatted file is functionally equivalent to an empty file
         writeOperatorUsers(randomBoolean() ? "foobar" : "");
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
-            final ElasticsearchParseException e = expectThrows(
-                ElasticsearchParseException.class,
-                () -> new FileOperatorUsersStore(env, watcherService)
-            );
+            final ParsingException e = expectThrows(ParsingException.class, () -> new FileOperatorUsersStore(env, watcherService));
             assertThat(e.getMessage(), containsString("Error parsing operator users file"));
         }
     }

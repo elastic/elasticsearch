@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 
@@ -86,7 +86,7 @@ public final class Pipeline {
             processorFactories
         );
         if (config.isEmpty() == false) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "pipeline ["
                     + id
                     + "] doesn't support one or more provided configuration parameters "
@@ -94,7 +94,7 @@ public final class Pipeline {
             );
         }
         if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
-            throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
+            throw new ParsingException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(false, processors, onFailureProcessors);
         return new Pipeline(id, description, version, metadata, compoundProcessor);

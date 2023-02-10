@@ -13,7 +13,6 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.RoutingMissingException;
@@ -366,9 +365,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                                 }
                                 item.fields(fields.toArray(new String[fields.size()]));
                             } else {
-                                throw new ElasticsearchParseException(
-                                    "failed to parse More Like This item. field [fields] must be an array"
-                                );
+                                throw new ParsingException("failed to parse More Like This item. field [fields] must be an array");
                             }
                         } else if (PER_FIELD_ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
                             item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
@@ -379,20 +376,15 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                             item.versionType = VersionType.fromString(parser.text());
                         } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse More Like This item. unknown field [{}]",
-                                currentFieldName
-                            );
+                            throw new ParsingException("failed to parse More Like This item. unknown field [{}]", currentFieldName);
                         }
                 }
             }
             if (item.id != null && item.doc != null) {
-                throw new ElasticsearchParseException(
-                    "failed to parse More Like This item. either [id] or [doc] can be specified, but not both!"
-                );
+                throw new ParsingException("failed to parse More Like This item. either [id] or [doc] can be specified, but not both!");
             }
             if (item.id == null && item.doc == null) {
-                throw new ElasticsearchParseException("failed to parse More Like This item. neither [id] nor [doc] is specified!");
+                throw new ParsingException("failed to parse More Like This item. neither [id] nor [doc] is specified!");
             }
             return item;
         }

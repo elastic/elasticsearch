@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -313,7 +313,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 }
             }
             logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assert roleName != null;
             if (logger.isDebugEnabled()) {
                 final String finalRoleName = roleName;

@@ -19,7 +19,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -308,7 +307,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     }
                 }
             }""", DATE_FIELD_NAME);
-        expectThrows(ElasticsearchParseException.class, () -> parseQuery(invalidQuery).toQuery(createSearchExecutionContext()));
+        expectThrows(ParsingException.class, () -> parseQuery(invalidQuery).toQuery(createSearchExecutionContext()));
     }
 
     public void testDateRangeBoundaries() throws IOException {

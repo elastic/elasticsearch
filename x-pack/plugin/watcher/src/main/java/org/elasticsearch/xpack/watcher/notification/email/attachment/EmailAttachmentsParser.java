@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 
@@ -40,7 +40,7 @@ public class EmailAttachmentsParser {
 
                     EmailAttachmentParser<?> emailAttachmentParser = parsers.get(currentAttachmentType);
                     if (emailAttachmentParser == null) {
-                        throw new ElasticsearchParseException("Cannot parse attachment of type [{}]", currentAttachmentType);
+                        throw new ParsingException("Cannot parse attachment of type [{}]", currentAttachmentType);
                     }
                     EmailAttachment emailAttachment = emailAttachmentParser.parse(currentFieldName, parser);
                     attachments.add(emailAttachment);

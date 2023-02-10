@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.search.SearchHit;
@@ -38,7 +38,7 @@ class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
             Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), bucket);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse bucket", e);
+            throw new ParsingException("failed to parse bucket", e);
         }
     }
 }

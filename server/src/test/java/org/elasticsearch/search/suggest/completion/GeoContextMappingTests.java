@@ -9,7 +9,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -251,10 +251,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        ElasticsearchParseException ex = expectThrows(
-            ElasticsearchParseException.class,
-            () -> createIndex("test", Settings.EMPTY, mapping)
-        );
+        ParsingException ex = expectThrows(ParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
 
         assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] must be mapped to geo_point, found [" + type + "]"));
     }
@@ -283,10 +280,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        ElasticsearchParseException ex = expectThrows(
-            ElasticsearchParseException.class,
-            () -> createIndex("test", Settings.EMPTY, mapping)
-        );
+        ParsingException ex = expectThrows(ParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
 
         assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] is not defined in the mapping"));
     }

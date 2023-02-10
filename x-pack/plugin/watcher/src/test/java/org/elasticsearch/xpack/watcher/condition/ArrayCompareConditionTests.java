@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
@@ -217,7 +217,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
 
-        expectedException.expect(ElasticsearchParseException.class);
+        expectedException.expect(ParsingException.class);
         expectedException.expectMessage("unknown comparison operator");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
@@ -239,7 +239,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
 
-        expectedException.expect(ElasticsearchParseException.class);
+        expectedException.expect(ParsingException.class);
         expectedException.expectMessage("unknown comparison quantifier");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
@@ -263,7 +263,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
 
-        expectedException.expect(ElasticsearchParseException.class);
+        expectedException.expect(ParsingException.class);
         expectedException.expectMessage("expected a field indicating the comparison value or comparison quantifier");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);

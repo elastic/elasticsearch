@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
@@ -136,7 +136,7 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     }
 
     public void testRunJob_OneResult_ParseException() throws Exception {
-        when(process.readAnalyticsResults()).thenThrow(new ElasticsearchParseException("cannot parse result"));
+        when(process.readAnalyticsResults()).thenThrow(new ParsingException("cannot parse result"));
 
         processManager.runJobAsync(TASK_ID, dataFrameAnalyticsConfig, dataExtractorFactory, listener);
 

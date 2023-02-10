@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -114,7 +114,7 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
                     } else if (RECORD_EXECUTION.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setRecordExecution(parser.booleanValue());
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse watch execution request. unexpected boolean field [{}]",
                             currentFieldName
                         );
@@ -138,10 +138,10 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
                                     ActionExecutionMode mode = ActionExecutionMode.resolve(parser.textOrNull());
                                     builder.setActionMode(currentFieldName, mode);
                                 } catch (IllegalArgumentException iae) {
-                                    throw new ElasticsearchParseException("could not parse watch execution request", iae);
+                                    throw new ParsingException("could not parse watch execution request", iae);
                                 }
                             } else {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "could not parse watch execution request. unexpected array field [{}]",
                                     currentFieldName
                                 );
@@ -149,19 +149,16 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
                         }
                     } else {
                         if (RESERVED_FIELD_NAMES.contains(currentFieldName)) {
-                            throw new ElasticsearchParseException(
-                                "please wrap watch including field [{}] inside a \"watch\" field",
-                                currentFieldName
-                            );
+                            throw new ParsingException("please wrap watch including field [{}] inside a \"watch\" field", currentFieldName);
                         } else {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "could not parse watch execution request. unexpected object field [{}]",
                                 currentFieldName
                             );
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected token [{}]", token);
+                    throw new ParsingException("could not parse watch execution request. unexpected token [{}]", token);
                 }
             }
         }

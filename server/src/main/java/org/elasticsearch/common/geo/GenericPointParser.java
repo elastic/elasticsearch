@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
 
@@ -64,7 +64,7 @@ public abstract class GenericPointParser<T> {
             if (subParser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return subParser.text();
             } else {
-                throw new ElasticsearchParseException("[{}] must be a string", name);
+                throw new ParsingException("[{}] must be a string", name);
             }
         }
     }
@@ -102,7 +102,7 @@ public abstract class GenericPointParser<T> {
                 }
                 return coordinates;
             } else {
-                throw new ElasticsearchParseException("[{}] must be an array", name);
+                throw new ParsingException("[{}] must be an array", name);
             }
         }
     }
@@ -143,7 +143,7 @@ public abstract class GenericPointParser<T> {
      * @return new Point parsed from the parser
      */
     public T parsePoint(XContentParser parser, boolean ignoreZValue, Function<String, T> fromString, Function<String, T> fromGeohash)
-        throws IOException, ElasticsearchParseException {
+        throws IOException, ParsingException {
         double x = Double.NaN;
         double y = Double.NaN;
         String geohash = null;
@@ -168,10 +168,10 @@ public abstract class GenericPointParser<T> {
                             }
                         } else {
                             String fieldKeys = collectionToDelimitedString(fields.keySet(), ", ");
-                            throw new ElasticsearchParseException("field [{}] not supported - must be one of: {}", field, fieldKeys);
+                            throw new ParsingException("field [{}] not supported - must be one of: {}", field, fieldKeys);
                         }
                     } else {
-                        throw new ElasticsearchParseException("token [{}] not allowed", subParser.currentToken());
+                        throw new ParsingException("token [{}] not allowed", subParser.currentToken());
                     }
                 }
             }
@@ -187,16 +187,16 @@ public abstract class GenericPointParser<T> {
             }
             if (coordinates != null) {
                 if (geojsonType == null || geojsonType.toLowerCase(Locale.ROOT).equals("point") == false) {
-                    throw new ElasticsearchParseException("[type] for {} can only be 'Point'", mapType);
+                    throw new ParsingException("[type] for {} can only be 'Point'", mapType);
                 }
                 if (coordinates.size() < 2) {
-                    throw new ElasticsearchParseException("[coordinates] must contain at least two values");
+                    throw new ParsingException("[coordinates] must contain at least two values");
                 }
                 if (coordinates.size() == 3) {
                     assertZValue(ignoreZValue, coordinates.get(2));
                 }
                 if (coordinates.size() > 3) {
-                    throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions", mapType);
+                    throw new ParsingException("[{}] field type does not accept > 3 dimensions", mapType);
                 }
                 return createPoint(coordinates.get(0), coordinates.get(1));
             }
@@ -215,10 +215,10 @@ public abstract class GenericPointParser<T> {
                         } else if (element == 3) {
                             assertZValue(ignoreZValue, subParser.doubleValue());
                         } else {
-                            throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions", mapType);
+                            throw new ParsingException("[{}] field type does not accept > 3 dimensions", mapType);
                         }
                     } else {
-                        throw new ElasticsearchParseException("numeric value expected");
+                        throw new ParsingException("numeric value expected");
                     }
                 }
             }
@@ -226,7 +226,7 @@ public abstract class GenericPointParser<T> {
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return fromString.apply(parser.text());
         } else {
-            throw new ElasticsearchParseException("{} expected", mapType);
+            throw new ParsingException("{} expected", mapType);
         }
     }
 
@@ -234,10 +234,10 @@ public abstract class GenericPointParser<T> {
         try {
             return switch (subParser.currentToken()) {
                 case VALUE_NUMBER, VALUE_STRING -> subParser.doubleValue(true);
-                default -> throw new ElasticsearchParseException("{} must be a number", field);
+                default -> throw new ParsingException("{} must be a number", field);
             };
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("[{}] must be a valid double value", e, field);
+            throw new ParsingException("[{}] must be a valid double value", e, field);
         }
     }
 
@@ -249,22 +249,22 @@ public abstract class GenericPointParser<T> {
         if (xy) found.add(xField + "/" + yField);
         if (geojson) found.add("GeoJSON");
         if (found.size() > 1) {
-            throw new ElasticsearchParseException("fields matching more than one point format found: {}", found);
+            throw new ParsingException("fields matching more than one point format found: {}", found);
         } else if (geohash) {
             if (x || y || type || coordinates) {
-                throw new ElasticsearchParseException(fieldError());
+                throw new ParsingException(fieldError());
             }
         } else if (found.size() == 0) {
             if (x) {
-                throw new ElasticsearchParseException("Required [{}]", yField);
+                throw new ParsingException("Required [{}]", yField);
             } else if (y) {
-                throw new ElasticsearchParseException("Required [{}]", xField);
+                throw new ParsingException("Required [{}]", xField);
             } else if (coordinates) {
-                throw new ElasticsearchParseException("Required [{}]", TYPE);
+                throw new ParsingException("Required [{}]", TYPE);
             } else if (type) {
-                throw new ElasticsearchParseException("Required [{}]", COORDINATES);
+                throw new ParsingException("Required [{}]", COORDINATES);
             } else {
-                throw new ElasticsearchParseException(fieldError());
+                throw new ParsingException(fieldError());
             }
         }
     }

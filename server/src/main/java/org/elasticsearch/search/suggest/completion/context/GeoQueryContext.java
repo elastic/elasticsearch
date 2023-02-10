@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -131,7 +131,7 @@ public final class GeoQueryContext implements ToXContentObject {
         } else if (token == XContentParser.Token.VALUE_STRING) {
             builder.setGeoPoint(GeoPoint.fromGeohash(parser.text()));
         } else {
-            throw new ElasticsearchParseException("geo context must be an object or string");
+            throw new ParsingException("geo context must be an object or string");
         }
         return builder.build();
     }

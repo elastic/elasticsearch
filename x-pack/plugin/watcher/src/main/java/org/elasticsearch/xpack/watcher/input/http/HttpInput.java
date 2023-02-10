@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -89,8 +89,8 @@ public class HttpInput implements Input {
             } else if (Field.REQUEST.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     request = HttpRequestTemplate.Parser.parse(parser);
-                } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException(
+                } catch (ParsingException pe) {
+                    throw new ParsingException(
                         "could not parse [{}] input for watch [{}]. failed to parse http request " + "template",
                         pe,
                         TYPE,
@@ -104,7 +104,7 @@ public class HttpInput implements Input {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             extract.add(parser.text());
                         } else {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "could not parse [{}] input for watch [{}]. expected a string value as "
                                     + "an [{}] item but found [{}] instead",
                                 TYPE,
@@ -115,7 +115,7 @@ public class HttpInput implements Input {
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] input for watch [{}]. unexpected array field [{}]",
                         TYPE,
                         watchId,
@@ -126,7 +126,7 @@ public class HttpInput implements Input {
                 if (Field.RESPONSE_CONTENT_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     expectedResponseBodyType = HttpContentType.resolve(parser.text());
                     if (expectedResponseBodyType == null) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse [{}] input for watch [{}]. unknown content type [{}]",
                             TYPE,
                             watchId,
@@ -134,7 +134,7 @@ public class HttpInput implements Input {
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] input for watch [{}]. unexpected string field [{}]",
                         TYPE,
                         watchId,
@@ -142,17 +142,12 @@ public class HttpInput implements Input {
                     );
                 }
             } else {
-                throw new ElasticsearchParseException(
-                    "could not parse [{}] input for watch [{}]. unexpected token [{}]",
-                    TYPE,
-                    watchId,
-                    token
-                );
+                throw new ParsingException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
             }
         }
 
         if (request == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] input for watch [{}]. missing require [{}] field",
                 TYPE,
                 watchId,
@@ -161,7 +156,7 @@ public class HttpInput implements Input {
         }
 
         if (expectedResponseBodyType == HttpContentType.TEXT && extract != null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] input for watch [{}]. key extraction is not supported for content" + " type [{}]",
                 TYPE,
                 watchId,

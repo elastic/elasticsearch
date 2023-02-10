@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -693,7 +693,7 @@ public class Detector implements ToXContentObject, Writeable {
          *
          * @param field The field name to be validated
          */
-        public static void verifyFieldName(String field) throws ElasticsearchParseException {
+        public static void verifyFieldName(String field) throws ParsingException {
             if (field != null && containsInvalidChar(field)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME_CHARS, field, Detector.PROHIBITED)

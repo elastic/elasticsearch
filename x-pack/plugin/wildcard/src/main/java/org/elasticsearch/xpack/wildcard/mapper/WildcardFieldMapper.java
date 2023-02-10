@@ -41,8 +41,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -602,7 +602,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 tokenizer.end();
                 tokenizer.close();
             } catch (IOException ioe) {
-                throw new ElasticsearchParseException("Error parsing wildcard regex pattern fragment [" + fragment + "]");
+                throw new ParsingException("Error parsing wildcard regex pattern fragment [" + fragment + "]");
             }
 
             if (foundTokens == 0 && fragment.length() > 0) {
@@ -780,7 +780,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
                 return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);
             } catch (IOException ioe) {
-                throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
+                throw new ParsingException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
         }
 

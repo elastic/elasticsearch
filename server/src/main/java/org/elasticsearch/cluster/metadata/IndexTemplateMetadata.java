@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -450,7 +450,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
                             builder.putAlias(AliasMetadata.Builder.fromXContent(parser));
                         }
                     } else {
-                        throw new ElasticsearchParseException("unknown key [{}] for index template", currentFieldName);
+                        throw new ParsingException("unknown key [{}] for index template", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {

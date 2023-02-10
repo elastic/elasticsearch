@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -121,7 +121,7 @@ public class FuzzinessTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class, () -> Fuzziness.fromString("illegal"));
         assertThat(e.getMessage(), equalTo("fuzziness cannot be [illegal]."));
 
-        e = expectThrows(ElasticsearchParseException.class, () -> Fuzziness.fromString("AUTO:badFormat"));
+        e = expectThrows(ParsingException.class, () -> Fuzziness.fromString("AUTO:badFormat"));
         assertThat(e.getMessage(), equalTo("failed to find low and high distance values"));
     }
 

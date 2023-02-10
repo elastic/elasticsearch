@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.transform;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransformFactory;
@@ -56,7 +56,7 @@ public class TransformRegistry {
             type
         );
         if (factory == null) {
-            throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
+            throw new ParsingException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
         return factory.parseExecutable(watchId, parser);
     }
@@ -66,7 +66,7 @@ public class TransformRegistry {
             type
         );
         if (factory == null) {
-            throw new ElasticsearchParseException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
+            throw new ParsingException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
         return factory.parseTransform(watchId, parser);
     }

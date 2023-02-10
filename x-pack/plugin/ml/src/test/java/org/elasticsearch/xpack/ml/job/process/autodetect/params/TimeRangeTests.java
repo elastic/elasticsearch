@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -24,18 +24,12 @@ public class TimeRangeTests extends ESTestCase {
     }
 
     public void test_UnparseableStartThrows() {
-        ElasticsearchParseException e = ESTestCase.expectThrows(
-            ElasticsearchParseException.class,
-            () -> TimeRange.builder().startTime("bad").build()
-        );
+        ParsingException e = ESTestCase.expectThrows(ParsingException.class, () -> TimeRange.builder().startTime("bad").build());
         assertEquals(Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, TimeRange.START_PARAM, "bad"), e.getMessage());
     }
 
     public void test_UnparseableEndThrows() {
-        ElasticsearchParseException e = ESTestCase.expectThrows(
-            ElasticsearchParseException.class,
-            () -> TimeRange.builder().endTime("bad").build()
-        );
+        ParsingException e = ESTestCase.expectThrows(ParsingException.class, () -> TimeRange.builder().endTime("bad").build());
         assertEquals(Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, TimeRange.END_PARAM, "bad"), e.getMessage());
     }
 

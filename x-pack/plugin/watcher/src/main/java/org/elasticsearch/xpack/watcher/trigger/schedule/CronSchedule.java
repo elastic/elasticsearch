@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -46,29 +46,29 @@ public class CronSchedule extends CronnableSchedule {
                 try {
                     return new CronSchedule(parser.text());
                 } catch (IllegalArgumentException iae) {
-                    throw new ElasticsearchParseException("could not parse [cron] schedule", iae);
+                    throw new ParsingException("could not parse [cron] schedule", iae);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 List<String> crons = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     switch (token) {
                         case VALUE_STRING -> crons.add(parser.text());
-                        default -> throw new ElasticsearchParseException(
+                        default -> throw new ParsingException(
                             "could not parse [cron] schedule. expected a string value in the cron " + "array but found [" + token + "]"
                         );
                     }
                 }
                 if (crons.isEmpty()) {
-                    throw new ElasticsearchParseException("could not parse [cron] schedule. no cron expression found in cron array");
+                    throw new ParsingException("could not parse [cron] schedule. no cron expression found in cron array");
                 }
                 try {
                     return new CronSchedule(crons.toArray(new String[crons.size()]));
                 } catch (IllegalArgumentException iae) {
-                    throw new ElasticsearchParseException("could not parse [cron] schedule", iae);
+                    throw new ParsingException("could not parse [cron] schedule", iae);
                 }
 
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse [cron] schedule. expected either a cron string value or an array "
                         + "of cron string values, but found ["
                         + token

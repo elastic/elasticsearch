@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.action.role;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -27,8 +27,8 @@ public class PutRoleBuilderTests extends ESTestCase {
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
         try (Client client = new NoOpClient("testBWCFieldPermissions")) {
-            ElasticsearchParseException e = expectThrows(
-                ElasticsearchParseException.class,
+            ParsingException e = expectThrows(
+                ParsingException.class,
                 () -> new PutRoleRequestBuilder(client).source("role1", new BytesArray(roleString), XContentType.JSON)
             );
             assertThat(e.getDetailedMessage(), containsString("""

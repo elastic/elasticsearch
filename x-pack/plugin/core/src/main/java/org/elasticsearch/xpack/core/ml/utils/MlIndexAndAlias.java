@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -27,6 +26,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -333,7 +333,7 @@ public final class MlIndexAndAlias {
                 )
             ).masterNodeTimeout(masterTimeout);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
+            throw new ParsingException("unable to parse composable template " + templateConfig.getTemplateName(), e);
         }
 
         installIndexTemplateIfRequired(clusterState, client, request, listener);

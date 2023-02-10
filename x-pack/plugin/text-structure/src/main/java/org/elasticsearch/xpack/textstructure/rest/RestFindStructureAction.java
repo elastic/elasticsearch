@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.textstructure.rest;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -78,7 +78,7 @@ public class RestFindStructureAction extends BaseRestHandler {
         if (restRequest.hasContent()) {
             request.setSample(restRequest.content());
         } else {
-            throw new ElasticsearchParseException("request body is required");
+            throw new ParsingException("request body is required");
         }
 
         return channel -> client.execute(FindStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));

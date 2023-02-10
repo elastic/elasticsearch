@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -60,8 +60,8 @@ public class WebhookAction implements Action {
         try {
             HttpRequestTemplate request = HttpRequestTemplate.Parser.parse(parser);
             return new WebhookAction(request);
-        } catch (ElasticsearchParseException pe) {
-            throw new ElasticsearchParseException(
+        } catch (ParsingException pe) {
+            throw new ParsingException(
                 "could not parse [{}] action [{}/{}]. failed parsing http request template",
                 pe,
                 TYPE,

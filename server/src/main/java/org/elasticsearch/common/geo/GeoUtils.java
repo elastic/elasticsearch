@@ -9,7 +9,7 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.SloppyMath;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -342,7 +342,7 @@ public class GeoUtils {
      * @param parser {@link XContentParser} to parse the value from
      * @return new {@link GeoPoint} parsed from the parse
      */
-    public static GeoPoint parseGeoPoint(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public static GeoPoint parseGeoPoint(XContentParser parser) throws IOException, ParsingException {
         return parseGeoPoint(parser, false);
     }
 
@@ -355,7 +355,7 @@ public class GeoUtils {
      * <p>
      * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
      */
-    public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
+    public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ParsingException {
         try (
             XContentParser parser = new MapXContentParser(
                 NamedXContentRegistry.EMPTY,
@@ -369,7 +369,7 @@ public class GeoUtils {
             parser.nextToken(); // field value
             return parseGeoPoint(parser, ignoreZValue);
         } catch (IOException ex) {
-            throw new ElasticsearchParseException("error parsing geopoint", ex);
+            throw new ParsingException("error parsing geopoint", ex);
         }
     }
 
@@ -387,8 +387,7 @@ public class GeoUtils {
      * Parse a geopoint represented as an object, string or an array. If the geopoint is represented as a geohash,
      * the left bottom corner of the geohash cell is used as the geopoint coordinates.GeoBoundingBoxQueryBuilder.java
      */
-    public static GeoPoint parseGeoPoint(XContentParser parser, final boolean ignoreZValue) throws IOException,
-        ElasticsearchParseException {
+    public static GeoPoint parseGeoPoint(XContentParser parser, final boolean ignoreZValue) throws IOException, ParsingException {
         return parseGeoPoint(parser, ignoreZValue, EffectivePoint.BOTTOM_LEFT);
     }
 
@@ -408,7 +407,7 @@ public class GeoUtils {
      * @return new {@link GeoPoint} parsed from the parse
      */
     public static GeoPoint parseGeoPoint(XContentParser parser, final boolean ignoreZValue, final EffectivePoint effectivePoint)
-        throws IOException, ElasticsearchParseException {
+        throws IOException, ParsingException {
         return geoPointParser.parsePoint(parser, ignoreZValue, value -> {
             GeoPoint point = new GeoPoint();
             point.resetFromString(value, ignoreZValue, effectivePoint);
@@ -464,7 +463,7 @@ public class GeoUtils {
      * @param parser {@link XContentParser} to parse the value from
      * @return int representing precision
      */
-    public static int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public static int parsePrecision(XContentParser parser) throws IOException, ParsingException {
         XContentParser.Token token = parser.currentToken();
         if (token.equals(XContentParser.Token.VALUE_NUMBER)) {
             return XContentMapValues.nodeIntegerValue(parser.intValue());

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.support.xcontent;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,10 +40,7 @@ public class WatcherXContentParserTests extends ESTestCase {
                 ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
                 WatcherXContentParser parser = new WatcherXContentParser(xContentParser, now, null, false);
-                ElasticsearchParseException e = expectThrows(
-                    ElasticsearchParseException.class,
-                    () -> WatcherXContentParser.secretOrNull(parser)
-                );
+                ParsingException e = expectThrows(ParsingException.class, () -> WatcherXContentParser.secretOrNull(parser));
                 assertThat(e.getMessage(), is("found redacted password in field [" + fieldName + "]"));
             }
         }

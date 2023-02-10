@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -242,8 +242,8 @@ public class CompareConditionTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         try {
             CompareCondition.parse(ClockMock.frozen(), "_id", parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("expected an object but found [null] instead"));
         }
     }
@@ -261,8 +261,8 @@ public class CompareConditionTests extends ESTestCase {
         parser.nextToken();
         try {
             CompareCondition.parse(ClockMock.frozen(), "_id", parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("unknown comparison operator [foobar]"));
         }
     }
@@ -281,8 +281,8 @@ public class CompareConditionTests extends ESTestCase {
         parser.nextToken();
         try {
             CompareCondition.parse(ClockMock.frozen(), "_id", parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("must either be a numeric, string, boolean or null value, but found ["));
         }
     }

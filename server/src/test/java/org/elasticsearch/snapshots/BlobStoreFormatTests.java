@@ -9,7 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchCorruptionException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -63,7 +63,7 @@ public class BlobStoreFormatTests extends ESTestCase {
                 }
             }
             if (text == null) {
-                throw new ElasticsearchParseException("missing mandatory parameter text");
+                throw new ParsingException("missing mandatory parameter text");
             }
             return new BlobObj(text);
         }

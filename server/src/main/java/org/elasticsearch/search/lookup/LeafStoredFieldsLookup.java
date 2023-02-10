@@ -8,8 +8,8 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -131,7 +131,7 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
             try {
                 reader.accept(docId, visitor);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to load field [{}]", e, name);
+                throw new ParsingException("failed to load field [{}]", e, name);
             }
             data.fields(singletonMap(data.fieldType().name(), values));
         }

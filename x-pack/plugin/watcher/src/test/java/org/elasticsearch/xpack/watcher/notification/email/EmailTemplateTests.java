@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -249,8 +249,8 @@ public class EmailTemplateTests extends ESTestCase {
     }
 
     private void assertInvalidEmail(String email) {
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> EmailTemplate.Parser.validateEmailAddresses(new TextTemplate(email))
         );
         assertThat(e.getMessage(), startsWith("invalid email address"));

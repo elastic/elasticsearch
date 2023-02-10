@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.Streams;
@@ -92,16 +92,16 @@ public class TemplateUtils {
      */
     public static void validate(String source) {
         if (source == null) {
-            throw new ElasticsearchParseException("Template must not be null");
+            throw new ParsingException("Template must not be null");
         }
         if (Strings.isEmpty(source)) {
-            throw new ElasticsearchParseException("Template must not be empty");
+            throw new ParsingException("Template must not be empty");
         }
 
         try {
             XContentHelper.convertToMap(JsonXContent.jsonXContent, source, false);
         } catch (Exception e) {
-            throw new ElasticsearchParseException("Invalid template", e);
+            throw new ParsingException("Invalid template", e);
         }
     }
 
@@ -209,7 +209,7 @@ public class TemplateUtils {
                 if (containsCorrectVersion(versionKey, mappingMap, predicate) == false) {
                     return false;
                 }
-            } catch (ElasticsearchParseException e) {
+            } catch (ParsingException e) {
                 logger.error(() -> "Cannot parse the template [" + templateName + "]", e);
                 throw new IllegalStateException("Cannot parse the template " + templateName, e);
             }

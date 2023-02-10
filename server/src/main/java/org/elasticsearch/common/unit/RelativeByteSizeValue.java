@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 
 /**
  * A byte size value that allows specification using either of:
@@ -85,14 +85,14 @@ public class RelativeByteSizeValue {
                 } else {
                     return new RelativeByteSizeValue(ByteSizeValue.ZERO);
                 }
-            } catch (ElasticsearchParseException e) {
+            } catch (ParsingException e) {
                 // ignore, see if it parses as bytes
             }
         }
         try {
             return new RelativeByteSizeValue(ByteSizeValue.parseBytesSizeValue(value, settingName));
-        } catch (ElasticsearchParseException e) {
-            throw new ElasticsearchParseException("unable to parse [{}={}] as either percentage or bytes", e, settingName, value);
+        } catch (ParsingException e) {
+            throw new ParsingException("unable to parse [{}={}] as either percentage or bytes", e, settingName, value);
         }
     }
 

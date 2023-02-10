@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
@@ -80,8 +80,8 @@ public class WeeklySchedule extends CronnableSchedule {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 try {
                     return new WeeklySchedule(WeekTimes.parse(parser, parser.currentToken()));
-                } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("could not parse [{}] schedule. invalid weekly times", pe, TYPE);
+                } catch (ParsingException pe) {
+                    throw new ParsingException("could not parse [{}] schedule. invalid weekly times", pe, TYPE);
                 }
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -90,13 +90,13 @@ public class WeeklySchedule extends CronnableSchedule {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     try {
                         times.add(WeekTimes.parse(parser, token));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse [{}] schedule. invalid weekly times", pe, TYPE);
+                    } catch (ParsingException pe) {
+                        throw new ParsingException("could not parse [{}] schedule. invalid weekly times", pe, TYPE);
                     }
                 }
                 return times.isEmpty() ? new WeeklySchedule() : new WeeklySchedule(times.toArray(new WeekTimes[times.size()]));
             }
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] schedule. expected either an object or an array "
                     + "of objects representing weekly times, but found [{}] instead",
                 TYPE,

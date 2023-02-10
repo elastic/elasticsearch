@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -59,7 +59,7 @@ public final class GeometryParser {
      * <p>
      * Json structure: valid geojson definition
      */
-    public Geometry parseGeometry(Object value) throws ElasticsearchParseException {
+    public Geometry parseGeometry(Object value) throws ParsingException {
         if (value instanceof List<?> values) {
             if (values.size() == 2 && values.get(0) instanceof Number) {
                 GeoPoint point = GeoUtils.parseGeoPoint(values, ignoreZValue);
@@ -91,7 +91,7 @@ public final class GeometryParser {
             }
 
         } catch (IOException | ParseException ex) {
-            throw new ElasticsearchParseException("error parsing geometry ", ex);
+            throw new ParsingException("error parsing geometry ", ex);
         }
     }
 

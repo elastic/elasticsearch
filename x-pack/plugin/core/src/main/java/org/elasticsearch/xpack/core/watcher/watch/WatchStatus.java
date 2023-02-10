@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -298,8 +298,8 @@ public class WatchStatus implements ToXContentObject, Writeable {
             } else if (Field.STATE.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     state = State.parse(parser);
-                } catch (ElasticsearchParseException e) {
-                    throw new ElasticsearchParseException(
+                } catch (ParsingException e) {
+                    throw new ParsingException(
                         "could not parse watch status for [{}]. failed to parse field [{}]",
                         e,
                         watchId,
@@ -310,7 +310,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
                 if (token.isValue()) {
                     version = parser.longValue();
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse watch status for [{}]. expecting field [{}] to hold a long " + "value, found [{}] instead",
                         watchId,
                         currentFieldName,
@@ -321,7 +321,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
                 if (token.isValue()) {
                     lastChecked = parseDate(currentFieldName, parser, ZoneOffset.UTC);
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse watch status for [{}]. expecting field [{}] to hold a date " + "value, found [{}] instead",
                         watchId,
                         currentFieldName,
@@ -332,7 +332,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
                 if (token.isValue()) {
                     lastMetCondition = parseDate(currentFieldName, parser, ZoneOffset.UTC);
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse watch status for [{}]. expecting field [{}] to hold a date " + "value, found [{}] instead",
                         watchId,
                         currentFieldName,
@@ -343,7 +343,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
                 if (token.isValue()) {
                     executionState = ExecutionState.resolve(parser.text());
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse watch status for [{}]. expecting field [{}] to hold a string " + "value, found [{}] instead",
                         watchId,
                         currentFieldName,
@@ -362,7 +362,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse watch status for [{}]. expecting field [{}] to be an object, " + "found [{}] instead",
                         watchId,
                         currentFieldName,
@@ -417,7 +417,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
 
         public static State parse(XContentParser parser) throws IOException {
             if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
+                throw new ParsingException("expected an object but found [{}] instead", parser.currentToken());
             }
             boolean active = true;
             ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);

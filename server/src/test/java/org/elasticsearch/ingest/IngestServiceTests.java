@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -39,6 +38,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -878,8 +878,8 @@ public class IngestServiceTests extends ESTestCase {
         ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(List.of(new ProcessorInfo("set"))));
 
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
         );
         assertEquals("Processor type [remove] is not installed on node [" + node2 + "]", e.getMessage());

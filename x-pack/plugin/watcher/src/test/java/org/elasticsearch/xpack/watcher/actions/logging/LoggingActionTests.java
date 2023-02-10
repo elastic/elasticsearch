@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -175,7 +175,7 @@ public class LoggingActionTests extends ESTestCase {
         try {
             parser.parseExecutable(randomAlphaOfLength(5), randomAlphaOfLength(5), xContentParser);
             fail("Expected failure as there's no text");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("missing required [text] field"));
         }
     }

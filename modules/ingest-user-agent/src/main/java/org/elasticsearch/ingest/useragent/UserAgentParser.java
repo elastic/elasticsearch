@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -42,7 +42,7 @@ final class UserAgentParser {
                 deviceTypeParser.init(deviceTypeRegexStream);
             }
         } catch (IOException e) {
-            throw new ElasticsearchParseException("error parsing regular expression file", e);
+            throw new ParsingException("error parsing regular expression file", e);
         }
     }
 
@@ -107,7 +107,7 @@ final class UserAgentParser {
         }
 
         if (uaPatterns.isEmpty() && osPatterns.isEmpty() && devicePatterns.isEmpty()) {
-            throw new ElasticsearchParseException("not a valid regular expression file");
+            throw new ParsingException("not a valid regular expression file");
         }
     }
 
@@ -125,19 +125,19 @@ final class UserAgentParser {
 
         XContentParser.Token token = yamlParser.nextToken();
         if (token != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException("malformed regular expression file, should continue with 'array' after 'object'");
+            throw new ParsingException("malformed regular expression file, should continue with 'array' after 'object'");
         }
 
         token = yamlParser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("malformed regular expression file, expecting 'object'");
+            throw new ParsingException("malformed regular expression file, expecting 'object'");
         }
 
         while (token == XContentParser.Token.START_OBJECT) {
             token = yamlParser.nextToken();
 
             if (token != XContentParser.Token.FIELD_NAME) {
-                throw new ElasticsearchParseException("malformed regular expression file, should continue with 'field_name' after 'array'");
+                throw new ParsingException("malformed regular expression file, should continue with 'field_name' after 'array'");
             }
 
             Map<String, String> regexMap = new HashMap<>();

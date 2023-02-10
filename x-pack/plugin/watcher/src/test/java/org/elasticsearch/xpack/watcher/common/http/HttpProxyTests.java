@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
@@ -72,7 +72,7 @@ public class HttpProxyTests extends ESTestCase {
                 .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())
         ) {
             parser.nextToken();
-            expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
+            expectThrows(ParsingException.class, () -> HttpProxy.parse(parser));
         }
     }
 
@@ -83,7 +83,7 @@ public class HttpProxyTests extends ESTestCase {
                 .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())
         ) {
             parser.nextToken();
-            expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
+            expectThrows(ParsingException.class, () -> HttpProxy.parse(parser));
         }
     }
 
@@ -94,7 +94,7 @@ public class HttpProxyTests extends ESTestCase {
                 .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())
         ) {
             parser.nextToken();
-            expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
+            expectThrows(ParsingException.class, () -> HttpProxy.parse(parser));
         }
     }
 

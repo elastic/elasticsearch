@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
+import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceValueInCatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceValueInLength;
@@ -205,6 +206,17 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void replaceKeyInDo(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, null));
+    }
+
+    /**
+     * A transformation to replace the value in a do.catch section for given REST test.
+     *
+     * @param newValue the value of the do.catch to replace.
+     * @param testName the testName to apply replacement
+     * @see ReplaceValueInCatch
+     */
+    public void replaceValueInCatch(Object newValue, String testName) {
+        transformations.add(new ReplaceValueInCatch(MAPPER.convertValue(newValue, JsonNode.class), testName));
     }
 
     /**

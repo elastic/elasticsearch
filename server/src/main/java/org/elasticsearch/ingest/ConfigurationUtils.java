@@ -9,8 +9,8 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -46,7 +46,7 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified optional property from the specified configuration map.
      *
-     * If the property value isn't of type string a {@link ElasticsearchParseException} is thrown.
+     * If the property value isn't of type string a {@link ParsingException} is thrown.
      */
     public static String readOptionalStringProperty(
         String processorType,
@@ -61,8 +61,8 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type string an {@link ElasticsearchParseException} is thrown.
-     * If the property is missing an {@link ElasticsearchParseException} is thrown
+     * If the property value isn't of type string an {@link ParsingException} is thrown.
+     * If the property is missing an {@link ParsingException} is thrown
      */
     public static String readStringProperty(
         String processorType,
@@ -76,8 +76,8 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type string a {@link ElasticsearchParseException} is thrown.
-     * If the property is missing and no default value has been specified a {@link ElasticsearchParseException} is thrown
+     * If the property value isn't of type string a {@link ParsingException} is thrown.
+     * If the property is missing and no default value has been specified a {@link ParsingException} is thrown
      */
     public static String readStringProperty(
         String processorType,
@@ -113,8 +113,8 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type string or int a {@link ElasticsearchParseException} is thrown.
-     * If the property is missing and no default value has been specified a {@link ElasticsearchParseException} is thrown
+     * If the property value isn't of type string or int a {@link ParsingException} is thrown.
+     * If the property is missing and no default value has been specified a {@link ParsingException} is thrown
      */
     public static String readStringOrIntProperty(
         String processorType,
@@ -152,7 +152,7 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type string or int a {@link ElasticsearchParseException} is thrown.
+     * If the property value isn't of type string or int a {@link ParsingException} is thrown.
      */
     public static String readOptionalStringOrIntProperty(
         String processorType,
@@ -187,7 +187,7 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type string or long a {@link ElasticsearchParseException} is thrown.
+     * If the property value isn't of type string or long a {@link ParsingException} is thrown.
      */
     public static String readOptionalStringOrLongProperty(
         String processorType,
@@ -246,8 +246,8 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type int a {@link ElasticsearchParseException} is thrown.
-     * If the property is missing an {@link ElasticsearchParseException} is thrown
+     * If the property value isn't of type int a {@link ParsingException} is thrown.
+     * If the property is missing an {@link ParsingException} is thrown
      */
     public static Integer readIntProperty(
         String processorType,
@@ -275,8 +275,8 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
-     * If the property value isn't of type int a {@link ElasticsearchParseException} is thrown.
-     * If the property is missing an {@link ElasticsearchParseException} is thrown
+     * If the property value isn't of type int a {@link ParsingException} is thrown.
+     * If the property is missing an {@link ParsingException} is thrown
      */
     public static Double readDoubleProperty(
         String processorType,
@@ -303,7 +303,7 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
-     * If the property value isn't of type list an {@link ElasticsearchParseException} is thrown.
+     * If the property value isn't of type list an {@link ParsingException} is thrown.
      */
     public static <T> List<T> readOptionalList(
         String processorType,
@@ -321,8 +321,8 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
-     * If the property value isn't of type list an {@link ElasticsearchParseException} is thrown.
-     * If the property is missing an {@link ElasticsearchParseException} is thrown
+     * If the property value isn't of type list an {@link ParsingException} is thrown.
+     * If the property is missing an {@link ParsingException} is thrown
      */
     public static <T> List<T> readList(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
@@ -351,8 +351,8 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
      *
-     * If the property value isn't of type map an {@link ElasticsearchParseException} is thrown.
-     * If the property is missing an {@link ElasticsearchParseException} is thrown
+     * If the property value isn't of type map an {@link ParsingException} is thrown.
+     * If the property is missing an {@link ParsingException} is thrown
      */
     public static <T> Map<String, T> readMap(
         String processorType,
@@ -371,7 +371,7 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
      *
-     * If the property value isn't of type map an {@link ElasticsearchParseException} is thrown.
+     * If the property value isn't of type map an {@link ParsingException} is thrown.
      */
     public static <T> Map<String, T> readOptionalMap(
         String processorType,
@@ -446,7 +446,7 @@ public final class ConfigurationUtils {
         } else {
             msg = "[" + propertyName + "] " + reason;
         }
-        ElasticsearchParseException exception = new ElasticsearchParseException(msg);
+        ParsingException exception = new ParsingException(msg);
         addMetadataToException(exception, processorType, processorTag, propertyName);
         return exception;
     }
@@ -594,7 +594,7 @@ public final class ConfigurationUtils {
             try {
                 Processor processor = factory.create(processorFactories, tag, description, config);
                 if (config.isEmpty() == false) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "processor [{}] doesn't support one or more provided configuration parameters {}",
                         type,
                         Arrays.toString(config.keySet().toArray())

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -113,7 +113,7 @@ public class TimeRange {
                 epoch = TimeUtils.dateStringToEpoch(date);
                 if (epoch < 0) {
                     String msg = Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, paramName, date);
-                    throw new ElasticsearchParseException(msg);
+                    throw new ParsingException(msg);
                 }
             }
 

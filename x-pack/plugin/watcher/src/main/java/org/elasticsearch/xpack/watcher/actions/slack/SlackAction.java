@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -82,7 +82,7 @@ public class SlackAction implements Action {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     account = parser.text();
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " + "found [{}] instead",
                         TYPE,
                         watchId,
@@ -97,7 +97,7 @@ public class SlackAction implements Action {
                 try {
                     message = SlackMessage.Template.parse(parser);
                 } catch (Exception e) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse [{}] action [{}/{}]. failed to parse [{}] field",
                         e,
                         TYPE,
@@ -107,18 +107,12 @@ public class SlackAction implements Action {
                     );
                 }
             } else {
-                throw new ElasticsearchParseException(
-                    "failed to parse [{}] action [{}/{}]. unexpected token [{}]",
-                    TYPE,
-                    watchId,
-                    actionId,
-                    token
-                );
+                throw new ParsingException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
             }
         }
 
         if (message == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse [{}] action [{}/{}]. missing required [{}] field",
                 TYPE,
                 watchId,

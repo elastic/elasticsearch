@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.legacygeo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -44,11 +44,9 @@ public enum GeoShapeType {
         @Override
         CoordinateNode validate(CoordinateNode coordinates, boolean coerce) {
             if (coordinates.isEmpty()) {
-                throw new ElasticsearchParseException(
-                    "invalid number of points (0) provided when expecting a single coordinate ([lat, lng])"
-                );
+                throw new ParsingException("invalid number of points (0) provided when expecting a single coordinate ([lat, lng])");
             } else if (coordinates.children != null) {
-                throw new ElasticsearchParseException("multipoint data provided when single point data expected.");
+                throw new ParsingException("multipoint data provided when single point data expected.");
             }
             return coordinates;
         }
@@ -73,12 +71,12 @@ public enum GeoShapeType {
         CoordinateNode validate(CoordinateNode coordinates, boolean coerce) {
             if (coordinates.children == null || coordinates.children.isEmpty()) {
                 if (coordinates.coordinate != null) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "single coordinate found when expecting an array of "
                             + "coordinates. change type to point or change data to an array of >0 coordinates"
                     );
                 }
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "no data provided for multipoint object when expecting " + ">0 points (e.g., [[lat, lng]] or [[lat, lng], ...])"
                 );
             } else {
@@ -109,7 +107,7 @@ public enum GeoShapeType {
         @Override
         CoordinateNode validate(CoordinateNode coordinates, boolean coerce) {
             if (coordinates.children.size() < 2) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "invalid number of points in LineString (found [{}] - must be >= 2)",
                     coordinates.children.size()
                 );
@@ -136,7 +134,7 @@ public enum GeoShapeType {
         @Override
         CoordinateNode validate(CoordinateNode coordinates, boolean coerce) {
             if (coordinates.children.size() < 1) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "invalid number of lines in MultiLineString (found [{}] - must be >= 1)",
                     coordinates.children.size()
                 );
@@ -173,12 +171,12 @@ public enum GeoShapeType {
                 error += (coordinates.coordinate == null)
                     ? " No coordinate array provided"
                     : " Found a single coordinate when expecting a coordinate array";
-                throw new ElasticsearchParseException(error);
+                throw new ParsingException(error);
             }
 
             int numValidPts = coerce ? 3 : 4;
             if (coordinates.children.size() < numValidPts) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "invalid number of points in LinearRing (found [{}] - must be >= [{}])",
                     coordinates.children.size(),
                     numValidPts
@@ -191,7 +189,7 @@ public enum GeoShapeType {
                 if (coerce) {
                     coordinates.children.add(coordinates.children.get(0));
                 } else {
-                    throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");
+                    throw new ParsingException("invalid LinearRing found (coordinates are not closed)");
                 }
             }
         }
@@ -205,9 +203,7 @@ public enum GeoShapeType {
              * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
              */
             if (coordinates.children == null || coordinates.children.isEmpty()) {
-                throw new ElasticsearchParseException(
-                    "invalid LinearRing provided for type polygon. Linear ring must be an array of coordinates"
-                );
+                throw new ParsingException("invalid LinearRing provided for type polygon. Linear ring must be an array of coordinates");
             }
             for (CoordinateNode ring : coordinates.children) {
                 validateLinearRing(ring, coerce);
@@ -257,7 +253,7 @@ public enum GeoShapeType {
         CoordinateNode validate(CoordinateNode coordinates, boolean coerce) {
             // validate the coordinate array for envelope type
             if (coordinates.children.size() != 2) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "invalid number of points [{}] provided for geo_shape [{}] when expecting an array of 2 coordinates",
                     coordinates.children.size(),
                     GeoShapeType.ENVELOPE.shapename

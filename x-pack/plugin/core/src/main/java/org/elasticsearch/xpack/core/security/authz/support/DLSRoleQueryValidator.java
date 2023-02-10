@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authz.support;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -60,7 +59,7 @@ public final class DLSRoleQueryValidator {
                         evaluateAndVerifyRoleQuery(query.utf8ToString(), xContentRegistry);
                     }
                 } catch (ParsingException | IllegalArgumentException | IOException e) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse field 'query' for indices ["
                             + Strings.arrayToCommaDelimitedString(indicesPrivileges[i].getIndices())
                             + "] at index privilege ["
@@ -141,8 +140,8 @@ public final class DLSRoleQueryValidator {
             String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService, user);
             try {
                 return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry);
-            } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {
-                throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
+            } catch (ParsingException | XContentParseException | IOException e) {
+                throw new ParsingException("failed to parse field 'query' from the role descriptor", e);
             }
         }
         return null;

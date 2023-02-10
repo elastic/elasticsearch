@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -221,7 +221,7 @@ class XContentRecordReader {
                 ++errorCounter;
                 if (errorCounter >= PARSE_ERRORS_LIMIT) {
                     logger.error("Failed to recover from malformed JSON data.", e);
-                    throw new ElasticsearchParseException("The input JSON data is malformed.");
+                    throw new ParsingException("The input JSON data is malformed.");
                 }
             }
         } while (token != XContentParser.Token.END_OBJECT);

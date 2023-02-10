@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -137,7 +137,7 @@ public class JobConfigProvider {
             }));
 
         } catch (IOException e) {
-            listener.onFailure(new ElasticsearchParseException("Failed to serialise job with id [" + job.getId() + "]", e));
+            listener.onFailure(new ParsingException("Failed to serialise job with id [" + job.getId() + "]", e));
         }
     }
 
@@ -238,7 +238,7 @@ public class JobConfigProvider {
                 try {
                     jobBuilder = parseJobLenientlyFromSource(source);
                 } catch (IOException e) {
-                    delegate.onFailure(new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
+                    delegate.onFailure(new ParsingException("Failed to parse job configuration [" + jobId + "]", e));
                     return;
                 }
 
@@ -298,7 +298,7 @@ public class JobConfigProvider {
             try {
                 originalJob = parseJobLenientlyFromSource(source).build();
             } catch (Exception e) {
-                listener.onFailure(new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
+                listener.onFailure(new ParsingException("Failed to parse job configuration [" + jobId + "]", e));
                 return;
             }
 
@@ -338,9 +338,7 @@ public class JobConfigProvider {
             }, updatedJobListener::onFailure));
 
         } catch (IOException e) {
-            updatedJobListener.onFailure(
-                new ElasticsearchParseException("Failed to serialise job with id [" + updatedJob.getId() + "]", e)
-            );
+            updatedJobListener.onFailure(new ParsingException("Failed to serialise job with id [" + updatedJob.getId() + "]", e));
         }
     }
 

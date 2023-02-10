@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -31,7 +31,7 @@ public class MultiMatchQueryTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder("pizza=yummy"));
         assertThat(e.getMessage(), equalTo("illegal multi_match option [pizza]"));
 
-        e = expectThrows(ElasticsearchParseException.class, () -> getBuilder("type=aoeu"));
+        e = expectThrows(ParsingException.class, () -> getBuilder("type=aoeu"));
         assertThat(e.getMessage(), equalTo("failed to parse [multi_match] query type [aoeu]. unknown type."));
     }
 

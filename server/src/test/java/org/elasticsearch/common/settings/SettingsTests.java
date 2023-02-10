@@ -8,10 +8,10 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -635,8 +635,8 @@ public class SettingsTests extends ESTestCase {
 
     public void testIndentation() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
         );
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
@@ -644,8 +644,8 @@ public class SettingsTests extends ESTestCase {
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
         );
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
@@ -654,7 +654,7 @@ public class SettingsTests extends ESTestCase {
     public void testMissingValue() throws Exception {
         Path tmp = createTempFile("test", ".yaml");
         Files.write(tmp, Collections.singletonList("foo: # missing value\n"), StandardCharsets.UTF_8);
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> { Settings.builder().loadFromPath(tmp); });
+        ParsingException e = expectThrows(ParsingException.class, () -> { Settings.builder().loadFromPath(tmp); });
         assertTrue(
             e.getMessage(),
             e.getMessage().contains("null-valued setting found for key [foo] found at line number [1], column number [5]")

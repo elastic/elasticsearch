@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -284,7 +284,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             Object properties;
             try {
                 properties = typeMappings.getSourceAsMap().get("properties");
-            } catch (ElasticsearchParseException e) {
+            } catch (ParsingException e) {
                 throw new AssertionError(e);
             }
             assertNotNull(properties);

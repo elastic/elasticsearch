@@ -12,7 +12,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
@@ -142,8 +141,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                     }
                 }
             }""", TEXT_FIELD_NAME);
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createSearchExecutionContext())
         );
         String msg = "failed to find low and high distance values";
@@ -161,8 +160,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 }
             }""", TEXT_FIELD_NAME);
         String msg2 = "fuzziness wrongly configured";
-        ElasticsearchParseException e2 = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e2 = expectThrows(
+            ParsingException.class,
             () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createSearchExecutionContext())
         );
         assertTrue(e2.getMessage() + " didn't contain: " + msg2 + " but: " + e.getMessage(), e.getMessage().contains(msg));
@@ -178,10 +177,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                     }
                 }
             }""", TEXT_FIELD_NAME);
-        e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createSearchExecutionContext())
-        );
+        e = expectThrows(ParsingException.class, () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createSearchExecutionContext()));
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
         String queryMissingFuzzinessLowLimit = Strings.format("""
@@ -195,10 +191,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                     }
                 }
             }""", TEXT_FIELD_NAME);
-        e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createSearchExecutionContext())
-        );
+        e = expectThrows(ParsingException.class, () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createSearchExecutionContext()));
         msg = "failed to parse [AUTO:,5] as a \"auto:int,int\"";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
     }

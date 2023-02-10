@@ -28,9 +28,9 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
@@ -559,7 +559,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private void checkBadDate(ThrowingRunnable queryBuilder) {
-        Exception e = expectThrows(ElasticsearchParseException.class, queryBuilder);
+        Exception e = expectThrows(ParsingException.class, queryBuilder);
         assertThat(e.getMessage(), containsString("failed to parse date field"));
     }
 }

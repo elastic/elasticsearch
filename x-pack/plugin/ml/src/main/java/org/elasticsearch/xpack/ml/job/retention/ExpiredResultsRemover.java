@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -194,7 +194,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                     Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
                     listener.onResponse(bucket.getTimestamp().getTime());
                 } catch (IOException e) {
-                    listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
+                    listener.onFailure(new ParsingException("failed to parse bucket", e));
                 }
             }
         }, listener::onFailure));

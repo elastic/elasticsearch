@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
@@ -50,10 +50,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     }
 
     public void testNoInternalNetworks() throws Exception {
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> testNetworkDirectionProcessor(buildEvent(), null)
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> testNetworkDirectionProcessor(buildEvent(), null));
         assertThat(e.getMessage(), containsString("[internal_networks] or [internal_networks_field] must be specified"));
     }
 
@@ -164,8 +161,8 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("internal_networks_field", "some_field");
         config.put("internal_networks", networks);
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config)
         );
         assertThat(

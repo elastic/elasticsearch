@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.xcontent;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,15 +28,15 @@ public class XContentUtils {
     /**
      * Ensures that we're currently on the start of an object, or that the next token is a start of an object.
      *
-     * @throws ElasticsearchParseException if the current or the next token is a {@code START_OBJECT}
+     * @throws ParsingException if the current or the next token is a {@code START_OBJECT}
      */
-    public static void verifyObject(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public static void verifyObject(XContentParser parser) throws IOException, ParsingException {
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             return;
         }
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("expected an object, but found token [{}]", parser.currentToken());
+            throw new ParsingException("expected an object, but found token [{}]", parser.currentToken());
         }
     }
 
@@ -45,13 +45,13 @@ public class XContentUtils {
             if (allowNull) {
                 return null;
             }
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] field. expected a string array but found null value instead",
                 parser.currentName()
             );
         }
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] field. expected a string array but found [{}] value instead",
                 parser.currentName(),
                 parser.currentToken()
@@ -64,7 +64,7 @@ public class XContentUtils {
             if (token == XContentParser.Token.VALUE_STRING) {
                 list.add(parser.text());
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse [{}] field. expected a string array but one of the value in the " + "array is [{}]",
                     parser.currentName(),
                     token

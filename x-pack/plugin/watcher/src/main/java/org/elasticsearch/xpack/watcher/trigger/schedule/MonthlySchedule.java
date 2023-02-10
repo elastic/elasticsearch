@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -81,8 +81,8 @@ public class MonthlySchedule extends CronnableSchedule {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 try {
                     return new MonthlySchedule(MonthTimes.parse(parser, parser.currentToken()));
-                } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("could not parse [{}] schedule. invalid month times", pe, TYPE);
+                } catch (ParsingException pe) {
+                    throw new ParsingException("could not parse [{}] schedule. invalid month times", pe, TYPE);
                 }
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -91,13 +91,13 @@ public class MonthlySchedule extends CronnableSchedule {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     try {
                         times.add(MonthTimes.parse(parser, token));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse [{}] schedule. invalid month times", pe, TYPE);
+                    } catch (ParsingException pe) {
+                        throw new ParsingException("could not parse [{}] schedule. invalid month times", pe, TYPE);
                     }
                 }
                 return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(new MonthTimes[times.size()]));
             }
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] schedule. expected either an object or an array "
                     + "of objects representing month times, but found [{}] instead",
                 TYPE,

@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -96,10 +96,10 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
             this.parser = parser;
         }
 
-        public T parseBoundingBox() throws IOException, ElasticsearchParseException {
+        public T parseBoundingBox() throws IOException, ParsingException {
             XContentParser.Token token = parser.currentToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("failed to parse bounding box. Expected start object but found [{}]", token);
+                throw new ParsingException("failed to parse bounding box. Expected start object but found [{}]", token);
             }
             String currentFieldName;
 
@@ -111,7 +111,7 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
                         try {
                             Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, parser.text());
                             if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "failed to parse WKT bounding box. ["
                                         + geometry.type()
                                         + "] found. expected ["
@@ -121,7 +121,7 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
                             }
                             envelope = (Rectangle) geometry;
                         } catch (ParseException | IllegalArgumentException e) {
-                            throw new ElasticsearchParseException("failed to parse WKT bounding box", e);
+                            throw new ParsingException("failed to parse WKT bounding box", e);
                         }
                     } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         top = parser.doubleValue();
@@ -149,11 +149,11 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
                             this.bottom = point.getY();
                             this.left = point.getX();
                         } else {
-                            throw new ElasticsearchParseException("failed to parse bounding box. unexpected field [{}]", currentFieldName);
+                            throw new ParsingException("failed to parse bounding box. unexpected field [{}]", currentFieldName);
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse bounding box. field name expected but [{}] found", token);
+                    throw new ParsingException("failed to parse bounding box. field name expected but [{}] found", token);
                 }
             }
             if (envelope != null) {
@@ -161,7 +161,7 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
                     || Double.isNaN(bottom) == false
                     || Double.isNaN(left) == false
                     || Double.isNaN(right) == false) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse bounding box. Conflicting definition found " + "using well-known text and explicit corners."
                     );
                 }

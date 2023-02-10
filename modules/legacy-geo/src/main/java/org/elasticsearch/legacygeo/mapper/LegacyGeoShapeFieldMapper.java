@@ -16,9 +16,9 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.Orientation;
@@ -134,7 +134,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private static void checkPrefixTreeSupport(String fieldName) {
             if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
-                throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type", fieldName, CONTENT_TYPE);
+                throw new ParsingException("Field parameter [{}] is not supported for [{}] field type", fieldName, CONTENT_TYPE);
             }
 
         }
@@ -226,7 +226,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             super(name);
 
             if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
-                throw new ElasticsearchParseException("Non-BKD field parameters are not supported for [{}] field type", CONTENT_TYPE);
+                throw new ParsingException("Non-BKD field parameters are not supported for [{}] field type", CONTENT_TYPE);
             }
 
             this.indexCreatedVersion = version;
@@ -399,7 +399,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 } else {
                     consumer.accept(ShapeParser.parse(parser));
                 }
-            } catch (ElasticsearchParseException e) {
+            } catch (ParsingException e) {
                 onMalformed.accept(e);
             }
         }

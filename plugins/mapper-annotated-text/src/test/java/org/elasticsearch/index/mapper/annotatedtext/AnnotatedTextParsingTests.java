@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper.annotatedtext;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +51,7 @@ public class AnnotatedTextParsingTests extends ESTestCase {
 
     public void testAnnotationWithType() {
         Exception expectedException = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> checkParsing("foo [bar](type=foo) baz", "foo bar baz", new AnnotationToken(4, 7, "noType"))
         );
         assertThat(expectedException.getMessage(), equalTo("key=value pairs are not supported in annotations"));

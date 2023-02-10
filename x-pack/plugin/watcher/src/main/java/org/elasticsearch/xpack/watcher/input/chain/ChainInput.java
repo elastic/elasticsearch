@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -81,14 +81,14 @@ public class ChainInput implements Input {
     private static Input parseSingleInput(String watchId, String name, XContentParser parser, InputRegistry inputRegistry)
         throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("Expected starting JSON object after [{}] in watch [{}]", name, watchId);
+            throw new ParsingException("Expected starting JSON object after [{}] in watch [{}]", name, watchId);
         }
 
         Input input = inputRegistry.parse(watchId, parser).input();
 
         // expecting closing of two json object to start the next element in the array
         if (parser.currentToken() != XContentParser.Token.END_OBJECT || parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "Expected closing JSON object after parsing input [{}] named [{}] in watch [{}]",
                 input.type(),
                 name,

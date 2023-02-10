@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -92,20 +92,17 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testValidateNullSource() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> TemplateUtils.validate(null));
+        ParsingException exception = expectThrows(ParsingException.class, () -> TemplateUtils.validate(null));
         assertThat(exception.getMessage(), is("Template must not be null"));
     }
 
     public void testValidateEmptySource() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> TemplateUtils.validate(""));
+        ParsingException exception = expectThrows(ParsingException.class, () -> TemplateUtils.validate(""));
         assertThat(exception.getMessage(), is("Template must not be empty"));
     }
 
     public void testValidateInvalidSource() {
-        ElasticsearchParseException exception = expectThrows(
-            ElasticsearchParseException.class,
-            () -> TemplateUtils.validate("{\"foo\": \"bar")
-        );
+        ParsingException exception = expectThrows(ParsingException.class, () -> TemplateUtils.validate("{\"foo\": \"bar"));
         assertThat(exception.getMessage(), is("Invalid template"));
     }
 

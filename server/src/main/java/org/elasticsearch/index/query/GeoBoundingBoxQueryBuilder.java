@@ -10,7 +10,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParsingException;
@@ -338,7 +337,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     bbox = GeoBoundingBox.parseBoundingBox(parser);
                     fieldName = currentFieldName;
                 } catch (Exception e) {
-                    throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, e.getMessage());
+                    throw new ParsingException("failed to parse [{}] query. [{}]", NAME, e.getMessage());
                 }
             } else if (token.isValue()) {
                 if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -361,7 +360,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         }
 
         if (bbox == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] query. bounding box not provided", NAME);
+            throw new ParsingException("failed to parse [{}] query. bounding box not provided", NAME);
         }
 
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);

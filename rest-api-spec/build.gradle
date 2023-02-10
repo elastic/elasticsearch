@@ -215,6 +215,9 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
   // we can now search using doc values only
   task.replaceValueInMatch("fields.object\\.nested1.long.searchable", true)
+
+  // we now throw ParsingException instead of ElasticsearchParseException
+  task.replaceValueInCatch("/parsing_exception/", "Test invalid config")
 }
 
 tasks.register('enforceYamlTestConvention').configure {

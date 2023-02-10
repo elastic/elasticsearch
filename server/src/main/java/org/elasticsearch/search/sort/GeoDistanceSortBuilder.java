@@ -17,7 +17,6 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -569,14 +568,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (GeoValidationMethod.isIgnoreMalformed(validation) == false) {
             for (GeoPoint point : localPoints) {
                 if (GeoUtils.isValidLatitude(point.lat()) == false) {
-                    throw new ElasticsearchParseException(
-                        "illegal latitude value [{}] for [GeoDistanceSort] for field [{}].",
-                        point.lat(),
-                        fieldName
-                    );
+                    throw new ParsingException("illegal latitude value [{}] for [GeoDistanceSort] for field [{}].", point.lat(), fieldName);
                 }
                 if (GeoUtils.isValidLongitude(point.lon()) == false) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "illegal longitude value [{}] for [GeoDistanceSort] for field [{}].",
                         point.lon(),
                         fieldName
@@ -720,10 +715,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 double lon = parser.doubleValue();
                 parser.nextToken();
                 if (parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER) == false) {
-                    throw new ElasticsearchParseException(
-                        "geo point parsing: expected second number but got [{}] instead",
-                        parser.currentToken()
-                    );
+                    throw new ParsingException("geo point parsing: expected second number but got [{}] instead", parser.currentToken());
                 }
                 double lat = parser.doubleValue();
                 geoPoints.add(new GeoPoint(lat, lon));

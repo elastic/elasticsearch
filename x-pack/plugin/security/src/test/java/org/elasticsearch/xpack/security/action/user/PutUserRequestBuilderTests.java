@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -113,8 +113,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
             }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT)
         );
         assertThat(e.getMessage(), containsString("expected field [full_name] to be of type string"));
@@ -132,8 +132,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
             }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT)
         );
         assertThat(e.getMessage(), containsString("expected field [email] to be of type string"));

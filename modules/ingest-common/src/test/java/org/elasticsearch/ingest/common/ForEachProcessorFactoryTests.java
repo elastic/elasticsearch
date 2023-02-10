@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.script.ScriptService;
@@ -74,7 +74,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         processorTypes.put("_first", Map.of());
         processorTypes.put("_second", Map.of());
         config.put("processor", processorTypes);
-        Exception exception = expectThrows(ElasticsearchParseException.class, () -> forEachFactory.create(registry, null, null, config));
+        Exception exception = expectThrows(ParsingException.class, () -> forEachFactory.create(registry, null, null, config));
         assertThat(exception.getMessage(), equalTo("[processor] Must specify exactly one processor type"));
     }
 
@@ -83,10 +83,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("processor", Map.of("_name", Collections.emptyMap()));
-        Exception expectedException = expectThrows(
-            ElasticsearchParseException.class,
-            () -> forEachFactory.create(Map.of(), null, null, config)
-        );
+        Exception expectedException = expectThrows(ParsingException.class, () -> forEachFactory.create(Map.of(), null, null, config));
         assertThat(expectedException.getMessage(), equalTo("No processor type exists with name [_name]"));
     }
 

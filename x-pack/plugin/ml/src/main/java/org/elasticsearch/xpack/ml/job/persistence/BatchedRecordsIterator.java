@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.search.SearchHit;
@@ -38,7 +38,7 @@ class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
             AnomalyRecord record = AnomalyRecord.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), record);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse record", e);
+            throw new ParsingException("failed to parse record", e);
         }
     }
 }

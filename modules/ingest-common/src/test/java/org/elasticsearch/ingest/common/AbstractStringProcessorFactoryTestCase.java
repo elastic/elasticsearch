@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
@@ -85,7 +85,7 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
@@ -359,8 +359,8 @@ public class IncidentEvent implements ToXContentObject {
                 } else if (Fields.INCIDENT_KEY.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         incidentKey = TextTemplate.parse(parser);
-                    } catch (ElasticsearchParseException e) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException e) {
+                        throw new ParsingException(
                             "could not parse pager duty event template. failed to parse field [{}]",
                             Fields.INCIDENT_KEY.getPreferredName()
                         );
@@ -368,8 +368,8 @@ public class IncidentEvent implements ToXContentObject {
                 } else if (Fields.DESCRIPTION.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         description = TextTemplate.parse(parser);
-                    } catch (ElasticsearchParseException e) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException e) {
+                        throw new ParsingException(
                             "could not parse pager duty event template. failed to parse field [{}]",
                             Fields.DESCRIPTION.getPreferredName()
                         );
@@ -377,8 +377,8 @@ public class IncidentEvent implements ToXContentObject {
                 } else if (Fields.CLIENT.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         client = TextTemplate.parse(parser);
-                    } catch (ElasticsearchParseException e) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException e) {
+                        throw new ParsingException(
                             "could not parse pager duty event template. failed to parse field [{}]",
                             Fields.CLIENT.getPreferredName()
                         );
@@ -386,8 +386,8 @@ public class IncidentEvent implements ToXContentObject {
                 } else if (Fields.CLIENT_URL.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         clientUrl = TextTemplate.parse(parser);
-                    } catch (ElasticsearchParseException e) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException e) {
+                        throw new ParsingException(
                             "could not parse pager duty event template. failed to parse field [{}]",
                             Fields.CLIENT_URL.getPreferredName()
                         );
@@ -395,8 +395,8 @@ public class IncidentEvent implements ToXContentObject {
                 } else if (Fields.ACCOUNT.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         account = parser.text();
-                    } catch (ElasticsearchParseException e) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException e) {
+                        throw new ParsingException(
                             "could not parse pager duty event template. failed to parse field [{}]",
                             Fields.CLIENT_URL.getPreferredName()
                         );
@@ -406,8 +406,8 @@ public class IncidentEvent implements ToXContentObject {
                 } else if (Fields.EVENT_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         eventType = TextTemplate.parse(parser);
-                    } catch (ElasticsearchParseException e) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException e) {
+                        throw new ParsingException(
                             "could not parse pager duty event template. failed to parse field [{}]",
                             Fields.EVENT_TYPE.getPreferredName()
                         );
@@ -416,7 +416,7 @@ public class IncidentEvent implements ToXContentObject {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         attachPayload = parser.booleanValue();
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse pager duty event template. failed to parse field [{}], "
                                 + "expected a boolean value but found [{}] instead",
                             Fields.ATTACH_PAYLOAD.getPreferredName(),
@@ -430,8 +430,8 @@ public class IncidentEvent implements ToXContentObject {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 try {
                                     list.add(IncidentEventContext.Template.parse(parser));
-                                } catch (ElasticsearchParseException e) {
-                                    throw new ElasticsearchParseException(
+                                } catch (ParsingException e) {
+                                    throw new ParsingException(
                                         "could not parse pager duty event template. failed to parse field " + "[{}]",
                                         parser.currentName()
                                     );
@@ -440,10 +440,7 @@ public class IncidentEvent implements ToXContentObject {
                             contexts = list.toArray(new IncidentEventContext.Template[list.size()]);
                         }
                     } else {
-                        throw new ElasticsearchParseException(
-                            "could not parse pager duty event template. unexpected field [{}]",
-                            currentFieldName
-                        );
+                        throw new ParsingException("could not parse pager duty event template. unexpected field [{}]", currentFieldName);
                     }
             }
             return new Template(description, eventType, incidentKey, client, clientUrl, account, attachPayload, contexts, proxy);

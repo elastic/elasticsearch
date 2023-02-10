@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -69,7 +69,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                         is((Object) "date")
                     );
                     assertThat(extractValue("properties.result.properties.execution_time.type", source), is((Object) "date"));
-                } catch (ElasticsearchParseException e) {
+                } catch (ParsingException e) {
                     throw new RuntimeException(e);
                 }
             }

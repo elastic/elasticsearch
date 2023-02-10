@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.profile;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
@@ -87,8 +87,8 @@ public class SuggestProfilesRequestTests extends ESTestCase {
 
     public void testErrorOnHintInstantiation() {
 
-        final ElasticsearchParseException e1 = expectThrows(
-            ElasticsearchParseException.class,
+        final ParsingException e1 = expectThrows(
+            ParsingException.class,
             () -> new SuggestProfilesRequest.Hint(
                 null,
                 Map.of(randomAlphaOfLength(5), randomFrom(0, 42.0, randomBoolean(), Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5))))
@@ -96,8 +96,8 @@ public class SuggestProfilesRequestTests extends ESTestCase {
         );
         assertThat(e1.getMessage(), containsString("[labels] hint supports either string or list of strings as its value"));
 
-        final ElasticsearchParseException e2 = expectThrows(
-            ElasticsearchParseException.class,
+        final ParsingException e2 = expectThrows(
+            ParsingException.class,
             () -> new SuggestProfilesRequest.Hint(null, Map.of(randomAlphaOfLength(5), List.of(0, randomAlphaOfLength(8))))
         );
         assertThat(e2.getMessage(), containsString("[labels] hint supports either string value or list of strings"));

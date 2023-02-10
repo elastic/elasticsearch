@@ -39,7 +39,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -1232,7 +1232,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
 
         Exception exc = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> testSearchCase(
                 Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("date")),
                 Collections.emptyList(),
@@ -2217,8 +2217,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testThatDateHistogramFailsFormatAfter() throws IOException {
-        ElasticsearchParseException exc = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException exc = expectThrows(
+            ParsingException.class,
             () -> testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("date")), Collections.emptyList(), () -> {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
                     .fixedInterval(DateHistogramInterval.days(1))
@@ -2232,7 +2232,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         assertThat(exc.getCause().getMessage(), containsString("now() is not supported in [after] key"));
 
         exc = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("date")), Collections.emptyList(), () -> {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
                     .fixedInterval(DateHistogramInterval.days(1))

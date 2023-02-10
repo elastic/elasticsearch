@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -143,10 +143,7 @@ public class SentEvent implements ToXContentObject {
                         errors.add(parser.text());
                     }
                 } else {
-                    throw new ElasticsearchParseException(
-                        "could not parse pagerduty event response. unexpected field [{}]",
-                        currentFieldName
-                    );
+                    throw new ParsingException("could not parse pagerduty event response. unexpected field [{}]", currentFieldName);
                 }
             }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +48,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         DissectProcessor.Factory factory = new DissectProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("pattern", "%{a},%{b},%{c}");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -56,7 +56,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         DissectProcessor.Factory factory = new DissectProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomAlphaOfLength(10));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMessage(), equalTo("[pattern] required property is missing"));
     }
 

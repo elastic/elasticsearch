@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -95,13 +95,13 @@ public class HttpProxy implements ToXContentFragment {
             } else if (PORT.match(currentFieldName, parser.getDeprecationHandler())) {
                 port = parser.intValue();
                 if (port <= 0 || port >= 65535) {
-                    throw new ElasticsearchParseException("Proxy port must be between 1 and 65534, but was " + port);
+                    throw new ParsingException("Proxy port must be between 1 and 65534, but was " + port);
                 }
             }
         }
 
         if (port == null || host == null) {
-            throw new ElasticsearchParseException("Proxy must contain 'port' and 'host' field");
+            throw new ParsingException("Proxy must contain 'port' and 'host' field");
         }
 
         return new HttpProxy(host, port, scheme);

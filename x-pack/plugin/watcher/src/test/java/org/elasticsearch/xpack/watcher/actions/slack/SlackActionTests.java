@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -196,8 +196,8 @@ public class SlackActionTests extends ESTestCase {
         parser.nextToken();
         try {
             SlackAction.parse("_watch", "_action", parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("failed to parse [slack] action [_watch/_action]. unexpected token [VALUE_STRING]"));
         }
     }

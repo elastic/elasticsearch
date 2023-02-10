@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.condition;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ public class ConditionRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type == null) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse condition for watch [{}]. invalid definition. expected a field "
                         + "indicating the condition type, but found",
                     watchId,
@@ -55,20 +55,13 @@ public class ConditionRegistry {
             } else {
                 factory = factories.get(type);
                 if (factory == null) {
-                    throw new ElasticsearchParseException(
-                        "could not parse condition for watch [{}]. unknown condition type [{}]",
-                        watchId,
-                        type
-                    );
+                    throw new ParsingException("could not parse condition for watch [{}]. unknown condition type [{}]", watchId, type);
                 }
                 condition = factory.parse(clock, watchId, parser);
             }
         }
         if (condition == null) {
-            throw new ElasticsearchParseException(
-                "could not parse condition for watch [{}]. missing required condition type field",
-                watchId
-            );
+            throw new ParsingException("could not parse condition for watch [{}]. missing required condition type field", watchId);
         }
         return condition;
     }

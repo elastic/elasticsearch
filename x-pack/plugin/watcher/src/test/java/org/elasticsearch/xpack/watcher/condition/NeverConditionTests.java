@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -46,7 +46,7 @@ public class NeverConditionTests extends ESTestCase {
                     + InternalAlwaysCondition.TYPE
                     + "] condition should not parse with a body"
             );
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("expected an empty object but found [foo]"));
         }
     }

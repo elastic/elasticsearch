@@ -11,7 +11,6 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -311,7 +311,7 @@ public class SystemIndexManager implements ClusterStateListener {
                 return Version.V_EMPTY;
             }
             return Version.fromString(versionString);
-        } catch (ElasticsearchParseException | IllegalArgumentException e) {
+        } catch (ParsingException | IllegalArgumentException e) {
             logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
             return Version.V_EMPTY;
         }

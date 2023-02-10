@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialPoint;
@@ -84,7 +84,7 @@ public class CartesianBoundingBox extends BoundingBox<CartesianPoint> {
     /**
      * Parses the bounding box and returns bottom, top, left, right coordinates
      */
-    public static CartesianBoundingBox parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public static CartesianBoundingBox parseBoundingBox(XContentParser parser) throws IOException, ParsingException {
         CartesianBoundsParser bounds = new CartesianBoundsParser(parser);
         return bounds.parseBoundingBox();
     }

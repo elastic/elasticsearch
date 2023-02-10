@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -102,14 +102,14 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                     token = parser.nextToken();
                     if (token == XContentParser.Token.VALUE_NUMBER) {
                         if (ignoreZValue == false) {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] " + "parameter is [{}]",
                                 parser.doubleValue(),
                                 ignoreZValue
                             );
                         }
                     } else if (token != XContentParser.Token.END_ARRAY) {
-                        throw new ElasticsearchParseException("field type does not accept > 3 dimensions");
+                        throw new ParsingException("field type does not accept > 3 dimensions");
                     }
 
                     T point = createPoint(x, y);

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -351,7 +351,7 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     void assertParseException(String msg, String date, String exc) {
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse(date, () -> 0));
+        ParsingException e = expectThrows(ParsingException.class, () -> parser.parse(date, () -> 0));
         assertThat(msg, e.getMessage(), containsString(exc));
     }
 

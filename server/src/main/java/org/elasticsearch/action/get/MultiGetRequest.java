@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -485,13 +484,10 @@ public class MultiGetRequest extends ActionRequest
                                     fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
                                 );
                             } else {
-                                throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
+                                throw new ParsingException("illegal type for _source: [{}]", token);
                             }
                         } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse multi get request. unknown field [{}]",
-                                currentFieldName
-                            );
+                            throw new ParsingException("failed to parse multi get request. unknown field [{}]", currentFieldName);
                         }
                 } else if (token == Token.START_ARRAY) {
                     if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -528,7 +524,7 @@ public class MultiGetRequest extends ActionRequest
                                 } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
                                     currentList = excludes != null ? excludes : (excludes = new ArrayList<>(2));
                                 } else {
-                                    throw new ElasticsearchParseException("source definition may not contain [{}]", parser.text());
+                                    throw new ParsingException("source definition may not contain [{}]", parser.text());
                                 }
                             } else if (token == Token.START_ARRAY) {
                                 while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -537,7 +533,7 @@ public class MultiGetRequest extends ActionRequest
                             } else if (token.isValue()) {
                                 currentList.add(parser.text());
                             } else {
-                                throw new ElasticsearchParseException("unexpected token while parsing source settings");
+                                throw new ParsingException("unexpected token while parsing source settings");
                             }
                         }
 

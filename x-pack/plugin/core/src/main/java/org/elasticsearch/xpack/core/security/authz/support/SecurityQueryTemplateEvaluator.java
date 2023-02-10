@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.support;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -50,16 +50,16 @@ public final class SecurityQueryTemplateEvaluator {
         try (XContentParser parser = XContentFactory.xContent(querySource).createParser(XContentParserConfiguration.EMPTY, querySource)) {
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("Unexpected token [" + token + "]");
+                throw new ParsingException("Unexpected token [" + token + "]");
             }
             token = parser.nextToken();
             if (token != XContentParser.Token.FIELD_NAME) {
-                throw new ElasticsearchParseException("Unexpected token [" + token + "]");
+                throw new ParsingException("Unexpected token [" + token + "]");
             }
             if ("template".equals(parser.currentName())) {
                 token = parser.nextToken();
                 if (token != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchParseException("Unexpected token [" + token + "]");
+                    throw new ParsingException("Unexpected token [" + token + "]");
                 }
                 Map<String, Object> userModel = new HashMap<>();
                 userModel.put("username", user.principal());
@@ -74,7 +74,7 @@ public final class SecurityQueryTemplateEvaluator {
                 return querySource;
             }
         } catch (IOException ioe) {
-            throw new ElasticsearchParseException("failed to parse query", ioe);
+            throw new ParsingException("failed to parse query", ioe);
         }
     }
 

@@ -13,8 +13,8 @@ import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -123,7 +123,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             // tika 1.17 throws an exception when the InputStream has 0 bytes.
             // previously, it did not mind. This is here to preserve that behavior.
         } catch (Exception e) {
-            throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
+            throw new ParsingException("Error parsing document in field [{}]", e, field);
         }
 
         if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {

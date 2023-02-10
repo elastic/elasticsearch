@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.graph.rest.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
@@ -102,7 +102,7 @@ public class RestGraphAction extends BaseRestHandler {
             graphRequest.timeout(request.paramAsTime(TIMEOUT_FIELD.getPreferredName(), null));
         }
         if (false == request.hasContentOrSourceParam()) {
-            throw new ElasticsearchParseException("Body missing for graph request");
+            throw new ParsingException("Body missing for graph request");
         }
 
         Hop currentHop = graphRequest.createNextHop(null);
@@ -112,10 +112,7 @@ public class RestGraphAction extends BaseRestHandler {
             XContentParser.Token token = parser.nextToken();
 
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException(
-                    "failed to parse search source. source must be an object, but found [{}] instead",
-                    token.name()
-                );
+                throw new ParsingException("failed to parse search source. source must be an object, but found [{}] instead", token.name());
             }
             parseHop(parser, currentHop, graphRequest);
         }
@@ -144,18 +141,18 @@ public class RestGraphAction extends BaseRestHandler {
                     parseHop(parser, graphRequest.createNextHop(null), graphRequest);
                 } else if (CONTROLS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     if (currentHop.getParentHop() != null) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "Controls are a global setting that can only be set in the root " + fieldName,
                             token.name()
                         );
                     }
                     parseControls(parser, graphRequest);
                 } else {
-                    throw new ElasticsearchParseException("Illegal object property in graph definition " + fieldName, token.name());
+                    throw new ParsingException("Illegal object property in graph definition " + fieldName, token.name());
 
                 }
             } else {
-                throw new ElasticsearchParseException("Illegal property in graph definition " + fieldName, token.name());
+                throw new ParsingException("Illegal property in graph definition " + fieldName, token.name());
             }
         }
     }
@@ -181,7 +178,7 @@ public class RestGraphAction extends BaseRestHandler {
                     if (token == XContentParser.Token.START_ARRAY) {
                         if (INCLUDE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                             if (excludes != null) {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "Graph vertices definition cannot contain both "
                                         + INCLUDE_FIELD.getPreferredName()
                                         + " and "
@@ -203,7 +200,7 @@ public class RestGraphAction extends BaseRestHandler {
                                                 if (TERM_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                                                     includeTerm = parser.text();
                                                 } else {
-                                                    throw new ElasticsearchParseException(
+                                                    throw new ParsingException(
                                                         "Graph vertices definition "
                                                             + INCLUDE_FIELD.getPreferredName()
                                                             + " clause has invalid property:"
@@ -214,7 +211,7 @@ public class RestGraphAction extends BaseRestHandler {
                                                 if (BOOST_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                                                     boost = parser.floatValue();
                                                 } else {
-                                                    throw new ElasticsearchParseException(
+                                                    throw new ParsingException(
                                                         "Graph vertices definition "
                                                             + INCLUDE_FIELD.getPreferredName()
                                                             + " clause has invalid property:"
@@ -222,7 +219,7 @@ public class RestGraphAction extends BaseRestHandler {
                                                     );
                                                 }
                                             } else {
-                                                throw new ElasticsearchParseException(
+                                                throw new ParsingException(
                                                     "Graph vertices definition "
                                                         + INCLUDE_FIELD.getPreferredName()
                                                         + " clause has invalid property type:"
@@ -233,7 +230,7 @@ public class RestGraphAction extends BaseRestHandler {
                                         }
                                     }
                                     if (includeTerm == null) {
-                                        throw new ElasticsearchParseException(
+                                        throw new ParsingException(
                                             "Graph vertices definition "
                                                 + INCLUDE_FIELD.getPreferredName()
                                                 + " clause has missing object property for term"
@@ -244,7 +241,7 @@ public class RestGraphAction extends BaseRestHandler {
                                     String term = parser.text();
                                     includes.put(term, new TermBoost(term, 1f));
                                 } else {
-                                    throw new ElasticsearchParseException(
+                                    throw new ParsingException(
                                         "Graph vertices definition "
                                             + INCLUDE_FIELD.getPreferredName()
                                             + " clauses must be string terms or Objects with terms and boosts, not"
@@ -254,7 +251,7 @@ public class RestGraphAction extends BaseRestHandler {
                             }
                         } else if (EXCLUDE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                             if (includes != null) {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "Graph vertices definition cannot contain both "
                                         + INCLUDE_FIELD.getPreferredName()
                                         + " and "
@@ -268,17 +265,14 @@ public class RestGraphAction extends BaseRestHandler {
                                 excludes.add(parser.text());
                             }
                         } else {
-                            throw new ElasticsearchParseException(
-                                "Illegal property in graph vertices definition " + fieldName,
-                                token.name()
-                            );
+                            throw new ParsingException("Illegal property in graph vertices definition " + fieldName, token.name());
                         }
                     }
                     if (token == XContentParser.Token.VALUE_STRING) {
                         if (FIELD_NAME_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                             field = parser.text();
                         } else {
-                            throw new ElasticsearchParseException("Unknown string property: [" + fieldName + "]");
+                            throw new ParsingException("Unknown string property: [" + fieldName + "]");
                         }
                     }
                     if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -289,12 +283,12 @@ public class RestGraphAction extends BaseRestHandler {
                         } else if (SHARD_MIN_DOC_COUNT_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                             shardMinDocCount = parser.intValue();
                         } else {
-                            throw new ElasticsearchParseException("Unknown numeric property: [" + fieldName + "]");
+                            throw new ParsingException("Unknown numeric property: [" + fieldName + "]");
                         }
                     }
                 }
                 if (field == null) {
-                    throw new ElasticsearchParseException("Missing field name in graph vertices definition", token.name());
+                    throw new ParsingException("Missing field name in graph vertices definition", token.name());
                 }
                 VertexRequest vr = currentHop.addVertexRequest(field);
                 if (includes != null) {
@@ -330,7 +324,7 @@ public class RestGraphAction extends BaseRestHandler {
                 } else if (TIMEOUT_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     graphRequest.timeout(TimeValue.timeValueMillis(parser.longValue()));
                 } else {
-                    throw new ElasticsearchParseException("Unknown numeric property: [" + fieldName + "]");
+                    throw new ParsingException("Unknown numeric property: [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (SIGNIFICANCE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
@@ -338,13 +332,13 @@ public class RestGraphAction extends BaseRestHandler {
                 } else if (RETURN_DETAILED_INFO.match(fieldName, parser.getDeprecationHandler())) {
                     graphRequest.returnDetailedInfo(parser.booleanValue());
                 } else {
-                    throw new ElasticsearchParseException("Unknown boolean property: [" + fieldName + "]");
+                    throw new ParsingException("Unknown boolean property: [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (TIMEOUT_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     graphRequest.timeout(TimeValue.parseTimeValue(parser.text(), null, "timeout"));
                 } else {
-                    throw new ElasticsearchParseException("Unknown numeric property: [" + fieldName + "]");
+                    throw new ParsingException("Unknown numeric property: [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (SAMPLE_DIVERSITY_FIELD.match(fieldName, parser.getDeprecationHandler())) {
@@ -358,14 +352,14 @@ public class RestGraphAction extends BaseRestHandler {
                         } else if (MAX_DOCS_PER_VALUE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                             graphRequest.maxDocsPerDiversityValue(parser.intValue());
                         } else {
-                            throw new ElasticsearchParseException("Unknown property: [" + fieldName + "]");
+                            throw new ParsingException("Unknown property: [" + fieldName + "]");
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("Unknown object property: [" + fieldName + "]");
+                    throw new ParsingException("Unknown object property: [" + fieldName + "]");
                 }
             } else {
-                throw new ElasticsearchParseException("Unknown object property: [" + fieldName + "]");
+                throw new ParsingException("Unknown object property: [" + fieldName + "]");
             }
         }
     }

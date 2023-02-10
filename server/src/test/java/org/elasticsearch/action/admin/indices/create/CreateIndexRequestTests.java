@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -63,10 +63,7 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
             }""";
 
         CreateIndexRequest request = new CreateIndexRequest();
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { request.source(createIndex, XContentType.JSON); }
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> { request.source(createIndex, XContentType.JSON); });
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
 
@@ -117,7 +114,7 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
         builder.startObject().startArray("settings").endArray().endObject();
 
         CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
+        ParsingException e = expectThrows(ParsingException.class, () -> parsedCreateIndexRequest.source(builder));
         assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
     }
 

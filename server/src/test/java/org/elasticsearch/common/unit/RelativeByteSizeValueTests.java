@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -60,8 +60,8 @@ public class RelativeByteSizeValueTests extends ESTestCase {
     }
 
     private void assertFail(String value, String failure) {
-        ElasticsearchParseException exception = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException exception = expectThrows(
+            ParsingException.class,
             () -> RelativeByteSizeValue.parseRelativeByteSizeValue(value, "test")
         );
         assertThat(exception.getMessage(), equalTo(failure));

@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -26,6 +25,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -268,10 +268,7 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
         );
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, XContentType.JSON);
-        Exception e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> client().admin().cluster().putPipeline(putPipelineRequest).actionGet()
-        );
+        Exception e = expectThrows(ParsingException.class, () -> client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
         assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
 
         GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id2").get();

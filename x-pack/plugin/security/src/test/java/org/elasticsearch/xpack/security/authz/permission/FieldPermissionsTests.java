@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -119,8 +119,8 @@ public class FieldPermissionsTests extends ESTestCase {
                 }
               ]
             }""";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(exceptWithoutGrant), false, XContentType.JSON)
         );
         assertThat(
@@ -130,10 +130,7 @@ public class FieldPermissionsTests extends ESTestCase {
 
         final String grantNull = """
             {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {"grant": null}}]}""";
-        e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> RoleDescriptor.parse("test", new BytesArray(grantNull), false, XContentType.JSON)
-        );
+        e = expectThrows(ParsingException.class, () -> RoleDescriptor.parse("test", new BytesArray(grantNull), false, XContentType.JSON));
         assertThat(
             e.getDetailedMessage(),
             containsString("failed to parse indices privileges for" + " role [test]. grant must not be null.")
@@ -141,10 +138,7 @@ public class FieldPermissionsTests extends ESTestCase {
 
         final String exceptNull = """
             {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {"grant": ["*"],"except": null}}]}""";
-        e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> RoleDescriptor.parse("test", new BytesArray(exceptNull), false, XContentType.JSON)
-        );
+        e = expectThrows(ParsingException.class, () -> RoleDescriptor.parse("test", new BytesArray(exceptNull), false, XContentType.JSON));
         assertThat(
             e.getDetailedMessage(),
             containsString("failed to parse indices privileges for role [test]. except must" + " not be null.")
@@ -153,7 +147,7 @@ public class FieldPermissionsTests extends ESTestCase {
         final String exceptGrantNull = """
             {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {"grant": null,"except": null}}]}""";
         e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(exceptGrantNull), false, XContentType.JSON)
         );
         assertThat(
@@ -164,7 +158,7 @@ public class FieldPermissionsTests extends ESTestCase {
         final String bothFieldsMissing = """
             {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {}}]}""";
         e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(bothFieldsMissing), false, XContentType.JSON)
         );
         assertThat(
@@ -209,8 +203,8 @@ public class FieldPermissionsTests extends ESTestCase {
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
 
         final String failingQuery = q;
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException e = expectThrows(
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(failingQuery), false, XContentType.JSON)
         );
         assertThat(e.getDetailedMessage(), containsString("""
@@ -224,7 +218,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
         final String failingQuery2 = q;
         e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(failingQuery2), false, XContentType.JSON)
         );
         assertThat(e.getDetailedMessage(), containsString("""
@@ -238,7 +232,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
         final String failingQuery3 = q;
         e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(failingQuery3), false, XContentType.JSON)
         );
         assertThat(e.getDetailedMessage(), containsString("""

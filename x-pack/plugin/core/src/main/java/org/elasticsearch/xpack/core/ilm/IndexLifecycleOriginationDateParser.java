@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 
@@ -40,7 +40,7 @@ public class IndexLifecycleOriginationDateParser {
             String dateAsString = matcher.group(1);
             try {
                 return DATE_FORMATTER.parseMillis(dateAsString);
-            } catch (ElasticsearchParseException | IllegalArgumentException e) {
+            } catch (ParsingException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(
                     "index name ["
                         + indexName

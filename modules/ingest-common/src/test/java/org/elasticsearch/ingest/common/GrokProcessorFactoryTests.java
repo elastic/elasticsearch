@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.test.ESTestCase;
 
@@ -55,7 +55,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         GrokProcessor.Factory factory = new GrokProcessor.Factory(MatcherWatchdog.noop());
         Map<String, Object> config = new HashMap<>();
         config.put("patterns", List.of("(?<foo>\\w+)"));
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -63,7 +63,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         GrokProcessor.Factory factory = new GrokProcessor.Factory(MatcherWatchdog.noop());
         Map<String, Object> config = new HashMap<>();
         config.put("field", "foo");
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[patterns] required property is missing"));
     }
 
@@ -72,7 +72,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "foo");
         config.put("patterns", List.of());
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[patterns] List of patterns must not be empty"));
     }
 
@@ -94,7 +94,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("patterns", List.of("["));
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[patterns] Invalid regex pattern found in: [[]. premature end of char-class"));
     }
 
@@ -104,7 +104,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("patterns", List.of("%{MY_PATTERN:name}!"));
         config.put("pattern_definitions", Map.of("MY_PATTERN", "["));
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
             equalTo("[patterns] Invalid regex pattern found in: [%{MY_PATTERN:name}!]. premature end of char-class")
@@ -118,7 +118,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("patterns", List.of("(?<foo>\\w+)"));
         String invalidEcsMode = randomAlphaOfLength(3);
         config.put("ecs_compatibility", invalidEcsMode);
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[ecs_compatibility] unsupported mode '" + invalidEcsMode + "'"));
     }
 }

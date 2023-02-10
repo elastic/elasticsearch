@@ -8,8 +8,8 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
@@ -284,8 +284,8 @@ public class RepositoryDataTests extends ESTestCase {
         corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, Version.CURRENT);
 
         try (XContentParser xParser = createParser(corruptedBuilder)) {
-            ElasticsearchParseException e = expectThrows(
-                ElasticsearchParseException.class,
+            ParsingException e = expectThrows(
+                ParsingException.class,
                 () -> RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId(), randomBoolean())
             );
             assertThat(
@@ -330,8 +330,8 @@ public class RepositoryDataTests extends ESTestCase {
         builder.endObject();
 
         try (XContentParser xParser = createParser(builder)) {
-            ElasticsearchParseException e = expectThrows(
-                ElasticsearchParseException.class,
+            ParsingException e = expectThrows(
+                ParsingException.class,
                 () -> RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong(), randomBoolean())
             );
             assertThat(

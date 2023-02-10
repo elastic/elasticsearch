@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -61,7 +61,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
 
     public static ArrayCompareCondition parse(Clock clock, String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] condition for watch [{}]. expected an object but found [{}] " + "instead",
                 TYPE,
                 watchId,
@@ -79,7 +79,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
             if (token == XContentParser.Token.FIELD_NAME) {
                 arrayPath = parser.currentName();
             } else if (arrayPath == null) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse [{}] condition for watch [{}]. expected a field indicating the "
                         + "compared path, but found [{}] instead",
                     TYPE,
@@ -96,7 +96,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                             try {
                                 op = Op.resolve(parser.currentName());
                             } catch (IllegalArgumentException iae) {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "could not parse [{}] condition for watch [{}]. unknown comparison " + "operator [{}]",
                                     TYPE,
                                     watchId,
@@ -113,7 +113,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                             if (op.supportsStructures() == false
                                                 && token.isValue() == false
                                                 && token != XContentParser.Token.VALUE_NULL) {
-                                                throw new ElasticsearchParseException(
+                                                throw new ParsingException(
                                                     "could not parse [{}] condition for watch [{}]. "
                                                         + "compared value for [{}] with operation [{}] must either be a numeric, string, "
                                                         + "boolean or null value, but found [{}] instead",
@@ -130,7 +130,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                             try {
                                                 quantifier = Quantifier.resolve(parser.text());
                                             } catch (IllegalArgumentException iae) {
-                                                throw new ElasticsearchParseException(
+                                                throw new ParsingException(
                                                     "could not parse [{}] condition for watch [{}]. "
                                                         + "unknown comparison quantifier [{}]",
                                                     TYPE,
@@ -140,7 +140,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                                 );
                                             }
                                         } else {
-                                            throw new ElasticsearchParseException(
+                                            throw new ParsingException(
                                                 "could not parse [{}] condition for watch [{}]. "
                                                     + "expected a field indicating the comparison value or comparison quantifier, but found"
                                                     + " [{}] instead",
@@ -150,7 +150,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                             );
                                         }
                                     } else {
-                                        throw new ElasticsearchParseException(
+                                        throw new ParsingException(
                                             "could not parse [{}] condition for watch [{}]. expected a "
                                                 + "field indicating the comparison value or comparison quantifier, but found [{}] instead",
                                             TYPE,
@@ -160,7 +160,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                     }
                                 }
                             } else {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "could not parse [{}] condition for watch [{}]. expected an object "
                                         + "for field [{}] but found [{}] instead",
                                     TYPE,
@@ -171,7 +171,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                             }
                         }
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse [{}] condition for watch [{}]. expected a field indicating"
                                 + " the compared path or a comparison operator, but found [{}] instead",
                             TYPE,
@@ -181,7 +181,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                     }
                 }
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse [{}] condition for watch [{}]. expected an object for field [{}] " + "but found [{}] instead",
                     TYPE,
                     watchId,

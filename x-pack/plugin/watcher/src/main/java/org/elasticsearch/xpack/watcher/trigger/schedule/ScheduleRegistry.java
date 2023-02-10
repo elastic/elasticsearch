@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -35,14 +35,11 @@ public class ScheduleRegistry {
             } else if (type != null) {
                 schedule = parse(context, type, parser);
             } else {
-                throw new ElasticsearchParseException(
-                    "could not parse schedule. expected a schedule type field, but found [{}] instead",
-                    token
-                );
+                throw new ParsingException("could not parse schedule. expected a schedule type field, but found [{}] instead", token);
             }
         }
         if (schedule == null) {
-            throw new ElasticsearchParseException("could not parse schedule. expected a schedule type field, but no fields were found");
+            throw new ParsingException("could not parse schedule. expected a schedule type field, but no fields were found");
         }
         return schedule;
     }
@@ -50,7 +47,7 @@ public class ScheduleRegistry {
     public Schedule parse(String context, String type, XContentParser parser) throws IOException {
         Schedule.Parser<?> scheduleParser = parsers.get(type);
         if (scheduleParser == null) {
-            throw new ElasticsearchParseException("could not parse schedule for [{}]. unknown schedule type [{}]", context, type);
+            throw new ParsingException("could not parse schedule for [{}]. unknown schedule type [{}]", context, type);
         }
         return scheduleParser.parse(parser);
     }

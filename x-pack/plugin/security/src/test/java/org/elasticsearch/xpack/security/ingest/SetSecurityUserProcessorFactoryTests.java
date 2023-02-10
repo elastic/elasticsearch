@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +44,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
     public void testProcessor_noField() throws Exception {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, Settings.EMPTY);
         Map<String, Object> config = new HashMap<>();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMetadata("es.property_name").get(0), equalTo("field"));
         assertThat(e.getMetadata("es.processor_type").get(0), equalTo(SetSecurityUserProcessor.TYPE));
         assertThat(e.getMetadata("es.processor_tag").get(0), equalTo("_tag"));
@@ -65,7 +65,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", Arrays.asList("invalid"));
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMetadata("es.property_name").get(0), equalTo("properties"));
         assertThat(e.getMetadata("es.processor_type").get(0), equalTo(SetSecurityUserProcessor.TYPE));
         assertThat(e.getMetadata("es.processor_tag").get(0), equalTo("_tag"));

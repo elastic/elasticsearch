@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.actions;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.condition.ConditionRegistry;
@@ -47,7 +47,7 @@ public class ActionRegistry {
 
     public List<ActionWrapper> parseActions(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse actions for watch [{}]. expected an object but found [{}] instead",
                 watchId,
                 parser.currentToken()
@@ -61,11 +61,7 @@ public class ActionRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 id = parser.currentName();
                 if (WatcherUtils.isValidId(id) == false) {
-                    throw new ElasticsearchParseException(
-                        "could not parse action [{}] for watch [{}]. id contains whitespace",
-                        id,
-                        watchId
-                    );
+                    throw new ParsingException("could not parse action [{}] for watch [{}]. id contains whitespace", id, watchId);
                 }
             } else if (token == XContentParser.Token.START_OBJECT && id != null) {
                 actions.add(ActionWrapper.parse(watchId, id, parser, this, clock, licenseState));

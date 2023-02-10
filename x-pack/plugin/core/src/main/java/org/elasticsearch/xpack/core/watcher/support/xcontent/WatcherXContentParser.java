@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,7 +47,7 @@ public class WatcherXContentParser extends FilterXContentParserWrapper {
                 if (watcherParser.allowRedactedPasswords) {
                     return null;
                 } else {
-                    throw new ElasticsearchParseException("found redacted password in field [{}]", parser.currentName());
+                    throw new ParsingException("found redacted password in field [{}]", parser.currentName());
                 }
             } else if (watcherParser.cryptoService != null) {
                 return new Secret(watcherParser.cryptoService.encrypt(chars));

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.input.none;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -34,11 +34,11 @@ public class NoneInput implements Input {
     public static NoneInput parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             String formattedMessage = "could not parse [{}] input for watch [{}]. expected an empty object but found [{}] instead";
-            throw new ElasticsearchParseException(formattedMessage, TYPE, watchId, parser.currentToken());
+            throw new ParsingException(formattedMessage, TYPE, watchId, parser.currentToken());
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             String formattedMessage = "could not parse [{}] input for watch [{}]. expected an empty object but found [{}] instead";
-            throw new ElasticsearchParseException(formattedMessage, TYPE, watchId, parser.currentToken());
+            throw new ParsingException(formattedMessage, TYPE, watchId, parser.currentToken());
         }
         return INSTANCE;
     }

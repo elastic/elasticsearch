@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -550,7 +550,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 "Partial shards failure",
                 new ShardSearchFailure[] {
                     new ShardSearchFailure(
-                        new ElasticsearchParseException("failed to parse date field", new IllegalArgumentException("illegal format"))
+                        new ParsingException("failed to parse date field", new IllegalArgumentException("illegal format"))
                     ) }
             );
         };
@@ -586,9 +586,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertTrue(failIndexerCalled.get());
         assertThat(
             failureMessage.get(),
-            matchesRegex(
-                "task encountered irrecoverable failure: org.elasticsearch.ElasticsearchParseException: failed to parse date field;.*"
-            )
+            matchesRegex("task encountered irrecoverable failure: org.elasticsearch.common.ParsingException: failed to parse date field;.*")
         );
     }
 

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -164,7 +164,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 try {
                     stage = SnapshotIndexShardStage.valueOf(rawStage);
                 } catch (IllegalArgumentException iae) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse snapshot index shard status [{}][{}], unknown stage [{}]",
                         shard.getIndex().getName(),
                         shard.getId(),
@@ -185,7 +185,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
             try {
                 shard = Integer.parseInt(shardName);
             } catch (NumberFormatException nfe) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]",
                     indexId,
                     shardName

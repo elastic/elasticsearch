@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.Nullable;
@@ -304,8 +304,8 @@ public class HttpRequestTemplate implements ToXContentObject {
                         builder.connectionTimeout(
                             WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.CONNECTION_TIMEOUT.toString())
                         );
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse http request template. invalid time value for [{}] field",
                             pe,
                             currentFieldName
@@ -317,8 +317,8 @@ public class HttpRequestTemplate implements ToXContentObject {
                     // Users and 2.x specify the timeout this way
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse http request template. invalid time value for [{}] field",
                             pe,
                             currentFieldName
@@ -328,10 +328,7 @@ public class HttpRequestTemplate implements ToXContentObject {
                     if (HttpRequest.Field.AUTH.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.auth(BasicAuth.parse(parser));
                     } else {
-                        throw new ElasticsearchParseException(
-                            "could not parse http request template. unexpected object field [{}]",
-                            currentFieldName
-                        );
+                        throw new ParsingException("could not parse http request template. unexpected object field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (HttpRequest.Field.SCHEME.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -341,22 +338,19 @@ public class HttpRequestTemplate implements ToXContentObject {
                     } else if (HttpRequest.Field.HOST.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.host = parser.text();
                     } else {
-                        throw new ElasticsearchParseException(
-                            "could not parse http request template. unexpected string field [{}]",
-                            currentFieldName
-                        );
+                        throw new ParsingException("could not parse http request template. unexpected string field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (HttpRequest.Field.PORT.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.port = parser.intValue();
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse http request template. unexpected numeric field [{}]",
                             currentFieldName
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse http request template. unexpected token [{}] for field [{}]",
                         token,
                         currentFieldName
@@ -365,13 +359,13 @@ public class HttpRequestTemplate implements ToXContentObject {
             }
 
             if (builder.host == null) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse http request template. missing required [{}] string field",
                     HttpRequest.Field.HOST.getPreferredName()
                 );
             }
             if (builder.port <= 0) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse http request template. wrong port for [{}]",
                     HttpRequest.Field.PORT.getPreferredName()
                 );
@@ -383,12 +377,8 @@ public class HttpRequestTemplate implements ToXContentObject {
         private static TextTemplate parseFieldTemplate(String field, XContentParser parser) throws IOException {
             try {
                 return TextTemplate.parse(parser);
-            } catch (ElasticsearchParseException pe) {
-                throw new ElasticsearchParseException(
-                    "could not parse http request template. could not parse value for [{}] field",
-                    pe,
-                    field
-                );
+            } catch (ParsingException pe) {
+                throw new ParsingException("could not parse http request template. could not parse value for [{}] field", pe, field);
             }
         }
 
@@ -525,13 +515,13 @@ public class HttpRequestTemplate implements ToXContentObject {
 
         public Builder fromUrl(String supposedUrl) {
             if (Strings.hasLength(supposedUrl) == false) {
-                throw new ElasticsearchParseException("Configured URL is empty, please configure a valid URL");
+                throw new ParsingException("Configured URL is empty, please configure a valid URL");
             }
 
             try {
                 URI uri = new URI(supposedUrl);
                 if (Strings.hasLength(uri.getScheme()) == false) {
-                    throw new ElasticsearchParseException("URL [{}] does not contain a scheme", uri);
+                    throw new ParsingException("URL [{}] does not contain a scheme", uri);
                 }
                 scheme = Scheme.parse(uri.getScheme());
                 port = uri.getPort() > 0 ? uri.getPort() : scheme.defaultPort();
@@ -549,7 +539,7 @@ public class HttpRequestTemplate implements ToXContentObject {
                     }
                 }
             } catch (URISyntaxException e) {
-                throw new ElasticsearchParseException("Malformed URL [{}]", supposedUrl);
+                throw new ParsingException("Malformed URL [{}]", supposedUrl);
             }
             return this;
         }

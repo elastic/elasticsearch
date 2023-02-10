@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -52,7 +52,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     patterns.put(fieldName, EnrichPolicy.fromXContent(p));
                 } else {
-                    throw new ElasticsearchParseException("unexpected token [" + token + "]");
+                    throw new ParsingException("unexpected token [" + token + "]");
                 }
             }
             return patterns;

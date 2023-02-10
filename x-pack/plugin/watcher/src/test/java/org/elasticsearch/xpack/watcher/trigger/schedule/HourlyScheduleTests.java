@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -101,8 +101,8 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new HourlySchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [hourly] schedule. invalid value for [minute]"));
         }
     }
@@ -126,8 +126,8 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new HourlySchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [hourly] schedule. invalid value for [minute]"));
         }
     }
@@ -155,8 +155,8 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new HourlySchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [hourly] schedule. invalid value for [minute]"));
         }
     }
@@ -189,8 +189,8 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new HourlySchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [hourly] schedule. invalid value for [minute]"));
         }
     }

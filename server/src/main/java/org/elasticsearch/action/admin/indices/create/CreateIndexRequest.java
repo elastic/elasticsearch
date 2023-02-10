@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -332,7 +332,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             }
             return this;
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse aliases", e);
+            throw new ParsingException("Failed to parse aliases", e);
         }
     }
 
@@ -390,7 +390,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
                 if (entry.getValue() instanceof Map == false) {
-                    throw new ElasticsearchParseException("key [settings] must be an object");
+                    throw new ParsingException("key [settings] must be an object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
@@ -401,7 +401,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else if (ALIASES.match(name, deprecationHandler)) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                throw new ElasticsearchParseException("unknown key [{}] for create index", name);
+                throw new ParsingException("unknown key [{}] for create index", name);
             }
         }
         return this;

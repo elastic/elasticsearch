@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 
 import java.util.EnumSet;
 import java.util.Locale;
@@ -47,7 +47,7 @@ public enum DayOfWeek {
             case 5 -> THURSDAY;
             case 6 -> FRIDAY;
             case 7 -> SATURDAY;
-            default -> throw new ElasticsearchParseException("unknown day of week number [{}]", day);
+            default -> throw new ParsingException("unknown day of week number [{}]", day);
         };
     }
 
@@ -60,7 +60,7 @@ public enum DayOfWeek {
             case "5", "thu", "thursday" -> THURSDAY;
             case "6", "fri", "friday" -> FRIDAY;
             case "7", "sat", "saturday" -> SATURDAY;
-            default -> throw new ElasticsearchParseException("unknown day of week [{}]", day);
+            default -> throw new ParsingException("unknown day of week [{}]", day);
         };
     }
 

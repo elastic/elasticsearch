@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -84,7 +84,7 @@ public enum GeometryParserFormat {
             // We don't know the format of the original geometry - so going with default
             case START_OBJECT, VALUE_NULL -> GEOJSON;
             case VALUE_STRING -> WKT;
-            default -> throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
+            default -> throw new ParsingException("shape must be an object consisting of type and coordinates");
         };
     }
 }

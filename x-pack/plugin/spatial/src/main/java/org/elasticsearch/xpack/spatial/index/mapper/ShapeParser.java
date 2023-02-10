@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
@@ -36,7 +36,7 @@ class ShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
             } else {
                 consumer.accept(geometryParser.parse(parser));
             }
-        } catch (ParseException | ElasticsearchParseException | IllegalArgumentException e) {
+        } catch (ParseException | ParsingException | IllegalArgumentException e) {
             onMalformed.accept(e);
         }
     }

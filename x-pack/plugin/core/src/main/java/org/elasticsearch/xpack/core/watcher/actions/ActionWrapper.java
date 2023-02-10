@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.actions;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -330,8 +330,8 @@ public class ActionWrapper implements ToXContentObject {
                 } else if (ThrottlerField.THROTTLE_PERIOD_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, ThrottlerField.THROTTLE_PERIOD_HUMAN.toString());
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse action [{}/{}]. failed to parse field [{}] as time value",
                             pe,
                             watchId,
@@ -345,7 +345,7 @@ public class ActionWrapper implements ToXContentObject {
                     // it's the type of the action
                     ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
                     if (actionFactory == null) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse action [{}/{}]. unknown action type [{}]",
                             watchId,
                             actionId,
@@ -357,7 +357,7 @@ public class ActionWrapper implements ToXContentObject {
             }
         }
         if (action == null) {
-            throw new ElasticsearchParseException("could not parse watch action [{}/{}]. missing action type", watchId, actionId);
+            throw new ParsingException("could not parse watch action [{}/{}]. missing action type", watchId, actionId);
         }
 
         ActionThrottler throttler = new ActionThrottler(clock, throttlePeriod, licenseState);

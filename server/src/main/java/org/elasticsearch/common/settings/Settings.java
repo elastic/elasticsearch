@@ -11,12 +11,12 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -728,7 +728,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
                 while (parser.isClosed() == false && (lastToken = parser.nextToken()) == null)
                     ;
             } catch (Exception e) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
                         + "column number: [{}]",
                     e,
@@ -737,7 +737,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
                 );
             }
             if (lastToken != null) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
                         + "column number: [{}]",
                     parser.getTokenLocation().lineNumber(),
@@ -797,7 +797,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
     private static void validateValue(String key, Object currentValue, XContentParser parser, boolean allowNullValues) {
         if (currentValue == null && allowNullValues == false) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
                 key,
                 parser.getTokenLocation().lineNumber(),
@@ -1224,7 +1224,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
                     }
                 }
                 put(fromXContent(parser, acceptNullValues, true));
-            } catch (ElasticsearchParseException e) {
+            } catch (ParsingException e) {
                 throw e;
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);

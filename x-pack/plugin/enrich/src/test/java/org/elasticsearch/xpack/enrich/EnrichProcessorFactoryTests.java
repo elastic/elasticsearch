@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
@@ -167,7 +167,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         }
         config.put("set_from", valuesConfig);
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
         assertThat(e.getMessage(), equalTo("[policy_name] required property is missing"));
     }
 
@@ -222,7 +222,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config1.put("policy_name", "majestic");
         config1.put("field", "host");
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config1));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config1));
         assertThat(e.getMessage(), equalTo("[target_field] required property is missing"));
     }
 
@@ -238,7 +238,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "entry");
         config.put("max_matches", randomBoolean() ? between(-2048, 0) : between(129, 2048));
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
         assertThat(e.getMessage(), equalTo("[max_matches] should be between 1 and 128"));
     }
 

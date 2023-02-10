@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.input.chain;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
@@ -214,7 +214,7 @@ public class ChainInputTests extends ESTestCase {
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
+        ParsingException e = expectThrows(ParsingException.class, () -> chainInputFactory.parseInput("test", parser));
         assertThat(
             e.getMessage(),
             containsString("Expected closing JSON object after parsing input [simple] named [first] in watch [test]")
@@ -253,7 +253,7 @@ public class ChainInputTests extends ESTestCase {
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
+        ParsingException e = expectThrows(ParsingException.class, () -> chainInputFactory.parseInput("test", parser));
         assertThat(e.getMessage(), containsString("Expected starting JSON object after [first] in watch [test]"));
     }
 

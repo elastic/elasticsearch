@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -45,6 +44,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -859,7 +859,7 @@ public class JobResultsProvider {
                         Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
                         results.add(bucket);
                     } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse bucket", e);
+                        throw new ParsingException("failed to parse bucket", e);
                     }
                 }
 
@@ -1085,7 +1085,7 @@ public class JobResultsProvider {
                         }
                         results.add(categoryDefinition);
                     } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse category definition", e);
+                        throw new ParsingException("failed to parse category definition", e);
                     }
                 }
                 QueryPage<CategoryDefinition> result = new QueryPage<>(
@@ -1149,7 +1149,7 @@ public class JobResultsProvider {
                     ) {
                         results.add(AnomalyRecord.LENIENT_PARSER.apply(parser, null));
                     } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse records", e);
+                        throw new ParsingException("failed to parse records", e);
                     }
                 }
                 QueryPage<AnomalyRecord> queryPage = new QueryPage<>(
@@ -1220,7 +1220,7 @@ public class JobResultsProvider {
                     ) {
                         influencers.add(Influencer.LENIENT_PARSER.apply(parser, null));
                     } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse influencer", e);
+                        throw new ParsingException("failed to parse influencer", e);
                     }
                 }
                 QueryPage<Influencer> result = new QueryPage<>(
@@ -1424,7 +1424,7 @@ public class JobResultsProvider {
                 ModelPlot modelPlot = ModelPlot.LENIENT_PARSER.apply(parser, null);
                 results.add(modelPlot);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse modelPlot", e);
+                throw new ParsingException("failed to parse modelPlot", e);
             }
         }
 
@@ -1458,7 +1458,7 @@ public class JobResultsProvider {
                 CategorizerStats categorizerStats = CategorizerStats.LENIENT_PARSER.apply(parser, null).build();
                 results.add(categorizerStats);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse categorizerStats", e);
+                throw new ParsingException("failed to parse categorizerStats", e);
             }
         }
 

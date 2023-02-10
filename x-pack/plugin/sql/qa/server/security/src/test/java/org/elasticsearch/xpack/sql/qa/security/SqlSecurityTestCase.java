@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.apache.lucene.util.SuppressForbidden;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -655,7 +655,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                 Collections.sort(indices);
                                 log.put("indices", indices);
                                 logs.add(log);
-                            } catch (final ElasticsearchParseException e) {
+                            } catch (final ParsingException e) {
                                 throw new IllegalArgumentException("Unrecognized log: " + line, e);
                             }
                         }

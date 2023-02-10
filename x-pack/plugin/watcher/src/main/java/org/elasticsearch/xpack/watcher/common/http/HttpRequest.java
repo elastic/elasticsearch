@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -311,7 +311,7 @@ public class HttpRequest implements ToXContentObject {
                     try {
                         builder.proxy(HttpProxy.parse(parser));
                     } catch (Exception e) {
-                        throw new ElasticsearchParseException("could not parse http request. could not parse [{}] field", currentFieldName);
+                        throw new ParsingException("could not parse http request. could not parse [{}] field", currentFieldName);
                     }
                 } else if (Field.AUTH.match(currentFieldName, parser.getDeprecationHandler())) {
                     builder.auth(BasicAuth.parse(parser));
@@ -323,8 +323,8 @@ public class HttpRequest implements ToXContentObject {
                         builder.connectionTimeout(
                             WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.CONNECTION_TIMEOUT.toString())
                         );
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse http request template. invalid time value for [{}] field",
                             pe,
                             currentFieldName
@@ -336,8 +336,8 @@ public class HttpRequest implements ToXContentObject {
                     // Users and 2.x specify the timeout this way
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse http request template. invalid time value for [{}] field",
                             pe,
                             currentFieldName
@@ -353,10 +353,7 @@ public class HttpRequest implements ToXContentObject {
                     } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.body(parser.text());
                     } else {
-                        throw new ElasticsearchParseException(
-                            "could not parse http request. unexpected object field [{}]",
-                            currentFieldName
-                        );
+                        throw new ParsingException("could not parse http request. unexpected object field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (Field.SCHEME.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -372,37 +369,25 @@ public class HttpRequest implements ToXContentObject {
                     } else if (Field.URL.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.fromUrl(parser.text());
                     } else {
-                        throw new ElasticsearchParseException(
-                            "could not parse http request. unexpected string field [{}]",
-                            currentFieldName
-                        );
+                        throw new ParsingException("could not parse http request. unexpected string field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (Field.PORT.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.port = parser.intValue();
                     } else {
-                        throw new ElasticsearchParseException(
-                            "could not parse http request. unexpected numeric field [{}]",
-                            currentFieldName
-                        );
+                        throw new ParsingException("could not parse http request. unexpected numeric field [{}]", currentFieldName);
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse http request. unexpected token [{}]", token);
+                    throw new ParsingException("could not parse http request. unexpected token [{}]", token);
                 }
             }
 
             if (builder.host == null) {
-                throw new ElasticsearchParseException(
-                    "could not parse http request. missing required [{}] field",
-                    Field.HOST.getPreferredName()
-                );
+                throw new ParsingException("could not parse http request. missing required [{}] field", Field.HOST.getPreferredName());
             }
 
             if (builder.port < 0) {
-                throw new ElasticsearchParseException(
-                    "could not parse http request. missing required [{}] field",
-                    Field.PORT.getPreferredName()
-                );
+                throw new ParsingException("could not parse http request. missing required [{}] field", Field.PORT.getPreferredName());
             }
 
             return builder.build();
@@ -544,13 +529,13 @@ public class HttpRequest implements ToXContentObject {
 
         public Builder fromUrl(String supposedUrl) {
             if (Strings.hasLength(supposedUrl) == false) {
-                throw new ElasticsearchParseException("Configured URL is empty, please configure a valid URL");
+                throw new ParsingException("Configured URL is empty, please configure a valid URL");
             }
 
             try {
                 URI uri = new URI(supposedUrl);
                 if (Strings.hasLength(uri.getScheme()) == false) {
-                    throw new ElasticsearchParseException("URL [{}] does not contain a scheme", uri);
+                    throw new ParsingException("URL [{}] does not contain a scheme", uri);
                 }
                 scheme = Scheme.parse(uri.getScheme());
                 port = uri.getPort() > 0 ? uri.getPort() : scheme.defaultPort();
@@ -563,7 +548,7 @@ public class HttpRequest implements ToXContentObject {
                     RestUtils.decodeQueryString(rawQuery, 0, params);
                 }
             } catch (URISyntaxException e) {
-                throw new ElasticsearchParseException("Malformed URL [{}]", supposedUrl);
+                throw new ParsingException("Malformed URL [{}]", supposedUrl);
             }
             return this;
         }

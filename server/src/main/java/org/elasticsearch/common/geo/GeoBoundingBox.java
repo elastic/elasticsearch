@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -119,7 +119,7 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
     /**
      * Parses the bounding box and returns bottom, top, left, right coordinates
      */
-    public static GeoBoundingBox parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public static GeoBoundingBox parseBoundingBox(XContentParser parser) throws IOException, ParsingException {
         GeoBoundsParser bounds = new GeoBoundsParser(parser);
         return bounds.parseBoundingBox();
     }

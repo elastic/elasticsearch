@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.legacygeo.parsers;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -66,7 +66,7 @@ abstract class GeoJsonParser {
                         subParser.nextToken();
                         CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue);
                         if (coordinateNode != null && tempNode.numDimensions() != coordinateNode.numDimensions()) {
-                            throw new ElasticsearchParseException("Exception parsing coordinates: " + "number of dimensions do not match");
+                            throw new ParsingException("Exception parsing coordinates: " + "number of dimensions do not match");
                         }
                         coordinateNode = tempNode;
                     } else if (ShapeParser.FIELD_GEOMETRIES.match(fieldName, subParser.getDeprecationHandler())) {
@@ -101,15 +101,15 @@ abstract class GeoJsonParser {
         }
 
         if (malformedException != null) {
-            throw new ElasticsearchParseException(malformedException);
+            throw new ParsingException(malformedException);
         } else if (shapeType == null) {
-            throw new ElasticsearchParseException("shape type not included");
+            throw new ParsingException("shape type not included");
         } else if (coordinateNode == null && GeoShapeType.GEOMETRYCOLLECTION != shapeType) {
-            throw new ElasticsearchParseException("coordinates not included");
+            throw new ParsingException("coordinates not included");
         } else if (geometryCollections == null && GeoShapeType.GEOMETRYCOLLECTION == shapeType) {
-            throw new ElasticsearchParseException("geometries not included");
+            throw new ParsingException("geometries not included");
         } else if (radius != null && GeoShapeType.CIRCLE != shapeType) {
-            throw new ElasticsearchParseException("field [{}] is supported for [{}] only", CircleBuilder.FIELD_RADIUS, CircleBuilder.TYPE);
+            throw new ParsingException("field [{}] is supported for [{}] only", CircleBuilder.FIELD_RADIUS, CircleBuilder.TYPE);
         }
 
         if (shapeType.equals(GeoShapeType.GEOMETRYCOLLECTION)) {
@@ -134,7 +134,7 @@ abstract class GeoJsonParser {
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             parser.skipChildren();
             parser.nextToken();
-            throw new ElasticsearchParseException("coordinates cannot be specified as objects");
+            throw new ParsingException("coordinates cannot be specified as objects");
         }
 
         XContentParser.Token token = parser.nextToken();
@@ -151,7 +151,7 @@ abstract class GeoJsonParser {
         while (token != XContentParser.Token.END_ARRAY) {
             CoordinateNode node = parseCoordinates(parser, ignoreZValue);
             if (nodes.isEmpty() == false && nodes.get(0).numDimensions() != node.numDimensions()) {
-                throw new ElasticsearchParseException("Exception parsing coordinates: number of dimensions do not match");
+                throw new ParsingException("Exception parsing coordinates: number of dimensions do not match");
             }
             nodes.add(node);
             token = parser.nextToken();
@@ -162,11 +162,11 @@ abstract class GeoJsonParser {
 
     private static Coordinate parseCoordinate(XContentParser parser, boolean ignoreZValue) throws IOException {
         if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
-            throw new ElasticsearchParseException("geo coordinates must be numbers");
+            throw new ParsingException("geo coordinates must be numbers");
         }
         double lon = parser.doubleValue();
         if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-            throw new ElasticsearchParseException("geo coordinates must be numbers");
+            throw new ParsingException("geo coordinates must be numbers");
         }
         double lat = parser.doubleValue();
         XContentParser.Token token = parser.nextToken();
@@ -178,7 +178,7 @@ abstract class GeoJsonParser {
         }
         // do not support > 3 dimensions
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            throw new ElasticsearchParseException("geo coordinates greater than 3 dimensions are not supported");
+            throw new ParsingException("geo coordinates greater than 3 dimensions are not supported");
         }
         return new Coordinate(lon, lat, alt);
     }
@@ -192,7 +192,7 @@ abstract class GeoJsonParser {
      */
     static GeometryCollectionBuilder parseGeometries(XContentParser parser, AbstractShapeGeometryFieldMapper<?> mapper) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException("geometries must be an array of geojson objects");
+            throw new ParsingException("geometries must be an array of geojson objects");
         }
 
         XContentParser.Token token = parser.nextToken();

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 
 import java.util.EnumSet;
 import java.util.Locale;
@@ -57,7 +57,7 @@ public enum Month {
             case 10 -> OCTOBER;
             case 11 -> NOVEMBER;
             case 12 -> DECEMBER;
-            default -> throw new ElasticsearchParseException("unknown month number [{}]", month);
+            default -> throw new ParsingException("unknown month number [{}]", month);
         };
     }
 
@@ -75,7 +75,7 @@ public enum Month {
             case "10", "oct", "october" -> OCTOBER;
             case "11", "nov", "november" -> NOVEMBER;
             case "12", "dec", "last", "december" -> DECEMBER;
-            default -> throw new ElasticsearchParseException("unknown month [{}]", day);
+            default -> throw new ParsingException("unknown month [{}]", day);
         };
     }
 

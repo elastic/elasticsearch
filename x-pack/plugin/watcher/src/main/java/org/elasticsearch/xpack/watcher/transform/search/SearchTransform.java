@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -108,8 +108,8 @@ public class SearchTransform implements Transform {
             } else if (Field.REQUEST.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
-                } catch (ElasticsearchParseException srpe) {
-                    throw new ElasticsearchParseException(
+                } catch (ParsingException srpe) {
+                    throw new ParsingException(
                         "could not parse [{}] transform for watch [{}]. failed to parse [{}]",
                         srpe,
                         TYPE,
@@ -126,7 +126,7 @@ public class SearchTransform implements Transform {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateUtils.of(parser.text());
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a"
                             + " string value (e.g. 'UTC' or '+01:00').",
                         TYPE,
@@ -135,7 +135,7 @@ public class SearchTransform implements Transform {
                     );
                 }
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse [{}] transform for watch [{}]. unexpected field [{}]",
                     TYPE,
                     watchId,
@@ -145,7 +145,7 @@ public class SearchTransform implements Transform {
         }
 
         if (request == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] transform for watch [{}]. missing required [{}] field",
                 TYPE,
                 watchId,

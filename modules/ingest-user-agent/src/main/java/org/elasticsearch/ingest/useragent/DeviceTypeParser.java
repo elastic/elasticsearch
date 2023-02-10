@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -61,7 +61,7 @@ public class DeviceTypeParser {
         }
 
         if (patternListKeys.size() != deviceTypePatterns.size()) {
-            throw new ElasticsearchParseException("not a valid regular expression file");
+            throw new ParsingException("not a valid regular expression file");
         }
     }
 

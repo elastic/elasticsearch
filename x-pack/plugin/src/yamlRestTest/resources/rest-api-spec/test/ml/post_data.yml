@@ -229,7 +229,7 @@ setup:
   - do:
       warnings:
         - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
-      catch: /parse_exception/
+      catch: /parsing_exception/
       ml.post_data:
         job_id: post-data-job
         reset_start: not_a_date
@@ -246,7 +246,7 @@ setup:
   - do:
       warnings:
         - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
-      catch: /parse_exception/
+      catch: /parsing_exception/
       ml.post_data:
         job_id: post-data-job
         reset_end: end_not_a_date
@@ -272,19 +272,19 @@ setup:
         job_id: not_a_job
 
   - do:
-      catch: /parse_exception/
+      catch: /parsing_exception/
       ml.flush_job:
         job_id: post-data-job
         start: not_a_date
 
   - do:
-      catch: /parse_exception/
+      catch: /parsing_exception/
       ml.flush_job:
         job_id: post-data-job
         end: end_not_a_date
 
   - do:
-      catch: /parse_exception/
+      catch: /parsing_exception/
       ml.flush_job:
         job_id: post-data-job
         advance_time: advance_time_not_a_date

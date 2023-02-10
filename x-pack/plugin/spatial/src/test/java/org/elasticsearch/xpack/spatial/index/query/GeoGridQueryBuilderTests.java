@@ -11,7 +11,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -219,7 +218,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
                 }
             }
             """, GEO_POINT_FIELD_NAME, randomGeohex());
-        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query));
+        ParsingException e1 = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertThat(e1.getMessage(), containsString("Invalid grid name [geohexes]"));
     }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -58,7 +58,7 @@ public class RatioValueTests extends ESTestCase {
         try {
             RatioValue.parseRatioValue(r);
             fail("Value: [" + r + "] should be an invalid ratio");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             // success
         }
     }

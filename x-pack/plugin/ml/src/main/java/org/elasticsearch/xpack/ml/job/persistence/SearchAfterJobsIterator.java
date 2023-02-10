@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -66,7 +66,7 @@ public class SearchAfterJobsIterator extends SearchAfterDocumentsIterator<Job.Bu
         ) {
             return Job.LENIENT_PARSER.apply(parser, null);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse job document [" + hit.getId() + "]", e);
+            throw new ParsingException("failed to parse job document [" + hit.getId() + "]", e);
         }
     }
 }

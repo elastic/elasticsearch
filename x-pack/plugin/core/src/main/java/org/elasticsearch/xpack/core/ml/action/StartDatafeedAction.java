@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -14,6 +13,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
@@ -171,7 +171,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
                 return dateMathParser.parse(date, now).toEpochMilli();
             } catch (Exception e) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, paramName.getPreferredName(), date);
-                throw new ElasticsearchParseException(msg, e);
+                throw new ParsingException(msg, e);
             }
         }
 

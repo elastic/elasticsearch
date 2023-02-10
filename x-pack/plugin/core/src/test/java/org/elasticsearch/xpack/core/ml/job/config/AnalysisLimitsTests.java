@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -77,8 +77,8 @@ public class AnalysisLimitsTests extends AbstractXContentSerializingTestCase<Ana
         String json = "{\"model_memory_limit\":\"-4MB\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
-        // the root cause is wrapped in an intermediate ElasticsearchParseException
-        assertThat(e.getCause(), instanceOf(ElasticsearchParseException.class));
+        // the root cause is wrapped in an intermediate ParsingException
+        assertThat(e.getCause(), instanceOf(ParsingException.class));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getCause().getMessage(), containsString("Values less than -1 bytes are not supported: -4mb"));
     }

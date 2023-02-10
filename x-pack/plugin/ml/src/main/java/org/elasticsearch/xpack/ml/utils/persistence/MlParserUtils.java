@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.search.SearchHit;
@@ -39,7 +39,7 @@ public final class MlParserUtils {
         ) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse " + hit.getId(), e);
+            throw new ParsingException("failed to parse " + hit.getId(), e);
         }
     }
 }

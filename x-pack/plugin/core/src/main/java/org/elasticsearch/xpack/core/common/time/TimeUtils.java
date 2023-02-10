@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ParseField;
@@ -102,7 +102,7 @@ public final class TimeUtils {
 
         try {
             return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
-        } catch (ElasticsearchParseException | IllegalArgumentException e) {}
+        } catch (ParsingException | IllegalArgumentException e) {}
         // Could not do the conversion
         return -1;
     }

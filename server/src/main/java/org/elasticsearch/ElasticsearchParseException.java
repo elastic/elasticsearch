@@ -15,7 +15,10 @@ import java.io.IOException;
 
 /**
  * Unchecked exception that is translated into a {@code 400 BAD REQUEST} error when it bubbles out over HTTP.
+ * @deprecated don't use this exception but use {@link org.elasticsearch.common.ParsingException} instead.
+ * We keep this around so we can deserialize exceptions thrown by older verion nodes.
  */
+@Deprecated
 public class ElasticsearchParseException extends ElasticsearchException {
 
     public ElasticsearchParseException(String msg, Object... args) {

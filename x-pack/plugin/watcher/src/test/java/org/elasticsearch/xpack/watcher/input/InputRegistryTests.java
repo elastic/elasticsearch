@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -23,7 +23,7 @@ public class InputRegistryTests extends ESTestCase {
         try {
             registry.parse("_id", parser);
             fail("expecting an exception when trying to parse an empty input");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("expected field indicating the input type, but found an empty object instead"));
         }
     }
@@ -35,7 +35,7 @@ public class InputRegistryTests extends ESTestCase {
         try {
             registry.parse("_id", parser);
             fail("expecting an exception when trying to parse an input that is not an object");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("expected an object representing the input, but found [START_ARRAY] instead"));
         }
     }

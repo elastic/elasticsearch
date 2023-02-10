@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -222,10 +222,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenThrow(new IOException("self thrown"));
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
-        ElasticsearchParseException exc = expectThrows(
-            ElasticsearchParseException.class,
-            () -> listener.postIndex(shardId, operation, result)
-        );
+        ParsingException exc = expectThrows(ParsingException.class, () -> listener.postIndex(shardId, operation, result));
         assertThat(exc.getMessage(), containsString("Could not parse watch"));
         assertThat(exc.getMessage(), containsString(id));
     }
@@ -254,7 +251,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(operation.id()).thenReturn("_id");
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
-        listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
+        listener.postIndex(shardId, operation, new ParsingException("whatever"));
         verifyNoMoreInteractions(triggerService);
     }
 
@@ -263,7 +260,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn("anything");
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
-        listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
+        listener.postIndex(shardId, operation, new ParsingException("whatever"));
         verifyNoMoreInteractions(triggerService);
     }
 

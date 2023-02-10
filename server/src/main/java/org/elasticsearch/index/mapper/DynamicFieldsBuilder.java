@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedRunnable;
@@ -85,7 +85,7 @@ final class DynamicFieldsBuilder {
                 for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
                         dateTimeFormatter.parse(text);
-                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {
+                    } catch (ParsingException | DateTimeParseException | IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;
                     }

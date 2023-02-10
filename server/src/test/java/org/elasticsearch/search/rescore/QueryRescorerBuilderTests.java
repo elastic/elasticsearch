@@ -9,7 +9,6 @@
 package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -126,7 +125,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
      * test that build() outputs a {@link RescoreContext} that has the same properties
      * than the test builder
      */
-    public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
+    public void testBuildRescoreSearchContext() throws ParsingException, IOException {
         final long nowInMillis = randomNonNegativeLong();
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);

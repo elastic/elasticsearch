@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -212,7 +212,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
                     return mode;
                 }
             }
-            throw new ElasticsearchParseException("no [{}] found for value [{}]", KEY.getPreferredName(), value);
+            throw new ParsingException("no [{}] found for value [{}]", KEY.getPreferredName(), value);
         }
 
         public static SubAggCollectionMode readFromStream(StreamInput in) throws IOException {

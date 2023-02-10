@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -130,7 +130,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                 int lowerLimit = Integer.parseInt(fuzzinessLimit[0]);
                 int highLimit = Integer.parseInt(fuzzinessLimit[1]);
                 if (lowerLimit < 0 || highLimit < 0 || lowerLimit > highLimit) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "fuzziness wrongly configured [{}]. Must be 0 < lower value <= higher value.",
                         fuzzinessString
                     );
@@ -140,10 +140,10 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                 fuzziness.highDistance = highLimit;
                 return fuzziness;
             } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("failed to parse [{}] as a \"auto:int,int\"", e, fuzzinessString);
+                throw new ParsingException("failed to parse [{}] as a \"auto:int,int\"", e, fuzzinessString);
             }
         } else {
-            throw new ElasticsearchParseException("failed to find low and high distance values");
+            throw new ParsingException("failed to find low and high distance values");
         }
     }
 

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.actions.jira;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -102,7 +102,7 @@ public class JiraActionTests extends ESTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> JiraAction.parse("_w", "_a", parser));
+        ParsingException e = expectThrows(ParsingException.class, () -> JiraAction.parse("_w", "_a", parser));
         assertThat(e.getMessage(), is("failed to parse [jira] action [_w/_a]. unexpected token [VALUE_STRING/unknown_field]"));
     }
 

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -139,7 +139,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                             password(securePassword, hasher);
                         }
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type string, but found [{}] instead",
                             currentFieldName,
                             token
@@ -150,7 +150,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                         char[] passwordChars = parser.text().toCharArray();
                         passwordHash(passwordChars, hasher);
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type string, but found [{}] instead",
                             currentFieldName,
                             token
@@ -166,7 +166,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                     if (token == XContentParser.Token.VALUE_STRING) {
                         fullName(parser.text());
                     } else if (token != XContentParser.Token.VALUE_NULL) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type string, but found [{}] instead",
                             currentFieldName,
                             token
@@ -176,7 +176,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                     if (token == XContentParser.Token.VALUE_STRING) {
                         email(parser.text());
                     } else if (token != XContentParser.Token.VALUE_NULL) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type string, but found [{}] instead",
                             currentFieldName,
                             token
@@ -186,7 +186,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                     if (token == XContentParser.Token.START_OBJECT) {
                         metadata(parser.map());
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type object, but found [{}] instead",
                             currentFieldName,
                             token
@@ -196,7 +196,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         enabled(parser.booleanValue());
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type boolean, but found [{}] instead",
                             currentFieldName,
                             token
@@ -210,14 +210,14 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                             );
                         }
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type string, but found [{}] instead",
                             currentFieldName,
                             token
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse add user request. unexpected field [{}]", currentFieldName);
+                    throw new ParsingException("failed to parse add user request. unexpected field [{}]", currentFieldName);
                 }
             }
             return this;

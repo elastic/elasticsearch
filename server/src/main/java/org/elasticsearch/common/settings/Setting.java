@@ -10,8 +10,8 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.regex.Regex;
@@ -541,7 +541,7 @@ public class Setting<T> implements ToXContentObject {
                 validator.validate(parsed, map, exists(settings));
             }
             return parsed;
-        } catch (ElasticsearchParseException ex) {
+        } catch (ParsingException ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         } catch (NumberFormatException ex) {
             String err = "Failed to parse value" + (isFiltered() ? "" : " [" + value + "]") + " for setting [" + getKey() + "]";

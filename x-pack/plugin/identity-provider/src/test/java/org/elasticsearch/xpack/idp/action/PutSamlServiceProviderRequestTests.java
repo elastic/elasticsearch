@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.idp.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -151,7 +151,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         final String field = randomBoolean() ? "created" : "last_modified";
         fields.put(field, System.currentTimeMillis() + randomLongBetween(-100_000, +100_000));
 
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> parseRequest(doc.entityId, fields));
+        ParsingException exception = expectThrows(ParsingException.class, () -> parseRequest(doc.entityId, fields));
         assertThat(exception, TestMatchers.throwableWithMessage("Field [" + field + "] may not be specified in a request"));
     }
 

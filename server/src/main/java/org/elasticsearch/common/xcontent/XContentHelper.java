@@ -9,8 +9,8 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -128,8 +128,7 @@ public class XContentHelper {
      *             instead with the proper {@link XContentType}
      */
     @Deprecated
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
-        throws ElasticsearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ParsingException {
         return convertToMap(bytes, ordered, null);
     }
 
@@ -156,7 +155,7 @@ public class XContentHelper {
         XContentType xContentType,
         @Nullable Set<String> include,
         @Nullable Set<String> exclude
-    ) throws ElasticsearchParseException {
+    ) throws ParsingException {
         try {
             final XContentType contentType;
             InputStream input;
@@ -188,19 +187,19 @@ public class XContentHelper {
                 );
             }
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new ParsingException("Failed to parse content to map", e);
         }
     }
 
     /**
-     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ParsingException} if there is any
      * error.
      */
-    public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
+    public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ParsingException {
         try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new ParsingException("Failed to parse content to map", e);
         }
     }
 
@@ -208,13 +207,12 @@ public class XContentHelper {
      * The same as {@link XContentHelper#convertToMap(XContent, byte[], int, int, boolean, Set, Set)} but none of the
      * fields are filtered.
      */
-    public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
-        throws ElasticsearchParseException {
+    public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered) throws ParsingException {
         return convertToMap(xContent, input, ordered, null, null);
     }
 
     /**
-     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ParsingException} if there is any
      * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
      *
      * Additionally, fields may be included or excluded from the parsing.
@@ -225,27 +223,27 @@ public class XContentHelper {
         boolean ordered,
         @Nullable Set<String> include,
         @Nullable Set<String> exclude
-    ) throws ElasticsearchParseException {
+    ) throws ParsingException {
         try (
             XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false), input)
         ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new ParsingException("Failed to parse content to map", e);
         }
     }
 
     /**
-     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ParsingException} if there is any
      * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
      */
     public static Map<String, Object> convertToMap(XContent xContent, byte[] bytes, int offset, int length, boolean ordered)
-        throws ElasticsearchParseException {
+        throws ParsingException {
         return convertToMap(xContent, bytes, offset, length, ordered, null, null);
     }
 
     /**
-     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ParsingException} if there is any
      * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
      *
      * Unlike {@link XContentHelper#convertToMap(XContent, byte[], int, int, boolean)} this optionally accepts fields to include or exclude
@@ -259,7 +257,7 @@ public class XContentHelper {
         boolean ordered,
         @Nullable Set<String> include,
         @Nullable Set<String> exclude
-    ) throws ElasticsearchParseException {
+    ) throws ParsingException {
         try (
             XContentParser parser = xContent.createParser(
                 XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false),
@@ -270,7 +268,7 @@ public class XContentHelper {
         ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new ParsingException("Failed to parse content to map", e);
         }
     }
 

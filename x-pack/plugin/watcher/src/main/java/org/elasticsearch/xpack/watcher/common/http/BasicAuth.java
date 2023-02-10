@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -85,15 +85,15 @@ public class BasicAuth implements ToXContentObject {
                 } else if (Field.PASSWORD.getPreferredName().equals(fieldName)) {
                     password = WatcherXContentParser.secretOrNull(parser);
                 } else {
-                    throw new ElasticsearchParseException("unsupported field [" + fieldName + "]");
+                    throw new ParsingException("unsupported field [" + fieldName + "]");
                 }
             } else {
-                throw new ElasticsearchParseException("unsupported token [" + token + "]");
+                throw new ParsingException("unsupported token [" + token + "]");
             }
         }
 
         if (username == null) {
-            throw new ElasticsearchParseException("username is a required option");
+            throw new ParsingException("username is a required option");
         }
 
         return new BasicAuth(username, password);

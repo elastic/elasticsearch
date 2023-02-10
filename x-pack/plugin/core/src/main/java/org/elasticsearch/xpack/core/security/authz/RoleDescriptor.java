@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -396,7 +396,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         // advance to the START_OBJECT token if needed
         XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("failed to parse role [{}]. expected an object but found [{}] instead", name, token);
+            throw new ParsingException("failed to parse role [{}]. expected an object but found [{}] instead", name, token);
         }
         String currentFieldName = null;
         IndicesPrivileges[] indicesPrivileges = null;
@@ -423,7 +423,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         configurableClusterPrivileges = ConfigurableClusterPrivileges.parse(parser);
                     } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "expected field [{}] to be of type object, but found [{}] instead",
                                 currentFieldName,
                                 token
@@ -435,11 +435,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                             // consume object but just drop
                             parser.map();
                         } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse role [{}]. unexpected field [{}]",
-                                name,
-                                currentFieldName
-                            );
+                            throw new ParsingException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
                         }
                     } else if (untrustedRemoteClusterEnabled
                         && Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -447,11 +443,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                             // don't need it
                         } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse role [{}]. unexpected field [{}]",
-                                name,
-                                currentFieldName
-                            );
+                            throw new ParsingException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
                         }
         }
         return new RoleDescriptor(
@@ -470,16 +462,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {
         try {
             return XContentUtils.readStringArray(parser, allowNull);
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             // re-wrap in order to add the role name
-            throw new ElasticsearchParseException("failed to parse role [{}]", e, roleName);
+            throw new ParsingException("failed to parse role [{}]", e, roleName);
         }
     }
 
     public static PrivilegesToCheck parsePrivilegesToCheck(String description, boolean runDetailedCheck, XContentParser parser)
         throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse privileges check [{}]. expected an object but found [{}] instead",
                 description,
                 parser.currentToken()
@@ -501,7 +493,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
                     applicationPrivileges = parseApplicationPrivileges(description, parser);
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse privileges check [{}]. unexpected field [{}]",
                         description,
                         currentFieldName
@@ -509,7 +501,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 }
         }
         if (indexPrivileges == null && clusterPrivileges == null && applicationPrivileges == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse privileges check [{}]. All privilege fields [{},{},{}] are missing",
                 description,
                 Fields.CLUSTER,
@@ -519,13 +511,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
         if (indexPrivileges != null) {
             if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity)) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "Field [{}] is not supported in a has_privileges request",
                     RoleDescriptor.Fields.FIELD_PERMISSIONS
                 );
             }
             if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity)) {
-                throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
+                throw new ParsingException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
             }
         }
         return new PrivilegesToCheck(
@@ -553,7 +545,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             // advance to the START_OBJECT token
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "failed to parse privileges check [{}]. expected an object but found [{}] instead",
                     description,
                     token
@@ -566,7 +558,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)
         throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse indices privileges for role [{}]. expected field [{}] value " + "to be an array, but found [{}] instead",
                 roleName,
                 parser.currentName(),
@@ -595,7 +587,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private static RoleDescriptor.RemoteIndicesPrivileges[] parseRemoteIndices(final String roleName, final XContentParser parser)
         throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse remote indices privileges for role [{}]. expected field [{}] value "
                     + "to be an array, but found [{}] instead",
                 roleName,
@@ -613,7 +605,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private static RemoteIndicesPrivileges parseRemoteIndex(String roleName, XContentParser parser) throws IOException {
         final IndicesPrivilegesWithOptionalRemoteClusters parsed = parseIndexWithOptionalRemoteClusters(roleName, parser, false, true);
         if (parsed.remoteClusters() == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse remote indices privileges for role [{}]. missing required [{}] field",
                 roleName,
                 Fields.REMOTE_CLUSTERS
@@ -632,7 +624,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     ) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse indices privileges for role [{}]. expected field [{}] value to "
                     + "be an array of objects, but found an array element of type [{}]",
                 roleName,
@@ -657,14 +649,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     names = readStringArray(roleName, parser, false);
                     if (names.length == 0) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "failed to parse indices privileges for role [{}]. [{}] cannot be an empty " + "array",
                             roleName,
                             currentFieldName
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse indices privileges for role [{}]. expected field [{}] "
                             + "value to be a string or an array of strings, but found [{}] instead",
                         roleName,
@@ -676,7 +668,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (token == XContentParser.Token.VALUE_BOOLEAN) {
                     allowRestrictedIndices = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse indices privileges for role [{}]. expected field [{}] "
                             + "value to be a boolean, but found [{}] instead",
                         roleName,
@@ -695,7 +687,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         query = new BytesArray(text);
                     }
                 } else if (token != XContentParser.Token.VALUE_NULL) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse indices privileges for role [{}]. expected field [{}] "
                             + "value to be null, a string, an array, or an object, but found [{}] instead",
                         roleName,
@@ -713,7 +705,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                                 parser.nextToken();
                                 grantedFields = readStringArray(roleName, parser, true);
                                 if (grantedFields == null) {
-                                    throw new ElasticsearchParseException(
+                                    throw new ParsingException(
                                         "failed to parse indices privileges for role [{}]. {} must not " + "be null.",
                                         roleName,
                                         Fields.GRANT_FIELDS
@@ -723,14 +715,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                                 parser.nextToken();
                                 deniedFields = readStringArray(roleName, parser, true);
                                 if (deniedFields == null) {
-                                    throw new ElasticsearchParseException(
+                                    throw new ParsingException(
                                         "failed to parse indices privileges for role [{}]. {} must not " + "be null.",
                                         roleName,
                                         Fields.EXCEPT_FIELDS
                                     );
                                 }
                             } else {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "failed to parse indices privileges for role [{}]. "
                                         + "\"{}\" only accepts options {} and {}, but got: {}",
                                     roleName,
@@ -742,13 +734,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                             }
                         } else {
                             if (token == XContentParser.Token.END_OBJECT) {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "failed to parse indices privileges for role [{}]. " + "\"{}\" must not be empty.",
                                     roleName,
                                     Fields.FIELD_PERMISSIONS
                                 );
                             } else {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "failed to parse indices privileges for role [{}]. expected {} but " + "got {}.",
                                     roleName,
                                     XContentParser.Token.FIELD_NAME,
@@ -758,7 +750,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         }
                     } while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT);
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse indices privileges for role [{}]. expected {} but got {} in \"{}\".",
                         roleName,
                         XContentParser.Token.START_OBJECT,
@@ -772,7 +764,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (allow2xFormat) {
                     grantedFields = readStringArray(roleName, parser, true);
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         """
                             ["fields": [...]] format has changed for field permissions in role [{}], \
                             use ["{}": {"{}":[...],"{}":[...]}] instead""",
@@ -789,7 +781,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         // it is transient metadata, skip it
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse transient metadata for role [{}]. expected {} but got {}" + " in \"{}\".",
                         roleName,
                         XContentParser.Token.START_OBJECT,
@@ -800,7 +792,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             } else if (allowRemoteClusters && Fields.REMOTE_CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                 remoteClusters = readStringArray(roleName, parser, false);
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "failed to parse indices privileges for role [{}]. unexpected field [{}]",
                     roleName,
                     currentFieldName
@@ -808,21 +800,21 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
         }
         if (names == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse indices privileges for role [{}]. missing required [{}] field",
                 roleName,
                 Fields.NAMES.getPreferredName()
             );
         }
         if (privileges == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse indices privileges for role [{}]. missing required [{}] field",
                 roleName,
                 Fields.PRIVILEGES.getPreferredName()
             );
         }
         if (deniedFields != null && grantedFields == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse indices privileges for role [{}]. {} requires {} if {} is given",
                 roleName,
                 Fields.FIELD_PERMISSIONS,
@@ -865,13 +857,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         try {
             FieldPermissions.buildPermittedFieldsAutomaton(grantedFields, deniedFields);
         } catch (ElasticsearchSecurityException e) {
-            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
+            throw new ParsingException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
         }
     }
 
     private static ApplicationResourcePrivileges[] parseApplicationPrivileges(String roleName, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse application privileges for role [{}]. expected field [{}] value "
                     + "to be an array, but found [{}] instead",
                 roleName,
@@ -889,7 +881,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private static ApplicationResourcePrivileges parseApplicationPrivilege(String roleName, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse application privileges for role [{}]. expected field [{}] value to "
                     + "be an array of objects, but found an array element of type [{}]",
                 roleName,
@@ -899,14 +891,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
         final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.PARSER.parse(parser, null);
         if (builder.hasResources() == false) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse application privileges for role [{}]. missing required [{}] field",
                 roleName,
                 Fields.RESOURCES.getPreferredName()
             );
         }
         if (builder.hasPrivileges() == false) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse application privileges for role [{}]. missing required [{}] field",
                 roleName,
                 Fields.PRIVILEGES.getPreferredName()

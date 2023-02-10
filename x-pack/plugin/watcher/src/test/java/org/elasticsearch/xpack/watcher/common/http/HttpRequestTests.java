@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +45,7 @@ public class HttpRequestTests extends ESTestCase {
         try {
             HttpRequest.builder().fromUrl("");
             fail("Expected exception due to empty URL");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("Configured URL is empty, please configure a valid URL"));
         }
     }
@@ -54,7 +54,7 @@ public class HttpRequestTests extends ESTestCase {
         try {
             HttpRequest.builder().fromUrl("www.test.de");
             fail("Expected exception due to missing scheme");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("URL [www.test.de] does not contain a scheme"));
         }
     }
@@ -63,7 +63,7 @@ public class HttpRequestTests extends ESTestCase {
         try {
             HttpRequest.builder().fromUrl("https://");
             fail("Expected exception due to missing host");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("Malformed URL [https://]"));
         }
     }

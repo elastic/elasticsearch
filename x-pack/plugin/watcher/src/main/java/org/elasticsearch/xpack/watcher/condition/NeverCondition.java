@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
@@ -24,7 +24,7 @@ public final class NeverCondition implements ExecutableCondition {
 
     public static NeverCondition parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
                 TYPE,
                 watchId,
@@ -33,7 +33,7 @@ public final class NeverCondition implements ExecutableCondition {
         }
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
                 TYPE,
                 watchId,

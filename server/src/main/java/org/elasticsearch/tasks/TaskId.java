@@ -8,7 +8,7 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -93,7 +93,7 @@ public final class TaskId implements Writeable {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return new TaskId(p.text());
             }
-            throw new ElasticsearchParseException("Expected a string but found [{}] instead", p.currentToken());
+            throw new ParsingException("Expected a string but found [{}] instead", p.currentToken());
         };
     }
 

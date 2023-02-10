@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.search.SearchHit;
@@ -37,7 +37,7 @@ class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
             Influencer influencer = Influencer.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), influencer);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parser influencer", e);
+            throw new ParsingException("failed to parser influencer", e);
         }
     }
 }

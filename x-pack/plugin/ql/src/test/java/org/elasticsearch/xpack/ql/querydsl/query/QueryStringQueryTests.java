@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -31,7 +31,7 @@ public class QueryStringQueryTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder("pizza=yummy"));
         assertThat(e.getMessage(), equalTo("illegal query_string option [pizza]"));
 
-        e = expectThrows(ElasticsearchParseException.class, () -> getBuilder("type=aoeu"));
+        e = expectThrows(ParsingException.class, () -> getBuilder("type=aoeu"));
         assertThat(e.getMessage(), equalTo("failed to parse [multi_match] query type [aoeu]. unknown type."));
     }
 

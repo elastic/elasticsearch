@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -119,8 +119,8 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new MonthlySchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [monthly] schedule. invalid month times"));
         }
     }
@@ -151,8 +151,8 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new YearlySchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [yearly] schedule. invalid year times"));
         }
     }

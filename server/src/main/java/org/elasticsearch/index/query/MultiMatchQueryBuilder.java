@@ -10,7 +10,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -159,7 +158,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 }
             }
             if (type == null) {
-                throw new ElasticsearchParseException("failed to parse [{}] query type [{}]. unknown type.", NAME, value);
+                throw new ParsingException("failed to parse [{}] query type [{}]. unknown type.", NAME, value);
             }
             return type;
         }

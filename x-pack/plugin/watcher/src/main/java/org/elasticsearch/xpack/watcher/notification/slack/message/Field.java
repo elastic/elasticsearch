@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -122,8 +122,8 @@ class Field implements MessageElement {
                 } else if (XField.TITLE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         title = TextTemplate.parse(parser);
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse message attachment field. failed to parse [{}] field",
                             pe,
                             XField.TITLE
@@ -132,8 +132,8 @@ class Field implements MessageElement {
                 } else if (XField.VALUE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         value = TextTemplate.parse(parser);
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse message attachment field. failed to parse [{}] field",
                             pe,
                             XField.VALUE
@@ -143,31 +143,22 @@ class Field implements MessageElement {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         isShort = parser.booleanValue();
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse message attachment field. expected a boolean value for " + "[{}] field, but found [{}]",
                             XField.SHORT,
                             token
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException(
-                        "could not parse message attachment field. unexpected field [{}]",
-                        currentFieldName
-                    );
+                    throw new ParsingException("could not parse message attachment field. unexpected field [{}]", currentFieldName);
                 }
             }
 
             if (title == null) {
-                throw new ElasticsearchParseException(
-                    "could not parse message attachment field. missing required [{}] field",
-                    XField.TITLE
-                );
+                throw new ParsingException("could not parse message attachment field. missing required [{}] field", XField.TITLE);
             }
             if (value == null) {
-                throw new ElasticsearchParseException(
-                    "could not parse message attachment field. missing required [{}] field",
-                    XField.VALUE
-                );
+                throw new ParsingException("could not parse message attachment field. missing required [{}] field", XField.VALUE);
             }
             return new Template(title, value, isShort);
         }

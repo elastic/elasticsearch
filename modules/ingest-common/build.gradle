@@ -46,4 +46,12 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
+  
+  // we now throw ParsingException instead of ElasticsearchParseException
+  task.replaceValueInMatch("error.root_cause.0.type", "parsing_exception", "Test simulate with provided invalid pipeline definition")
+  task.replaceValueInMatch("error.root_cause.0.type", "parsing_exception", "Test simulate with invalid processor config")
+  task.replaceValueInMatch("error.root_cause.0.type", "parsing_exception", "Test invalid processor config")
+  task.replaceValueInMatch("error.root_cause.0.type", "parsing_exception", "Test pipeline with empty on_failure in pipeline")
+  task.replaceValueInMatch("error.root_cause.0.type", "parsing_exception", "Test pipeline with empty on_failure in a processor")
+  task.replaceValueInCatch("/parsing_exception/", "Test invalid config")
 }

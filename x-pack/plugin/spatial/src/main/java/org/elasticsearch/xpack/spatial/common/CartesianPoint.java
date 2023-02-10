@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.spatial.common;
 
 import org.apache.lucene.geo.XYEncodingUtils;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GenericPointParser;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -81,10 +81,10 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
             return resetFromCoordinates(value, ignoreZValue);
         } else if (value.contains(".")) {
             // This error mimics the structure of the parser error from 'resetFromCoordinates' below
-            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates but found: [{}]", value, 1);
+            throw new ParsingException("failed to parse [{}], expected 2 or 3 coordinates but found: [{}]", value, 1);
         } else {
             // This error mimics the structure of the Geohash.mortonEncode() error to simplify testing
-            throw new ElasticsearchParseException("unsupported symbol [{}] in point [{}]", value.charAt(0), value);
+            throw new ParsingException("unsupported symbol [{}] in point [{}]", value.charAt(0), value);
         }
     }
 
@@ -92,39 +92,39 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
     public CartesianPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
         if (vals.length > 3 || vals.length < 2) {
-            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates but found: [{}]", vals, vals.length);
+            throw new ParsingException("failed to parse [{}], expected 2 or 3 coordinates but found: [{}]", vals, vals.length);
         }
         final double x;
         final double y;
         try {
             x = Double.parseDouble(vals[0].trim());
             if (Double.isFinite(x) == false) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "invalid [{}] value [{}]; must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                     X_FIELD,
                     x
                 );
             }
         } catch (NumberFormatException ex) {
-            throw new ElasticsearchParseException("[{}] must be a number", X_FIELD);
+            throw new ParsingException("[{}] must be a number", X_FIELD);
         }
         try {
             y = Double.parseDouble(vals[1].trim());
             if (Double.isFinite(y) == false) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "invalid [{}] value [{}]; must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                     Y_FIELD,
                     y
                 );
             }
         } catch (NumberFormatException ex) {
-            throw new ElasticsearchParseException("[{}] must be a number", Y_FIELD);
+            throw new ParsingException("[{}] must be a number", Y_FIELD);
         }
         if (vals.length > 2) {
             try {
                 CartesianPoint.assertZValue(ignoreZValue, Double.parseDouble(vals[2].trim()));
             } catch (NumberFormatException ex) {
-                throw new ElasticsearchParseException("[{}] must be a number", Y_FIELD);
+                throw new ParsingException("[{}] must be a number", Y_FIELD);
             }
         }
         return reset(x, y);
@@ -135,10 +135,10 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
         try {
             geometry = WellKnownText.fromWKT(StandardValidator.instance(ignoreZValue), false, value);
         } catch (Exception e) {
-            throw new ElasticsearchParseException("Invalid WKT format", e);
+            throw new ParsingException("Invalid WKT format", e);
         }
         if (geometry.type() != ShapeType.POINT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "[{}] supports only POINT among WKT primitives, but found {}",
                 PointFieldMapper.CONTENT_TYPE,
                 geometry.type()
@@ -200,8 +200,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
      * @param ignoreZValue {@link XContentParser} to not throw an error if 3 dimensional data is provided
      * @return new {@link CartesianPoint} parsed from the parser
      */
-    public static CartesianPoint parsePoint(XContentParser parser, final boolean ignoreZValue) throws IOException,
-        ElasticsearchParseException {
+    public static CartesianPoint parsePoint(XContentParser parser, final boolean ignoreZValue) throws IOException, ParsingException {
         return cartesianPointParser.parsePoint(parser, ignoreZValue, value -> {
             CartesianPoint point = new CartesianPoint();
             point.resetFromString(value, ignoreZValue);
@@ -209,7 +208,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
         }, value -> null);
     }
 
-    public static CartesianPoint parsePoint(Object value, boolean ignoreZValue) throws ElasticsearchParseException {
+    public static CartesianPoint parsePoint(Object value, boolean ignoreZValue) throws ParsingException {
         try (
             XContentParser parser = new MapXContentParser(
                 NamedXContentRegistry.EMPTY,
@@ -223,20 +222,20 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
             parser.nextToken(); // field value
             return parsePoint(parser, ignoreZValue);
         } catch (IOException ex) {
-            throw new ElasticsearchParseException("error parsing point", ex);
+            throw new ParsingException("error parsing point", ex);
         }
     }
 
     public static void assertZValue(final boolean ignoreZValue, double zValue) {
         if (ignoreZValue == false) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] parameter is [{}]",
                 zValue,
                 ignoreZValue
             );
         }
         if (Double.isFinite(zValue) == false) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "invalid [{}] value [{}]; must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                 Z_FIELD,
                 zValue

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -179,8 +179,8 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            ElasticsearchParseException ex = expectThrows(
-                ElasticsearchParseException.class,
+            ParsingException ex = expectThrows(
+                ParsingException.class,
                 () -> new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser)
             );
             assertEquals("shape must be an object consisting of type and coordinates", ex.getMessage());
@@ -226,7 +226,7 @@ public class GeometryParserTests extends ESTestCase {
             ),
             new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint, expectedPoint, expectedLine, expectedPolygon))
         );
-        expectThrows(ElasticsearchParseException.class, () -> testBasics(parser, "not a geometry", null));
+        expectThrows(ParsingException.class, () -> testBasics(parser, "not a geometry", null));
     }
 
     private void testBasics(GeometryParser parser, Object value, Geometry expected) {

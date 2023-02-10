@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.NotXContentException;
@@ -98,15 +98,15 @@ public class LifecyclePolicyUtils {
      */
     private static void validate(BytesReference source) {
         if (source == null) {
-            throw new ElasticsearchParseException("policy must not be null");
+            throw new ParsingException("policy must not be null");
         }
 
         try {
             XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
         } catch (NotXContentException e) {
-            throw new ElasticsearchParseException("policy must not be empty");
+            throw new ParsingException("policy must not be empty");
         } catch (Exception e) {
-            throw new ElasticsearchParseException("invalid policy", e);
+            throw new ParsingException("invalid policy", e);
         }
     }
 

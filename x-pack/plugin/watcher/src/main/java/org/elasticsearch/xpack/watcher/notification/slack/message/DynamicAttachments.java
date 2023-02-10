@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -80,7 +80,7 @@ public class DynamicAttachments implements MessageElement {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     listPath = parser.text();
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse dynamic attachments. expected a string value for [{}] field, " + "but found [{}]",
                         XField.LIST_PATH.getPreferredName(),
                         token
@@ -89,25 +89,25 @@ public class DynamicAttachments implements MessageElement {
             } else if (XField.TEMPLATE.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     template = Attachment.Template.parse(parser);
-                } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException(
+                } catch (ParsingException pe) {
+                    throw new ParsingException(
                         "could not parse dynamic attachments. failed to parse [{}] field",
                         pe,
                         XField.TEMPLATE.getPreferredName()
                     );
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse dynamic attachments. unexpected field [{}]", currentFieldName);
+                throw new ParsingException("could not parse dynamic attachments. unexpected field [{}]", currentFieldName);
             }
         }
         if (listPath == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse dynamic attachments. missing required field [{}]",
                 XField.LIST_PATH.getPreferredName()
             );
         }
         if (template == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse dynamic attachments. missing required field [{}]",
                 XField.TEMPLATE.getPreferredName()
             );

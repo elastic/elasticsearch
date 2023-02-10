@@ -16,9 +16,9 @@ import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -455,7 +455,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 if (isNormalizable(in.lat()) && isNormalizable(in.lon())) {
                     GeoUtils.normalizePoint(in);
                 } else {
-                    throw new ElasticsearchParseException("cannot normalize the point - not a number");
+                    throw new ParsingException("cannot normalize the point - not a number");
                 }
             }
             return in;

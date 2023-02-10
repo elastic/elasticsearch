@@ -18,9 +18,9 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
@@ -236,8 +236,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         final String from = "2016-15-06T15:29:50+08:00";
         final String to = "2016-16-06T15:29:50+08:00";
 
-        ElasticsearchParseException ex = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException ex = expectThrows(
+            ParsingException.class,
             () -> strict.rangeQuery(from, to, true, true, relation, null, null, context)
         );
         assertThat(

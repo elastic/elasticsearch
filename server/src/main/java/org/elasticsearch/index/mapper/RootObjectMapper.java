@@ -8,9 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -482,7 +482,7 @@ public class RootObjectMapper extends ObjectMapper {
                 builder.addRuntimeFields(fields);
                 return true;
             } else {
-                throw new ElasticsearchParseException("runtime must be a map type");
+                throw new ParsingException("runtime must be a map type");
             }
         }
         return false;

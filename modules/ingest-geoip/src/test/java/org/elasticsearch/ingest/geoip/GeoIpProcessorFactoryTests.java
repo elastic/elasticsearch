@@ -10,11 +10,11 @@ package org.elasticsearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
@@ -186,7 +186,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         asnOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
         config.put("properties", Collections.singletonList(asnProperty));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
             equalTo(
@@ -206,7 +206,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         cityOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
         config.put("properties", Collections.singletonList(cityProperty));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
             equalTo("[properties] illegal property value [" + cityProperty + "]. valid values are [IP, ASN, ORGANIZATION_NAME, NETWORK]")
@@ -224,7 +224,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "does-not-exist.mmdb");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb] doesn't exist"));
     }
 
@@ -269,7 +269,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config1 = new HashMap<>();
         config1.put("field", "_field");
         config1.put("properties", Collections.singletonList("invalid"));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
+        Exception e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config1));
         assertThat(
             e.getMessage(),
             equalTo(
@@ -281,7 +281,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config2 = new HashMap<>();
         config2.put("field", "_field");
         config2.put("properties", "invalid");
-        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config2));
+        e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config2));
         assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
     }
 

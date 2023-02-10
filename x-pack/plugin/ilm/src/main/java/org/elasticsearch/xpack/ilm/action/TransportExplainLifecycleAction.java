@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -92,7 +92,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     xContentRegistry
                 );
             } catch (IOException e) {
-                listener.onFailure(new ElasticsearchParseException("failed to parse phase definition for index [" + index + "]", e));
+                listener.onFailure(new ParsingException("failed to parse phase definition for index [" + index + "]", e));
                 return;
             }
 

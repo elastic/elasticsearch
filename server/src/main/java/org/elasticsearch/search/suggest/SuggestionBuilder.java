@@ -9,7 +9,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -265,7 +264,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
             }
         }
         if (suggestionBuilder == null) {
-            throw new ElasticsearchParseException("missing suggestion object");
+            throw new ParsingException("missing suggestion object");
         }
         if (suggestText != null) {
             suggestionBuilder.text(suggestText);

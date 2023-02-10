@@ -19,9 +19,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Exception that can be used when parsing queries with a given {@link
- * XContentParser}.
- * Can contain information about location of the error.
+ * Unchecked exception that can be used when parsing queries with a given {@link XContentParser}.
+ * Should contain information about location of the error if available through the parser.
+ * Returns a {@code 400 BAD REQUEST} error when it bubbles out over HTTP.
  */
 public class ParsingException extends ElasticsearchException {
 
@@ -53,6 +53,15 @@ public class ParsingException extends ElasticsearchException {
         super(msg, cause);
         this.lineNumber = line;
         this.columnNumber = col;
+    }
+
+    // constructors when location isn't available
+    public ParsingException(String msg, Object... args) {
+        this(null, msg, null, args);
+    }
+
+    public ParsingException(String msg, Throwable cause, Object... args) {
+        this(null, msg, cause, args);
     }
 
     public ParsingException(StreamInput in) throws IOException {

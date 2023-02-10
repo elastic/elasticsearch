@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -576,8 +576,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               ]
             }""";
-        final ElasticsearchParseException epe = expectThrows(
-            ElasticsearchParseException.class,
+        final ParsingException epe = expectThrows(
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON)
         );
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("must be a subset of the granted fields ")));
@@ -596,8 +596,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               ]
             }""";
-        final ElasticsearchParseException epe = expectThrows(
-            ElasticsearchParseException.class,
+        final ParsingException epe = expectThrows(
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON)
         );
         assertThat(
@@ -619,8 +619,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               ]
             }""";
-        final ElasticsearchParseException epe = expectThrows(
-            ElasticsearchParseException.class,
+        final ParsingException epe = expectThrows(
+            ParsingException.class,
             () -> RoleDescriptor.parse(
                 "test",
                 XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
@@ -645,8 +645,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               ]
             }""";
-        final ElasticsearchParseException epe = expectThrows(
-            ElasticsearchParseException.class,
+        final ParsingException epe = expectThrows(
+            ParsingException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON)
         );
         assertThat(

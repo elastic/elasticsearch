@@ -9,7 +9,7 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -326,15 +326,15 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
             // Verify that file information is complete
             if (name == null || Strings.validFileName(name) == false) {
-                throw new ElasticsearchParseException("missing or invalid file name [" + name + "]");
+                throw new ParsingException("missing or invalid file name [" + name + "]");
             } else if (physicalName == null || Strings.validFileName(physicalName) == false) {
-                throw new ElasticsearchParseException("missing or invalid physical file name [" + physicalName + "]");
+                throw new ParsingException("missing or invalid physical file name [" + physicalName + "]");
             } else if (length < 0) {
-                throw new ElasticsearchParseException("missing or invalid file length");
+                throw new ParsingException("missing or invalid file length");
             } else if (writtenBy == null) {
-                throw new ElasticsearchParseException("missing or invalid written_by [" + writtenBy + "]");
+                throw new ParsingException("missing or invalid written_by [" + writtenBy + "]");
             } else if (checksum == null) {
-                throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
+                throw new ParsingException("missing checksum for name [" + name + "]");
             }
             return new FileInfo(name, new StoreFileMetadata(physicalName, length, checksum, writtenBy, metaHash, writerUuid), partSize);
         }
@@ -485,7 +485,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final String TIME = "time";
     private static final String FILES = "files";
     // for the sake of BWC keep the actual property names as in 6.x
-    // + there is a constraint in #fromXContent() that leads to ElasticsearchParseException("unknown parameter [incremental_file_count]");
+    // + there is a constraint in #fromXContent() that leads to ParsingException("unknown parameter [incremental_file_count]");
     private static final String INCREMENTAL_FILE_COUNT = "number_of_files";
     private static final String INCREMENTAL_SIZE = "total_size";
 

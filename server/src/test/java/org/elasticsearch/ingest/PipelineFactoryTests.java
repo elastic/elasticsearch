@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -63,7 +63,7 @@ public class PipelineFactoryTests extends ESTestCase {
         try {
             Pipeline.create("_id", pipelineConfig, Map.of(), scriptService);
             fail("should fail, missing required [processors] field");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), equalTo("[processors] required property is missing"));
         }
     }
@@ -115,10 +115,7 @@ public class PipelineFactoryTests extends ESTestCase {
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, List.of(Map.of("test", processorConfig)));
         pipelineConfig.put(Pipeline.ON_FAILURE_KEY, List.of());
         Map<String, Processor.Factory> processorRegistry = Map.of("test", new TestProcessor.Factory());
-        Exception e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Pipeline.create("_id", pipelineConfig, processorRegistry, scriptService)
-        );
+        Exception e = expectThrows(ParsingException.class, () -> Pipeline.create("_id", pipelineConfig, processorRegistry, scriptService));
         assertThat(e.getMessage(), equalTo("pipeline [_id] cannot have an empty on_failure option defined"));
     }
 
@@ -133,10 +130,7 @@ public class PipelineFactoryTests extends ESTestCase {
         }
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, List.of(Map.of("test", processorConfig)));
         Map<String, Processor.Factory> processorRegistry = Map.of("test", new TestProcessor.Factory());
-        Exception e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Pipeline.create("_id", pipelineConfig, processorRegistry, scriptService)
-        );
+        Exception e = expectThrows(ParsingException.class, () -> Pipeline.create("_id", pipelineConfig, processorRegistry, scriptService));
         assertThat(e.getMessage(), equalTo("[on_failure] processors list cannot be empty"));
     }
 
@@ -176,10 +170,7 @@ public class PipelineFactoryTests extends ESTestCase {
         }
         pipelineConfig.put(Pipeline.PROCESSORS_KEY, List.of(Map.of("test", processorConfig)));
         Map<String, Processor.Factory> processorRegistry = Map.of("test", new TestProcessor.Factory());
-        Exception e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Pipeline.create("_id", pipelineConfig, processorRegistry, scriptService)
-        );
+        Exception e = expectThrows(ParsingException.class, () -> Pipeline.create("_id", pipelineConfig, processorRegistry, scriptService));
         assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
     }
 

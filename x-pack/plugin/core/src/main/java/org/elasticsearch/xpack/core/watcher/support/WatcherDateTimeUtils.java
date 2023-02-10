@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.support;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
@@ -63,10 +63,7 @@ public class WatcherDateTimeUtils {
 
     public static ZonedDateTime parseDateMath(String fieldName, XContentParser parser, ZoneId timeZone, Clock clock) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            throw new ElasticsearchParseException(
-                "could not parse date/time expected date field [{}] to not be null but was null",
-                fieldName
-            );
+            throw new ParsingException("could not parse date/time expected date field [{}] to not be null but was null", fieldName);
         }
         return parseDateMathOrNull(fieldName, parser, timeZone, clock);
     }
@@ -80,8 +77,8 @@ public class WatcherDateTimeUtils {
         if (token == XContentParser.Token.VALUE_STRING) {
             try {
                 return parseDateMath(parser.text(), timeZone, clock);
-            } catch (ElasticsearchParseException epe) {
-                throw new ElasticsearchParseException(
+            } catch (ParsingException epe) {
+                throw new ParsingException(
                     "could not parse date/time. expected date field [{}] to be either a number or a "
                         + "DateMath string but found [{}] instead",
                     epe,
@@ -93,7 +90,7 @@ public class WatcherDateTimeUtils {
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         }
-        throw new ElasticsearchParseException(
+        throw new ParsingException(
             "could not parse date/time. expected date field [{}] to be either a number or a string but " + "found [{}] instead",
             fieldName,
             token
@@ -115,7 +112,7 @@ public class WatcherDateTimeUtils {
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         }
-        throw new ElasticsearchParseException(
+        throw new ParsingException(
             "could not parse date/time. expected date field [{}] to be either a number or a string but " + "found [{}] instead",
             fieldName,
             token
@@ -155,15 +152,15 @@ public class WatcherDateTimeUtils {
             try {
                 TimeValue value = parseTimeValueSupportingFractional(parser.text(), settingName);
                 if (value.millis() < 0) {
-                    throw new ElasticsearchParseException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
+                    throw new ParsingException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
                 }
                 return value;
-            } catch (ElasticsearchParseException epe) {
-                throw new ElasticsearchParseException("failed to parse time unit", epe);
+            } catch (ParsingException epe) {
+                throw new ParsingException("failed to parse time unit", epe);
             }
 
         }
-        throw new ElasticsearchParseException(
+        throw new ParsingException(
             "could not parse time value. expected either a string or a null value but found [{}] " + "instead",
             token
         );
@@ -201,7 +198,7 @@ public class WatcherDateTimeUtils {
                 // Allow this special value to be unit-less:
                 millis = 0;
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized",
                     settingName,
                     sValue
@@ -209,7 +206,7 @@ public class WatcherDateTimeUtils {
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, sValue);
+            throw new ParsingException("Failed to parse [{}]", e, sValue);
         }
     }
 }

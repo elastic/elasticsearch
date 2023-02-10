@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.idp.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,7 +41,7 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
             document.setEntityId(entityId);
         } else if (entityId != null) {
             if (entityId.equals(document.entityId) == false) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "Entity id [{}] inside request body and entity id [{}] from parameter do not match",
                     document.entityId,
                     entityId
@@ -49,16 +49,10 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
             }
         }
         if (document.created != null) {
-            throw new ElasticsearchParseException(
-                "Field [{}] may not be specified in a request",
-                SamlServiceProviderDocument.Fields.CREATED_DATE
-            );
+            throw new ParsingException("Field [{}] may not be specified in a request", SamlServiceProviderDocument.Fields.CREATED_DATE);
         }
         if (document.lastModified != null) {
-            throw new ElasticsearchParseException(
-                "Field [{}] may not be specified in a request",
-                SamlServiceProviderDocument.Fields.LAST_MODIFIED
-            );
+            throw new ParsingException("Field [{}] may not be specified in a request", SamlServiceProviderDocument.Fields.LAST_MODIFIED);
         }
         document.setCreatedMillis(System.currentTimeMillis());
         document.setLastModifiedMillis(System.currentTimeMillis());

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -374,7 +374,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         ) {
             return LENIENT_PARSER.apply(parser, null).build();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
+            throw new ParsingException("failed to parse modelSnapshot", e);
         }
     }
 

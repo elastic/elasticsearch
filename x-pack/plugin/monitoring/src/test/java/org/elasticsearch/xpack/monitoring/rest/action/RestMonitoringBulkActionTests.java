@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.CheckedConsumer;
@@ -81,7 +81,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
     public void testMissingContent() {
         final RestRequest restRequest = createRestRequest(0, randomSystem().getSystem(), TEMPLATE_VERSION, "30s");
 
-        final ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> prepareRequest(restRequest));
+        final ParsingException exception = expectThrows(ParsingException.class, () -> prepareRequest(restRequest));
         assertThat(exception.getMessage(), containsString("no body content for monitoring bulk request"));
     }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -85,10 +85,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
         if (mixedRequest() == false) {
             return new UpdateSettingsRequest().fromXContent(parser);
         } else {
-            ElasticsearchParseException e = expectThrows(
-                ElasticsearchParseException.class,
-                () -> (new UpdateSettingsRequest()).fromXContent(parser)
-            );
+            ParsingException e = expectThrows(ParsingException.class, () -> (new UpdateSettingsRequest()).fromXContent(parser));
             assertThat(e.getMessage(), equalTo("mix of settings map and top-level properties"));
             return null;
         }
@@ -174,10 +171,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
             random()
         );
         XContentParser parser = test.createParser(XContentFactory.xContent(xContentType), updatedXContent);
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> (new UpdateSettingsRequest()).fromXContent(parser)
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> (new UpdateSettingsRequest()).fromXContent(parser));
         assertThat(e.getMessage(), equalTo("mix of settings map and top-level properties"));
     }
 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.CompoundProcessor;
@@ -263,7 +263,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.DOCS, docs);
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e3 = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> SimulatePipelineRequest.parse(requestContent, false, ingestService, RestApiVersion.current())
         );
         assertThat(e3.getMessage(), containsString("required property is missing"));

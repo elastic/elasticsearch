@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 
@@ -23,7 +23,7 @@ public class DateUtils {
         try {
             // Try parsing using complete date/time format
             return dateTimeFormatter.parseMillis(date);
-        } catch (ElasticsearchParseException | IllegalArgumentException ex) {
+        } catch (ParsingException | IllegalArgumentException ex) {
             ZonedDateTime dateTime = DateFormatters.from(dateOnlyFormatter.parse(date));
             dateTime.with(ChronoField.MILLI_OF_DAY, ChronoField.MILLI_OF_DAY.range().getMaximum());
             return dateTime.toInstant().toEpochMilli();
@@ -34,7 +34,7 @@ public class DateUtils {
         try {
             // Try parsing using complete date/time format
             return dateTimeFormatter.parseMillis(date);
-        } catch (ElasticsearchParseException | IllegalArgumentException ex) {
+        } catch (ParsingException | IllegalArgumentException ex) {
             // Fall back to the date only format
             return DateFormatters.from(dateOnlyFormatter.parse(date)).toInstant().toEpochMilli();
         }

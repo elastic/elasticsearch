@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
@@ -162,7 +162,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(BytesReference.bytes(watchSource), watchSource.contentType())
                 .get();
             fail();
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {

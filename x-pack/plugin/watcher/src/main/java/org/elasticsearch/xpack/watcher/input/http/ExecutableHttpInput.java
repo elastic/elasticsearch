@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.input.http;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -106,7 +106,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
                     }
                 }
             } catch (Exception e) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse response body [{}] it does not appear to be [{}]",
                     type(),
                     ctx.id(),

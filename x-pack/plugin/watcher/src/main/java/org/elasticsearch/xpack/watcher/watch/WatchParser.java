@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.watch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
@@ -186,11 +186,11 @@ public class WatchParser {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == null) {
-                throw new ElasticsearchParseException("could not parse watch [{}]. null token", id);
+                throw new ParsingException("could not parse watch [{}]. null token", id);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
-                throw new ElasticsearchParseException("could not parse watch [{}], unexpected token [{}]", id, token);
+                throw new ParsingException("could not parse watch [{}], unexpected token [{}]", id, token);
             } else if (WatchField.TRIGGER.match(currentFieldName, parser.getDeprecationHandler())) {
                 trigger = triggerService.parseTrigger(id, parser);
             } else if (WatchField.INPUT.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -205,8 +205,8 @@ public class WatchParser {
                 // Parser for human specified and 2.x backwards compatible throttle period
                 try {
                     throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, WatchField.THROTTLE_PERIOD_HUMAN.toString());
-                } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException(
+                } catch (ParsingException pe) {
+                    throw new ParsingException(
                         "could not parse watch [{}]. failed to parse time value for field [{}]",
                         pe,
                         id,
@@ -224,11 +224,11 @@ public class WatchParser {
                     parser.skipChildren();
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse watch [{}]. unexpected field [{}]", id, currentFieldName);
+                throw new ParsingException("could not parse watch [{}]. unexpected field [{}]", id, currentFieldName);
             }
         }
         if (trigger == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse watch [{}]. missing required field [{}]",
                 id,
                 WatchField.TRIGGER.getPreferredName()
@@ -239,7 +239,7 @@ public class WatchParser {
             // verify the status is valid (that every action indeed has a status)
             for (ActionWrapper action : actions) {
                 if (status.actionStatus(action.id()) == null) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse watch [{}]. watch status in invalid state. action [{}] " + "status is missing",
                         id,
                         action.id()

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -70,8 +70,8 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
             """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             parser.nextToken();
-            ElasticsearchParseException e = expectThrows(
-                ElasticsearchParseException.class,
+            ParsingException e = expectThrows(
+                ParsingException.class,
                 () -> WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()))
             );
             assertThat(e.getMessage(), is("could not read search request. unsupported non-empty array field [types]"));

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -157,8 +157,8 @@ public class IndexAction implements Action {
             } else if (Field.INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     index = parser.text();
-                } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException(
+                } catch (ParsingException pe) {
+                    throw new ParsingException(
                         "could not parse [{}] action [{}/{}]. failed to parse index name value for " + "field [{}]",
                         pe,
                         TYPE,
@@ -171,7 +171,7 @@ public class IndexAction implements Action {
                 if (Field.TIMEOUT.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = timeValueMillis(parser.longValue());
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] action [{}/{}]. unexpected number field [{}]",
                         TYPE,
                         watchId,
@@ -186,7 +186,7 @@ public class IndexAction implements Action {
                     try {
                         opType = DocWriteRequest.OpType.fromString(parser.text());
                         if (List.of(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.INDEX).contains(opType) == false) {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "could not parse [{}] action [{}/{}]. op_type value for field [{}] " + "must be [index] or [create]",
                                 TYPE,
                                 watchId,
@@ -195,7 +195,7 @@ public class IndexAction implements Action {
                             );
                         }
                     } catch (IllegalArgumentException e) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse [{}] action [{}/{}]. failed to parse op_type value for " + "field [{}]",
                             TYPE,
                             watchId,
@@ -212,7 +212,7 @@ public class IndexAction implements Action {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         dynamicNameTimeZone = DateUtils.of(parser.text());
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse [{}] action for watch [{}]. failed to parse [{}]. must be "
                                 + "a string value (e.g. 'UTC' or '+01:00').",
                             TYPE,
@@ -223,7 +223,7 @@ public class IndexAction implements Action {
                 } else if (Field.REFRESH.match(currentFieldName, parser.getDeprecationHandler())) {
                     refreshPolicy = RefreshPolicy.parse(parser.text());
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] action [{}/{}]. unexpected string field [{}]",
                         TYPE,
                         watchId,
@@ -232,13 +232,7 @@ public class IndexAction implements Action {
                     );
                 }
             } else {
-                throw new ElasticsearchParseException(
-                    "could not parse [{}] action [{}/{}]. unexpected token [{}]",
-                    TYPE,
-                    watchId,
-                    actionId,
-                    token
-                );
+                throw new ParsingException("could not parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
             }
         }
 

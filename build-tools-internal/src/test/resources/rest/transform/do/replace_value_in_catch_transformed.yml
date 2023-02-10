@@ -1,0 +1,12 @@
+---
+"First test":
+
+  - do:
+      catch: /parse_exception/
+
+  - do:
+      and: again
+
+  - length: { length.key: 1 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }

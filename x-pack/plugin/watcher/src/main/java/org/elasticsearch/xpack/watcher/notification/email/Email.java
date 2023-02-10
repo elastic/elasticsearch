@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -222,13 +222,13 @@ public class Email implements ToXContentObject {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
                                 } else if (currentFieldName == null) {
-                                    throw new ElasticsearchParseException("could not parse email. empty [{}] field", bodyField);
+                                    throw new ParsingException("could not parse email. empty [{}] field", bodyField);
                                 } else if (Email.Field.BODY_TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                                     email.textBody(parser.text());
                                 } else if (Email.Field.BODY_HTML.match(currentFieldName, parser.getDeprecationHandler())) {
                                     email.htmlBody(parser.text());
                                 } else {
-                                    throw new ElasticsearchParseException(
+                                    throw new ParsingException(
                                         "could not parse email. unexpected field [{}.{}] field",
                                         bodyField,
                                         currentFieldName
@@ -237,7 +237,7 @@ public class Email implements ToXContentObject {
                             }
                         }
                     } else {
-                        throw new ElasticsearchParseException("could not parse email. unexpected field [{}]", currentFieldName);
+                        throw new ParsingException("could not parse email. unexpected field [{}]", currentFieldName);
                     }
                 }
         }
@@ -465,7 +465,7 @@ public class Email implements ToXContentObject {
                     return new Email.Address(parser.text());
                 } catch (AddressException ae) {
                     String msg = "could not parse [" + text + "] in field [" + field + "] as address. address must be RFC822 encoded";
-                    throw new ElasticsearchParseException(msg, ae);
+                    throw new ParsingException(msg, ae);
                 }
             }
 
@@ -482,7 +482,7 @@ public class Email implements ToXContentObject {
                         } else if (ADDRESS_NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             name = parser.text();
                         } else {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "could not parse [" + field + "] object as address. unknown address " + "field [" + currentFieldName + "]"
                             );
                         }
@@ -490,16 +490,16 @@ public class Email implements ToXContentObject {
                 }
                 if (email == null) {
                     String msg = "could not parse [" + field + "] as address. address object must define an [email] field";
-                    throw new ElasticsearchParseException(msg);
+                    throw new ParsingException(msg);
                 }
                 try {
                     return name != null ? new Email.Address(email, name) : new Email.Address(email);
                 } catch (AddressException ae) {
-                    throw new ElasticsearchParseException("could not parse [" + field + "] as address", ae);
+                    throw new ParsingException("could not parse [" + field + "] as address", ae);
                 }
 
             }
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] as address. address must either be a string (RFC822 encoded) or "
                     + "an object specifying the address [name] and [email]",
                 field
@@ -588,7 +588,7 @@ public class Email implements ToXContentObject {
                 try {
                     return parse(parser.text());
                 } catch (AddressException ae) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse field ["
                             + field
                             + "] with value ["
@@ -606,7 +606,7 @@ public class Email implements ToXContentObject {
                 }
                 return new Email.AddressList(addresses);
             }
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse ["
                     + field
                     + "] as address list. field must either be a string "

@@ -10,7 +10,7 @@ package org.elasticsearch.search.geo;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -494,7 +494,7 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
               }
             }""";
 
-        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonGeohashAndWkt));
+        ParsingException e1 = expectThrows(ParsingException.class, () -> parseQuery(jsonGeohashAndWkt));
         assertThat(e1.getMessage(), containsString("Conflicting definition found using well-known text and explicit corners."));
     }
 

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -223,7 +223,7 @@ public class WebhookActionTests extends ESTestCase {
         try {
             actionParser.parseExecutable("_watch", randomAlphaOfLength(5), parser);
             fail("expected a WebhookActionException since we only provided either a host or a port but not both");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("failed parsing http request template"));
         }
     }

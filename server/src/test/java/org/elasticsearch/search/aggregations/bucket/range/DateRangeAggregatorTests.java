@@ -22,8 +22,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -367,7 +367,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-        expectThrows(ElasticsearchParseException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        expectThrows(ParsingException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
         }, range -> fail("Should have thrown exception"), fieldType));

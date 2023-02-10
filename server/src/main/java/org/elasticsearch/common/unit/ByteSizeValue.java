@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -204,12 +204,11 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         return Strings.format1Decimals(value, suffix);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ElasticsearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ParsingException {
         return parseBytesSizeValue(sValue, null, settingName);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName)
-        throws ElasticsearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName) throws ParsingException {
         settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;
@@ -253,7 +252,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             return parseBytes(lowerSValue, settingName, sValue);
         } else {
             // Missing units:
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
                 settingName,
                 sValue
@@ -266,14 +265,9 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         try {
             return ByteSizeValue.ofBytes(Long.parseLong(s));
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+            throw new ParsingException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchParseException(
-                "failed to parse setting [{}] with value [{}] as a size in bytes",
-                e,
-                settingName,
-                initialInput
-            );
+            throw new ParsingException("failed to parse setting [{}] with value [{}] as a size in bytes", e, settingName, initialInput);
         }
     }
 
@@ -300,16 +294,11 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                     );
                     return ByteSizeValue.ofBytes((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
-                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+                    throw new ParsingException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }
             }
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchParseException(
-                "failed to parse setting [{}] with value [{}] as a size in bytes",
-                e,
-                settingName,
-                initialInput
-            );
+            throw new ParsingException("failed to parse setting [{}] with value [{}] as a size in bytes", e, settingName, initialInput);
         }
     }
 

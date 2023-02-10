@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.manual;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
@@ -27,7 +27,7 @@ public class ManualTrigger implements Trigger {
 
     static ManualTrigger parse(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "unable to parse ["
                     + ManualTriggerEngine.TYPE
                     + "] trigger. expected a start object token, found ["
@@ -37,7 +37,7 @@ public class ManualTrigger implements Trigger {
         }
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "unable to parse ["
                     + ManualTriggerEngine.TYPE
                     + "] trigger. expected an empty object, but found an object with ["

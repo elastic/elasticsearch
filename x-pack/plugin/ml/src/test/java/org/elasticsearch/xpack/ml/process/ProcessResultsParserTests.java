@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.process;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -50,10 +50,7 @@ public class ProcessResultsParserTests extends ESTestCase {
         String json = "[[]]";
         try (InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))) {
             ProcessResultsParser<TestResult> parser = new ProcessResultsParser<>(TestResult.PARSER, NamedXContentRegistry.EMPTY);
-            ElasticsearchParseException e = expectThrows(
-                ElasticsearchParseException.class,
-                () -> parser.parseResults(inputStream).forEachRemaining(a -> {})
-            );
+            ParsingException e = expectThrows(ParsingException.class, () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
             assertEquals("unexpected token [START_ARRAY]", e.getMessage());
         }
     }

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.get;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -181,7 +181,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to decompress source", e);
+            throw new ParsingException("failed to decompress source", e);
         }
     }
 
@@ -210,14 +210,14 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         try {
             return XContentHelper.convertToJson(source, false);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to convert source to a json string");
+            throw new ParsingException("failed to convert source to a json string");
         }
     }
 
     /**
      * The source of the document (As a map).
      */
-    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> sourceAsMap() throws ParsingException {
         if (source == null) {
             return null;
         }

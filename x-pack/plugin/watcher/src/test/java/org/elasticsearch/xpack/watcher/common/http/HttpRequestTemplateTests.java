@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -155,23 +155,17 @@ public class HttpRequestTemplateTests extends ESTestCase {
     }
 
     public void testParsingEmptyUrl() throws Exception {
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> HttpRequestTemplate.builder().fromUrl(""));
+        ParsingException e = expectThrows(ParsingException.class, () -> HttpRequestTemplate.builder().fromUrl(""));
         assertThat(e.getMessage(), containsString("Configured URL is empty, please configure a valid URL"));
     }
 
     public void testInvalidUrlsWithMissingScheme() throws Exception {
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> HttpRequestTemplate.builder().fromUrl("www.test.de")
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> HttpRequestTemplate.builder().fromUrl("www.test.de"));
         assertThat(e.getMessage(), containsString("URL [www.test.de] does not contain a scheme"));
     }
 
     public void testInvalidUrlsWithHost() throws Exception {
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> HttpRequestTemplate.builder().fromUrl("https://")
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> HttpRequestTemplate.builder().fromUrl("https://"));
         assertThat(e.getMessage(), containsString("Malformed URL [https://]"));
     }
 

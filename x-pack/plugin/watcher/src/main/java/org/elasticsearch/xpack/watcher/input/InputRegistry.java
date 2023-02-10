@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
@@ -37,7 +37,7 @@ public class InputRegistry {
         String type = null;
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse input for watch [{}]. expected an object representing the input, but " + "found [{}] instead",
                 watchId,
                 parser.currentToken()
@@ -50,7 +50,7 @@ public class InputRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type == null) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse input for watch [{}]. expected field indicating the input type, " + "but found [{}] instead",
                     watchId,
                     token
@@ -58,11 +58,11 @@ public class InputRegistry {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 InputFactory<?, ?, ?> factory = factories.get(type);
                 if (factory == null) {
-                    throw new ElasticsearchParseException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
+                    throw new ParsingException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
                 }
                 input = factory.parseExecutable(watchId, parser);
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse input for watch [{}]. expected an object representing input [{}], " + "but found [{}] instead",
                     watchId,
                     type,
@@ -72,7 +72,7 @@ public class InputRegistry {
         }
 
         if (input == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse input for watch [{}]. expected field indicating the input type, but " + "found an empty object instead",
                 watchId,
                 token

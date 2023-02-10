@@ -9,8 +9,8 @@ package org.elasticsearch.legacygeo;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
@@ -86,7 +86,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
     private void assertMalformed(ShapeBuilder<?, ?, ?> builder) throws IOException {
         XContentBuilder xContentBuilder = toWKTContent(builder, true);
-        assertValidException(xContentBuilder, ElasticsearchParseException.class);
+        assertValidException(xContentBuilder, ParsingException.class);
     }
 
     @Override
@@ -368,10 +368,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         final LegacyGeoShapeFieldMapper defaultMapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).coerce(
             false
         ).build(MapperBuilderContext.root(false));
-        ElasticsearchParseException exception = expectThrows(
-            ElasticsearchParseException.class,
-            () -> ShapeParser.parse(parser, defaultMapperBuilder)
-        );
+        ParsingException exception = expectThrows(ParsingException.class, () -> ShapeParser.parse(parser, defaultMapperBuilder));
         assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
 
         final LegacyGeoShapeFieldMapper coercingMapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true)
@@ -402,7 +399,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         // malformed points in a polygon is a common typo
         String malformedWKT = "POLYGON ((100, 5) (100, 10) (90, 10), (90, 5), (100, 5)";
         XContentBuilder builder = XContentFactory.jsonBuilder().value(malformedWKT);
-        assertValidException(builder, ElasticsearchParseException.class);
+        assertValidException(builder, ParsingException.class);
     }
 
     @Override
@@ -443,10 +440,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentBuilder builder = toWKTContent(new PointBuilder(-1, 2), false);
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> GeoWKTParser.parseExpectedType(parser, GeoShapeType.POLYGON)
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> GeoWKTParser.parseExpectedType(parser, GeoShapeType.POLYGON));
         assertThat(e, hasToString(containsString("Expected geometry type [polygon] but found [point]")));
     }
 }

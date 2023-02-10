@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -343,7 +342,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
             if (e.getValue() instanceof long[]) {
                 checkpoints.put(e.getKey(), (long[]) e.getValue());
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "expecting the checkpoints for [{}] to be a long[], but found [{}] instead",
                     e.getKey(),
                     e.getValue().getClass()

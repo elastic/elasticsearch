@@ -11,7 +11,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -159,7 +158,7 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
             } else if (GEOHASH.getName().equals(name)) {
                 return GEOHASH;
             } else {
-                throw new ElasticsearchParseException("failed to parse [{}] query. Invalid grid name [" + name + "]", NAME);
+                throw new ParsingException("failed to parse [{}] query. Invalid grid name [" + name + "]", NAME);
             }
         }
 
@@ -365,10 +364,10 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
         }
 
         if (grid == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] query. grid name not provided", NAME);
+            throw new ParsingException("failed to parse [{}] query. grid name not provided", NAME);
         }
         if (gridId == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] query. grid id not provided", NAME);
+            throw new ParsingException("failed to parse [{}] query. grid id not provided", NAME);
         }
         GeoGridQueryBuilder builder = new GeoGridQueryBuilder(fieldName);
         builder.setGridId(grid, gridId);

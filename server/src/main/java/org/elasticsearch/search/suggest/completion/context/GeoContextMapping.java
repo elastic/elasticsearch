@@ -13,8 +13,8 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -133,7 +133,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      */
     @Override
     public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser) throws IOException,
-        ElasticsearchParseException {
+        ParsingException {
         final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.START_ARRAY) {
@@ -146,10 +146,10 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     if (parser.nextToken() == Token.END_ARRAY) {
                         contexts.add(stringEncode(lon, lat, precision));
                     } else {
-                        throw new ElasticsearchParseException("only two values [lon, lat] expected");
+                        throw new ParsingException("only two values [lon, lat] expected");
                     }
                 } else {
-                    throw new ElasticsearchParseException("latitude must be a numeric value");
+                    throw new ParsingException("latitude must be a numeric value");
                 }
             } else {
                 while (token != Token.END_ARRAY) {
@@ -289,11 +289,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                         name
                     );
                 } else {
-                    throw new ElasticsearchParseException(
-                        "field [{}] referenced in context [{}] is not defined in the mapping",
-                        fieldName,
-                        name
-                    );
+                    throw new ParsingException("field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
@@ -306,7 +302,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                         mappedFieldType.typeName()
                     );
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
                         fieldName,
                         name,

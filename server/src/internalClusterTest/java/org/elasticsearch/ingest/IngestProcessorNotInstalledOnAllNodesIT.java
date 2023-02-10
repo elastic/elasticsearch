@@ -8,8 +8,8 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.plugins.Plugin;
@@ -62,7 +62,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         try {
             client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
             fail("exception expected");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("Processor type [test] is not installed on node"));
         }
     }
@@ -75,7 +75,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         try {
             client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
             fail("exception expected");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), equalTo("No processor type exists with name [test]"));
         }
     }

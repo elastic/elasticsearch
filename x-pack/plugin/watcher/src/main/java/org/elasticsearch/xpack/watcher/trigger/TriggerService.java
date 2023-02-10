@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
@@ -182,7 +182,7 @@ public class TriggerService {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse trigger for [{}]. expected trigger type string field, but found [{}]",
                 jobName,
                 token
@@ -191,7 +191,7 @@ public class TriggerService {
         String type = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse trigger [{}] for [{}]. expected trigger an object as the trigger body," + " but found [{}]",
                 type,
                 jobName,
@@ -201,7 +201,7 @@ public class TriggerService {
         Trigger trigger = parseTrigger(jobName, type, parser);
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
                 type,
                 jobName,
@@ -214,7 +214,7 @@ public class TriggerService {
     public Trigger parseTrigger(String jobName, String type, XContentParser parser) throws IOException {
         TriggerEngine<?, ?> engine = engines.get(type);
         if (engine == null) {
-            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. unknown trigger type [{}]", type, jobName, type);
+            throw new ParsingException("could not parse trigger [{}] for [{}]. unknown trigger type [{}]", type, jobName, type);
         }
         return engine.parseTrigger(jobName, parser);
     }
@@ -224,7 +224,7 @@ public class TriggerService {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse trigger event for [{}] for watch [{}]. expected trigger type string " + "field, but found [{}]",
                 context,
                 watchId,
@@ -234,7 +234,7 @@ public class TriggerService {
         String type = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse trigger event for [{}] for watch [{}]. expected trigger an object as "
                     + "the trigger body, but found [{}]",
                 context,
@@ -245,7 +245,7 @@ public class TriggerService {
         TriggerEvent trigger = parseTriggerEvent(watchId, context, type, parser);
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
                 type,
                 context,
@@ -258,7 +258,7 @@ public class TriggerService {
     public TriggerEvent parseTriggerEvent(String watchId, String context, String type, XContentParser parser) throws IOException {
         TriggerEngine<?, ?> engine = engines.get(type);
         if (engine == null) {
-            throw new ElasticsearchParseException("Unknown trigger type [{}]", type);
+            throw new ParsingException("Unknown trigger type [{}]", type);
         }
         return engine.parseTriggerEvent(this, watchId, context, parser);
     }

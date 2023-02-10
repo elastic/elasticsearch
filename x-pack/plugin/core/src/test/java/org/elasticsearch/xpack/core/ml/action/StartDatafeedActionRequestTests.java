@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -60,7 +60,7 @@ public class StartDatafeedActionRequestTests extends AbstractXContentSerializing
         );
 
         Exception e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> StartDatafeedAction.DatafeedParams.parseDateOrThrow(
                 "not-a-date",
                 StartDatafeedAction.START_TIME,

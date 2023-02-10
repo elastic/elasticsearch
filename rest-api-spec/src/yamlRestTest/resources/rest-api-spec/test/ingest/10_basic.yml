@@ -143,7 +143,7 @@
 ---
 "Test invalid config":
   - do:
-      catch: /parse_exception/
+      catch: /parse_exception|parsing_exception/
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

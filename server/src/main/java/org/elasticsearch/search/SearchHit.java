@@ -9,7 +9,6 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
@@ -356,7 +355,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to decompress source", e);
+            throw new ParsingException("failed to decompress source", e);
         }
     }
 
@@ -387,7 +386,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         try {
             return XContentHelper.convertToJson(getSourceRef(), false);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to convert source to a json string");
+            throw new ParsingException("failed to convert source to a json string");
         }
     }
 

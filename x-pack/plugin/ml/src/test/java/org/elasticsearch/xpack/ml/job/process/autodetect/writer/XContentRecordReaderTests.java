@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -197,7 +197,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         Map<String, Integer> fieldMap = createFieldMap();
 
         XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
-        ESTestCase.expectThrows(ElasticsearchParseException.class, () -> readUntilError(reader));
+        ESTestCase.expectThrows(ParsingException.class, () -> readUntilError(reader));
     }
 
     private void readUntilError(XContentRecordReader reader) throws IOException {

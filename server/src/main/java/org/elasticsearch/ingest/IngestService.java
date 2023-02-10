@@ -11,7 +11,6 @@ package org.elasticsearch.ingest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -1038,7 +1038,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         try {
             innerUpdatePipelines(newIngestMetadata);
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             logger.warn("failed to update ingest pipelines", e);
         }
     }
@@ -1048,7 +1048,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // Lazy initialize these variables in order to favour the most like scenario that there are no pipeline changes:
         Map<String, PipelineHolder> newPipelines = null;
-        List<ElasticsearchParseException> exceptions = null;
+        List<ParsingException> exceptions = null;
         // Iterate over pipeline configurations in ingest metadata and constructs a new pipeline if there is no pipeline
         // or the pipeline configuration has been modified
         for (PipelineConfiguration newConfiguration : newIngestMetadata.getPipelines().values()) {
@@ -1096,7 +1096,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                     }
                 }
-            } catch (ElasticsearchParseException e) {
+            } catch (ParsingException e) {
                 Pipeline pipeline = substitutePipeline(newConfiguration.getId(), e);
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, pipeline));
                 if (exceptions == null) {
@@ -1104,7 +1104,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
                 exceptions.add(e);
             } catch (Exception e) {
-                ElasticsearchParseException parseException = new ElasticsearchParseException(
+                ParsingException parseException = new ParsingException(
                     "Error updating pipeline with id [" + newConfiguration.getId() + "]",
                     e
                 );
@@ -1193,7 +1193,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.pipelines = Map.copyOf(updatedPipelines);
     }
 
-    private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {
+    private static Pipeline substitutePipeline(String id, ParsingException e) {
         String tag = e.getHeaderKeys().contains("processor_tag") ? e.getHeader("processor_tag").get(0) : null;
         String type = e.getHeaderKeys().contains("processor_type") ? e.getHeader("processor_type").get(0) : "unknown";
         String errorMessage = "pipeline with id [" + id + "] could not be loaded, caused by [" + e.getDetailedMessage() + "]";

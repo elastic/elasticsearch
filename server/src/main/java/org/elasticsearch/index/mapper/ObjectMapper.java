@@ -9,9 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -219,7 +219,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
                 } else if ((fieldNode instanceof Map) == false) {
-                    throw new ElasticsearchParseException("properties must be a map type");
+                    throw new ParsingException("properties must be a map type");
                 } else {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }

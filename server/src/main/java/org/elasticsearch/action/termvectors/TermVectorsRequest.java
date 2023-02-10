@@ -8,13 +8,13 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -541,7 +541,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                             fields.add(parser.text());
                         }
                     } else {
-                        throw new ElasticsearchParseException("failed to parse term vectors request. field [fields] must be an array");
+                        throw new ParsingException("failed to parse term vectors request. field [fields] must be an array");
                     }
                 } else if (OFFSETS.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.offsets(parser.booleanValue());
@@ -564,14 +564,14 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
                         );
                     }
                     termVectorsRequest.id = parser.text();
                 } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.id != null) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
                         );
                     }
@@ -585,7 +585,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (restApiVersion == RestApiVersion.V_7 && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     deprecationLogger.compatibleCritical("termvectors_with_types", RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else {
-                    throw new ElasticsearchParseException("failed to parse term vectors request. unknown field [{}]", currentFieldName);
+                    throw new ParsingException("failed to parse term vectors request. unknown field [{}]", currentFieldName);
                 }
             }
         }
@@ -601,7 +601,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (e.getValue() instanceof String) {
                 mapStrStr.put(e.getKey(), (String) e.getValue());
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "expecting the analyzer at [{}] to be a String, but found [{}] instead",
                     e.getKey(),
                     e.getValue().getClass()
@@ -634,7 +634,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("max_word_length")) {
                     settings.maxWordLength = parser.intValue();
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse term vectors request. "
                             + "the field [{}] is not valid for filter parameter for term vector request",
                         currentFieldName

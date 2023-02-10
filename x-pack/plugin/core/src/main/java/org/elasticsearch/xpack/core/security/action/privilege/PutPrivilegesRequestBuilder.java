@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -60,7 +60,7 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
                 token = parser.nextToken();
             }
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("expected object but found {} instead", token);
+                throw new ParsingException("expected object but found {} instead", token);
             }
 
             List<ApplicationPrivilegeDescriptor> privileges = new ArrayList<>();
@@ -71,11 +71,7 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
 
                 token = parser.nextToken();
                 if (token != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchParseException(
-                        "expected the value for {} to be an object, but found {} instead",
-                        applicationName,
-                        token
-                    );
+                    throw new ParsingException("expected the value for {} to be an object, but found {} instead", applicationName, token);
                 }
 
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -85,7 +81,7 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
 
                     token = parser.nextToken();
                     if (token != XContentParser.Token.START_OBJECT) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected the value for {} to be an object, but found {} instead",
                             applicationName,
                             token

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -87,7 +87,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         try {
             parser.parse(xContentParser);
             fail("Expected random parser of type [" + type + "] to throw an exception");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("Cannot parse attachment of type [" + type + "]"));
         }
     }
@@ -140,7 +140,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
             }
 
             if (attachment == null) {
-                throw new ElasticsearchParseException("Expected test parser to have field [foo]");
+                throw new ParsingException("Expected test parser to have field [foo]");
             }
 
             return attachment;

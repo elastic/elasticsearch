@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -83,7 +83,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
         }
 
         if (false == request.hasContentOrSourceParam()) {
-            throw new ElasticsearchParseException("no body content for monitoring bulk request");
+            throw new ParsingException("no body content for monitoring bulk request");
         }
 
         final MonitoredSystem system = MonitoredSystem.fromSystem(id);

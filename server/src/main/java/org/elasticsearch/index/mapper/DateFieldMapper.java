@@ -21,8 +21,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -894,7 +894,7 @@ public final class DateFieldMapper extends FieldMapper {
         } else {
             try {
                 timestamp = fieldType().parse(dateAsString);
-            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
+            } catch (IllegalArgumentException | ParsingException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;

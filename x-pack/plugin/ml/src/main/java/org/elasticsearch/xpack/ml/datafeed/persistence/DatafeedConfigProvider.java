@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -151,7 +151,7 @@ public class DatafeedConfigProvider {
             );
 
         } catch (IOException e) {
-            listener.onFailure(new ElasticsearchParseException("Failed to serialise datafeed config with id [" + datafeedId + "]", e));
+            listener.onFailure(new ParsingException("Failed to serialise datafeed config with id [" + datafeedId + "]", e));
         }
     }
 
@@ -328,7 +328,7 @@ public class DatafeedConfigProvider {
                 try {
                     configBuilder = parseLenientlyFromSource(source);
                 } catch (IOException e) {
-                    delegate.onFailure(new ElasticsearchParseException("Failed to parse datafeed config [" + datafeedId + "]", e));
+                    delegate.onFailure(new ParsingException("Failed to parse datafeed config [" + datafeedId + "]", e));
                     return;
                 }
 
@@ -365,9 +365,7 @@ public class DatafeedConfigProvider {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
 
         } catch (IOException e) {
-            listener.onFailure(
-                new ElasticsearchParseException("Failed to serialise datafeed config with id [" + updatedConfig.getId() + "]", e)
-            );
+            listener.onFailure(new ParsingException("Failed to serialise datafeed config with id [" + updatedConfig.getId() + "]", e));
         }
     }
 

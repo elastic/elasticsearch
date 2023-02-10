@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -86,7 +86,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
      * Parses a set of index-time contexts.
      */
     public abstract Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser) throws IOException,
-        ElasticsearchParseException;
+        ParsingException;
 
     /**
      * Retrieves a set of context from a <code>document</code> at index-time.
@@ -101,7 +101,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Parses query contexts for this mapper
      */
-    public final List<InternalQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
+    public final List<InternalQueryContext> parseQueryContext(XContentParser parser) throws IOException, ParsingException {
         List<T> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_ARRAY) {

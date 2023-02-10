@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -43,7 +43,7 @@ public class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
         GeoHexGridAggregationBuilder::new
     );
 
-    static int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
+    static int parsePrecision(XContentParser parser) throws IOException, ParsingException {
         final Object node = parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)
             ? Integer.valueOf(parser.intValue())
             : parser.text();

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -212,7 +212,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     public void testExpressionInvalidUnescaped() throws Exception {
         Exception e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> DateMathExpressionResolver.resolve(context, Arrays.asList("<.mar}vel-{now/d}>"))
         );
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
@@ -221,7 +221,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     public void testExpressionInvalidDateMathFormat() throws Exception {
         Exception e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}>"))
         );
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
@@ -230,7 +230,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     public void testExpressionInvalidEmptyDateMathFormat() throws Exception {
         Exception e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}}>"))
         );
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
@@ -239,7 +239,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     public void testExpressionInvalidOpenEnded() throws Exception {
         Exception e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> DateMathExpressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d>"))
         );
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));

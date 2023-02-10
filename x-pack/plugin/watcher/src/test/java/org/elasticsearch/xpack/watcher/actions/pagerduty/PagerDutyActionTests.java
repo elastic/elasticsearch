@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -269,8 +269,8 @@ public class PagerDutyActionTests extends ESTestCase {
             XContentParser parser = createParser(builder);
             parser.nextToken();
             PagerDutyAction.parse("_watch", "_action", parser);
-            fail("Expected ElasticsearchParseException but did not happen");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException but did not happen");
+        } catch (ParsingException e) {
 
         }
     }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -70,7 +70,7 @@ public class ChainTransform implements Transform {
     static ChainTransform parse(String watchId, XContentParser parser, TransformRegistry transformRegistry) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] transform for watch [{}]. expected an array of transform objects," + " but found [{}] instead",
                 TYPE,
                 watchId,
@@ -83,7 +83,7 @@ public class ChainTransform implements Transform {
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse [{}] transform for watch [{}]. expected a transform object, but " + "found [{}] instead",
                     TYPE,
                     watchId,

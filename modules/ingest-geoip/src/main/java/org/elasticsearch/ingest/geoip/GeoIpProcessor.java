@@ -18,9 +18,9 @@ import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
@@ -176,12 +176,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
             geoData = retrieveAsnGeoData(geoIpDatabase, ipAddress);
-
         } else {
-            throw new ElasticsearchParseException(
-                "Unsupported database type [" + geoIpDatabase.getDatabaseType() + "]",
-                new IllegalStateException()
-            );
+            throw new ParsingException("Unsupported database type [" + geoIpDatabase.getDatabaseType() + "]", new IllegalStateException());
         }
         return geoData;
     }

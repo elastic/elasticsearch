@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -157,10 +157,7 @@ public class JiraIssue implements ToXContentObject {
                     token = parser.nextToken();
                 }
                 if (token != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchParseException(
-                        "failed to parse jira project. expected an object, but found [{}] instead",
-                        token
-                    );
+                    throw new ParsingException("failed to parse jira project. expected an object, but found [{}] instead", token);
                 }
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -176,7 +173,7 @@ public class JiraIssue implements ToXContentObject {
                             errors.add(parser.text());
                         }
                     } else {
-                        throw new ElasticsearchParseException("could not parse jira response. unexpected field [{}]", currentFieldName);
+                        throw new ParsingException("could not parse jira response. unexpected field [{}]", currentFieldName);
                     }
                 }
             } catch (Exception e) {

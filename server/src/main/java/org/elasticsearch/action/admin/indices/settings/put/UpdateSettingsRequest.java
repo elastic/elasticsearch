@@ -8,12 +8,12 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -220,7 +220,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private static void checkMixedRequest(Map<String, Object> bodySettings) {
         assert bodySettings.containsKey("settings");
         if (bodySettings.size() > 1) {
-            throw new ElasticsearchParseException("mix of settings map and top-level properties");
+            throw new ParsingException("mix of settings map and top-level properties");
         }
     }
 

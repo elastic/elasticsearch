@@ -15,7 +15,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -129,8 +129,8 @@ public class CartesianBoundsAggregatorTests extends AggregatorTestCase {
                 .missing("invalid");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                ElasticsearchParseException exception = expectThrows(
-                    ElasticsearchParseException.class,
+                ParsingException exception = expectThrows(
+                    ParsingException.class,
                     () -> searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType))
                 );
                 assertThat(exception.getMessage(), startsWith("unsupported symbol"));

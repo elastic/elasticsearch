@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -41,7 +41,7 @@ public class StWkttosqlProcessor implements Processor {
         }
         try {
             return new GeoShape(input);
-        } catch (IOException | IllegalArgumentException | ElasticsearchParseException ex) {
+        } catch (IOException | IllegalArgumentException | ParsingException ex) {
             throw new SqlIllegalArgumentException("Cannot parse [{}] as a geo_shape value", input);
         }
     }

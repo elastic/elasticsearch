@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -219,23 +219,23 @@ public class MoveAllocationCommand implements AllocationCommand {
                 } else if ("to_node".equals(currentFieldName) || "toNode".equals(currentFieldName)) {
                     toNode = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("[{}] command does not support field [{}]", NAME, currentFieldName);
+                    throw new ParsingException("[{}] command does not support field [{}]", NAME, currentFieldName);
                 }
             } else {
-                throw new ElasticsearchParseException("[{}] command does not support complex json tokens [{}]", NAME, token);
+                throw new ParsingException("[{}] command does not support complex json tokens [{}]", NAME, token);
             }
         }
         if (index == null) {
-            throw new ElasticsearchParseException("[{}] command missing the index parameter", NAME);
+            throw new ParsingException("[{}] command missing the index parameter", NAME);
         }
         if (shardId == -1) {
-            throw new ElasticsearchParseException("[{}] command missing the shard parameter", NAME);
+            throw new ParsingException("[{}] command missing the shard parameter", NAME);
         }
         if (fromNode == null) {
-            throw new ElasticsearchParseException("[{}] command missing the from_node parameter", NAME);
+            throw new ParsingException("[{}] command missing the from_node parameter", NAME);
         }
         if (toNode == null) {
-            throw new ElasticsearchParseException("[{}] command missing the to_node parameter", NAME);
+            throw new ParsingException("[{}] command missing the to_node parameter", NAME);
         }
         return new MoveAllocationCommand(index, shardId, fromNode, toNode);
     }

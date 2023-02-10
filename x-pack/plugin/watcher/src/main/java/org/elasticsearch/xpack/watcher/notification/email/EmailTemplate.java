@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -443,13 +443,13 @@ public class EmailTemplate implements ToXContentObject {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (currentFieldName == null) {
-                            throw new ElasticsearchParseException("could not parse email template. empty [{}] field", fieldName);
+                            throw new ParsingException("could not parse email template. empty [{}] field", fieldName);
                         } else if (Email.Field.BODY_TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                             builder.textBody(TextTemplate.parse(parser));
                         } else if (Email.Field.BODY_HTML.match(currentFieldName, parser.getDeprecationHandler())) {
                             builder.htmlBody(TextTemplate.parse(parser));
                         } else {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "could not parse email template. unknown field [{}.{}] field",
                                 fieldName,
                                 currentFieldName
@@ -477,7 +477,7 @@ public class EmailTemplate implements ToXContentObject {
                             address.validate();
                         }
                     } catch (AddressException e) {
-                        throw new ElasticsearchParseException("invalid email address [{}]", e, email);
+                        throw new ParsingException("invalid email address [{}]", e, email);
                     }
                 }
             }

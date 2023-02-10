@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
@@ -40,7 +40,7 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
             } else {
                 consumer.accept(geometryParser.parse(parser));
             }
-        } catch (ParseException | ElasticsearchParseException | IllegalArgumentException e) {
+        } catch (ParseException | ParsingException | IllegalArgumentException e) {
             onMalformed.accept(e);
         }
     }

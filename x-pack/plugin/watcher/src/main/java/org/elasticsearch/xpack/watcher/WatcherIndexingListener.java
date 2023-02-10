@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -148,7 +148,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                     logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
                 }
             } catch (IOException e) {
-                throw new ElasticsearchParseException("Could not parse watch with id [{}]", e, operation.id());
+                throw new ParsingException("Could not parse watch with id [{}]", e, operation.id());
             }
         }
     }

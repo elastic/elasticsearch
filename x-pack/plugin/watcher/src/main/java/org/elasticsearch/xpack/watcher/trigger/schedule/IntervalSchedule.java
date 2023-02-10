@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -95,9 +95,9 @@ public class IntervalSchedule implements Schedule {
                     return new IntervalSchedule(Interval.parse(value));
                 }
             } catch (Exception e) {
-                throw new ElasticsearchParseException("could not parse schedule: {}", e, e.getMessage());
+                throw new ParsingException("could not parse schedule: {}", e, e.getMessage());
             }
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] schedule. expected either a numeric value "
                     + "(millis) or a string value representing time value (e.g. '5s'), but found [{}]",
                 TYPE,
@@ -141,7 +141,7 @@ public class IntervalSchedule implements Schedule {
                 try {
                     return Long.parseLong(num);
                 } catch (NumberFormatException nfe) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] schedule. could not parse [{}] as a [{}] duration",
                         TYPE,
                         num,

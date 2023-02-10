@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.ParseField;
@@ -66,7 +66,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                 requestTemplate = HttpRequestTemplate.Parser.parse(parser);
             } else {
                 String msg = "Unknown field name [" + currentFieldName + "] in http request attachment configuration";
-                throw new ElasticsearchParseException(msg);
+                throw new ParsingException(msg);
             }
         }
 
@@ -74,7 +74,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
             return new HttpRequestAttachment(id, requestTemplate, inline, contentType);
         }
 
-        throw new ElasticsearchParseException("Could not parse http request attachment");
+        throw new ParsingException("Could not parse http request attachment");
     }
 
     @Override

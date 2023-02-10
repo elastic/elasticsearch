@@ -8,7 +8,6 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -334,7 +334,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
+                throw new ParsingException("unknown key [{}] in the template ", name);
             }
         }
         return this;
@@ -412,7 +412,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             }
             return this;
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse aliases", e);
+            throw new ParsingException("Failed to parse aliases", e);
         }
     }
 

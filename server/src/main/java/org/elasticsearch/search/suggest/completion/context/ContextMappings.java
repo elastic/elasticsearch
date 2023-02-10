@@ -13,7 +13,7 @@ import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -212,7 +212,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      *
      */
     @SuppressWarnings("unchecked")
-    public static ContextMappings load(Object configuration) throws ElasticsearchParseException {
+    public static ContextMappings load(Object configuration) throws ParsingException {
         final List<ContextMapping<?>> contextMappings;
         if (configuration instanceof List) {
             contextMappings = new ArrayList<>();
@@ -221,12 +221,12 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
                 contextMappings.add(load((Map<String, Object>) contextConfig));
             }
             if (contextMappings.size() == 0) {
-                throw new ElasticsearchParseException("expected at least one context mapping");
+                throw new ParsingException("expected at least one context mapping");
             }
         } else if (configuration instanceof Map) {
             contextMappings = Collections.singletonList(load(((Map<String, Object>) configuration)));
         } else {
-            throw new ElasticsearchParseException("expected a list or an entry of context mapping");
+            throw new ParsingException("expected a list or an entry of context mapping");
         }
         return new ContextMappings(contextMappings);
     }
@@ -245,7 +245,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
     private static String extractRequiredValue(Map<String, Object> contextConfig, String paramName) {
         final Object paramValue = contextConfig.get(paramName);
         if (paramValue == null) {
-            throw new ElasticsearchParseException("missing [" + paramName + "] in context mapping");
+            throw new ParsingException("missing [" + paramName + "] in context mapping");
         }
         contextConfig.remove(paramName);
         return paramValue.toString();

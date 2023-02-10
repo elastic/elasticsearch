@@ -619,7 +619,7 @@ setup:
 "Test put config given empty analysis":
 
   - do:
-      catch: /parsing_exception/
+      catch: /x_content_parse_exception/
       ml.put_data_frame_analytics:
         id: "simple-outlier-detection"
         body: >
@@ -1194,7 +1194,7 @@ setup:
 "Test put regression given dependent_variable is not defined":
 
   - do:
-      catch: /parse_exception/
+      catch: /x_content_parse_exception/
       ml.put_data_frame_analytics:
         id: "regression-without-dependent-variable"
         body: >
@@ -1554,7 +1554,7 @@ setup:
 "Test put classification given dependent_variable is not defined":
 
   - do:
-      catch: /parse_exception/
+      catch: /x_content_parse_exception/
       ml.put_data_frame_analytics:
         id: "classification-without-dependent-variable"
         body: >

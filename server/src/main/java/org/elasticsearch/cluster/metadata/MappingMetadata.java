@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -124,7 +124,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> sourceAsMap() throws ParsingException {
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
@@ -136,7 +136,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
-    public Map<String, Object> getSourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> getSourceAsMap() throws ParsingException {
         return sourceAsMap();
     }
 
@@ -145,7 +145,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
      * In contrast to {@link #sourceAsMap()}, this does not remove the type
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> rawSourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> rawSourceAsMap() throws ParsingException {
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
         return mapping;
     }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
@@ -50,9 +50,9 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
     public void testSetSource() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
 
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { builder.setSource(Strings.format("{ \"%s\": \"%s\" }", KEY, VALUE), XContentType.JSON); }
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> builder.setSource(Strings.format("{ \"%s\": \"%s\" }", KEY, VALUE), XContentType.JSON)
         );
         assertEquals(Strings.format("unknown key [%s] for create index", KEY), e.getMessage());
 

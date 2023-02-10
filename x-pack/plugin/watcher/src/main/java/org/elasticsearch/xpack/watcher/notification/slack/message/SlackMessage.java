@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -266,8 +266,8 @@ public class SlackMessage implements MessageElement {
                 } else if (XField.FROM.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         builder.setFrom(TextTemplate.parse(parser));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse slack message. failed to parse [{}] field",
                             pe,
                             XField.FROM.getPreferredName()
@@ -278,8 +278,8 @@ public class SlackMessage implements MessageElement {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 builder.addTo(TextTemplate.parse(parser));
-                            } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException(
+                            } catch (ParsingException pe) {
+                                throw new ParsingException(
                                     "could not parse slack message. failed to parse [{}] field.",
                                     pe,
                                     XField.TO.getPreferredName()
@@ -289,8 +289,8 @@ public class SlackMessage implements MessageElement {
                     } else {
                         try {
                             builder.addTo(TextTemplate.parse(parser));
-                        } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException(
+                        } catch (ParsingException pe) {
+                            throw new ParsingException(
                                 "could not parse slack message. failed to parse [{}] field",
                                 pe,
                                 XField.TO.getPreferredName()
@@ -300,8 +300,8 @@ public class SlackMessage implements MessageElement {
                 } else if (XField.TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         builder.setText(TextTemplate.parse(parser));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse slack message. failed to parse [{}] field",
                             pe,
                             XField.TEXT.getPreferredName()
@@ -310,8 +310,8 @@ public class SlackMessage implements MessageElement {
                 } else if (XField.ICON.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         builder.setIcon(TextTemplate.parse(parser));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse slack message. failed to parse [{}] field.",
                             pe,
                             XField.ICON.getPreferredName()
@@ -322,8 +322,8 @@ public class SlackMessage implements MessageElement {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 builder.addAttachments(Attachment.Template.parse(parser));
-                            } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException(
+                            } catch (ParsingException pe) {
+                                throw new ParsingException(
                                     "could not parse slack message. failed to parse [{}] field.",
                                     pe,
                                     XField.ATTACHMENTS.getPreferredName()
@@ -333,8 +333,8 @@ public class SlackMessage implements MessageElement {
                     } else {
                         try {
                             builder.addAttachments(Attachment.Template.parse(parser));
-                        } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException(
+                        } catch (ParsingException pe) {
+                            throw new ParsingException(
                                 "could not parse slack message. failed to parse [{}] field.",
                                 pe,
                                 XField.ATTACHMENTS.getPreferredName()
@@ -344,15 +344,15 @@ public class SlackMessage implements MessageElement {
                 } else if (XField.DYNAMIC_ATTACHMENTS.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         builder.setDynamicAttachments(DynamicAttachments.parse(parser));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException(
+                    } catch (ParsingException pe) {
+                        throw new ParsingException(
                             "could not parse slack message. failed to parse [{}] field.",
                             pe,
                             XField.ICON.getPreferredName()
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse slack message. unknown field [{}].", currentFieldName);
+                    throw new ParsingException("could not parse slack message. unknown field [{}].", currentFieldName);
                 }
             }
 

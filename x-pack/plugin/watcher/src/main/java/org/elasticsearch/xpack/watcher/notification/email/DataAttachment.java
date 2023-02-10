@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -79,7 +79,7 @@ public enum DataAttachment implements ToXContentObject {
             return parser.booleanValue() ? DEFAULT : null;
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse data attachment. expected either a boolean value or an object but " + "found [{}] instead",
                 token
             );
@@ -92,7 +92,7 @@ public enum DataAttachment implements ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse data attachment. expected [{}] field but found [{}] instead",
                     Field.FORMAT.getPreferredName(),
                     token
@@ -101,14 +101,14 @@ public enum DataAttachment implements ToXContentObject {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse data attachment. expected string value for [{}] field but " + "found [{}] instead",
                         currentFieldName,
                         token
                     );
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse data attachment. unexpected field [{}]", currentFieldName);
+                throw new ParsingException("could not parse data attachment. unexpected field [{}]", currentFieldName);
             }
         }
 

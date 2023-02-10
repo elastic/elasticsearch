@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -126,8 +126,8 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new WeeklySchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [weekly] schedule. invalid weekly times"));
         }
     }
@@ -154,8 +154,8 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new WeeklySchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [weekly] schedule. invalid weekly times"));
         }
     }

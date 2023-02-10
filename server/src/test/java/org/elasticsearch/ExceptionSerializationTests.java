@@ -694,7 +694,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(32, org.elasticsearch.indices.InvalidIndexNameException.class);
         ids.put(33, org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException.class);
         ids.put(34, org.elasticsearch.transport.TransportException.class);
-        ids.put(35, org.elasticsearch.ElasticsearchParseException.class);
+        ids.put(35, org.elasticsearch.ElasticsearchParseException.class); // deprecated
         ids.put(36, org.elasticsearch.search.SearchException.class);
         ids.put(37, org.elasticsearch.index.mapper.MapperException.class);
         ids.put(38, org.elasticsearch.indices.InvalidTypeNameException.class);

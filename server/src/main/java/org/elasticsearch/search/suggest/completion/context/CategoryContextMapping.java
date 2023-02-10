@@ -12,7 +12,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -70,7 +70,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *
      * Acceptable map param: <code>path</code>
      */
-    protected static CategoryContextMapping load(String name, Map<String, Object> config) throws ElasticsearchParseException {
+    protected static CategoryContextMapping load(String name, Map<String, Object> config) throws ParsingException {
         CategoryContextMapping.Builder mapping = new CategoryContextMapping.Builder(name);
         Object fieldName = config.get(FIELD_FIELDNAME);
         if (fieldName != null) {
@@ -99,7 +99,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      */
     @Override
     public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser) throws IOException,
-        ElasticsearchParseException {
+        ParsingException {
         final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
@@ -109,13 +109,11 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                 if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
                     contexts.add(parser.text());
                 } else {
-                    throw new ElasticsearchParseException(
-                        "context array must have string, number or boolean values, but was [" + token + "]"
-                    );
+                    throw new ParsingException("context array must have string, number or boolean values, but was [" + token + "]");
                 }
             }
         } else {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "contexts must be a string, number or boolean or a list of string, number or boolean, but was [" + token + "]"
             );
         }

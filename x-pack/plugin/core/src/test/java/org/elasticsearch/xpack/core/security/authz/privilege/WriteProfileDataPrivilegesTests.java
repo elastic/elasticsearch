@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -194,7 +194,7 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
         ) {
             parser.nextToken(); // {
             parser.nextToken(); // "write" field
-            expectThrows(ElasticsearchParseException.class, () -> ConfigurableClusterPrivileges.WriteProfileDataPrivileges.parse(parser));
+            expectThrows(ParsingException.class, () -> ConfigurableClusterPrivileges.WriteProfileDataPrivileges.parse(parser));
             parser.nextToken();
         }
         final String anEmptyApplication = "{\"write\":{\"applications\":[\"\"]}}";

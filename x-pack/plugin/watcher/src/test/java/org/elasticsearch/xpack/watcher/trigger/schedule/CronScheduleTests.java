@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -72,7 +72,7 @@ public class CronScheduleTests extends ScheduleTestCase {
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> new CronSchedule.Parser().parse(parser));
+        ParsingException e = expectThrows(ParsingException.class, () -> new CronSchedule.Parser().parse(parser));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
     }
 
@@ -83,8 +83,8 @@ public class CronScheduleTests extends ScheduleTestCase {
         parser.nextToken();
         try {
             new CronSchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(
                 e.getMessage(),
                 is(
@@ -102,8 +102,8 @@ public class CronScheduleTests extends ScheduleTestCase {
         parser.nextToken();
         try {
             new CronSchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(
                 e.getMessage(),
                 is(
@@ -121,8 +121,8 @@ public class CronScheduleTests extends ScheduleTestCase {
         parser.nextToken();
         try {
             new CronSchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), is("could not parse [cron] schedule. no cron expression found in cron array"));
         }
     }

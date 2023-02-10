@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -39,18 +39,18 @@ public class ProcessResultsParser<T> {
         this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
     }
 
-    public Iterator<T> parseResults(InputStream in) throws ElasticsearchParseException {
+    public Iterator<T> parseResults(InputStream in) throws ParsingException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, in);
             XContentParser.Token token = parser.nextToken();
             // if start of an array ignore it, we expect an array of results
             if (token != XContentParser.Token.START_ARRAY) {
-                throw new ElasticsearchParseException("unexpected token [" + token + "]");
+                throw new ParsingException("unexpected token [" + token + "]");
             }
             return new ResultIterator(parser);
         } catch (IOException e) {
-            throw new ElasticsearchParseException(e.getMessage(), e);
+            throw new ParsingException(e.getMessage(), e);
         }
     }
 
@@ -76,7 +76,7 @@ public class ProcessResultsParser<T> {
                 return false;
             } else if (token != XContentParser.Token.START_OBJECT) {
                 logger.error("Expecting Json Field name token after the Start Object token");
-                throw new ElasticsearchParseException("unexpected token [" + token + "]");
+                throw new ParsingException("unexpected token [" + token + "]");
             }
             return true;
         }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,7 +40,7 @@ public class IntervalScheduleTests extends ESTestCase {
         try {
             new IntervalSchedule.Parser().parse(parser);
             fail("exception expected, because interval is negative");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(e.getCause().getMessage(), containsString("interval can't be lower than 1000 ms, but"));
         }
@@ -64,8 +64,8 @@ public class IntervalScheduleTests extends ESTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new IntervalSchedule.Parser().parse(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("unrecognized interval format [43S]"));
         }
     }
@@ -77,7 +77,7 @@ public class IntervalScheduleTests extends ESTestCase {
         parser.nextToken(); // advancing to the start object
         try {
             new IntervalSchedule.Parser().parse(parser);
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(
                 e.getMessage(),
                 containsString("expected either a numeric value (millis) or a string value representing time value")

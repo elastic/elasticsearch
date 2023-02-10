@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Objects;
@@ -29,11 +29,11 @@ public enum MemorySizeValue {
             try {
                 final double percent = Double.parseDouble(percentAsString);
                 if (percent < 0 || percent > 100) {
-                    throw new ElasticsearchParseException("percentage should be in [0-100], got [{}]", percentAsString);
+                    throw new ParsingException("percentage should be in [0-100], got [{}]", percentAsString);
                 }
                 return ByteSizeValue.ofBytes((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()));
             } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("failed to parse [{}] as a double", e, percentAsString);
+                throw new ParsingException("failed to parse [{}] as a double", e, percentAsString);
             }
         } else {
             return parseBytesSizeValue(sValue, settingName);

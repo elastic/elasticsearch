@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -15,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -489,7 +489,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     public void testParsingErrorSetsFailed() throws Exception {
         @SuppressWarnings("unchecked")
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
-        when(iterator.hasNext()).thenThrow(new ElasticsearchParseException("this test throws"));
+        when(iterator.hasNext()).thenThrow(new ParsingException("this test throws"));
         when(process.readAutodetectResults()).thenReturn(iterator);
 
         assertFalse(processorUnderTest.isFailed());

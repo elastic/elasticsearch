@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -78,12 +78,12 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         DateIndexNameProcessor.Factory factory = new DateIndexNameProcessor.Factory(TestTemplateService.instance());
         Map<String, Object> config = new HashMap<>();
         config.put("date_rounding", "y");
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        ParsingException e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
 
         config.clear();
         config.put("field", "_field");
-        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        e = expectThrows(ParsingException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[date_rounding] required property is missing"));
     }
 }

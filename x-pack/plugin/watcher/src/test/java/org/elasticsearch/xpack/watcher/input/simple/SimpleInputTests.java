@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.simple;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -64,7 +64,7 @@ public class SimpleInputTests extends ESTestCase {
         try {
             parser.parseInput("_id", xContentParser);
             fail("[simple] input parse should fail with an InputException for an empty json object");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("expected an object but found [VALUE_STRING] instead"));
         }
     }

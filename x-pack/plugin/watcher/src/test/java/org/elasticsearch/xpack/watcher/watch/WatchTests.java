@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.watcher.watch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -300,7 +300,7 @@ public class WatchTests extends ESTestCase {
         try {
             watchParser.parse("failure", false, BytesReference.bytes(jsonBuilder), XContentType.JSON, 1L, 1L);
             fail("This watch should fail to parse as actions is an array");
-        } catch (ElasticsearchParseException pe) {
+        } catch (ParsingException pe) {
             assertThat(pe.getMessage().contains("could not parse actions for watch [failure]"), is(true));
         }
     }
@@ -449,8 +449,8 @@ public class WatchTests extends ESTestCase {
             builder.endObject();
 
             WatchParser parser = createWatchparser();
-            ElasticsearchParseException e = expectThrows(
-                ElasticsearchParseException.class,
+            ParsingException e = expectThrows(
+                ParsingException.class,
                 () -> parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L)
             );
             assertThat(e.getMessage(), is("could not parse watch [_id]. missing required field [trigger]"));

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -93,8 +93,8 @@ public class DailySchedule extends CronnableSchedule {
                     if (token != XContentParser.Token.START_ARRAY) {
                         try {
                             times.add(DayTimes.parse(parser, token));
-                        } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException(
+                        } catch (ParsingException pe) {
+                            throw new ParsingException(
                                 "could not parse [{}] schedule. invalid time value for field [{}] - [{}]",
                                 pe,
                                 TYPE,
@@ -106,8 +106,8 @@ public class DailySchedule extends CronnableSchedule {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 times.add(DayTimes.parse(parser, token));
-                            } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException(
+                            } catch (ParsingException pe) {
+                                throw new ParsingException(
                                     "could not parse [{}] schedule. invalid time value for field [{}] -" + " [{}]",
                                     pe,
                                     TYPE,
@@ -118,7 +118,7 @@ public class DailySchedule extends CronnableSchedule {
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected field [{}]", TYPE, currentFieldName);
+                    throw new ParsingException("could not parse [{}] schedule. unexpected field [{}]", TYPE, currentFieldName);
                 }
             }
 

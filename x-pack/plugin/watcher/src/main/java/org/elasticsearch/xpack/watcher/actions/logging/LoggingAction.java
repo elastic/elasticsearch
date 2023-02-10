@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.logging;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -83,8 +83,8 @@ public class LoggingAction implements Action {
             } else if (Field.TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     text = TextTemplate.parse(parser);
-                } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException(
+                } catch (ParsingException pe) {
+                    throw new ParsingException(
                         "failed to parse [{}] action [{}/{}]. failed to parse [{}] field",
                         pe,
                         TYPE,
@@ -100,7 +100,7 @@ public class LoggingAction implements Action {
                     try {
                         level = LoggingLevel.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "failed to parse [{}] action [{}/{}]. unknown logging level [{}]",
                             TYPE,
                             watchId,
@@ -109,7 +109,7 @@ public class LoggingAction implements Action {
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse [{}] action [{}/{}]. unexpected string field [{}]",
                         TYPE,
                         watchId,
@@ -118,18 +118,12 @@ public class LoggingAction implements Action {
                     );
                 }
             } else {
-                throw new ElasticsearchParseException(
-                    "failed to parse [{}] action [{}/{}]. unexpected token [{}]",
-                    TYPE,
-                    watchId,
-                    actionId,
-                    token
-                );
+                throw new ParsingException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
             }
         }
 
         if (text == null) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse [{}] action [{}/{}]. missing required [{}] field",
                 TYPE,
                 watchId,

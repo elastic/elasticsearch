@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -25,6 +24,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
@@ -185,7 +185,7 @@ public class DataFrameAnalyticsConfigProvider {
                     originalConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
                 }
             } catch (IOException e) {
-                listener.onFailure(new ElasticsearchParseException("Failed to parse data frame analytics configuration [" + id + "]", e));
+                listener.onFailure(new ParsingException("Failed to parse data frame analytics configuration [" + id + "]", e));
                 return;
             }
 
@@ -266,9 +266,7 @@ public class DataFrameAnalyticsConfigProvider {
                 })
             );
         } catch (IOException e) {
-            listener.onFailure(
-                new ElasticsearchParseException("Failed to serialise data frame analytics with id [" + config.getId() + "]")
-            );
+            listener.onFailure(new ParsingException("Failed to serialise data frame analytics with id [" + config.getId() + "]"));
         }
     }
 

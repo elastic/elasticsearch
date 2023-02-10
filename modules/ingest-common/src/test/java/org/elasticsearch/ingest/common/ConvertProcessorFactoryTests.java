@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -44,7 +44,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), equalTo("[type] type [" + type + "] not supported, cannot convert field."));
             assertThat(e.getMetadata("es.processor_type").get(0), equalTo(ConvertProcessor.TYPE));
             assertThat(e.getMetadata("es.property_name").get(0), equalTo("type"));
@@ -60,7 +60,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
@@ -72,7 +72,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch (ElasticsearchParseException e) {
+        } catch (ParsingException e) {
             assertThat(e.getMessage(), equalTo("[type] required property is missing"));
         }
     }

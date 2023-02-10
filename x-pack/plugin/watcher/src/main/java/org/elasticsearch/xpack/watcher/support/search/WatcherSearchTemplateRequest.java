@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -187,7 +187,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             indices.add(parser.textOrNull());
                         } else {
-                            throw new ElasticsearchParseException(
+                            throw new ParsingException(
                                 "could not read search request. expected string values in ["
                                     + currentFieldName
                                     + "] field, but instead found ["
@@ -200,7 +200,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                     // Tolerate an empty types array, because some watches created internally in 6.x have
                     // an empty types array in their search, and it's clearly equivalent to typeless.
                     if (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not read search request. unsupported non-empty array field [" + currentFieldName + "]"
                         );
                     }
@@ -208,9 +208,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                     // Ideally they should be removed from the definition.
                     deprecationLogger.critical(DeprecationCategory.PARSING, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
                 } else {
-                    throw new ElasticsearchParseException(
-                        "could not read search request. unexpected array field [" + currentFieldName + "]"
-                    );
+                    throw new ParsingException("could not read search request. unexpected array field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (BODY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -223,9 +221,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                 } else if (TEMPLATE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                 } else {
-                    throw new ElasticsearchParseException(
-                        "could not read search request. unexpected object field [" + currentFieldName + "]"
-                    );
+                    throw new ParsingException("could not read search request. unexpected object field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -236,20 +232,16 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                 } else if (REST_TOTAL_HITS_AS_INT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     totalHitsAsInt = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException(
-                        "could not read search request. unexpected string field [" + currentFieldName + "]"
-                    );
+                    throw new ParsingException("could not read search request. unexpected string field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (REST_TOTAL_HITS_AS_INT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     totalHitsAsInt = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException(
-                        "could not read search request. unexpected boolean field [" + currentFieldName + "]"
-                    );
+                    throw new ParsingException("could not read search request. unexpected boolean field [" + currentFieldName + "]");
                 }
             } else {
-                throw new ElasticsearchParseException("could not read search request. unexpected token [" + token + "]");
+                throw new ParsingException("could not read search request. unexpected token [" + token + "]");
             }
         }
 

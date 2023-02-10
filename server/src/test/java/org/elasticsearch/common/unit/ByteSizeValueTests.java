@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
@@ -121,18 +121,18 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testFailOnMissingUnits() {
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("23", "test"));
+        Exception e = expectThrows(ParsingException.class, () -> ByteSizeValue.parseBytesSizeValue("23", "test"));
         assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
     }
 
     public void testFailOnUnknownUnits() {
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("23jw", "test"));
+        Exception e = expectThrows(ParsingException.class, () -> ByteSizeValue.parseBytesSizeValue("23jw", "test"));
         assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
     }
 
     public void testFailOnEmptyParsing() {
         Exception e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb"))
         );
         assertThat(e.getMessage(), containsString("failed to parse setting [emptyParsing]"));
@@ -140,14 +140,14 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testFailOnEmptyNumberParsing() {
         Exception e = expectThrows(
-            ElasticsearchParseException.class,
+            ParsingException.class,
             () -> assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b"))
         );
         assertThat(e.getMessage(), containsString("failed to parse setting [emptyNumberParsing] with value [g]"));
     }
 
     public void testNoDotsAllowed() {
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("42b.", null, "test"));
+        Exception e = expectThrows(ParsingException.class, () -> ByteSizeValue.parseBytesSizeValue("42b.", null, "test"));
         assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
     }
 
@@ -273,8 +273,8 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testParseInvalidValue() {
         String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
-        ElasticsearchParseException exception = expectThrows(
-            ElasticsearchParseException.class,
+        ParsingException exception = expectThrows(
+            ParsingException.class,
             () -> ByteSizeValue.parseBytesSizeValue("-6" + unitSuffix, "test_setting")
         );
         assertEquals("failed to parse setting [test_setting] with value [-6" + unitSuffix + "] as a size in bytes", exception.getMessage());
@@ -298,20 +298,14 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testParseInvalidNumber() throws IOException {
-        ElasticsearchParseException exception = expectThrows(
-            ElasticsearchParseException.class,
-            () -> ByteSizeValue.parseBytesSizeValue("notANumber", "test")
-        );
+        ParsingException exception = expectThrows(ParsingException.class, () -> ByteSizeValue.parseBytesSizeValue("notANumber", "test"));
         assertEquals(
             "failed to parse setting [test] with value [notANumber] as a size in bytes: unit is missing or unrecognized",
             exception.getMessage()
         );
 
         String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
-        exception = expectThrows(
-            ElasticsearchParseException.class,
-            () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test")
-        );
+        exception = expectThrows(ParsingException.class, () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test"));
         assertEquals("failed to parse setting [test] with value [notANumber" + unitSuffix + "]", exception.getMessage());
     }
 

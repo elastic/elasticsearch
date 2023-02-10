@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -157,16 +157,13 @@ public class ScriptTests extends ESTestCase {
             assertEquals("Script value should be a String or a Map", exc.getMessage());
         }
         {
-            ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(Collections.emptyMap()));
+            ParsingException exc = expectThrows(ParsingException.class, () -> Script.parse(Collections.emptyMap()));
             assertEquals("Expected one of [source] or [id] fields, but found none", exc.getMessage());
         }
     }
 
     public void testParseFromObjectUnsupportedFields() {
-        ElasticsearchParseException exc = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Script.parse(Map.of("source", "script", "unsupported", "value"))
-        );
+        ParsingException exc = expectThrows(ParsingException.class, () -> Script.parse(Map.of("source", "script", "unsupported", "value")));
         assertEquals("Unsupported field [unsupported]", exc.getMessage());
     }
 
@@ -174,7 +171,7 @@ public class ScriptTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("source", "doc['my_field']");
         map.put("options", 3);
-        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(map));
+        ParsingException exc = expectThrows(ParsingException.class, () -> Script.parse(map));
         assertEquals("Value must be of type Map: [options]", exc.getMessage());
     }
 
@@ -182,7 +179,7 @@ public class ScriptTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("source", "doc['my_field']");
         map.put("params", 3);
-        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(map));
+        ParsingException exc = expectThrows(ParsingException.class, () -> Script.parse(map));
         assertEquals("Value must be of type Map: [params]", exc.getMessage());
     }
 

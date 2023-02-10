@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +39,7 @@ public class XContentSource implements ToXContent {
     /**
      * Constructs a new XContentSource out of the given bytes reference.
      */
-    public XContentSource(BytesReference bytes, XContentType xContentType) throws ElasticsearchParseException {
+    public XContentSource(BytesReference bytes, XContentType xContentType) throws ParsingException {
         if (xContentType == null) {
             throw new IllegalArgumentException("xContentType must not be null");
         }

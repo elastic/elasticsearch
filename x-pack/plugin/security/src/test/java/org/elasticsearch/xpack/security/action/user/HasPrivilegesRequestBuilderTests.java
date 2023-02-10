@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
@@ -119,8 +119,8 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
             }""";
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
-        final ElasticsearchParseException parseException = expectThrows(
-            ElasticsearchParseException.class,
+        final ParsingException parseException = expectThrows(
+            ParsingException.class,
             () -> builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
         );
         assertThat(parseException.getMessage(), containsString("[field_security]"));
@@ -129,8 +129,8 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
     public void testMissingPrivilegesThrowsException() throws Exception {
         String json = "{ }";
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
-        final ElasticsearchParseException parseException = expectThrows(
-            ElasticsearchParseException.class,
+        final ParsingException parseException = expectThrows(
+            ParsingException.class,
             () -> builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
         );
         assertThat(parseException.getMessage(), containsString("[cluster,index,applications] are missing"));

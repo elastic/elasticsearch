@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -103,7 +103,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
                 Map<String, Object> map = (Map<String, Object>) values;
                 GeoPoint geoPoint = GeoUtils.parseGeoPoint(map.get("coordinates"), true);
                 return new GeoShape(geoPoint.lon(), geoPoint.lat());
-            } catch (ElasticsearchParseException ex) {
+            } catch (ParsingException ex) {
                 throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName());
             }
         }

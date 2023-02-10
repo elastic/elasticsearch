@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,8 +46,8 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
 
         try {
             WatcherDateTimeUtils.parseTimeValue(parser, "test");
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(
                 e.getMessage(),
                 either(is("failed to parse time unit")).or(
@@ -67,8 +67,8 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
 
         try {
             WatcherDateTimeUtils.parseTimeValue(parser, "test");
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
             assertThat(
                 e.getMessage(),
                 is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead")

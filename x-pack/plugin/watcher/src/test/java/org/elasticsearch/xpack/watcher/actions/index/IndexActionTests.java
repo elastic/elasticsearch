@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher.actions.index;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -151,11 +151,11 @@ public class IndexActionTests extends ESTestCase {
     }
 
     private void expectParseFailure(XContentBuilder builder, String expectedMessage) throws Exception {
-        expectFailure(ElasticsearchParseException.class, builder, expectedMessage);
+        expectFailure(ParsingException.class, builder, expectedMessage);
     }
 
     private void expectParseFailure(XContentBuilder builder) throws Exception {
-        expectFailure(ElasticsearchParseException.class, builder);
+        expectFailure(ParsingException.class, builder);
     }
 
     private void expectFailure(Class<? extends Exception> clazz, XContentBuilder builder) throws Exception {

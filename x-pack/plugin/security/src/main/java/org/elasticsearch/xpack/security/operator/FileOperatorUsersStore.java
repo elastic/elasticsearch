@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.operator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
@@ -233,7 +233,7 @@ public class FileOperatorUsersStore {
                 return operatorUsersDescriptor;
             } catch (IOException | RuntimeException e) {
                 logger.error(() -> "Failed to parse operator users file [" + file + "].", e);
-                throw new ElasticsearchParseException("Error parsing operator users file [{}]", e, file.toAbsolutePath());
+                throw new ParsingException("Error parsing operator users file [{}]", e, file.toAbsolutePath());
             }
         }
     }

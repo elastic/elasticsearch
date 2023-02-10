@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -190,18 +190,18 @@ public class HttpResponse implements ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
-                throw new ElasticsearchParseException("could not parse http response. expected a field name but found [{}] instead", token);
+                throw new ParsingException("could not parse http response. expected a field name but found [{}] instead", token);
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if (Field.STATUS.match(currentFieldName, parser.getDeprecationHandler())) {
                     status = parser.intValue();
                 } else {
-                    throw new ElasticsearchParseException("could not parse http response. unknown numeric field [{}]", currentFieldName);
+                    throw new ParsingException("could not parse http response. unknown numeric field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
                     body = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("could not parse http response. unknown string field [{}]", currentFieldName);
+                    throw new ParsingException("could not parse http response. unknown string field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String headerName = null;
@@ -209,7 +209,7 @@ public class HttpResponse implements ToXContentObject {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         headerName = parser.currentName();
                     } else if (headerName == null) {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse http response. expected a header name but found [{}] " + "instead",
                             token
                         );
@@ -219,7 +219,7 @@ public class HttpResponse implements ToXContentObject {
                         List<String> values = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
-                                throw new ElasticsearchParseException(
+                                throw new ParsingException(
                                     "could not parse http response. expected a header value for header " + "[{}] but found [{}] instead",
                                     headerName,
                                     token
@@ -232,12 +232,12 @@ public class HttpResponse implements ToXContentObject {
                     }
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse http response. unexpected token [{}]", token);
+                throw new ParsingException("could not parse http response. unexpected token [{}]", token);
             }
         }
 
         if (status < 0) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse http response. missing required numeric [{}] field holding the " + "response's http status code",
                 Field.STATUS.getPreferredName()
             );

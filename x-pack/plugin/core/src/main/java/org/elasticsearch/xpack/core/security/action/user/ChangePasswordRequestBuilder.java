@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -110,7 +110,7 @@ public class ChangePasswordRequestBuilder extends ActionRequestBuilder<ChangePas
                         assert CharBuffer.wrap(passwordChars).chars().noneMatch((i) -> (char) i != (char) 0)
                             : "expected password to " + "clear the char[] but it did not!";
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type string, but found [{}] instead",
                             currentFieldName,
                             token
@@ -121,17 +121,14 @@ public class ChangePasswordRequestBuilder extends ActionRequestBuilder<ChangePas
                         char[] passwordHashChars = parser.text().toCharArray();
                         passwordHash(passwordHashChars, hasher);
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "expected field [{}] to be of type string, but found [{}] instead",
                             currentFieldName,
                             token
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException(
-                        "failed to parse change password request. unexpected field [{}]",
-                        currentFieldName
-                    );
+                    throw new ParsingException("failed to parse change password request. unexpected field [{}]", currentFieldName);
                 }
             }
         }

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.action.profile;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -124,12 +124,12 @@ public class SuggestProfilesRequest extends ActionRequest {
                             if (v instanceof final String stringValue) {
                                 values.add(stringValue);
                             } else {
-                                throw new ElasticsearchParseException("[labels] hint supports either string value or list of strings");
+                                throw new ParsingException("[labels] hint supports either string value or list of strings");
                             }
                         }
                         labels.put(entry.getKey(), List.copyOf(values));
                     } else {
-                        throw new ElasticsearchParseException("[labels] hint supports either string or list of strings as its value");
+                        throw new ParsingException("[labels] hint supports either string or list of strings as its value");
                     }
                 }
                 this.labels = Map.copyOf(labels);

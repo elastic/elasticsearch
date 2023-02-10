@@ -125,7 +125,7 @@ teardown:
 ---
 "Test invalid config":
   - do:
-      catch: /parse_exception/
+      catch: /parse_exception|parsing_exception/
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -156,7 +156,7 @@ teardown:
               }
             ]
           }
-  - match: { error.root_cause.0.type: "parse_exception" }
+  - match: { error.root_cause.0.type: /parse_exception|parsing_exception/ }
   - match: { error.root_cause.0.reason: "[field] required property is missing" }
   - match: { error.root_cause.0.processor_tag: "fritag" }
   - match: { error.root_cause.0.processor_type: "set" }

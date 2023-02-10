@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.jira;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -86,7 +86,7 @@ public class JiraAction implements Action {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     account = parser.text();
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " + "found [{}] instead",
                         TYPE,
                         watchId,
@@ -101,7 +101,7 @@ public class JiraAction implements Action {
                 try {
                     fields = parser.map();
                 } catch (Exception e) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "failed to parse [{}] action [{}/{}]. failed to parse [{}] field",
                         e,
                         TYPE,
@@ -111,7 +111,7 @@ public class JiraAction implements Action {
                     );
                 }
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "failed to parse [{}] action [{}/{}]. unexpected token [{}/{}]",
                     TYPE,
                     watchId,

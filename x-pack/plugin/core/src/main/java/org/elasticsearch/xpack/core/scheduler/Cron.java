@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.scheduler;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -866,7 +866,7 @@ public class Cron implements ToXContentFragment {
         }
     }
 
-    private int storeExpressionVals(int pos, String s, int type) throws ElasticsearchParseException {
+    private int storeExpressionVals(int pos, String s, int type) throws ParsingException {
 
         int incr = 0;
         int i = skipWhiteSpace(pos, s);
@@ -1039,7 +1039,7 @@ public class Cron implements ToXContentFragment {
         return i;
     }
 
-    private int checkNext(int pos, String s, int val, int type) throws ElasticsearchParseException {
+    private int checkNext(int pos, String s, int val, int type) throws ParsingException {
 
         int end = -1;
         int i = pos;
@@ -1210,7 +1210,7 @@ public class Cron implements ToXContentFragment {
         return i;
     }
 
-    private void addToSet(int val, int end, int incr, int type) throws ElasticsearchParseException {
+    private void addToSet(int val, int end, int incr, int type) throws ParsingException {
 
         TreeSet<Integer> set = getSet(type);
 

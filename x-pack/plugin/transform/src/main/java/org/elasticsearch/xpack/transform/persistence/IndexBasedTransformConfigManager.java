@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -31,6 +30,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -354,7 +354,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(
-                new ElasticsearchParseException(
+                new ParsingException(
                     TransformMessages.getMessage(TransformMessages.REST_FAILED_TO_SERIALIZE_TRANSFORM, transformConfig.getId()),
                     e
                 )
@@ -562,7 +562,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                             configs.add(config);
                         }
                     } catch (IOException e) {
-                        foundConfigsListener.onFailure(new ElasticsearchParseException("failed to parse search hit for ids", e));
+                        foundConfigsListener.onFailure(new ParsingException("failed to parse search hit for ids", e));
                         return;
                     }
                 }
@@ -722,7 +722,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(
-                new ElasticsearchParseException(
+                new ParsingException(
                     TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_PERSIST_STATS, storedDoc.getId()),
                     e
                 )
@@ -831,7 +831,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                         ) {
                             stats.add(TransformStoredDoc.fromXContent(parser));
                         } catch (IOException e) {
-                            listener.onFailure(new ElasticsearchParseException("failed to parse transform stats from search hit", e));
+                            listener.onFailure(new ParsingException("failed to parse transform stats from search hit", e));
                             return;
                         }
                     }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
@@ -81,7 +81,7 @@ public final class ExpressionParser {
             token = parser.currentToken();
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse rules expression. expected [{}] to be an object but found [{}] instead",
                 objectName,
                 token
@@ -91,7 +91,7 @@ public final class ExpressionParser {
         final String fieldName = readFieldName(objectName, parser);
         final RoleMapperExpression expr = parseExpression(parser, fieldName, allowExcept, objectName);
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("failed to parse rules expression. object [{}] contains multiple fields", objectName);
+            throw new ParsingException("failed to parse rules expression. object [{}] contains multiple fields", objectName);
         }
         return expr;
     }
@@ -109,18 +109,10 @@ public final class ExpressionParser {
             if (allowExcept) {
                 return parseExceptExpression(parser);
             } else {
-                throw new ElasticsearchParseException(
-                    "failed to parse rules expression. field [{}] is not allowed within [{}]",
-                    field,
-                    objectName
-                );
+                throw new ParsingException("failed to parse rules expression. field [{}] is not allowed within [{}]", field, objectName);
             }
         } else {
-            throw new ElasticsearchParseException(
-                "failed to parse rules expression. field [{}] is not recognised in object [{}]",
-                field,
-                objectName
-            );
+            throw new ParsingException("failed to parse rules expression. field [{}] is not recognised in object [{}]", field, objectName);
         }
     }
 
@@ -134,7 +126,7 @@ public final class ExpressionParser {
             values = Collections.singletonList(parseFieldValue(parser));
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "failed to parse rules expression. object [{}] contains multiple fields",
                 Fields.FIELD.getPreferredName()
             );
@@ -150,13 +142,13 @@ public final class ExpressionParser {
     private void checkStartObject(XContentParser parser) throws IOException {
         final XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("failed to parse rules expression. expected an object but found [{}] instead", token);
+            throw new ParsingException("failed to parse rules expression. expected an object but found [{}] instead", token);
         }
     }
 
     private String readFieldName(String objectName, XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchParseException("failed to parse rules expression. object [{}] does not contain any fields", objectName);
+            throw new ParsingException("failed to parse rules expression. object [{}] does not contain any fields", objectName);
         }
         return parser.currentName();
     }
@@ -177,7 +169,7 @@ public final class ExpressionParser {
             }
             return list;
         } else {
-            throw new ElasticsearchParseException("failed to parse rules expression. field [{}] requires an array", field);
+            throw new ParsingException("failed to parse rules expression. field [{}] requires an array", field);
         }
     }
 
@@ -187,7 +179,7 @@ public final class ExpressionParser {
             case VALUE_BOOLEAN -> new FieldExpression.FieldValue(parser.booleanValue());
             case VALUE_NUMBER -> new FieldExpression.FieldValue(parser.longValue());
             case VALUE_NULL -> new FieldExpression.FieldValue(null);
-            default -> throw new ElasticsearchParseException(
+            default -> throw new ParsingException(
                 "failed to parse rules expression. expected a field value but found [{}] instead",
                 parser.currentToken()
             );

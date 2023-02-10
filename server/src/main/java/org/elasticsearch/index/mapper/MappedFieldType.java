@@ -28,8 +28,8 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -199,7 +199,7 @@ public abstract class MappedFieldType {
      *  The default implementation returns a {@link TermQuery} over the value bytes
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
      *      due to the way it is configured (eg. not indexed)
-     *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
+     *  @throws ParsingException if {@code value} cannot be converted to the expected data type
      *  @throws UnsupportedOperationException if the field is not searchable regardless of options
      *  @throws QueryShardException if the field is not searchable regardless of options
      */

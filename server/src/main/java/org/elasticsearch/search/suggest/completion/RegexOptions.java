@@ -10,7 +10,7 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,7 +46,7 @@ public class RegexOptions implements ToXContentFragment, Writeable {
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 builder.setFlagsValue(parser.intValue());
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     REGEX_OPTIONS.getPreferredName() + " " + FLAGS_VALUE.getPreferredName() + " supports string or number"
                 );
             }

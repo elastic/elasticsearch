@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -112,11 +112,11 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
         return Strings.format1Decimals(value, suffix);
     }
 
-    public static SizeValue parseSizeValue(String sValue) throws ElasticsearchParseException {
+    public static SizeValue parseSizeValue(String sValue) throws ParsingException {
         return parseSizeValue(sValue, null);
     }
 
-    public static SizeValue parseSizeValue(String sValue, SizeValue defaultValue) throws ElasticsearchParseException {
+    public static SizeValue parseSizeValue(String sValue, SizeValue defaultValue) throws ParsingException {
         if (sValue == null) {
             return defaultValue;
         }
@@ -136,7 +136,7 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
                 singles = Long.parseLong(sValue);
             }
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);
+            throw new ParsingException("failed to parse [{}]", e, sValue);
         }
         return new SizeValue(singles, SizeUnit.SINGLE);
     }

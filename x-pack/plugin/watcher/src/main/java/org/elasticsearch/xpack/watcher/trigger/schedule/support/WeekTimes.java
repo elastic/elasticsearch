@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -99,9 +99,9 @@ public class WeekTimes implements Times {
         return new Builder();
     }
 
-    public static WeekTimes parse(XContentParser parser, XContentParser.Token token) throws IOException, ElasticsearchParseException {
+    public static WeekTimes parse(XContentParser parser, XContentParser.Token token) throws IOException, ParsingException {
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse week times. expected an object, but found [{}]", token);
+            throw new ParsingException("could not parse week times. expected an object, but found [{}]", token);
         }
         Set<DayOfWeek> daysSet = new HashSet<>();
         Set<DayTimes> timesSet = new HashSet<>();
@@ -117,7 +117,7 @@ public class WeekTimes implements Times {
                         daysSet.add(parseDayValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "invalid week day value for [{}] field. expected string/number value or an "
                             + "array of string/number values, but found [{}]",
                         currentFieldName,
@@ -128,15 +128,15 @@ public class WeekTimes implements Times {
                 if (token != XContentParser.Token.START_ARRAY) {
                     try {
                         timesSet.add(DayTimes.parse(parser, token));
-                    } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("invalid time value for field [{}] - [{}]", pe, currentFieldName, token);
+                    } catch (ParsingException pe) {
+                        throw new ParsingException("invalid time value for field [{}] - [{}]", pe, currentFieldName, token);
                     }
                 } else {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         try {
                             timesSet.add(DayTimes.parse(parser, token));
-                        } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("invalid time value for field [{}] - [{}]", pe, currentFieldName, token);
+                        } catch (ParsingException pe) {
+                            throw new ParsingException("invalid time value for field [{}] - [{}]", pe, currentFieldName, token);
                         }
                     }
                 }
@@ -154,7 +154,7 @@ public class WeekTimes implements Times {
         if (token == XContentParser.Token.VALUE_NUMBER) {
             return DayOfWeek.resolve(parser.intValue());
         }
-        throw new ElasticsearchParseException("invalid weekly day value. expected a string or a number value, but found [" + token + "]");
+        throw new ParsingException("invalid weekly day value. expected a string or a number value, but found [" + token + "]");
     }
 
     public static class Builder {

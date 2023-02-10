@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -49,7 +49,7 @@ public final class CompareCondition extends AbstractCompareCondition {
 
     public static CompareCondition parse(Clock clock, String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "could not parse [{}] condition for watch [{}]. expected an object but found [{}] " + "instead",
                 TYPE,
                 watchId,
@@ -65,7 +65,7 @@ public final class CompareCondition extends AbstractCompareCondition {
             if (token == XContentParser.Token.FIELD_NAME) {
                 path = parser.currentName();
             } else if (path == null) {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse [{}] condition for watch [{}]. expected a field indicating the "
                         + "compared path, but found [{}] instead",
                     TYPE,
@@ -75,7 +75,7 @@ public final class CompareCondition extends AbstractCompareCondition {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
                 if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] condition for watch [{}]. expected a field indicating the"
                             + " comparison operator, but found [{}] instead",
                         TYPE,
@@ -86,7 +86,7 @@ public final class CompareCondition extends AbstractCompareCondition {
                 try {
                     op = Op.resolve(parser.currentName());
                 } catch (IllegalArgumentException iae) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] condition for watch [{}]. unknown comparison operator " + "[{}]",
                         TYPE,
                         watchId,
@@ -95,7 +95,7 @@ public final class CompareCondition extends AbstractCompareCondition {
                 }
                 token = parser.nextToken();
                 if (op.supportsStructures() == false && token.isValue() == false && token != XContentParser.Token.VALUE_NULL) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] condition for watch [{}]. compared value for [{}] with "
                             + "operation [{}] must either be a numeric, string, boolean or null value, but found [{}] instead",
                         TYPE,
@@ -108,7 +108,7 @@ public final class CompareCondition extends AbstractCompareCondition {
                 value = XContentUtils.readValue(parser, token);
                 token = parser.nextToken();
                 if (token != XContentParser.Token.END_OBJECT) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] condition for watch [{}]. expected end of path object, " + "but found [{}] instead",
                         TYPE,
                         watchId,
@@ -116,7 +116,7 @@ public final class CompareCondition extends AbstractCompareCondition {
                     );
                 }
             } else {
-                throw new ElasticsearchParseException(
+                throw new ParsingException(
                     "could not parse [{}] condition for watch [{}]. expected an object for field [{}] " + "but found [{}] instead",
                     TYPE,
                     watchId,

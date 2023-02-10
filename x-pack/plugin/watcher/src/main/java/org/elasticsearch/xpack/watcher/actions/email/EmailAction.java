@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -155,7 +155,7 @@ public class EmailAction implements Action {
                 try {
                     dataAttachment = DataAttachment.parse(parser);
                 } catch (IOException ioe) {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] action [{}/{}]. failed to parse data attachment field " + "[{}]",
                         ioe,
                         TYPE,
@@ -178,10 +178,10 @@ public class EmailAction implements Action {
                         try {
                             profile = Profile.resolve(parser.text());
                         } catch (IllegalArgumentException iae) {
-                            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]", TYPE, watchId, actionId, iae);
+                            throw new ParsingException("could not parse [{}] action [{}/{}]", TYPE, watchId, actionId, iae);
                         }
                     } else {
-                        throw new ElasticsearchParseException(
+                        throw new ParsingException(
                             "could not parse [{}] action [{}/{}]. unexpected string field [{}]",
                             TYPE,
                             watchId,
@@ -190,7 +190,7 @@ public class EmailAction implements Action {
                         );
                     }
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new ParsingException(
                         "could not parse [{}] action [{}/{}]. unexpected token [{}]",
                         TYPE,
                         watchId,

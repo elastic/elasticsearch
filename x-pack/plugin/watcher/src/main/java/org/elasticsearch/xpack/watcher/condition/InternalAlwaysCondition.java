@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
@@ -23,7 +23,7 @@ public final class InternalAlwaysCondition extends AlwaysCondition implements Ex
 
     public static InternalAlwaysCondition parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "unable to parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
                 TYPE,
                 watchId,
@@ -32,7 +32,7 @@ public final class InternalAlwaysCondition extends AlwaysCondition implements Ex
         }
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException(
+            throw new ParsingException(
                 "unable to parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
                 TYPE,
                 watchId,

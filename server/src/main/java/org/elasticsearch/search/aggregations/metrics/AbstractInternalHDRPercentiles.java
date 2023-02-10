@@ -180,6 +180,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         }
         assert h1.getNumberOfSignificantValueDigits() >= h2.getNumberOfSignificantValueDigits();
         h1.add(h2);
+        h1.setAutoResize(true);
 
         return h1;
     }

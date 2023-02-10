@@ -120,7 +120,10 @@ buildScan {
 
       buildScanPublished { scan ->
         // Find existing build scan metadata so we can increment the key index
-        def count = 'buildkite-agent meta-data keys'.execute().text.readLines()
+
+        def text = 'buildkite-agent meta-data keys'.execute().text
+        println text
+        def count = text.readLines()
           .findAll { it.startsWith('build-scan-') }
           .collect { Integer.parseInt(it.substring(11)) }
           .max() ?: -1
@@ -131,7 +134,7 @@ buildScan {
 
         // Add a build annotation
         // See: https://buildkite.com/docs/agent/v3/cli-annotate
-        "buildkite-agent annotate --context gradle-build-scans --append --style info \"Gradle build scan for '${System.getenv('BUILDKITE_LABEL')}': [`gradle ${gradle.startParameter.taskNames.join(' ')}`](${scan.buildScanUri})\"".execute()
+        "buildkite-agent annotate --context gradle-build-scans --append --style info \"Gradle build scan '${count}'\"".execute()
       }
     } else {
       tag 'LOCAL'

@@ -818,7 +818,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
-        public Query createVectorSimilarity(float[] queryVector, float similarity, int numCands) {
+        public Query createVectorSimilarity(float[] queryVector, float similarity, int numCands, Query preFilter) {
             checkQueryVector(queryVector);
             float docScore = this.similarity.score(similarity, elementType, dims);
             Query knnQuery = switch (elementType) {
@@ -827,9 +827,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     for (int i = 0; i < queryVector.length; i++) {
                         bytes[i] = (byte) queryVector[i];
                     }
-                    yield new KnnByteVectorQuery(name(), bytes, numCands);
+                    yield new KnnByteVectorQuery(name(), bytes, numCands, preFilter);
                 }
-                case FLOAT -> new KnnFloatVectorQuery(name(), queryVector, numCands);
+                case FLOAT -> new KnnFloatVectorQuery(name(), queryVector, numCands, preFilter);
             };
             return new VectorSimilarityQuery(knnQuery, similarity, docScore);
         }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -65,13 +66,15 @@ public class VectorSimilarityQueryBuilderTests extends AbstractQueryTestCase<Vec
                 BYTE_VECTOR_FIELD,
                 new float[] { randomByte(), randomByte(), randomByte() },
                 randomIntBetween(1, 10),
-                (float) randomDoubleBetween(0.1, 0.9, true)
+                (float) randomDoubleBetween(0.1, 0.9, true),
+                randomBoolean() ? null : new MatchAllQueryBuilder()
             );
             case FLOAT -> new VectorSimilarityQueryBuilder(
                 VECTOR_FIELD,
                 new float[] { randomFloat(), randomFloat(), randomFloat() },
                 randomIntBetween(1, 10),
-                (float) randomDoubleBetween(0.1, 0.9, true)
+                (float) randomDoubleBetween(0.1, 0.9, true),
+                randomBoolean() ? null : new MatchAllQueryBuilder()
             );
         };
     }
@@ -93,6 +96,9 @@ public class VectorSimilarityQueryBuilderTests extends AbstractQueryTestCase<Vec
                 assertThat(floatVectorQuery.getField(), equalTo(queryBuilder.getField()));
                 assertThat(floatVectorQuery.getTargetCopy(), equalTo(queryBuilder.getQueryVector()));
                 assertThat(floatVectorQuery.getK(), equalTo(queryBuilder.getNumCandidates()));
+                if (queryBuilder.getPreFilter() != null) {
+                    assertThat(queryBuilder.getPreFilter().toQuery(context), equalTo(floatVectorQuery.getFilter()));
+                }
             }
             case (BYTE_VECTOR_FIELD) -> {
                 assertThat(innerQuery, instanceOf(KnnByteVectorQuery.class));
@@ -104,6 +110,9 @@ public class VectorSimilarityQueryBuilderTests extends AbstractQueryTestCase<Vec
                 }
                 assertThat(knnByteVectorQuery.getTargetCopy(), equalTo(queryVector));
                 assertThat(knnByteVectorQuery.getK(), equalTo(queryBuilder.getNumCandidates()));
+                if (queryBuilder.getPreFilter() != null) {
+                    assertThat(queryBuilder.getPreFilter().toQuery(context), equalTo(knnByteVectorQuery.getFilter()));
+                }
             }
             default -> throw new AssertionError("unexpected vector field");
         }

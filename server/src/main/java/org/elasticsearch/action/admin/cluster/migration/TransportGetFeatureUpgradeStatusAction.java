@@ -77,6 +77,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             GetFeatureUpgradeStatusResponse::new,
             ThreadPool.Names.SAME
         );
+
+        assert Version.CURRENT.major == 8 : "Once we begin working on 9.x, we need to update our migration classes";
+
         this.systemIndices = systemIndices;
         this.persistentTasksService = persistentTasksService;
     }

@@ -1,13 +1,13 @@
 [[example-text-analysis-plugin]]
-=== Example text analysis plugin
+==== Example text analysis plugin
 
-This example shows how to create a simple "Hello world" text analysis plugin.
-The plugin provides a custom Lucene token filter that strips all tokens except 
-for "hello" and "world". 
+This example shows how to create a simple "Hello world" text analysis plugin
+using the stable plugin API. The plugin provides a custom Lucene token filter
+that strips all tokens except for "hello" and "world". 
 
 Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it
-easier to develop and package plugins. The steps in this guide assume you use
-this plugin. However, you don't need Gradle to create plugins.
+easier to develop and package stable plugins. The steps in this guide assume you
+use this plugin. However, you don't need Gradle to create plugins.
 
 . Create a new directory for your project.
 . In this example, the source code is organized under the `main` and 

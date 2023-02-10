@@ -1,26 +1,26 @@
-[[creating-non-text-analysis-plugins]]
-=== Creating non-text analysis plugins
+[[creating-classic-plugins]]
+=== Creating classic plugins
 
-Non-text analysis plugins provide {es} with mechanisms for custom 
-authentication, authorization, scoring, and more.
+Plugins provide {es} with mechanisms for custom authentication, authorization,
+scoring, and more.
 
 [IMPORTANT]
 .Plugin release lifecycle
 ==============================================
 
-For plugins created using the method described on this page, you will have to
-release a new version of the plugin for each new {es} release. This version is
-checked when the plugin is loaded. {es} will refuse to start in the presence of
-plugins with the incorrect `elasticsearch.version`.
+Classic plugins require you to build a new version for each new {es} release.
+This version is checked when the plugin is loaded. {es} will refuse to start in
+the presence of plugins with the incorrect `elasticsearch.version`.
 
 ==============================================
 
 [discrete]
-==== Plugin file structure
+==== Classic plugin file structure
 
-Plugins are ZIP files composed of JAR files and <<plugin-descriptor-file-other,a
-metadata file called `plugin-descriptor.properties`>>, a Java properties file
-that describes the plugin.
+Classis plugins are ZIP files composed of JAR files and
+<<plugin-descriptor-file-{plugin-type},a metadata file called
+`plugin-descriptor.properties`>>, a Java properties file that describes the
+plugin.
 
 Note that only JAR files at the root of the plugin are added to the classpath
 for the plugin. If you need other resources, package them into a resources JAR.
@@ -87,7 +87,7 @@ AccessController.doPrivileged(
 Check https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
 for more information.
 
-[[plugin-descriptor-file-other]]
-==== The plugin descriptor file
+[[plugin-descriptor-file-classic]]
+==== The plugin descriptor file for classic plugins
 
 include::plugin-descriptor-file.asciidoc[]

@@ -6,22 +6,22 @@
 are defined in the source code. Plugins are composed of JAR files and metadata
 files, compressed in a single zip file.
 
-There are two ways to create a plugin, depending on the type of plugin you wish
-to create:
+There are two ways to create a plugin:
 
-<<creating-text-analysis-plugins>>::
-Text analysis plugins provide {es} with custom Lucene analyzers, token
-filters, character filters, and tokenizers.
+<<creating-stable-plugins>>:: 
+Text analysis plugins can be developed against the stable plugin API to provide
+{es} with custom Lucene analyzers, token filters, character filters, and
+tokenizers.
 
-<<creating-non-text-analysis-plugins>>::
-Plugins that provide custom authentication, authorization, or scoring
-mechanisms, and more.
+<<creating-classic-plugins>>::
+Other plugins can be developed against the classic plugin API to provide custom
+authentication, authorization, or scoring mechanisms, and more.
 
-:plugin-type: analysis
-include::development/creating-text-analysis-plugins.asciidoc[]
+:plugin-type: stable
+include::development/creating-stable-plugins.asciidoc[]
 include::development/example-text-analysis-plugin.asciidoc[]
 :!plugin-type:
 
-:plugin-type: other
-include::development/creating-non-text-analysis-plugins.asciidoc[]
+:plugin-type: classic
+include::development/creating-classic-plugins.asciidoc[]
 :!plugin-type:

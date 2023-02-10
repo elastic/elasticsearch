@@ -1,8 +1,9 @@
-The plugin descriptor file is a Java properties file called
-ifeval::["{plugin-type}" ==  "analysis"]
+ifeval::["{plugin-type}" ==  "stable"]
+The stable plugin descriptor file is a Java properties file called 
 `stable-plugin-descriptor.properties`
 endif::[]
-ifeval::["{plugin-type}" == "other"]
+ifeval::["{plugin-type}" == "classic"]
+The classic plugin descriptor file is a Java properties file called 
 `plugin-descriptor.properties`
 endif::[]
 that describes the plugin. The file is automatically created if you are 
@@ -30,12 +31,12 @@ include::{plugin-properties-files}/plugin-descriptor.properties[]
 
 |`name`                     |String  | the plugin name
 
-ifeval::["{plugin-type}" ==  "analysis"]
-|`classname`                |String  | this property is for non-text analysis 
-plugins. Do not include this property.
+ifeval::["{plugin-type}" ==  "stable"]
+|`classname`                |String  | this property is for classic plugins. Do
+not include this property for stable plugins.
 endif::[]
 
-ifeval::["{plugin-type}" == "other"]
+ifeval::["{plugin-type}" == "classic"]
 |`classname`                |String  | the name of the class to load, 
 fully-qualified.
 

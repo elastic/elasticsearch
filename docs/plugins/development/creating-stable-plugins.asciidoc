@@ -1,13 +1,13 @@
-[[creating-text-analysis-plugins]]
-=== Creating text analysis plugins
+[[creating-stable-plugins]]
+=== Creating text analysis plugins with the stable plugin API
 
 Text analysis plugins provide {es} with custom {ref}/analysis.html[Lucene 
 analyzers, token filters, character filters, and tokenizers]. 
 
 [discrete]
-==== The analysis plugin API
+==== The stable plugin API
 
-Text analysis plugins can be written against the analysis plugin API. This API
+Text analysis plugins can be developed against the stable plugin API. This API
 consists of the following dependencies:
 
 * `plugin-api` - an API used by plugin developers to implement custom {es} 
@@ -31,21 +31,22 @@ the analysis plugin API.
 * `TokenFilterFactory` to create a Lucene token filter
 * `TokenizerFactory` to create a Lucene tokenizer
 
-The key to implementing a text analysis plugin is the `@NamedComponent`
-annotation. Many of {es}'s components have names that are used in
-configurations. For example, the keyword analyzer is referenced in configuration
-with the name `"keyword"`. Once your custom plugin is installed in your cluster,
-your named components may be referenced by name in these configurations as well.
+The key to implementing a stable plugin is the `@NamedComponent` annotation.
+Many of {es}'s components have names that are used in configurations. For
+example, the keyword analyzer is referenced in configuration with the name
+`"keyword"`. Once your custom plugin is installed in your cluster, your named
+components may be referenced by name in these configurations as well.
 
-You can also create text analysis plugins using the method described in
-<<creating-non-text-analysis-plugins>>. However, plugins created using that 
-method are pinned to a specific version of {es}. You need to recompile them
-when upgrading {es}.
+You can also create text analysis plugins as a <<creating-classic-plugins,
+classic plugin>>. However, classic plugins are pinned to a specific version of
+{es}. You need to recompile them when upgrading {es}. Because classic plugins
+are built against internal APIs that can change, upgrading to a new version may
+require code changes.
 
 [discrete]
-==== Plugin file structure
+==== Stable plugin file structure
 
-Plugins are ZIP files composed of JAR files and two metadata files:
+Stable plugins are ZIP files composed of JAR files and two metadata files:
 
 * `stable-plugin-descriptor.properties` - a Java properties file that describes 
 the plugin. Refer to <<plugin-descriptor-file-{plugin-type}>>.
@@ -59,8 +60,8 @@ for the plugin. If you need other resources, package them into a resources JAR.
 ==== Development process
 
 Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it
-easier to develop and package plugins. The steps in this section assume you use this 
-plugin. However, you don't need Gradle to create plugins.
+easier to develop and package stable plugins. The steps in this section assume
+you use this plugin. However, you don't need Gradle to create plugins.
 
 The {es} Github repository contains
 {es-repo}tree/main/plugins/examples/stable-analysis[an example analysis plugin].
@@ -88,7 +89,7 @@ Github repository].
 ** Edit the `name` and `description` in the `esplugin` section of the build 
 script. This will create the plugin descriptor file. If you're not using the 
 `elasticsearch.stable-esplugin` gradle plugin, refer to 
-<<plugin-descriptor-file-analysis>> to create the file manually.
+<<plugin-descriptor-file-{plugin-type}>> to create the file manually.
 ** Add module information.
 ** Ensure you have declared the following compile-time dependencies. These 
 dependencies are compile-time only because {es} will provide these libraries at 
@@ -124,7 +125,7 @@ extend `ESClientYamlSuiteTestCase`.
 * The YAML tests themselves should be defined under 
 `src/yamlRestTest/resources/test/`.
 
-[[plugin-descriptor-file-analysis]]
-==== The plugin descriptor file
+[[plugin-descriptor-file-stable]]
+==== The plugin descriptor file for stable plugins
 
 include::plugin-descriptor-file.asciidoc[]

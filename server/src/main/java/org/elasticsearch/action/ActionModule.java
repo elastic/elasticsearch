@@ -464,6 +464,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
+    private final boolean serverlessEnabled;
 
     public ActionModule(
         Settings settings,
@@ -479,7 +480,8 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
+        boolean serverlessEnabled
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -488,6 +490,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
+        this.serverlessEnabled = serverlessEnabled;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -530,7 +533,15 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
-        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer, settings);
+        restController = new RestController(
+            headers,
+            restInterceptor,
+            nodeClient,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            serverlessEnabled
+        );
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 
@@ -730,11 +741,14 @@ public class ActionModule extends AbstractModule {
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (handler instanceof AbstractCatAction) {
-                catActions.add((AbstractCatAction) handler);
+            if (shouldKeepRestHandler(handler)) {
+                if (handler instanceof AbstractCatAction) {
+                    catActions.add((AbstractCatAction) handler);
+                }
+                restController.registerHandler(handler);
             }
-            restController.registerHandler(handler);
         };
+        long startTime = System.currentTimeMillis();
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
         registerHandler.accept(new RestMainAction());
@@ -916,6 +930,11 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+        logger.info("**** handler load time: {}", (System.currentTimeMillis() - startTime));
+    }
+
+    private boolean shouldKeepRestHandler(final RestHandler handler) {
+        return serverlessEnabled == false || handler.getRestHandlerServerlessScope() != null;
     }
 
     @Override

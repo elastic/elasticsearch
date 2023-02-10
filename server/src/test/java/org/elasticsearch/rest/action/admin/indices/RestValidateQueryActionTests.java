@@ -62,7 +62,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         new NoneCircuitBreakerService(),
         usageService,
         Tracer.NOOP,
-        Settings.EMPTY
+        false
     );
     private RestValidateQueryAction action = new RestValidateQueryAction();
 

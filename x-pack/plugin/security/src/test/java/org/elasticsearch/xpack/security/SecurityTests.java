@@ -775,7 +775,8 @@ public class SecurityTests extends ESTestCase {
                 null,
                 Tracer.NOOP,
                 mock(ClusterService.class),
-                List.of()
+                List.of(),
+                false
             );
             actionModule.initRestHandlers(null);
 

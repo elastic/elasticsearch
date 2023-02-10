@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
@@ -48,7 +47,7 @@ public abstract class RestActionTestCase extends ESTestCase {
             new NoneCircuitBreakerService(),
             new UsageService(),
             Tracer.NOOP,
-            Settings.EMPTY
+            false
         );
     }
 

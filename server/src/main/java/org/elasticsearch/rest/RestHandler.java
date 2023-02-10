@@ -55,6 +55,11 @@ public interface RestHandler {
         return this;
     }
 
+    default Scope getRestHandlerServerlessScope() {
+        ServerlessScope serverlessScope = getConcreteRestHandler().getClass().getAnnotation(ServerlessScope.class);
+        return serverlessScope == null ? null : serverlessScope.value();
+    }
+
     /**
      * Indicates if the RestHandler supports working with pooled buffers. If the request handler will not escape the return
      * {@link RestRequest#content()} or any buffers extracted from it then there is no need to make a copies of any pooled buffers in the

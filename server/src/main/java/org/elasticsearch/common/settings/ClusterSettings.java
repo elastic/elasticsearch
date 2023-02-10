@@ -102,7 +102,6 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
@@ -254,7 +253,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING,
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING,
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING,
-        RestController.ENFORCE_SERVERLESS_API_SCOPE_SETTING,
         ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
         ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
         ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
@@ -458,6 +456,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Node.NODE_EXTERNAL_ID_SETTING,
         Node.NODE_NAME_SETTING,
         Node.NODE_ATTRIBUTES,
+        Node.SERVERLESS_ENABLED_SETTING,
         NodeRoleSettings.NODE_ROLES_SETTING,
         AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
         BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,

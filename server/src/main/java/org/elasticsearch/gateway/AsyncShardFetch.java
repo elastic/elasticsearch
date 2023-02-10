@@ -293,7 +293,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Are there any nodes that are fetching data?
      */
-    // visible for testing
     private boolean hasAnyNodeFetching() {
         return fetchingCount != 0;
     }

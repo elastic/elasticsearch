@@ -633,11 +633,15 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(nonDeterministicAggregationBuilder, context);
                     assertFalse(context.isCacheable());
+                } finally {
+                    closePreallocatedBreaker();
                 }
 
                 try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(aggregationBuilder, context);
                     assertTrue(context.isCacheable());
+                } finally {
+                    closePreallocatedBreaker();
                 }
             }
         }

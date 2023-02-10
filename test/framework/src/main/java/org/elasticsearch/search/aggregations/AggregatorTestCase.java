@@ -381,7 +381,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return context;
     }
 
-    private void closePreallocatedBreaker() {
+    protected void closePreallocatedBreaker() {
         if (this.preallocatedCircuitBreakerService != null) {
             Releasables.closeExpectNoException(this.preallocatedCircuitBreakerService);
         }

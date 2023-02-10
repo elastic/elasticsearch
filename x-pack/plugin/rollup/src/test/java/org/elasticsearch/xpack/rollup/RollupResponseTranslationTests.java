@@ -1323,6 +1323,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         } finally {
             indexReader.close();
             directory.close();
+            closePreallocatedBreaker();
         }
     }
 

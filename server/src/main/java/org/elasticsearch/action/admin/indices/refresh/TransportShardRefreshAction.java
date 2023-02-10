@@ -72,7 +72,6 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             BasicReplicationRequest::new,
             ThreadPool.Names.REFRESH
         );
-        new TransportUnpromotableShardRefreshAction(transportService, actionFilters, indicesService);
     }
 
     @Override

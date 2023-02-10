@@ -77,6 +77,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private volatile Translog.Location lastRefreshedLocation;
 
     private volatile long lastRefreshedCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+    private volatile long lastRefreshedGeneration = SequenceNumbers.NO_OPS_PERFORMED;
 
     public RefreshListeners(
         final IntSupplier getMaxRefreshListeners,
@@ -280,6 +281,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
+     * Setup the most recent commit generation supplier.
+     */
+    public void setIndexCommitGenerationSupplier(LongSupplier generationSupplier) {
+        this.generationSupplier = generationSupplier;
+    }
+
+    /**
      * Snapshot of the translog location before the current refresh if there is a refresh going on or null. Doesn't have to be volatile
      * because when it is used by the refreshing thread.
      */
@@ -293,6 +301,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private long currentRefreshCheckpoint;
     private LongSupplier processedCheckpointSupplier;
     private LongSupplier maxIssuedSeqNoSupplier;
+    private LongSupplier generationSupplier;
 
     @Override
     public void beforeRefresh() throws IOException {
@@ -315,6 +324,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
          * that doesn't seem worth it given that we already skip this process early if there aren't any listeners to iterate. */
         lastRefreshedLocation = currentRefreshLocation;
         lastRefreshedCheckpoint = currentRefreshCheckpoint;
+        lastRefreshedGeneration = generationSupplier.getAsLong();
         /* Grab the current refresh listeners and replace them with null while synchronized. Any listeners that come in after this won't be
          * in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
          * lastRefreshedLocation. */

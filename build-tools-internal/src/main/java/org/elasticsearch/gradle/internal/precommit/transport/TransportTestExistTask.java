@@ -29,6 +29,7 @@ import org.objectweb.asm.ClassReader;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -105,40 +106,45 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             Set<File> compileClassPath = getParameters().getCompileClasspath().getFiles();
             Set<File> testClassPath = getParameters().getTestClasspath().getFiles();
 
-            ClassHierarchyScanner compileClassPathScanner = new ClassHierarchyScanner("org/elasticsearch/common/io/stream/Writeable");
+            // this is always run.. should be cached?
+            ClassHierarchyScanner compileClassPathScanner = new ClassHierarchyScanner();
             ClassReaders.forEach(compileClassPath, cr -> cr.accept(compileClassPathScanner, ClassReader.SKIP_CODE));
 
-            ClassHierarchyScanner transportClassesScanner = new ClassHierarchyScanner("org/elasticsearch/common/io/stream/Writeable");
+            ClassHierarchyScanner transportClassesScanner = new ClassHierarchyScanner();
             ClassReaders.forEach(mainClasses, cr -> cr.accept(transportClassesScanner, ClassReader.SKIP_CODE));
 
-            //this is always run.. should be cached?
-            ClassHierarchyScanner testClassPathScanner = new ClassHierarchyScanner(
-                "org/elasticsearch/test/AbstractWireTestCase"
+            String writeableClassName = "org/elasticsearch/common/io/stream/Writeable";
+            Map<String, String> subclassesOfWriteable = compileClassPathScanner.allFoundSubclasses(
+                Map.of(writeableClassName, writeableClassName)
             );
+            Set<String> transportClasses = transportClassesScanner.getConcreteSubclasses(subclassesOfWriteable);
+
+            // this is always run.. should be cached?
+            ClassHierarchyScanner testClassPathScanner = new ClassHierarchyScanner();
             ClassReaders.forEach(testClassPath, cr -> cr.accept(testClassPathScanner, ClassReader.SKIP_CODE));
 
-            ClassHierarchyScanner transportTestsScanner = new ClassHierarchyScanner(
-                "org/elasticsearch/test/AbstractWireTestCase"
-            );
+            ClassHierarchyScanner transportTestsScanner = new ClassHierarchyScanner();
             ClassReaders.forEach(testClasses, cr -> cr.accept(transportTestsScanner, ClassReader.SKIP_CODE));
-
-            Set<String> transportClasses = transportClassesScanner.subClassesOf(compileClassPathScanner.foundClasses());
-            Set<String> transportTestClasses = transportTestsScanner.subClassesOf(testClassPathScanner.foundClasses());
+            String transportTestCase = "org/elasticsearch/test/AbstractWireTestCase";
+            Map<String, String> subclassesOfTransportTestCase = testClassPathScanner.allFoundSubclasses(
+                Map.of(transportTestCase, transportTestCase)
+            );
+            Set<String> transportTestClasses = transportTestsScanner.getConcreteSubclasses(subclassesOfTransportTestCase);
 
             List<String> classesWithoutTests = new ArrayList<>();
             for (String transportClass : transportClasses) {
                 findTest(transportClass, transportTestClasses, classesWithoutTests);
             }
-            if(classesWithoutTests.size()>0){
+            if (classesWithoutTests.size() > 0) {
                 throw new GradleException("Missing tests for classes " + classesWithoutTests);
             }
         }
 
         private void findTest(String transportClass, Set<String> transportTestClasses, List<String> classesWithoutTests) {
-            Optional<String> any = transportTestClasses.stream()
-                .filter(p -> p.contains(transportClass)).findAny();
+            Optional<String> any = transportTestClasses.stream().filter(p -> p.contains(transportClass)).findAny();
             if (any.isPresent() == false) {
                 classesWithoutTests.add(transportClass);
+                System.out.println("Test missing for class " + transportClass);
             } else {
                 System.out.println("Test " + any.get() + " for class " + transportClass);
             }

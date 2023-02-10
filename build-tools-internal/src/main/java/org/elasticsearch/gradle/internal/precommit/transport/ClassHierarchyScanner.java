@@ -21,15 +21,13 @@ import java.util.Set;
 import static org.objectweb.asm.Opcodes.ASM9;
 
 public class ClassHierarchyScanner extends ClassVisitor {
-    private final String descriptor;
     private static final String OBJECT_NAME = Object.class.getCanonicalName().replace('.', '/');
     private final Map<String, Set<String>> classToSubclasses = new HashMap<>();// parent-child
     // transport class cannot not be abstract and must be public
     private final Set<String> concreteClasses = new HashSet<>();
 
-    public ClassHierarchyScanner(String classCannonicalName) {
+    public ClassHierarchyScanner() {
         super(ASM9);
-        this.descriptor = classNameToPath(classCannonicalName);
     }
 
     private String classNameToPath(String className) {
@@ -50,19 +48,23 @@ public class ClassHierarchyScanner extends ClassVisitor {
         }
     }
 
-    public Map<String, String> foundClasses() {
-        return findSubclasses(Map.of(descriptor, descriptor), true);
+    /**
+     *
+     * @param root - map of classname to its superclass. Allows to dfs traverse the class graph
+     * @return a set of non abstract, public classes which are traversable from the root.
+     */
+    public Set<String> getConcreteSubclasses(Map<String, String> root) {
+        Set<String> allSubclasses = allFoundSubclasses(root).keySet();
+        allSubclasses.retainAll(concreteClasses);
+        return allSubclasses;
     }
 
-    public Set<String> getSubclasses() {
-        return findSubclasses(Map.of(descriptor, descriptor), false).keySet();
+    public Map<String, String> allFoundSubclasses(Map<String, String> root) {
+        return findSubclasses(root);
     }
 
-    public Set<String> subClassesOf(Map<String, String> root) {
-        return findSubclasses(root,false).keySet();
-    }
-
-    private Map<String, String> findSubclasses(Map<String, String> root, boolean allowAbstract) {
+    // map of class to its superclass/interface
+    private Map<String, String> findSubclasses(Map<String, String> root) {
         Deque<Map.Entry<String, String>> toCheckDescendants = new ArrayDeque<>(root.entrySet());
         Set<String> processed = new HashSet<>();
         Map<String, String> foundClasses = new HashMap<>();
@@ -78,15 +80,12 @@ public class ClassHierarchyScanner extends ClassVisitor {
             }
 
             for (String subclass : subclasses) {
-                if (allowAbstract) {
-                    foundClasses.put(subclass, e.getValue());
-                } else if ( concreteClasses.contains(subclass)) {
-                    foundClasses.put(subclass, e.getValue());
-                }
+                foundClasses.put(subclass, e.getValue());
                 toCheckDescendants.addLast(Map.entry(subclass, e.getValue()));
             }
             processed.add(classname);
         }
         return foundClasses;
     }
+
 }

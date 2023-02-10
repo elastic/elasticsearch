@@ -25,9 +25,8 @@ public class ClassReaders {
     public static void forEach(Set<File> paths, Consumer<ClassReader> consumer) {
         paths.stream()
             .filter(File::exists)
-            .filter(f -> f.toString().endsWith("main"))
+            .filter(f -> f.toString().contains("classes" + File.separator + "java"))
             .forEach(f -> forEachClassesInPath(f.getPath(), consumer));
-
     }
 
     public static void forEachClassesInPath(String path, Consumer<ClassReader> consumer) {

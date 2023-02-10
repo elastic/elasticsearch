@@ -17,6 +17,7 @@ long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime(
 
 buildScan {
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+  String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
 
   // Automatically publish scans from Elasticsearch CI
   if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
@@ -25,12 +26,6 @@ buildScan {
   }
 
   background {
-    String buildNumber = System.getenv('BUILD_NUMBER')
-    String buildUrl = System.getenv('BUILD_URL')
-    String jobName = System.getenv('JOB_NAME')
-    String nodeName = System.getenv('NODE_NAME')
-    String jobBranch = System.getenv('ghprbTargetBranch') ?: System.getenv('JOB_BRANCH')
-
     tag OS.current().name()
     tag Architecture.current().name()
 
@@ -39,22 +34,28 @@ buildScan {
       tag 'FIPS'
     }
 
-    // Link to Jenkins worker logs and system metrics
-    if (nodeName) {
-      link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?" +
-        "&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
-      buildFinished {
-        link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/" +
-          "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
-          "time:(from:${startTime - TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
-          "to:${System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"
-      }
-    }
-
     // Jenkins-specific build scan metadata
     if (jenkinsUrl) {
       // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
       uploadInBackground = false
+
+      String buildNumber = System.getenv('BUILD_NUMBER')
+      String buildUrl = System.getenv('BUILD_URL')
+      String jobName = System.getenv('JOB_NAME')
+      String nodeName = System.getenv('NODE_NAME')
+      String jobBranch = System.getenv('ghprbTargetBranch') ?: System.getenv('JOB_BRANCH')
+
+      // Link to Jenkins worker logs and system metrics
+      if (nodeName) {
+        link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?" +
+                "&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
+        buildFinished {
+          link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/" +
+                  "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
+                  "time:(from:${startTime - TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
+                  "to:${System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"
+        }
+      }
 
       // Parse job name in the case of matrix builds
       // Matrix job names come in the form of "base-job-name/matrix_param1=value1,matrix_param2=value2"
@@ -97,6 +98,34 @@ buildScan {
       } else {
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
+      }
+    } else if (buildKiteUrl) {
+      // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+      uploadInBackground = false
+
+      def branch = System.getenv('BUILDKITE_BRANCH')
+      tag 'CI'
+      link 'CI Build', buildKiteUrl
+      tag branch
+      value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+
+      // Add SCM information
+      def prId = System.getenv('BUILDKITE_PULL_REQUEST')
+      if (prId) {
+        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
+        value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
+        tag "pr/${prId}"
+        tag 'pull-request'
+        link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
+        def prUrl = "${prBaseUrl}/pull/${prId}"
+        link 'Pull Request', prUrl
+      } else {
+        def repoUrl = System.getenv('BUILDKITE_REPO')
+        if (repoUrl.startsWith('git@github')) {
+          repoUrl = repoUrl.replaceAll("git\\@github\\.com\\:", "https://github.com/").replaceAll("\\.git", "/tree/$branch")
+        }
+        value 'Git Commit ID', BuildParams.gitRevision
+        link 'Source', "${repoBaseUrl}/tree/${BuildParams.gitRevision}"
       }
     } else {
       tag 'LOCAL'

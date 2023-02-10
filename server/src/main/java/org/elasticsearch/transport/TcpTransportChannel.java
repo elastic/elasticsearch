@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -94,5 +95,10 @@ public final class TcpTransportChannel implements TransportChannel {
 
     public TcpChannel getChannel() {
         return channel;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.format("TcpTransportChannel{req=%d}{%s}{%s}", requestId, action, channel);
     }
 }

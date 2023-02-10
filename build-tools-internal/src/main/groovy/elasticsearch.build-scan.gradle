@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
 import org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin
 import java.util.concurrent.TimeUnit
+import java.util.regex.Matcher
 
 long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
 
@@ -104,7 +105,8 @@ buildScan {
       uploadInBackground = false
 
       def branch = System.getenv('BUILDKITE_BRANCH')
-      def repository = (System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/).group(2)
+      def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
+      def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
       tag 'CI'
       link 'CI Build', buildKiteUrl
       value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
@@ -118,8 +120,7 @@ buildScan {
         tag "pr/${prId}"
         tag 'pull-request'
         link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
-        def prUrl = "https://github.com/${repository}/pull/${prId}"
-        link 'Pull Request', prUrl
+        link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
       } else {
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"

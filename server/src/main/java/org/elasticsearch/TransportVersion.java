@@ -229,7 +229,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return version1.id > version2.id ? version1 : version2;
     }
 
-
     public final int id;
     private final String uniqueId;
 

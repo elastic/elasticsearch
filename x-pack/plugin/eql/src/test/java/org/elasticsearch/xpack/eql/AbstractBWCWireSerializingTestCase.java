@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -19,10 +20,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractBWCWireSerializingTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
 
-    private static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
-
     private static List<TransportVersion> getAllBWCVersions(TransportVersion version) {
-        return ALL_VERSIONS.stream()
+        return TransportVersions.ALL_VERSIONS.stream()
             .filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v))
             .collect(Collectors.toList());
     }

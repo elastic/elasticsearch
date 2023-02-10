@@ -205,27 +205,15 @@ public final class Authentication implements ToXContentObject {
      * This is commonly employed when the {@code Authentication} is serialized across cluster nodes with mixed versions.
      */
     public Authentication maybeRewriteForOlderVersion(TransportVersion olderVersion) {
-        return maybeRewriteForOlderVersion(olderVersion, VERSION_REMOTE_ACCESS_REALM);
-    }
-
-    /**
-     * @param remoteAccessRealmVersion using this instead of {@link #VERSION_REMOTE_ACCESS_REALM} enables us to test the new rewriting logic
-     *                                introduced to handle remote access authentication
-     *                                 (see {@link #maybeRewriteMetadataForRemoteAccessAuthentication(TransportVersion, Authentication)}
-     *                                we've introduced for future-proofing, while bypassing the remote access min version check.
-     *                                 This is only necessary in 8.7.
-     * TODO remove this method in 8.8, and inline {@link #VERSION_REMOTE_ACCESS_REALM}
-     */
-    Authentication maybeRewriteForOlderVersion(TransportVersion olderVersion, TransportVersion remoteAccessRealmVersion) {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
 
         // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is not
         // possible
-        if (isRemoteAccess() && olderVersion.before(remoteAccessRealmVersion)) {
+        if (isRemoteAccess() && olderVersion.before(VERSION_REMOTE_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + remoteAccessRealmVersion
+                    + VERSION_REMOTE_ACCESS_REALM
                     + "] can't handle remote access authentication and attempted to rewrite for ["
                     + olderVersion
                     + "]"

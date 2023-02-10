@@ -80,26 +80,16 @@ public final class RemoteAccessHeaders {
         }
 
         private void validate() {
-            try (ApiKeyService.ApiKeyCredentials credentials = toApiKeyCredentials()) {
-                if (credentials == null) {
-                    throw new IllegalArgumentException(
-                        "remote access header ["
-                            + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
-                            + "] value must be a valid API key credential"
-                    );
-                }
-            }
-        }
-
-        private ApiKeyService.ApiKeyCredentials toApiKeyCredentials() {
-            try {
-                return ApiKeyService.getCredentialsFromHeader(withApiKeyPrefix(encodedApiKey));
-            } catch (Exception ex) {
+            try (ApiKeyService.ApiKeyCredentials ignored = toApiKeyCredentials()) {} catch (Exception ex) {
                 throw new IllegalArgumentException(
                     "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential",
                     ex
                 );
             }
+        }
+
+        private ApiKeyService.ApiKeyCredentials toApiKeyCredentials() {
+            return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(withApiKeyPrefix(encodedApiKey)));
         }
 
         private static String withApiKeyPrefix(final String encodedCredentials) {
@@ -109,7 +99,7 @@ public final class RemoteAccessHeaders {
         private static String stripApiKeyPrefix(final String encodedWithPrefix) {
             final String prefixWithSpace = PREFIX + " ";
             if (false == encodedWithPrefix.startsWith(prefixWithSpace)) {
-                throw new IllegalArgumentException("must start with [" + prefixWithSpace + "]");
+                throw new IllegalArgumentException("encoded API key header must start with [" + prefixWithSpace + "]");
             }
             return encodedWithPrefix.substring(prefixWithSpace.length());
         }

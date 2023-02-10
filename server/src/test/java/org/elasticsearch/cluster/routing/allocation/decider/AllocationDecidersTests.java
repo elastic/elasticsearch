@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 
@@ -38,23 +39,32 @@ import static org.hamcrest.Matchers.equalTo;
 public class AllocationDecidersTests extends ESTestCase {
 
     public void testCheckAllDecidersBeforeReturningYes() {
-        var expectedDecision = new Decision.Multi();
         var allDecisions = generateDecision(() -> Decision.YES);
+        var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
+        var expectedDecision = switch (debugMode) {
+            case OFF, EXCLUDE_YES_DECISIONS -> new Decision.Multi();
+            case ON -> collectToMultiDecision(allDecisions);
+        };
 
-        verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, allDecisions.size(), expectedDecision);
+        verifyDecidersCall(debugMode, allDecisions, allDecisions.size(), expectedDecision);
     }
 
     public void testCheckAllDecidersBeforeReturningThrottle() {
-        var expectedDecision = new Decision.Multi().add(Decision.THROTTLE);
         var allDecisions = generateDecision(Decision.THROTTLE, () -> Decision.YES);
+        var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
+        var expectedDecision = switch (debugMode) {
+            case OFF, EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
+            case ON -> collectToMultiDecision(allDecisions);
+        };
 
-        verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, allDecisions.size(), expectedDecision);
+        verifyDecidersCall(debugMode, allDecisions, allDecisions.size(), expectedDecision);
     }
 
     public void testExitsAfterFirstNoDecision() {
         var expectedDecision = Decision.NO;
-        var allDecisions = generateDecision(expectedDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
-        var expectedCalls = allDecisions.indexOf(expectedDecision) + 1;
+        var terminatingDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
+        var allDecisions = generateDecision(terminatingDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var expectedCalls = allDecisions.indexOf(terminatingDecision) + 1;
 
         verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, expectedCalls, expectedDecision);
     }
@@ -69,10 +79,7 @@ public class AllocationDecidersTests extends ESTestCase {
                 Decision.single(Decision.Type.NO, "no with label", "explanation")
             )
         );
-        var expectedDecision = allDecisions.stream()
-            .collect(
-                Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> { throw new AssertionError("should not be called"); })
-            );
+        var expectedDecision = collectToMultiDecision(allDecisions);
 
         verifyDecidersCall(RoutingAllocation.DebugMode.ON, allDecisions, allDecisions.size(), expectedDecision);
     }
@@ -87,11 +94,7 @@ public class AllocationDecidersTests extends ESTestCase {
                 Decision.single(Decision.Type.NO, "no with label", "explanation")
             )
         );
-        var expectedDecision = allDecisions.stream()
-            .filter(decision -> decision.type() != Decision.Type.YES)
-            .collect(
-                Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> { throw new AssertionError("should not be called"); })
-            );
+        var expectedDecision = collectToMultiDecision(allDecisions, decision -> decision.type() != Decision.Type.YES);
 
         verifyDecidersCall(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS, allDecisions, allDecisions.size(), expectedDecision);
     }
@@ -105,6 +108,18 @@ public class AllocationDecidersTests extends ESTestCase {
         decisions.add(mandatory);
         decisions.addAll(randomList(1, 25, others));
         return shuffledList(decisions);
+    }
+
+    private static Decision.Multi collectToMultiDecision(List<Decision> decisions) {
+        return collectToMultiDecision(decisions, ignored -> true);
+    }
+
+    private static Decision.Multi collectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
+        return decisions.stream()
+            .filter(filter)
+            .collect(
+                Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> { throw new AssertionError("should not be called"); })
+            );
     }
 
     private void verifyDecidersCall(
@@ -131,6 +146,7 @@ public class AllocationDecidersTests extends ESTestCase {
             (allocation, deciders) -> deciders.canAllocate(index, routingNode, allocation),
             (allocation, deciders) -> deciders.canRebalance(allocation),
             (allocation, deciders) -> deciders.canRebalance(shardRouting, allocation),
+            // TODO https://github.com/elastic/elasticsearch/pull/93374
             // (allocation, deciders) -> deciders.canRemain(shardRouting, routingNode, allocation),
             (allocation, deciders) -> deciders.shouldAutoExpandToNode(index, discoveryNode, allocation),
             (allocation, deciders) -> deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation),

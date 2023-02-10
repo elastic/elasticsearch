@@ -414,7 +414,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(serialized, equalTo(descriptor));
     }
 
-    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
+    public void testSerializationExcludesRemoteIndicesOnUnsupportedVersions() throws IOException {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_6_0);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
@@ -425,25 +425,32 @@ public class RoleDescriptorTests extends ESTestCase {
         output.setTransportVersion(version);
 
         final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
+        descriptor.writeTo(output);
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(
+            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+            registry
+        );
+        streamInput.setTransportVersion(version);
+        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
         if (descriptor.hasRemoteIndicesPrivileges()) {
-            final var ex = expectThrows(IllegalArgumentException.class, () -> descriptor.writeTo(output));
             assertThat(
-                ex.getMessage(),
-                containsString(
-                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
-                        + version
-                        + "]"
+                serialized,
+                equalTo(
+                    new RoleDescriptor(
+                        descriptor.getName(),
+                        descriptor.getClusterPrivileges(),
+                        descriptor.getIndicesPrivileges(),
+                        descriptor.getApplicationPrivileges(),
+                        descriptor.getConditionalClusterPrivileges(),
+                        descriptor.getRunAs(),
+                        descriptor.getMetadata(),
+                        descriptor.getTransientMetadata(),
+                        null
+                    )
                 )
             );
         } else {
-            descriptor.writeTo(output);
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-            StreamInput streamInput = new NamedWriteableAwareStreamInput(
-                ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-                registry
-            );
-            streamInput.setTransportVersion(version);
-            final RoleDescriptor serialized = new RoleDescriptor(streamInput);
             assertThat(descriptor, equalTo(serialized));
         }
     }

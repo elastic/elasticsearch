@@ -523,10 +523,31 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 extendedPlugins.stream().map(LoadedPlugin::layer)
             ).toList();
             return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers);
+        } else if (plugin.isStable()) {
+            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular as synthetic module");
+            return LayerAndLoader.ofLoader(
+                UberModuleClassLoader.getInstance(
+                    pluginParentLoader,
+                    ModuleLayer.boot(),
+                    "synthetic." + toModuleName(plugin.getName()),
+                    bundle.allUrls,
+                    Set.of("org.elasticsearch.server") // TODO: instead of denying server, allow only jvm + stable API modules
+                )
+            );
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
             return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
         }
+    }
+
+    // package-visible for testing
+    static String toModuleName(String name) {
+        String result = name.replaceAll("\\W+", ".") // replace non-alphanumeric character strings with dots
+            .replaceAll("(^[^A-Za-z_]*)", "") // trim non-alpha or underscore characters from start
+            .replaceAll("\\.$", "") // trim trailing dot
+            .toLowerCase(Locale.getDefault());
+        assert ModuleSupport.isPackageName(result);
+        return result;
     }
 
     private static void checkDeprecations(

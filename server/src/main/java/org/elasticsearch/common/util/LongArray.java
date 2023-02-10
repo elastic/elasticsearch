@@ -8,10 +8,19 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
 /**
  * Abstraction of an array of long values.
  */
-public interface LongArray extends BigArray {
+public interface LongArray extends BigArray, Writeable {
+
+    static LongArray readFrom(StreamInput in) throws IOException {
+        return new ReleasableLongArray(in);
+    }
 
     /**
      * Get an element given its index.

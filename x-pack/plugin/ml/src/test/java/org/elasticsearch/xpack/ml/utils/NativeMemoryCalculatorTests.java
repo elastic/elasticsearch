@@ -108,15 +108,15 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
                     NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(bytesForML, bytesForML, jvmSize);
 
                     MlMemoryAutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true, Long.MAX_VALUE, 1).build();
-                    // We don't allow node sizes below 1GB, so we will always be at least that large
+                    // We don't allow node sizes below 0.5GB, so we will always be at least that large
                     // Also, allow 1 byte off for weird rounding issues
                     assertThat(
                         capacity.nodeSize().getBytes(),
-                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
+                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofMb(512).getBytes()) - 1L)
                     );
                     assertThat(
                         capacity.tierSize().getBytes(),
-                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
+                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofMb(512).getBytes()) - 1L)
                     );
                 }
             }

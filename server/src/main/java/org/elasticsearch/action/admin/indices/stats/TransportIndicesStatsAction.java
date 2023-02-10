@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -35,7 +34,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
 
 public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
@@ -85,22 +83,19 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected IndicesStatsResponse newResponse(
-        IndicesStatsRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<ShardStats> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
-    ) {
-        return new IndicesStatsResponse(
-            responses.toArray(new ShardStats[responses.size()]),
+    protected ResponseFactory<IndicesStatsResponse, ShardStats> getResponseFactory(IndicesStatsRequest request, ClusterState clusterState) {
+        // NB avoid capture of full cluster state
+        final var metadata = clusterState.getMetadata();
+        final var routingTable = clusterState.routingTable();
+
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new IndicesStatsResponse(
+            responses.toArray(new ShardStats[0]),
             totalShards,
             successfulShards,
             failedShards,
             shardFailures,
-            clusterState
+            metadata,
+            routingTable
         );
     }
 

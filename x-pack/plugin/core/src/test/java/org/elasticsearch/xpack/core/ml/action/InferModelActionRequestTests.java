@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassifica
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -46,14 +49,22 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
     @Override
     protected Request createTestInstance() {
         return randomBoolean()
-            ? new Request(
+            ? Request.forDocs(
                 randomAlphaOfLength(10),
                 Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfigUpdate(),
-                TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
                 randomBoolean()
             )
-            : new Request(randomAlphaOfLength(10), randomMap(), randomInferenceConfigUpdate(), randomBoolean());
+            : Request.forTextInput(
+                randomAlphaOfLength(10),
+                randomInferenceConfigUpdate(),
+                Arrays.asList(generateRandomStringArray(3, 5, false))
+            );
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
@@ -109,26 +120,35 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 adjustedUpdate = PassThroughConfigUpdateTests.mutateForVersion(update, version);
             } else if (nlpConfigUpdate instanceof QuestionAnsweringConfigUpdate update) {
                 adjustedUpdate = QuestionAnsweringConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof SlimConfigUpdate update) {
+                adjustedUpdate = SlimConfigUpdateTests.mutateForVersion(update, version);
             } else {
                 throw new IllegalArgumentException("Unknown update [" + currentUpdate.getName() + "]");
             }
         } else {
             adjustedUpdate = currentUpdate;
         }
-        return version.before(Version.V_8_3_0)
-            ? new Request(
+
+        if (version.before(Version.V_8_3_0)) {
+            return new Request(
                 instance.getModelId(),
-                instance.getObjectsToInfer(),
                 adjustedUpdate,
+                instance.getObjectsToInfer(),
+                null,
                 TimeValue.MAX_VALUE,
                 instance.isPreviouslyLicensed()
-            )
-            : new Request(
+            );
+        } else if (version.before(Version.V_8_7_0)) {
+            return new Request(
                 instance.getModelId(),
-                instance.getObjectsToInfer(),
                 adjustedUpdate,
-                instance.getTimeout(),
+                instance.getObjectsToInfer(),
+                null,
+                instance.getInferenceTimeout(),
                 instance.isPreviouslyLicensed()
             );
+        }
+
+        return instance;
     }
 }

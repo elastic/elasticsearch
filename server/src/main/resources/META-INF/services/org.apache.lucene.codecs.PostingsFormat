@@ -1,1 +1,2 @@
 org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat
+org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat

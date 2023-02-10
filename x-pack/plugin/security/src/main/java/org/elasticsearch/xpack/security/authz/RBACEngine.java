@@ -34,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -60,10 +61,12 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
@@ -81,12 +84,12 @@ import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -118,6 +121,8 @@ public class RBACEngine implements AuthorizationEngine {
     private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
+    // TODO move once we have a dedicated class for RCS 2.0 constants
+    public static final String REMOTE_USER_ROLE_NAME = "_remote_user";
 
     private final Settings settings;
     private final CompositeRolesStore rolesStore;
@@ -351,8 +356,12 @@ public class RBACEngine implements AuthorizationEngine {
                     )
                 );
             }
-        } else if (isChildActionAuthorizedByParent(requestInfo, authorizationInfo)) {
+        } else if (isChildActionAuthorizedByParentOnLocalNode(requestInfo, authorizationInfo)) {
             listener.onResponse(new IndexAuthorizationResult(requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl()));
+        } else if (PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authorizationInfo)) {
+            // We only pre-authorize child actions if DLS/FLS is not configured,
+            // hence we can allow here access for all requested indices.
+            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.allowAll()));
         } else if (allowsRemoteIndices(request) || role.checkIndicesAction(action)) {
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false
@@ -386,7 +395,7 @@ public class RBACEngine implements AuthorizationEngine {
         return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
     }
 
-    private static boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
+    private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
         final AuthorizationContext parent = requestInfo.getOriginatingAuthorizationContext();
         if (parent == null) {
             return false;
@@ -455,7 +464,7 @@ public class RBACEngine implements AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         Map<String, IndexAbstraction> indicesLookup,
-        ActionListener<Set<String>> listener
+        ActionListener<AuthorizationEngine.AuthorizedIndices> listener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
@@ -657,6 +666,94 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
+    @Override
+    public void getRemoteAccessRoleDescriptorsIntersection(
+        final String remoteClusterAlias,
+        final AuthorizationInfo authorizationInfo,
+        final ActionListener<RoleDescriptorsIntersection> listener
+    ) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+            );
+            return;
+        }
+
+        final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+        final RemoteIndicesPermission remoteIndicesPermission;
+        try {
+            remoteIndicesPermission = role.remoteIndices().forCluster(remoteClusterAlias);
+        } catch (UnsupportedOperationException e) {
+            // TODO we will need to implement this to support API keys with assigned role descriptors
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "cannot retrieve remote access role descriptors for API keys with assigned role descriptors.",
+                    e
+                )
+            );
+            return;
+        }
+
+        if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
+            listener.onResponse(RoleDescriptorsIntersection.EMPTY);
+            return;
+        }
+
+        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+        for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
+            for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
+                indicesPrivileges.add(toIndicesPrivileges(indicesGroup));
+            }
+        }
+
+        listener.onResponse(
+            new RoleDescriptorsIntersection(
+                List.of(
+                    Set.of(
+                        new RoleDescriptor(
+                            REMOTE_USER_ROLE_NAME,
+                            null,
+                            // The role descriptors constructed here may be cached in raw byte form, using a hash of their content as a
+                            // cache key; we therefore need deterministic order when constructing them here, to ensure cache hits for
+                            // equivalent role descriptors
+                            indicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    private static RoleDescriptor.IndicesPrivileges toIndicesPrivileges(final IndicesPermission.Group indicesGroup) {
+        final Set<BytesReference> queries = indicesGroup.getQuery();
+        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
+        assert queries == null || queries.size() <= 1
+            : "translation from an indices permission group to indices privileges supports up to one DLS query but multiple queries found";
+        assert fieldGrantExcludeGroups.size() <= 1
+            : "translation from an indices permission group to indices privileges supports up to one FLS field-grant-exclude group"
+                + " but multiple groups found";
+
+        final BytesReference query = (queries == null || false == queries.iterator().hasNext()) ? null : queries.iterator().next();
+        final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+            // Sort because these index privileges will be part of role descriptors that may be cached in raw byte form;
+            // we need deterministic order to ensure cache hits for equivalent role descriptors
+            .indices(Arrays.stream(indicesGroup.indices()).sorted().collect(Collectors.toList()))
+            .privileges(indicesGroup.privilege().name().stream().sorted().collect(Collectors.toList()))
+            .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
+            .query(query);
+        if (false == fieldGrantExcludeGroups.isEmpty()) {
+            final FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup = fieldGrantExcludeGroups.iterator().next();
+            builder.grantedFields(fieldGrantExcludeGroup.getGrantedFields()).deniedFields(fieldGrantExcludeGroup.getExcludedFields());
+        }
+
+        return builder.build();
+    }
+
     static GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
         logger.trace(() -> "List privileges for role [" + arrayToCommaDelimitedString(userRole.names()) + "]");
 
@@ -721,17 +818,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {
         final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
-        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
-        if (group.getFieldPermissions().hasFieldLevelSecurity()) {
-            final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
-                .getFieldPermissionsDefinitions();
-            assert fieldPermissionsDefinitions.size() == 1
-                : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
-            final FieldPermissionsDefinition definition = fieldPermissionsDefinitions.get(0);
-            fieldSecurity = definition.getFieldGrantExcludeGroups();
-        } else {
-            fieldSecurity = Collections.emptySet();
-        }
+        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = getFieldGrantExcludeGroups(group);
         return new GetUserPrivilegesResponse.Indices(
             Arrays.asList(group.indices()),
             group.privilege().name(),
@@ -741,23 +828,32 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
-        return resolveAuthorizedIndicesFromRole(role, requestInfo, lookup, () -> LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
+    private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(IndicesPermission.Group group) {
+        if (group.getFieldPermissions().hasFieldLevelSecurity()) {
+            final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
+                .getFieldPermissionsDefinitions();
+            assert fieldPermissionsDefinitions.size() == 1
+                : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
+            final FieldPermissionsDefinition definition = fieldPermissionsDefinitions.get(0);
+            return definition.getFieldGrantExcludeGroups();
+        } else {
+            return Collections.emptySet();
+        }
     }
 
-    static Set<String> resolveAuthorizedIndicesFromRole(
+    static AuthorizedIndices resolveAuthorizedIndicesFromRole(
         Role role,
         RequestInfo requestInfo,
         Map<String, IndexAbstraction> lookup,
         Supplier<Consumer<Collection<String>>> timerSupplier
     ) {
-        Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
+        IsResourceAuthorizedPredicate predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
 
-        return new AuthorizedIndicesSet(() -> {
+        return new AuthorizedIndices(() -> {
             Consumer<Collection<String>> timeChecker = timerSupplier.get();
             Set<String> indicesAndAliases = new HashSet<>();
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
@@ -785,19 +881,15 @@ public class RBACEngine implements AuthorizationEngine {
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
-                return false;
-            }
-            if (includeDataStreams) {
+                // test access (by name) to a resource that does not currently exist
+                // the action handler must handle the case of accessing resources that do not exist
+                return predicate.test(name, null);
+            } else {
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.
-                if (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream())) {
-                    return true;
-                } else {
-                    return predicate.test(indexAbstraction);
-                }
-            } else {
-                return indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction);
+                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream()))
+                    || predicate.test(indexAbstraction);
             }
         });
     }
@@ -931,103 +1023,24 @@ public class RBACEngine implements AuthorizationEngine {
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 
-    /**
-     * A lazily loaded Set for authorized indices. It avoids loading the set if only contains check is required.
-     * It only loads the set if iterating through it is necessary, i.e. when expanding wildcards.
-     * <p>
-     * NOTE that the lazy loading is NOT thread-safe and must NOT be used by multi-threads.
-     * The current usage has it wrapped inside a CachingAsyncSupplier which guarantees it to be accessed
-     * from a single thread. Extra caution is needed if moving or using this class in other places.
-     */
-    static class AuthorizedIndicesSet implements Set<String> {
+    static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
-        private final Supplier<Set<String>> supplier;
-        private final Predicate<String> predicate;
-        private Set<String> authorizedIndices = null;
+        private final CachedSupplier<Set<String>> allAuthorizedAndAvailableSupplier;
+        private final Predicate<String> isAuthorizedPredicate;
 
-        AuthorizedIndicesSet(Supplier<Set<String>> supplier, Predicate<String> predicate) {
-            this.supplier = Objects.requireNonNull(supplier);
-            this.predicate = Objects.requireNonNull(predicate);
-        }
-
-        private Set<String> getAuthorizedIndices() {
-            if (authorizedIndices == null) {
-                authorizedIndices = supplier.get();
-            }
-            return authorizedIndices;
+        AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, Predicate<String> isAuthorizedPredicate) {
+            this.allAuthorizedAndAvailableSupplier = new CachedSupplier<>(allAuthorizedAndAvailableSupplier);
+            this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
         @Override
-        public int size() {
-            return getAuthorizedIndices().size();
+        public Supplier<Set<String>> all() {
+            return allAuthorizedAndAvailableSupplier;
         }
 
         @Override
-        public boolean isEmpty() {
-            return getAuthorizedIndices().isEmpty();
-        }
-
-        @Override
-        public boolean contains(Object o) {
-            if (authorizedIndices == null) {
-                return predicate.test((String) o);
-            } else {
-                return authorizedIndices.contains(o);
-            }
-        }
-
-        @Override
-        public Iterator<String> iterator() {
-            return getAuthorizedIndices().iterator();
-        }
-
-        @Override
-        public Object[] toArray() {
-            return getAuthorizedIndices().toArray();
-        }
-
-        @Override
-        public <T> T[] toArray(T[] a) {
-            return getAuthorizedIndices().toArray(a);
-        }
-
-        @Override
-        public boolean add(String s) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean remove(Object o) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean containsAll(Collection<?> c) {
-            if (authorizedIndices == null) {
-                return c.stream().allMatch(this::contains);
-            } else {
-                return authorizedIndices.containsAll(c);
-            }
-        }
-
-        @Override
-        public boolean addAll(Collection<? extends String> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean retainAll(Collection<?> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean removeAll(Collection<?> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException();
+        public boolean check(String name) {
+            return this.isAuthorizedPredicate.test(name);
         }
     }
 }

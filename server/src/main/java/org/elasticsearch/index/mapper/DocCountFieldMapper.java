@@ -155,7 +155,15 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 hasValue = false;
                 return null;
             }
-            return docId -> hasValue = docId == postings.advance(docId);
+            return docId -> {
+                if (docId < postings.docID()) {
+                    return hasValue = false;
+                }
+                if (docId == postings.docID()) {
+                    return hasValue = true;
+                }
+                return hasValue = docId == postings.advance(docId);
+            };
         }
 
         @Override

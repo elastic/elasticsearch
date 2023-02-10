@@ -9,7 +9,7 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -78,7 +78,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             NETTY_TRANSPORT_NAME,
             () -> new Netty4Transport(
                 settings,
-                Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool,
                 networkService,
                 pageCacheRecycler,
@@ -112,7 +112,9 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
-                tracer
+                tracer,
+                TLSConfig.noTLS(),
+                null
             )
         );
     }

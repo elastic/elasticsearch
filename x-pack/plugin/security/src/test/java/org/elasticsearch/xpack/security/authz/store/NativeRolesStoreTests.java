@@ -326,7 +326,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);
         IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("all nodes must have version [8.6.0] or higher to support remote indices privileges"));
+        assertThat(e.getMessage(), containsString("all nodes must have version [8060099] or higher to support remote indices privileges"));
     }
 
     private ClusterService mockClusterServiceWithMinNodeVersion(Version version) {
@@ -355,7 +355,8 @@ public class NativeRolesStoreTests extends ESTestCase {
             new ShardId(index, 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(Reason.INDEX_CREATED, "")
+            new UnassignedInfo(Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
         );
         RoutingTable routingTable = RoutingTable.builder()
             .add(

@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.health.GetHealthAction.Response;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -24,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.is;
 
 public class GetHealthResponseTests extends ESTestCase {
@@ -35,9 +35,9 @@ public class GetHealthResponseTests extends ESTestCase {
         Response response = new Response(ClusterName.DEFAULT, indicatorResults, true);
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-        response.toXContentChunked().forEachRemaining(xcontent -> {
+        response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
             try {
-                xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                xcontent.toXContent(builder, EMPTY_PARAMS);
             } catch (IOException e) {
                 logger.error(e.getMessage(), e);
                 fail(e.getMessage());

@@ -354,7 +354,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      */
     private static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
         if (source instanceof ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals) {
-            return valueSourceWithOrdinals.globalMaxOrd(searcher);
+            return valueSourceWithOrdinals.globalMaxOrd(searcher.getIndexReader());
         } else {
             return -1;
         }

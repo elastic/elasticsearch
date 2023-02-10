@@ -289,14 +289,15 @@ the cluster.
 . Temporarily stop indexing and turn off the following features:
 +
 --
-* GeoIP database downloader
+* GeoIP database downloader and ILM history store
 +
 [source,console]
 ----
 PUT _cluster/settings
 {
   "persistent": {
-    "ingest.geoip.downloader.enabled": false
+    "ingest.geoip.downloader.enabled": false,
+    "indices.lifecycle.history_index_enabled": false
   }
 }
 ----
@@ -429,14 +430,15 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 features you stopped:
 +
 --
-* GeoIP database downloader
+* GeoIP database downloader and ILM history store
 +
 [source,console]
 ----
 PUT _cluster/settings
 {
   "persistent": {
-    "ingest.geoip.downloader.enabled": true
+    "ingest.geoip.downloader.enabled": true,
+    "indices.lifecycle.history_index_enabled": true
   }
 }
 ----

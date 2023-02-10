@@ -137,11 +137,7 @@ public abstract class TransportBroadcastAction<
         public void start() {
             if (shardsIts.size() == 0) {
                 // no shards
-                try {
-                    listener.onResponse(newResponse(request, new AtomicReferenceArray<ShardResponse>(0), clusterState));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+                ActionListener.completeWith(listener, () -> newResponse(request, new AtomicReferenceArray<ShardResponse>(0), clusterState));
                 return;
             }
             // count the local operations, and perform the non local ones
@@ -247,11 +243,7 @@ public abstract class TransportBroadcastAction<
         }
 
         protected void finishHim() {
-            try {
-                listener.onResponse(newResponse(request, shardsResponses, clusterState));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            ActionListener.completeWith(listener, () -> newResponse(request, shardsResponses, clusterState));
         }
 
         void setFailure(ShardIterator shardIt, int shardIndex, Exception e) {

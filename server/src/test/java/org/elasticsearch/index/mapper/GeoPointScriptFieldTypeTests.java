@@ -35,6 +35,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                GeoPointScriptFieldType ft = build("fromLatLon", Map.of());
+                GeoPointScriptFieldType ft = build("fromLatLon", Map.of(), OnScriptError.FAIL);
                 GeoPointScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -109,16 +110,16 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 {"foo": {"lat": 45.0, "lon" : 45.0}}"""))));
             try (DirectoryReader reader = iw.getReader()) {
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
-                searchContext.lookup().source().setSegmentAndDocument(reader.leaves().get(0), 0);
+                Source source = searchContext.lookup().getSource(reader.leaves().get(0), 0);
                 ValueFetcher fetcher = simpleMappedFieldType().valueFetcher(searchContext, randomBoolean() ? null : "geojson");
                 fetcher.setNextReader(reader.leaves().get(0));
                 assertThat(
-                    fetcher.fetchValues(searchContext.lookup().source(), 0, null),
+                    fetcher.fetchValues(source, 0, null),
                     equalTo(List.of(Map.of("type", "Point", "coordinates", List.of(45.0, 45.0))))
                 );
                 fetcher = simpleMappedFieldType().valueFetcher(searchContext, "wkt");
                 fetcher.setNextReader(reader.leaves().get(0));
-                assertThat(fetcher.fetchValues(searchContext.lookup().source(), 0, null), equalTo(List.of("POINT (45.0 45.0)")));
+                assertThat(fetcher.fetchValues(source, 0, null), equalTo(List.of("POINT (45.0 45.0)")));
             }
         }
     }
@@ -213,12 +214,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     protected GeoPointScriptFieldType simpleMappedFieldType() {
-        return build("fromLatLon", Map.of());
+        return build("fromLatLon", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -226,29 +227,46 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         return "geo_point";
     }
 
-    private static GeoPointScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected GeoPointScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
     private static GeoPointFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "fromLatLon" -> (fieldName, params, lookup) -> (ctx) -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
+            case "fromLatLon" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new GeoPointFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    Map<?, ?> foo = (Map<?, ?>) lookup.source().source().get("foo");
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    Map<?, ?> foo = (Map<?, ?>) source.get("foo");
                     emit(((Number) foo.get("lat")).doubleValue(), ((Number) foo.get("lon")).doubleValue());
                 }
             };
-            case "loop" -> (fieldName, params, lookup) -> {
+            case "loop" -> (fieldName, params, lookup, onScriptError) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
-                throw new IllegalStateException("shoud have thrown on the line above");
+                throw new IllegalStateException("should have thrown on the line above");
+            };
+            case "error" -> (fieldName, params, lookup, onScriptError) -> ctx -> new GeoPointFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    throw new RuntimeException("test error");
+                }
             };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
-    }
-
-    private static GeoPointScriptFieldType build(Script script) {
-        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

@@ -62,7 +62,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         );
         final String endpoint = "/_security/user/" + username;
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        final String body = formatted("""
+        final String body = Strings.format("""
             {
                 "username": "%s",
                 "full_name": "%s",
@@ -138,7 +138,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     protected void setUserPassword(String username, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + username + "/_password";
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        final String body = formatted("""
+        final String body = Strings.format("""
             {
                 "password": "%s"
             }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.Strings;
@@ -40,7 +40,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super(in);
         detailed = in.readBoolean();
         waitForCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             descriptions = in.readStringArray();
         }
     }
@@ -50,7 +50,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super.writeTo(out);
         out.writeBoolean(detailed);
         out.writeBoolean(waitForCompletion);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeStringArray(descriptions);
         }
     }

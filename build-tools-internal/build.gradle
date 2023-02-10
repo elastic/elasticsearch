@@ -115,6 +115,10 @@ gradlePlugin {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
     }
+    legacyInternalJavaRestTest {
+      id = 'elasticsearch.legacy-java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin'
+    }
     internalJavaRestTest {
       id = 'elasticsearch.internal-java-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin'
@@ -167,9 +171,17 @@ gradlePlugin {
       id = 'elasticsearch.validate-rest-spec'
       implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
     }
+    legacyYamlRestCompatTest {
+      id = 'elasticsearch.legacy-yaml-rest-compat-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin'
+    }
     yamlRestCompatTest {
       id = 'elasticsearch.yaml-rest-compat-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
+    }
+    legacyYamlRestTest {
+      id = 'elasticsearch.legacy-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
@@ -220,7 +232,7 @@ configurations {
 
 dependencies {
   constraints {
-      integTestImplementation('org.ow2.asm:asm:9.3')
+      integTestImplementation('org.ow2.asm:asm:9.4')
       implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
   }
   components.all(JacksonAlignmentRule)
@@ -322,6 +334,10 @@ tasks.register("bootstrapPerformanceTests", Copy) {
           testGitCommit:GitInfo.gitInfo(root).revision,
           mainWrapper:"${ -> resolveMainWrapperVersion()}".toString(),
           branchWrapper:"${-> gradle.gradleVersion}".toString()])
+}
+
+tasks.named("jar") {
+  exclude("classpath.index")
 }
 
 def resolveMainWrapperVersion() {

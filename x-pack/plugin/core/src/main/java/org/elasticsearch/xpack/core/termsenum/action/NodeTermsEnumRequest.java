@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -78,7 +78,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         for (int i = 0; i < numShards; i++) {
             shardIds.add(new ShardId(in));
         }
-        if (in.getVersion().onOrAfter(Version.V_7_15_1)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_1)) {
             originalIndices = OriginalIndices.readOriginalIndices(in);
         } else {
             String[] indicesNames = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
@@ -106,7 +106,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         for (ShardId shardId : shardIds) {
             shardId.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_15_1)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_1)) {
             OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
     }

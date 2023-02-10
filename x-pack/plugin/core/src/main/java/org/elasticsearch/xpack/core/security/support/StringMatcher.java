@@ -173,12 +173,23 @@ public class StringMatcher implements Predicate<String> {
                 return Automatons.predicate(patterns);
             } catch (TooComplexToDeterminizeException e) {
                 LOGGER.debug("Pattern automaton [{}] is too complex", patterns);
-                String description = Strings.collectionToCommaDelimitedString(patterns);
-                if (description.length() > 80) {
-                    description = Strings.cleanTruncate(description, 80) + "...";
-                }
-                throw new ElasticsearchSecurityException("The set of patterns [{}] is too complex to evaluate", e, description);
+                throw new ElasticsearchSecurityException(
+                    "The set of patterns [{}] is too complex to evaluate",
+                    e,
+                    getPatternsDescription(patterns)
+                );
+            } catch (IllegalArgumentException e) {
+                LOGGER.debug("Pattern automaton [{}] is invalid", patterns);
+                throw new ElasticsearchSecurityException("The set of patterns [{}] is invalid", e, getPatternsDescription(patterns));
             }
+        }
+
+        private static String getPatternsDescription(Collection<String> patterns) {
+            String description = Strings.collectionToCommaDelimitedString(patterns);
+            if (description.length() > 80) {
+                description = Strings.cleanTruncate(description, 80) + "...";
+            }
+            return description;
         }
     }
 }

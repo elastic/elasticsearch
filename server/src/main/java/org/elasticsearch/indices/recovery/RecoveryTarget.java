@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -47,6 +48,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.Strings.format;
@@ -80,7 +82,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
-    private volatile boolean recoveryMonitorEnabled = true;
+    private final AtomicInteger recoveryMonitorBlocks = new AtomicInteger();
 
     @Nullable // if we're not downloading files from snapshots in this recovery or we're retrying
     private volatile Releasable snapshotFileDownloadsPermit;
@@ -185,7 +187,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
     public long lastAccessTime() {
-        if (recoveryMonitorEnabled) {
+        if (recoveryMonitorBlocks.get() == 0) {
             return lastAccessTime;
         }
         return System.nanoTime();
@@ -204,12 +206,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @return releasable that once closed will re-enable liveness checks by the recovery monitor
      */
     public Releasable disableRecoveryMonitor() {
-        assert recoveryMonitorEnabled : "recovery monitor already disabled";
-        recoveryMonitorEnabled = false;
-        return () -> {
+        recoveryMonitorBlocks.incrementAndGet();
+        return Releasables.releaseOnce(() -> {
             setLastAccessTime();
-            recoveryMonitorEnabled = true;
-        };
+            recoveryMonitorBlocks.decrementAndGet();
+        });
     }
 
     public Store store() {
@@ -316,6 +317,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     protected void closeInternal() {
+        assert recoveryMonitorBlocks.get() == 0;
         try {
             multiFileWriter.close();
         } finally {
@@ -495,15 +497,18 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final Store store = store();
             store.incRef();
             try {
-                store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
-                final String translogUUID = Translog.createEmptyTranslog(
-                    indexShard.shardPath().resolveTranslog(),
-                    globalCheckpoint,
-                    shardId,
-                    indexShard.getPendingPrimaryTerm()
-                );
-                store.associateIndexWithNewTranslog(translogUUID);
-
+                if (indexShard.routingEntry().isPromotableToPrimary()) {
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                    final String translogUUID = Translog.createEmptyTranslog(
+                        indexShard.shardPath().resolveTranslog(),
+                        globalCheckpoint,
+                        shardId,
+                        indexShard.getPendingPrimaryTerm()
+                    );
+                    store.associateIndexWithNewTranslog(translogUUID);
+                } else {
+                    indexShard.setGlobalCheckpointIfUnpromotable(globalCheckpoint);
+                }
                 if (indexShard.getRetentionLeases().leases().isEmpty()) {
                     // if empty, may be a fresh IndexShard, so write an empty leases file to disk
                     indexShard.persistRetentionLeases();

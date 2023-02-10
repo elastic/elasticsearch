@@ -15,9 +15,6 @@ import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.rest.RestStatus;
-
 public class JwtTypeValidator implements JwtFieldValidator {
 
     private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
@@ -34,7 +31,7 @@ public class JwtTypeValidator implements JwtFieldValidator {
         try {
             JWT_HEADER_TYPE_VERIFIER.verify(jwtHeaderType, null);
         } catch (BadJOSEException e) {
-            throw new ElasticsearchSecurityException("invalid jwt typ header", RestStatus.BAD_REQUEST, e);
+            throw new IllegalArgumentException("invalid jwt typ header", e);
         }
     }
 }

@@ -54,7 +54,7 @@ setup:
 ---
 "Basic test":
   - skip:
-      version: " - 8.5.99"
+      version: " - 8.6.99"
       reason: Time series result serialization changed in 8.6.0
 
   - do:
@@ -74,8 +74,140 @@ setup:
 
 
   - match: { hits.total.value: 1 }
-  - length: { aggregations.ts.buckets: 1 }
+  - length: { aggregations: 1 }
 
   - match: { aggregations.ts.buckets.0.key: { "key": "foo" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
 
+---
+"Size test":
+  - skip:
+      version: " - 8.6.99"
+      reason: Size added in 8.7.0
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2019-01-01T00:10:00Z"
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+                size: 1
+
+  - length: { aggregations.ts.buckets: 1 }
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2019-01-01T00:10:00Z"
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+                size: 3
+
+  - length: { aggregations.ts.buckets: 3 }
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
+  - match: { aggregations.ts.buckets.1.key: { "key": "baz" } }
+  - match: { aggregations.ts.buckets.2.key: { "key": "foo" } }
+
+---
+"Sampler aggregation with nested time series aggregation failure":
+  - skip:
+      version: " - 8.6.99"
+      reason: "Handling for time series aggregation failures introduced in 8.7.0"
+
+  - do:
+      catch: '/\[random_sampler\] aggregation \[sample\] does not support sampling \[time_series\] aggregation \[ts\]/'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            sample:
+              random_sampler:
+                probability: 1.0
+              aggs:
+                by_timestamp:
+                  date_histogram:
+                    field: "@timestamp"
+                    fixed_interval: 1h
+                  aggs:
+                    ts:
+                      time_series:
+                        keyed: false
+                      aggs:
+                        sum:
+                          sum:
+                            field: val
+
+---
+"Composite aggregation with nested time series aggregation failure":
+  - skip:
+      version: " - 8.6.99"
+      reason: "Handling for time series aggregation failures introduced in 8.7.0"
+
+  - do:
+      catch: '/\[composite\] aggregation is incompatible with time series execution mode/'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            by_key:
+              composite:
+                sources: [
+                  {
+                    "key": {
+                      "terms": {
+                        "field": "key"
+                      }
+                    }
+                  }
+                ]
+              aggs:
+                date:
+                  date_histogram:
+                    field: "@timestamp"
+                    fixed_interval: "1h"
+                  aggs:
+                    ts:
+                      time_series:
+                        keyed: false
+                      aggs:
+                        sum:
+                          sum:
+                            field: val
+
+---
+"Global aggregation with nested time series aggregation failure":
+  - skip:
+      version: " - 8.6.99"
+      reason: "Handling for time series aggregation failures introduced in 8.7.0"
+
+  - do:
+      catch: '/Time series aggregations cannot be used inside global aggregation./'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            global:
+              global: {}
+              aggs:
+                ts:
+                  time_series:
+                    keyed: false
+                  aggs:
+                    sum:
+                      sum:
+                        field: val

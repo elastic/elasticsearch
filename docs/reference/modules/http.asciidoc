@@ -119,8 +119,15 @@ Which methods to allow. Defaults to `OPTIONS, HEAD, GET, POST, PUT, DELETE`.
 // tag::http-cors-allow-headers-tag[]
 `http.cors.allow-headers` {ess-icon}::
 (<<static-cluster-setting,Static>>, string)
-Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length`.
+Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length, Authorization, Accept, User-Agent, X-Elastic-Client-Meta`.
 // end::http-cors-allow-headers-tag[]
+
+[[http-cors-expose-headers]]
+// tag::http-cors-expose-headers-tag[]
+`http.cors.expose-headers` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Which response headers to expose in the client. Defaults to `X-elastic-product`.
+// end::http-cors-expose-headers-tag[]
 
 [[http-cors-allow-credentials]]
 // tag::http-cors-allow-credentials-tag[]

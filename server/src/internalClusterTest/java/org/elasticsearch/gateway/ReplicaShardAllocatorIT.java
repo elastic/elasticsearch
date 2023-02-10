@@ -244,7 +244,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         transportServiceOnPrimary.clearAllRules();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91613")
     public void testFullClusterRestartPerformNoopRecovery() throws Exception {
         int numOfReplicas = randomIntBetween(1, 2);
         internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 2);

@@ -66,10 +66,10 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
         return t;
     }
 
-    private Table buildTable(RestRequest request, PendingClusterTasksResponse tasks) {
+    private Table buildTable(RestRequest request, PendingClusterTasksResponse response) {
         Table t = getTableWithHeader(request);
 
-        for (PendingClusterTask task : tasks) {
+        for (PendingClusterTask task : response.pendingTasks()) {
             t.startRow();
             t.addCell(task.getInsertOrder());
             t.addCell(task.getTimeInQueue());

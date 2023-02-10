@@ -100,9 +100,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -746,7 +748,14 @@ public class DataStreamIT extends ESIntegTestCase {
             equalTo(
                 Map.of(
                     "logs-foobar",
-                    List.of(new DataStreamAlias("foo", List.of("logs-foobar"), null, Map.of("term", Map.of("type", Map.of("value", "y")))))
+                    List.of(
+                        new DataStreamAlias(
+                            "foo",
+                            List.of("logs-foobar"),
+                            null,
+                            Map.of("logs-foobar", Map.of("term", Map.of("type", Map.of("value", "y"))))
+                        )
+                    )
                 )
             )
         );
@@ -771,7 +780,14 @@ public class DataStreamIT extends ESIntegTestCase {
             equalTo(
                 Map.of(
                     "logs-foobar",
-                    List.of(new DataStreamAlias("foo", List.of("logs-foobar"), null, Map.of("term", Map.of("type", Map.of("value", "x")))))
+                    List.of(
+                        new DataStreamAlias(
+                            "foo",
+                            List.of("logs-foobar"),
+                            null,
+                            Map.of("logs-foobar", Map.of("term", Map.of("type", Map.of("value", "x"))))
+                        )
+                    )
                 )
             )
         );
@@ -790,17 +806,17 @@ public class DataStreamIT extends ESIntegTestCase {
         String alias = randomAlphaOfLength(4);
         String[] dataStreams = Arrays.stream(generateRandomStringArray(16, 4, false, false))
             .map(s -> "log-" + s.toLowerCase(Locale.ROOT))
+            .distinct()
             .toArray(String[]::new);
         for (String dataStream : dataStreams) {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         }
-        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias)
-            .indices(dataStreams)
-            .filter(Map.of("term", Map.of("type", Map.of("value", "y"))));
+        Map<String, Object> indexFilters = Map.of("term", Map.of("type", Map.of("value", "y")));
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams).filter(indexFilters);
         assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
-        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).writeIndex(true);
+        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).filter(indexFilters).writeIndex(true);
         assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
@@ -815,7 +831,16 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(result.get(0).getName(), equalTo(alias));
         assertThat(result.get(0).getDataStreams(), containsInAnyOrder(dataStreams));
         assertThat(result.get(0).getWriteDataStream(), equalTo(dataStreams[0]));
-        assertThat(result.get(0).getFilter().string(), equalTo("{\"term\":{\"type\":{\"value\":\"y\"}}}"));
+        for (String dataStream : dataStreams) {
+            assertThat(
+                result.stream()
+                    .map(resultAlias -> resultAlias.getFilter(dataStream))
+                    .filter(Objects::nonNull)
+                    .map(CompressedXContent::string)
+                    .collect(Collectors.toSet()),
+                containsInAnyOrder("{\"term\":{\"type\":{\"value\":\"y\"}}}")
+            );
+        }
     }
 
     public void testDataSteamAliasWithMalformedFilter() throws Exception {
@@ -2024,24 +2049,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final var request = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
 
-        assertBusy(() -> {
-            for (int i = 0; i < 10; i++) {
-                indexDocs(dataStreamName, randomIntBetween(100, 200));
-            }
-
-            final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-            final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-            final String writeIndex = dataStream.getWriteIndex().getName();
-            final IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(writeIndex).get();
-            for (IndexShardStats indexShardStats : indicesStatsResponse.getIndex(writeIndex).getIndexShards().values()) {
-                for (ShardStats shard : indexShardStats.getShards()) {
-                    final IndexingStats.Stats shardIndexingStats = shard.getStats().getIndexing().getTotal();
-                    // Ensure that we have enough clock granularity before rolling over to ensure that we capture _some_ write load
-                    assertThat(shardIndexingStats.getTotalActiveTimeInMillis(), is(greaterThan(0L)));
-                    assertThat(shardIndexingStats.getWriteLoad(), is(greaterThan(0.0)));
-                }
-            }
-        });
+        indexDocsAndEnsureThereIsCapturedWriteLoad(dataStreamName);
 
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
@@ -2078,6 +2086,7 @@ public class DataStreamIT extends ESIntegTestCase {
         // - We want to simulate two possible cases here:
         // - All the assigned nodes for shard 0 will fail to respond to the IndicesStatsRequest
         // - Only the shard 1 replica will respond successfully to the IndicesStatsRequest ensuring that we fall back in that case
+        // (only if it's not co-located with some other shard copies)
 
         final List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(4);
         final String dataStreamName = "logs-es";
@@ -2090,21 +2099,22 @@ public class DataStreamIT extends ESIntegTestCase {
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+        ensureGreen(dataStreamName);
 
-        for (int i = 0; i < 10; i++) {
-            indexDocs(dataStreamName, randomIntBetween(100, 200));
-        }
+        indexDocsAndEnsureThereIsCapturedWriteLoad(dataStreamName);
 
         final ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
         final IndexRoutingTable currentDataStreamWriteIndexRoutingTable = clusterStateBeforeRollover.routingTable()
             .index(dataStreamBeforeRollover.getWriteIndex());
 
-        final List<String> failingIndicesStatsNodeIds = new ArrayList<>();
+        final Set<String> failingIndicesStatsNodeIds = new HashSet<>();
         for (ShardRouting shardRouting : currentDataStreamWriteIndexRoutingTable.shard(0).assignedShards()) {
             failingIndicesStatsNodeIds.add(shardRouting.currentNodeId());
         }
         failingIndicesStatsNodeIds.add(currentDataStreamWriteIndexRoutingTable.shard(1).primaryShard().currentNodeId());
+        final String shard1ReplicaNodeId = currentDataStreamWriteIndexRoutingTable.shard(1).replicaShards().get(0).currentNodeId();
+        final boolean shard1ReplicaIsAllocatedInAReachableNode = failingIndicesStatsNodeIds.contains(shard1ReplicaNodeId) == false;
 
         for (String nodeId : failingIndicesStatsNodeIds) {
             String nodeName = clusterStateBeforeRollover.nodes().resolveNode(nodeId).getName();
@@ -2114,7 +2124,12 @@ public class DataStreamIT extends ESIntegTestCase {
                 (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
             );
         }
-        assertThat(failingIndicesStatsNodeIds.size(), is(equalTo(3)));
+
+        logger.info(
+            "--> Node IDs failing to respond to stats requests {}, shard 1 replica routing {}",
+            failingIndicesStatsNodeIds,
+            currentDataStreamWriteIndexRoutingTable.shard(1).replicaShards().get(0)
+        );
 
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
@@ -2124,8 +2139,9 @@ public class DataStreamIT extends ESIntegTestCase {
             final IndexMetadata indexMetadata = clusterState.metadata().index(index);
             final IndexMetadataStats metadataStats = indexMetadata.getStats();
 
-            if (index.equals(dataStream.getWriteIndex()) == false) {
-                assertThat(metadataStats, is(notNullValue()));
+            // If all the shards are co-located within the failing nodes, no stats will be stored during rollover
+            if (index.equals(dataStream.getWriteIndex()) == false && shard1ReplicaIsAllocatedInAReachableNode) {
+                assertThat("Expected stats for index " + index, metadataStats, is(notNullValue()));
 
                 final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();
                 // All stats request performed against nodes holding the shard 0 failed
@@ -2245,6 +2261,27 @@ public class DataStreamIT extends ESIntegTestCase {
         final OptionalLong forecastedShardSizeInBytes = writeIndexMetadata.getForecastedShardSizeInBytes();
         assertThat(forecastedShardSizeInBytes.isPresent(), is(equalTo(true)));
         assertThat(forecastedShardSizeInBytes.getAsLong(), is(equalTo(expectedTotalSizeInBytes / shardCount)));
+    }
+
+    private void indexDocsAndEnsureThereIsCapturedWriteLoad(String dataStreamName) throws Exception {
+        assertBusy(() -> {
+            for (int i = 0; i < 10; i++) {
+                indexDocs(dataStreamName, randomIntBetween(100, 200));
+            }
+
+            final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            final String writeIndex = dataStream.getWriteIndex().getName();
+            final IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(writeIndex).get();
+            for (IndexShardStats indexShardStats : indicesStatsResponse.getIndex(writeIndex).getIndexShards().values()) {
+                for (ShardStats shard : indexShardStats.getShards()) {
+                    final IndexingStats.Stats shardIndexingStats = shard.getStats().getIndexing().getTotal();
+                    // Ensure that we have enough clock granularity before rolling over to ensure that we capture _some_ write load
+                    assertThat(shardIndexingStats.getTotalActiveTimeInMillis(), is(greaterThan(0L)));
+                    assertThat(shardIndexingStats.getWriteLoad(), is(greaterThan(0.0)));
+                }
+            }
+        });
     }
 
     static void putComposableIndexTemplate(

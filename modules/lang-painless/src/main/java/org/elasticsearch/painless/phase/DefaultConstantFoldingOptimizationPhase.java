@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BinaryMathNode;
@@ -45,6 +46,42 @@ import java.util.function.Consumer;
  */
 public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyingVisitor {
 
+    private static IllegalStateException unaryError(String type, String operation, String constant) {
+        return new IllegalStateException(
+            Strings.format(
+                "constant folding error: unexpected type [%s] for unary operation [%s] on constant [%s]",
+                type,
+                operation,
+                constant
+            )
+        );
+    }
+
+    private static IllegalStateException binaryError(String type, String operation, String constant1, String constant2) {
+        return error(type, "binary", operation, constant1, constant2);
+    }
+
+    private static IllegalStateException booleanError(String type, String operation, String constant1, String constant2) {
+        return error(type, "boolean", operation, constant1, constant2);
+    }
+
+    private static IllegalStateException comparisonError(String type, String operation, String constant1, String constant2) {
+        return error(type, "comparison", operation, constant1, constant2);
+    }
+
+    private static IllegalStateException error(String type, String opType, String operation, String constant1, String constant2) {
+        return new IllegalStateException(
+            Strings.format(
+                "constant folding error: unexpected type [%s] for %s operation [%s] on constants [%s] and [%s]",
+                type,
+                opType,
+                operation,
+                constant1,
+                constant2
+            )
+        );
+    }
+
     @Override
     public void visitUnaryMath(UnaryMathNode irUnaryMathNode, Consumer<ExpressionNode> scope) {
         irUnaryMathNode.getChildNode().visit(this, irUnaryMathNode::setChildNode);
@@ -67,17 +104,10 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irUnaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "unary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constant ["
-                                    + irConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            unaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -91,17 +121,10 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irUnaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "unary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constant ["
-                                    + irConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            unaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -113,17 +136,10 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irUnaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "unary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constant ["
-                                    + irConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            unaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -160,20 +176,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -192,20 +199,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                     } else {
                         throw irBinaryMathNode.getLocation()
                             .createError(
-                                new IllegalStateException(
-                                    "constant folding error: "
-                                        + "unexpected type ["
-                                        + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                        + "] for "
-                                        + "binary operation ["
-                                        + operation.symbol
-                                        + "] on "
-                                        + "constants ["
-                                        + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                        + "] "
-                                        + "and ["
-                                        + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                        + "]"
+                                binaryError(
+                                    PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                    operation.symbol,
+                                    irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                    irRightConstantNode.getDecorationString(IRDConstant.class)
                                 )
                             );
                     }
@@ -227,20 +225,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                     } else {
                         throw irBinaryMathNode.getLocation()
                             .createError(
-                                new IllegalStateException(
-                                    "constant folding error: "
-                                        + "unexpected type ["
-                                        + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                        + "] for "
-                                        + "binary operation ["
-                                        + operation.symbol
-                                        + "] on "
-                                        + "constants ["
-                                        + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                        + "] "
-                                        + "and ["
-                                        + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                        + "]"
+                                binaryError(
+                                    PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                    operation.symbol,
+                                    irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                    irRightConstantNode.getDecorationString(IRDConstant.class)
                                 )
                             );
                     }
@@ -261,20 +250,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -292,20 +272,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -319,20 +290,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -346,20 +308,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -373,20 +326,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] and "
-                                    + "["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -400,20 +344,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -429,20 +364,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] and "
-                                    + "["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -456,20 +382,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBinaryMathNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -550,20 +467,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBooleanNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "binary operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            binaryError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -580,20 +488,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                 } else {
                     throw irBooleanNode.getLocation()
                         .createError(
-                            new IllegalStateException(
-                                "constant folding error: "
-                                    + "unexpected type ["
-                                    + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                    + "] for "
-                                    + "boolean operation ["
-                                    + operation.symbol
-                                    + "] on "
-                                    + "constants ["
-                                    + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                    + "] "
-                                    + "and ["
-                                    + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                    + "]"
+                            booleanError(
+                                PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                operation.symbol,
+                                irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                irRightConstantNode.getDecorationString(IRDConstant.class)
                             )
                         );
                 }
@@ -687,20 +586,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                     } else {
                         throw irComparisonNode.getLocation()
                             .createError(
-                                new IllegalStateException(
-                                    "constant folding error: "
-                                        + "unexpected type ["
-                                        + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                        + "] for "
-                                        + "comparison operation ["
-                                        + operation.symbol
-                                        + "] on "
-                                        + "constants ["
-                                        + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                        + "] "
-                                        + "and ["
-                                        + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                        + "]"
+                                comparisonError(
+                                    PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                    operation.symbol,
+                                    irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                    irRightConstantNode.getDecorationString(IRDConstant.class)
                                 )
                             );
                     }
@@ -719,20 +609,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                     } else {
                         throw irComparisonNode.getLocation()
                             .createError(
-                                new IllegalStateException(
-                                    "constant folding error: "
-                                        + "unexpected type ["
-                                        + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                        + "] for "
-                                        + "comparison operation ["
-                                        + operation.symbol
-                                        + "] on "
-                                        + "constants ["
-                                        + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                        + "] "
-                                        + "and ["
-                                        + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                        + "]"
+                                comparisonError(
+                                    PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                    operation.symbol,
+                                    irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                    irRightConstantNode.getDecorationString(IRDConstant.class)
                                 )
                             );
                     }
@@ -751,20 +632,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                     } else {
                         throw irComparisonNode.getLocation()
                             .createError(
-                                new IllegalStateException(
-                                    "constant folding error: "
-                                        + "unexpected type ["
-                                        + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                        + "] for "
-                                        + "comparison operation ["
-                                        + operation.symbol
-                                        + "] on "
-                                        + "constants ["
-                                        + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                        + "] "
-                                        + "and ["
-                                        + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                        + "]"
+                                comparisonError(
+                                    PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                    operation.symbol,
+                                    irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                    irRightConstantNode.getDecorationString(IRDConstant.class)
                                 )
                             );
                     }
@@ -783,20 +655,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
                     } else {
                         throw irComparisonNode.getLocation()
                             .createError(
-                                new IllegalStateException(
-                                    "constant folding error: "
-                                        + "unexpected type ["
-                                        + PainlessLookupUtility.typeToCanonicalTypeName(type)
-                                        + "] for "
-                                        + "comparison operation ["
-                                        + operation.symbol
-                                        + "] on "
-                                        + "constants ["
-                                        + irLeftConstantNode.getDecorationString(IRDConstant.class)
-                                        + "] "
-                                        + "and ["
-                                        + irRightConstantNode.getDecorationString(IRDConstant.class)
-                                        + "]"
+                                comparisonError(
+                                    PainlessLookupUtility.typeToCanonicalTypeName(type),
+                                    operation.symbol,
+                                    irLeftConstantNode.getDecorationString(IRDConstant.class),
+                                    irRightConstantNode.getDecorationString(IRDConstant.class)
                                 )
                             );
                     }

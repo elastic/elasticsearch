@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -109,17 +108,17 @@ public class ScriptStatsTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 2222, 0, 0, 5)));
+        assertThat(Strings.toString(builder), equalTo(Strings.format(format, 2222, 0, 0, 5)));
 
         series = new TimeSeries(0, 7, 1234, 5678);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 5678, 0, 7, 1234)));
+        assertThat(Strings.toString(builder), equalTo(Strings.format(format, 5678, 0, 7, 1234)));
 
         series = new TimeSeries(123, 456, 789, 91011);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 91011, 123, 456, 789)));
+        assertThat(Strings.toString(builder), equalTo(Strings.format(format, 91011, 123, 456, 789)));
     }
 
     public void testTimeSeriesIsEmpty() {

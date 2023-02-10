@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -86,6 +88,24 @@ public class SecurityContext {
         return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
     }
 
+    @Nullable
+    public ParentActionAuthorization getParentAuthorization() {
+        try {
+            return ParentActionAuthorization.readFromThreadContext(threadContext);
+        } catch (IOException e) {
+            logger.error("failed to read parent authorization from thread context", e);
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public void setParentAuthorization(ParentActionAuthorization parentAuthorization) {
+        try {
+            parentAuthorization.writeToThreadContext(threadContext);
+        } catch (IOException e) {
+            throw new AssertionError("failed to write parent authorization to the thread context", e);
+        }
+    }
+
     /**
      * Returns the "secondary authentication" (see {@link SecondaryAuthentication}) information,
      * or {@code null} if the current request does not have a secondary authentication context
@@ -128,7 +148,7 @@ public class SecurityContext {
      * Sets the user forcefully to the provided user. There must not be an existing user in the ThreadContext otherwise an exception
      * will be thrown. This method is package private for testing.
      */
-    public void setInternalUser(User internalUser, Version version) {
+    public void setInternalUser(User internalUser, TransportVersion version) {
         assert User.isInternal(internalUser);
         setAuthentication(Authentication.newInternalAuthentication(internalUser, version, nodeName));
     }
@@ -137,7 +157,7 @@ public class SecurityContext {
      * Runs the consumer in a new context as the provided user. The original context is provided to the consumer. When this method
      * returns, the original context is restored.
      */
-    public void executeAsInternalUser(User internalUser, Version version, Consumer<StoredContext> consumer) {
+    public void executeAsInternalUser(User internalUser, TransportVersion version, Consumer<StoredContext> consumer) {
         assert User.isInternal(internalUser);
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -147,10 +167,10 @@ public class SecurityContext {
     }
 
     public void executeAsSystemUser(Consumer<StoredContext> consumer) {
-        executeAsSystemUser(Version.CURRENT, consumer);
+        executeAsSystemUser(TransportVersion.CURRENT, consumer);
     }
 
-    public void executeAsSystemUser(Version version, Consumer<StoredContext> consumer) {
+    public void executeAsSystemUser(TransportVersion version, Consumer<StoredContext> consumer) {
         executeAsInternalUser(SystemUser.INSTANCE, version, consumer);
     }
 
@@ -170,7 +190,7 @@ public class SecurityContext {
      * Runs the consumer in a new context after setting a new version of the authentication that is compatible with the version provided.
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
-    public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
+    public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, TransportVersion version) {
         // Preserve request headers other than authentication
         final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
@@ -182,6 +202,22 @@ public class SecurityContext {
                     threadContext.putHeader(k, v);
                 }
             });
+            consumer.accept(original);
+        }
+    }
+
+    /**
+     * Executes consumer in a new thread context after removing {@link ParentActionAuthorization}.
+     * The original context is provided to the consumer. When this method returns,
+     * the original context is restored preserving response headers.
+     */
+    public void executeAfterRemovingParentAuthorization(Consumer<StoredContext> consumer) {
+        try (
+            ThreadContext.StoredContext original = threadContext.newStoredContextPreservingResponseHeaders(
+                List.of(),
+                List.of(ParentActionAuthorization.THREAD_CONTEXT_KEY)
+            )
+        ) {
             consumer.accept(original);
         }
     }

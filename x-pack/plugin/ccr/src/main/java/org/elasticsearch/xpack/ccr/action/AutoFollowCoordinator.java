@@ -594,11 +594,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             Consumer<AutoFollowResult> resultHandler
         ) {
             final GroupedActionListener<Tuple<Index, Exception>> groupedListener = new GroupedActionListener<>(
+                leaderIndicesToFollow.size(),
                 ActionListener.wrap(
                     rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))),
                     e -> { throw new AssertionError("must never happen", e); }
-                ),
-                leaderIndicesToFollow.size()
+                )
             );
 
             // Loop through all the as-of-yet-unfollowed indices from the leader

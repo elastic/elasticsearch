@@ -9,7 +9,6 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -19,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -789,10 +787,7 @@ public class PeerFinderTests extends ESTestCase {
             .millis();
 
         MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-
+        try (var ignored = appender.capturing(PeerFinder.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "discovery result",
@@ -811,10 +806,6 @@ public class PeerFinderTests extends ESTestCase {
                 runAllRunnableTasks();
             }
             appender.assertAllExpectationsMatched();
-
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-            appender.stop();
         }
     }
 
@@ -830,9 +821,7 @@ public class PeerFinderTests extends ESTestCase {
             .millis();
 
         MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
+        try (var ignored = appender.capturing(PeerFinder.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "discovery result",
@@ -869,10 +858,6 @@ public class PeerFinderTests extends ESTestCase {
                 runAllRunnableTasks();
             }
             appender.assertAllExpectationsMatched();
-
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
-            appender.stop();
         }
     }
 

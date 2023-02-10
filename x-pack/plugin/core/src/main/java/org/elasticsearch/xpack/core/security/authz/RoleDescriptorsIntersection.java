@@ -18,10 +18,17 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDescriptorsList) implements ToXContentObject, Writeable {
+
+    public static RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Collections.emptyList());
+
+    public RoleDescriptorsIntersection(RoleDescriptor roleDescriptor) {
+        this(List.of(Set.of(roleDescriptor)));
+    }
 
     public RoleDescriptorsIntersection(StreamInput in) throws IOException {
         this(in.readImmutableList(inner -> inner.readSet(RoleDescriptor::new)));

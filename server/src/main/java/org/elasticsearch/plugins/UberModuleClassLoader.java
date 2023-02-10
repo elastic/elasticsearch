@@ -280,6 +280,13 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         }
     }
 
+    // For testing in cases where code must be given access to an unnamed module
+    void addReadsSystemClassLoaderUnnamedModule() {
+        moduleController.layer()
+            .modules()
+            .forEach(module -> moduleController.addReads(module, ClassLoader.getSystemClassLoader().getUnnamedModule()));
+    }
+
     /**
      * Returns the package name for the given class name
      */
@@ -311,4 +318,8 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         AccessController.doPrivileged(pa);
     }
 
+    // visible for testing
+    public URLClassLoader getInternalLoader() {
+        return internalLoader;
+    }
 }

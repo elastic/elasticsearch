@@ -123,4 +123,9 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
             )
         );
     }
+
+    @Override
+    protected InternalCategorizationAggregation mutateInstance(InternalCategorizationAggregation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

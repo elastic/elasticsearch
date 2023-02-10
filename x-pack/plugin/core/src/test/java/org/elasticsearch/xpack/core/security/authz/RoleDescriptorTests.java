@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -48,7 +48,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
@@ -393,11 +395,11 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationForCurrentVersion() throws Exception {
-        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        final boolean canIncludeRemoteIndices = version.onOrAfter(Version.V_8_6_0);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersion.V_8_6_0);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(version);
+        output.setTransportVersion(version);
 
         final RoleDescriptor descriptor = randomRoleDescriptor(true, canIncludeRemoteIndices);
         descriptor.writeTo(output);
@@ -406,21 +408,21 @@ public class RoleDescriptorTests extends ESTestCase {
             ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry
         );
-        streamInput.setVersion(version);
+        streamInput.setTransportVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
 
         assertThat(serialized, equalTo(descriptor));
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
-        final Version version = VersionUtils.randomVersionBetween(
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_6_0);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices.calculateMinimumCompatVersion(),
             versionBeforeRemoteIndices
         );
         final BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(version);
+        output.setTransportVersion(version);
 
         final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
         if (descriptor.hasRemoteIndicesPrivileges()) {
@@ -428,7 +430,7 @@ public class RoleDescriptorTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )
@@ -440,7 +442,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
                 registry
             );
-            streamInput.setVersion(version);
+            streamInput.setTransportVersion(version);
             final RoleDescriptor serialized = new RoleDescriptor(streamInput);
             assertThat(descriptor, equalTo(serialized));
         }
@@ -536,7 +538,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final String grant = grantAll ? "\"*\"" : "\"f1\",\"f2\"";
         final String except = grantAll ? "\"_fx\",\"f8\"" : "\"f1\"";
 
-        final String json = formatted("""
+        final String json = Strings.format("""
             {
               "indices": [
                 {
@@ -655,6 +657,79 @@ public class RoleDescriptorTests extends ESTestCase {
         );
     }
 
+    public void testIndicesPrivilegesCompareTo() {
+        final RoleDescriptor.IndicesPrivileges indexPrivilege = randomIndicesPrivilegesBuilder().build();
+        @SuppressWarnings({ "EqualsWithItself" })
+        final int actual = indexPrivilege.compareTo(indexPrivilege);
+        assertThat(actual, equalTo(0));
+        assertThat(
+            indexPrivilege.compareTo(
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(indexPrivilege.getIndices().clone())
+                    .privileges(indexPrivilege.getPrivileges().clone())
+                    // test for both cases when the query is the same instance or a copy
+                    .query(
+                        (indexPrivilege.getQuery() == null || randomBoolean())
+                            ? indexPrivilege.getQuery()
+                            : new BytesArray(indexPrivilege.getQuery().toBytesRef())
+                    )
+                    .grantedFields(indexPrivilege.getGrantedFields() == null ? null : indexPrivilege.getGrantedFields().clone())
+                    .deniedFields(indexPrivilege.getDeniedFields() == null ? null : indexPrivilege.getDeniedFields().clone())
+                    .allowRestrictedIndices(indexPrivilege.allowRestrictedIndices())
+                    .build()
+            ),
+            equalTo(0)
+        );
+
+        RoleDescriptor.IndicesPrivileges first = randomIndicesPrivilegesBuilder().allowRestrictedIndices(false).build();
+        RoleDescriptor.IndicesPrivileges second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(true).build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
+
+        first = randomIndicesPrivilegesBuilder().indices("a", "b").build();
+        second = randomIndicesPrivilegesBuilder().indices("b", "a").allowRestrictedIndices(first.allowRestrictedIndices()).build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
+
+        first = randomIndicesPrivilegesBuilder().privileges("read", "write").build();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+            .privileges("write", "read")
+            .indices(first.getIndices())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
+
+        first = randomIndicesPrivilegesBuilder().query(randomBoolean() ? null : "{\"match\":{\"field-a\":\"a\"}}").build();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+            .query("{\"match\":{\"field-b\":\"b\"}}")
+            .indices(first.getIndices())
+            .privileges(first.getPrivileges())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
+
+        first = randomIndicesPrivilegesBuilder().grantedFields(randomBoolean() ? null : new String[] { "a", "b" }).build();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+            .grantedFields("b", "a")
+            .indices(first.getIndices())
+            .privileges(first.getPrivileges())
+            .query(first.getQuery())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
+
+        first = randomIndicesPrivilegesBuilder().deniedFields(randomBoolean() ? null : new String[] { "a", "b" }).build();
+        second = randomIndicesPrivilegesBuilder().allowRestrictedIndices(first.allowRestrictedIndices())
+            .deniedFields("b", "a")
+            .indices(first.getIndices())
+            .privileges(first.getPrivileges())
+            .query(first.getQuery())
+            .grantedFields(first.getGrantedFields())
+            .build();
+        assertThat(first.compareTo(second), lessThan(0));
+        assertThat(second.compareTo(first), greaterThan(0));
+    }
+
     public void testGlobalPrivilegesOrdering() throws IOException {
         final String roleName = randomAlphaOfLengthBetween(3, 30);
         final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
@@ -701,7 +776,7 @@ public class RoleDescriptorTests extends ESTestCase {
             }
             profileNamesString.append("\"" + profileNames[i] + "\"");
         }
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "global": {
                 "profile": {
@@ -718,7 +793,7 @@ public class RoleDescriptorTests extends ESTestCase {
             }""", profileNamesString, applicationNamesString);
         RoleDescriptor role3 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
         assertThat(role3, is(role1));
-        json = formatted("""
+        json = Strings.format("""
             {
               "global": {
                 "application": {
@@ -892,30 +967,34 @@ public class RoleDescriptorTests extends ESTestCase {
         );
     }
 
-    private static RoleDescriptor.IndicesPrivileges[] randomIndicesPriveleges() {
+    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPriveleges() {
         final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
         for (int i = 0; i < indexPrivileges.length; i++) {
-            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-                .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
-                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-                .allowRestrictedIndices(randomBoolean());
-            if (randomBoolean()) {
-                builder.query(
-                    randomBoolean()
-                        ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
-                        : "{ \"match_all\": {} }"
-                );
-            }
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    builder.grantedFields("*");
-                    builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-                } else {
-                    builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-                }
-            }
-            indexPrivileges[i] = builder.build();
+            indexPrivileges[i] = randomIndicesPrivilegesBuilder().build();
         }
         return indexPrivileges;
+    }
+
+    private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder() {
+        final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+            .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
+            .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+            .allowRestrictedIndices(randomBoolean());
+        if (randomBoolean()) {
+            builder.query(
+                randomBoolean()
+                    ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
+                    : "{ \"match_all\": {} }"
+            );
+        }
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                builder.grantedFields("*");
+                builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+            } else {
+                builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+            }
+        }
+        return builder;
     }
 }

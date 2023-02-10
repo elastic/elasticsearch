@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -237,7 +238,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            metadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
@@ -406,7 +407,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            metadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
@@ -447,7 +448,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         metadata = Metadata.builder(metadata).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata).build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            metadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }

@@ -10,8 +10,10 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -22,12 +24,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -46,13 +52,16 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
 
     private static final Logger logger = LogManager.getLogger(TransportPrevalidateNodeRemovalAction.class);
 
+    private final NodeClient client;
+
     @Inject
     public TransportPrevalidateNodeRemovalAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NodeClient client
     ) {
         super(
             PrevalidateNodeRemovalAction.NAME,
@@ -66,6 +75,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             PrevalidateNodeRemovalResponse::new,
             ThreadPool.Names.SAME
         );
+        this.client = client;
     }
 
     @Override
@@ -73,14 +83,12 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         Task task,
         PrevalidateNodeRemovalRequest request,
         ClusterState state,
-        ActionListener<PrevalidateNodeRemovalResponse> listener
+        ActionListener<PrevalidateNodeRemovalResponse> responseListener
     ) {
-        try {
-            Set<DiscoveryNode> discoveryNodes = resolveNodes(request, state.nodes());
-            doPrevalidation(discoveryNodes, state, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        ActionListener.run(responseListener, listener -> {
+            Set<DiscoveryNode> requestNodes = resolveNodes(request, state.nodes());
+            doPrevalidation(request, requestNodes, state, listener);
+        });
     }
 
     public static Set<DiscoveryNode> resolveNodes(PrevalidateNodeRemovalRequest request, DiscoveryNodes discoveryNodes) {
@@ -141,62 +149,157 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     }
 
     private void doPrevalidation(
-        Set<DiscoveryNode> nodes,
+        PrevalidateNodeRemovalRequest request,
+        Set<DiscoveryNode> requestNodes,
         ClusterState clusterState,
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) {
-        assert nodes != null && nodes.isEmpty() == false;
+        assert requestNodes != null && requestNodes.isEmpty() == false;
 
-        logger.debug(() -> "prevalidate node removal for nodes " + nodes);
+        logger.debug(() -> "prevalidate node removal for nodes " + requestNodes);
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         Metadata metadata = clusterState.metadata();
-        switch (clusterStateHealth.getStatus()) {
-            case GREEN, YELLOW -> {
-                List<NodeResult> nodesResults = nodes.stream()
-                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(true, "")))
-                    .toList();
-                listener.onResponse(
-                    new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(true, "cluster status is not RED", nodesResults))
+        DiscoveryNodes clusterNodes = clusterState.getNodes();
+        if (clusterStateHealth.getStatus() == ClusterHealthStatus.GREEN || clusterStateHealth.getStatus() == ClusterHealthStatus.YELLOW) {
+            List<NodeResult> nodesResults = requestNodes.stream()
+                .map(
+                    dn -> new NodeResult(
+                        dn.getName(),
+                        dn.getId(),
+                        dn.getExternalId(),
+                        new Result(true, NodesRemovalPrevalidation.Reason.NO_PROBLEMS, "")
+                    )
+                )
+                .toList();
+            listener.onResponse(
+                new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(true, "cluster status is not RED", nodesResults))
+            );
+            return;
+        }
+        // RED cluster state
+        Set<String> redIndices = clusterStateHealth.getIndices()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().getStatus() == ClusterHealthStatus.RED)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        // If all red indices are searchable snapshot indices, it is safe to remove any node.
+        Set<String> redNonSSIndices = redIndices.stream()
+            .map(metadata::index)
+            .filter(i -> i.isSearchableSnapshot() == false)
+            .map(im -> im.getIndex().getName())
+            .collect(Collectors.toSet());
+        if (redNonSSIndices.isEmpty()) {
+            List<NodeResult> nodeResults = requestNodes.stream()
+                .map(
+                    dn -> new NodeResult(
+                        dn.getName(),
+                        dn.getId(),
+                        dn.getExternalId(),
+                        new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_SHARDS_EXCEPT_SEARCHABLE_SNAPSHOTS, "")
+                    )
+                )
+                .toList();
+            listener.onResponse(
+                new PrevalidateNodeRemovalResponse(
+                    new NodesRemovalPrevalidation(true, "all red indices are searchable snapshot indices", nodeResults)
+                )
+            );
+        } else {
+            // Reach out to the nodes to find out whether they contain copies of the red non-searchable-snapshot indices
+            Set<ShardId> redShards = clusterStateHealth.getIndices()
+                .entrySet()
+                .stream()
+                .filter(indexHealthEntry -> redNonSSIndices.contains(indexHealthEntry.getKey()))
+                .map(Map.Entry::getValue) // ClusterHealthIndex of red non-searchable-snapshot indices
+                .flatMap(
+                    redIndexHealth -> redIndexHealth.getShards()
+                        .values()
+                        .stream()
+                        .filter(shardHealth -> shardHealth.getStatus() == ClusterHealthStatus.RED)
+                        .map(redShardHealth -> Tuple.tuple(redIndexHealth.getIndex(), redShardHealth))
+                ) // (Index, ClusterShardHealth) of all red shards
+                .map(
+                    redIndexShardHealthTuple -> new ShardId(
+                        metadata.index(redIndexShardHealthTuple.v1()).getIndex(),
+                        redIndexShardHealthTuple.v2().getShardId()
+                    )
+                ) // Convert to ShardId
+                .collect(Collectors.toSet());
+            var nodeIds = requestNodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
+            var checkShardsRequest = new PrevalidateShardPathRequest(redShards, nodeIds).timeout(request.timeout());
+            client.execute(TransportPrevalidateShardPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(PrevalidateShardPathResponse response) {
+                    listener.onResponse(new PrevalidateNodeRemovalResponse(createPrevalidationResult(clusterNodes, response)));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
+
+    private NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, PrevalidateShardPathResponse response) {
+        List<NodeResult> nodeResults = new ArrayList<>(response.getNodes().size() + response.failures().size());
+        for (NodePrevalidateShardPathResponse nodeResponse : response.getNodes()) {
+            Result result;
+            if (nodeResponse.getShardIds().isEmpty()) {
+                result = new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_SHARDS_ON_NODE, "");
+            } else {
+                result = new Result(
+                    false,
+                    NodesRemovalPrevalidation.Reason.RED_SHARDS_ON_NODE,
+                    Strings.format("node contains copies of the following red shards: %s", nodeResponse.getShardIds())
                 );
             }
-            case RED -> {
-                Set<String> redIndices = clusterStateHealth.getIndices()
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> entry.getValue().getStatus() == ClusterHealthStatus.RED)
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet());
-                // If all red indices are searchable snapshot indices, it is safe to remove any node.
-                Set<String> redNonSSIndices = redIndices.stream()
-                    .map(metadata::index)
-                    .filter(i -> i.isSearchableSnapshot() == false)
-                    .map(im -> im.getIndex().getName())
-                    .collect(Collectors.toSet());
-                if (redNonSSIndices.isEmpty()) {
-                    List<NodeResult> nodeResults = nodes.stream()
-                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(true, "")))
-                        .toList();
-                    listener.onResponse(
-                        new PrevalidateNodeRemovalResponse(
-                            new NodesRemovalPrevalidation(true, "all red indices are searchable snapshot indices", nodeResults)
-                        )
-                    );
-                } else {
-                    List<NodeResult> nodeResults = nodes.stream()
-                        .map(
-                            dn -> new NodeResult(
-                                dn.getName(),
-                                dn.getId(),
-                                dn.getExternalId(),
-                                new Result(false, "node may contain a copy of a red index shard")
-                            )
-                        )
-                        .toList();
-                    listener.onResponse(
-                        new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(false, "cluster health is RED", nodeResults))
-                    );
-                }
-            }
+            nodeResults.add(
+                new NodeResult(
+                    nodeResponse.getNode().getName(),
+                    nodeResponse.getNode().getId(),
+                    nodeResponse.getNode().getExternalId(),
+                    result
+                )
+            );
         }
+        for (FailedNodeException failedResponse : response.failures()) {
+            DiscoveryNode node = nodes.get(failedResponse.nodeId());
+            nodeResults.add(
+                new NodeResult(
+                    node.getName(),
+                    node.getId(),
+                    node.getExternalId(),
+                    new Result(
+                        false,
+                        NodesRemovalPrevalidation.Reason.UNABLE_TO_VERIFY,
+                        Strings.format("failed contacting the node: %s", failedResponse.getDetailedMessage())
+                    )
+                )
+            );
+        }
+        // determine overall result from the node results.
+        Set<String> unsafeNodeRemovals = response.getNodes()
+            .stream()
+            .filter(r -> r.getShardIds().isEmpty() == false)
+            .map(r -> r.getNode().getId())
+            .collect(Collectors.toSet());
+        if (unsafeNodeRemovals.isEmpty() == false) {
+            return new NodesRemovalPrevalidation(
+                false,
+                Strings.format("removal of the following nodes might not be safe: %s", unsafeNodeRemovals),
+                nodeResults
+            );
+        }
+        if (response.failures().isEmpty() == false) {
+            Set<String> unknownNodeRemovals = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.toSet());
+            return new NodesRemovalPrevalidation(
+                false,
+                Strings.format("cannot prevalidate removal of nodes with the following IDs: %s", unknownNodeRemovals),
+                nodeResults
+            );
+        }
+        return new NodesRemovalPrevalidation(true, "", nodeResults);
     }
 }

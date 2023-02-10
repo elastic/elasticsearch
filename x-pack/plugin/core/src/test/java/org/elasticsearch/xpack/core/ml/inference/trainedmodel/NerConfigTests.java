@@ -56,6 +56,11 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
     }
 
     @Override
+    protected NerConfig mutateInstance(NerConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NerConfig mutateInstanceForVersion(NerConfig instance, Version version) {
         return mutateForVersion(instance, version);
     }

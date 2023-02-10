@@ -158,6 +158,11 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
     }
 
     @Override
+    protected EqlSearchResponse mutateInstance(EqlSearchResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<EqlSearchResponse> instanceReader() {
         return EqlSearchResponse::new;
     }

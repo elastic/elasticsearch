@@ -482,7 +482,9 @@ public class IndexShardTests extends IndexShardTestCase {
         promoteReplica(
             indexShard,
             Collections.singleton(replicaRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build()
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(
+                TestShardRouting.newShardRouting(replicaRouting.shardId(), "ignored", true, ShardRoutingState.STARTED)
+            ).addShard(replicaRouting).build()
         );
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
@@ -570,7 +572,9 @@ public class IndexShardTests extends IndexShardTestCase {
         promoteReplica(
             indexShard,
             Collections.singleton(replicaRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build()
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(
+                TestShardRouting.newShardRouting(replicaRouting.shardId(), "ignored", true, ShardRoutingState.STARTED)
+            ).addShard(replicaRouting).build()
         );
 
         stop.set(true);
@@ -593,7 +597,9 @@ public class IndexShardTests extends IndexShardTestCase {
         promoteReplica(
             indexShard,
             Collections.singleton(replicaRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build()
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(
+                TestShardRouting.newShardRouting(replicaRouting.shardId(), "ignored", true, ShardRoutingState.STARTED)
+            ).addShard(replicaRouting).build()
         );
 
         /*
@@ -2900,11 +2906,15 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardActiveDuringInternalRecovery() throws IOException {
-        IndexShard shard = newStartedShard(true);
+        boolean isPrimary = randomBoolean();
+        IndexShard shard = newStartedShard(isPrimary);
         indexDoc(shard, "_doc", "0");
         shard = reinitShard(shard);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, null));
+        DiscoveryNode sourceNode = isPrimary
+            ? null
+            : new DiscoveryNode("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, sourceNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
         shard.prepareForIndexRecovery();
@@ -4519,7 +4529,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getPrimaryTermSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 config.getLeafSorter(),
-                config.getRelativeTimeInNanosSupplier()
+                config.getRelativeTimeInNanosSupplier(),
+                config.getIndexCommitListener(),
+                config.isPromotableToPrimary()
             );
             return new InternalEngine(configWithWarmer);
         });

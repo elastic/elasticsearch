@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -401,6 +401,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public record BuilderAndToReduce<T> (AggregationBuilder builder, List<T> toReduce) {}
 
+    /**
+     * Does this aggregation support reductions when the internal buckets are not in-order
+     */
+    protected boolean supportsOutOfOrderReduce() {
+        return true;
+    }
+
     public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
         int size = between(1, 200);
@@ -412,7 +419,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
             // sometimes do a partial reduce
-            Collections.shuffle(toReduce, random());
+            if (supportsOutOfOrderReduce()) {
+                Collections.shuffle(toReduce, random());
+            }
             int r = randomIntBetween(1, toReduce.size());
             List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
             // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
@@ -721,8 +730,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
     }
 }

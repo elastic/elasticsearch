@@ -83,8 +83,9 @@ List projects = [
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
   'test:logger-usage',
-  'test:yaml-rest-runner',
-  'test:x-content'
+  'test:test-clusters',
+  'test:x-content',
+  'test:yaml-rest-runner'
 ]
 
 /**
@@ -133,6 +134,10 @@ project(":libs").children.each { libsProject ->
   libsProject.children.each { lp ->
     lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
   }
+}
+
+project(":qa:stable-api").children.each { libsProject ->
+  libsProject.name = "elasticsearch-${libsProject.name}"
 }
 
 project(":test:external-modules").children.each { testProject ->

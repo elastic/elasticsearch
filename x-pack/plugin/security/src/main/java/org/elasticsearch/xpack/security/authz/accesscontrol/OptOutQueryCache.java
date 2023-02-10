@@ -99,20 +99,20 @@ public final class OptOutQueryCache extends IndexQueryCache {
         try {
             weight.getQuery().visit(new QueryVisitor() {
                 @Override
-                public void consumeTerms(Query query, Term... terms) {
+                public void consumeTerms(org.apache.lucene.search.Query query, Term... terms) {
                     if (cacheableQueryTypes.contains(query.getClass()) == false) {
-                        throw new UnsupportedOperationException();
+                        throw new FLSQueryNotCacheable("Query type not supported");
                     }
                 }
 
                 public void visitLeaf(Query query) {
                     if (cacheableQueryTypes.contains(query.getClass()) == false) {
-                        throw new UnsupportedOperationException();
+                        throw new FLSQueryNotCacheable("Query type not supported");
                     }
                 }
 
                 @Override
-                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, org.apache.lucene.search.Query parent) {
                     return this; // we want to use the same visitor for must_not clauses too
                 }
 
@@ -120,15 +120,23 @@ public final class OptOutQueryCache extends IndexQueryCache {
                 public boolean acceptField(String field) {
                     // don't cache any internal fields (e.g. _field_names), these are complicated.
                     if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
-                        throw new UnsupportedOperationException();
+                        throw new FLSQueryNotCacheable("Query field has FLS permissions");
                     }
                     return super.acceptField(field);
                 }
             });
-        } catch (UnsupportedOperationException e) {
+        } catch (FLSQueryNotCacheable e) {
             return false;
         }
         // we can cache, all fields are ok
         return true;
+    }
+
+    private static class FLSQueryNotCacheable extends RuntimeException {
+
+        public FLSQueryNotCacheable(String message) {
+            // don't waste time filling in the stacktrace
+            super(message, null, false, false);
+        }
     }
 }

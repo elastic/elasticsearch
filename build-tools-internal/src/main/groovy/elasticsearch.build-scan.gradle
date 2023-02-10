@@ -104,10 +104,11 @@ buildScan {
       uploadInBackground = false
 
       def branch = System.getenv('BUILDKITE_BRANCH')
+      def repository = (System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/).group(2)
       tag 'CI'
       link 'CI Build', buildKiteUrl
-      tag branch
       value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+
 
       // Add SCM information
       def prId = System.getenv('BUILDKITE_PULL_REQUEST')
@@ -117,15 +118,12 @@ buildScan {
         tag "pr/${prId}"
         tag 'pull-request'
         link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
-        def prUrl = "${prBaseUrl}/pull/${prId}"
+        def prUrl = "https://github.com/${repository}/pull/${prId}"
         link 'Pull Request', prUrl
       } else {
-        def repoUrl = System.getenv('BUILDKITE_REPO')
-        if (repoUrl.startsWith('git@github')) {
-          repoUrl = repoUrl.replaceAll("git\\@github\\.com\\:", "https://github.com/").replaceAll("\\.git", "/tree/$branch")
-        }
         value 'Git Commit ID', BuildParams.gitRevision
-        link 'Source', "${repoBaseUrl}/tree/${BuildParams.gitRevision}"
+        link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
+        tag branch
       }
     } else {
       tag 'LOCAL'

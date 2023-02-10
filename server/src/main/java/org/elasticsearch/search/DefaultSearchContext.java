@@ -326,7 +326,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     PreallocatedCircuitBreakerService getPreallocatedBreakerService() {
-       return this.preallocatedBreakerService;
+        return this.preallocatedBreakerService;
     }
 
     @Override

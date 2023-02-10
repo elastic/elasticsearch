@@ -548,12 +548,19 @@ public class ApiKeyService {
         if (requestHasRoleDescriptorsWithoutRemoteIndicesPrivileges || version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             return userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
-                    logger.warn(
-                        "Removed remote indices privileges from role [{}] for API key(s) [{}]",
+                    logger.info(
+                        "removed remote indices privileges from role [{}] for API key(s) [{}]",
                         roleDescriptor.getName(),
                         String.join(", ", apiKeyIds)
                     );
-                    HeaderWarning.addWarning("Remote indices privileges from role [" + roleDescriptor.getName() + "] have been removed");
+
+                    if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+                        HeaderWarning.addWarning(
+                            "Removed API key's remote indices privileges from role ["
+                                + roleDescriptor.getName()
+                                + "]. Remote indices are not supported by all nodes in the cluster."
+                        );
+                    }
 
                     return new RoleDescriptor(
                         roleDescriptor.getName(),

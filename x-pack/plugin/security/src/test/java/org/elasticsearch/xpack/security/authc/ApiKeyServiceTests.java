@@ -2138,20 +2138,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
         assertThat(result.size(), equalTo(userRoleDescriptors.size()));
-
-        // Roles for which warning headers are added.
-        final String[] userRoleNamesWithRemoteIndicesPrivileges = userRoleDescriptors.stream()
-            .filter(RoleDescriptor::hasRemoteIndicesPrivileges)
-            .map(RoleDescriptor::getName)
-            .toArray(String[]::new);
-
-        assertRoleWarnings(userRoleNamesWithRemoteIndicesPrivileges);
     }
 
     private void assertRoleWarnings(String... roleNames) {
         String[] warnings = new String[roleNames.length];
         for (int i = 0; i < roleNames.length; ++i) {
-            warnings[i] = "Remote indices privileges from role [" + roleNames[i] + "] have been removed";
+            warnings[i] = "Removed API key's remote indices privileges from role ["
+                + roleNames[i]
+                + "]. Remote indices are not supported by all nodes in the cluster.";
         }
         assertWarnings(warnings);
     }

@@ -28,25 +28,34 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.blobcache.BlobCachePlugin;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesRequestCacheUtils;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -57,7 +66,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
@@ -428,6 +439,95 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertEquals(bulk1DocsToIndex + bulk2DocsToIndex, search2Response.getHits().getTotalHits().value);
         secondBulkIndexed.countDown();
         searchFinished.await();
+    }
+
+    public void testRequestCache() {
+        startMasterOnlyNode();
+        int numberOfShards = 1;
+        startIndexNodes(numberOfShards);
+        startSearchNodes(numberOfShards);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfShards)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        List<Integer> data = randomList(4, 64, ESTestCase::randomInt);
+        for (int i = 0; i < data.size(); i++) {
+            indexDocWithRange(indexName, String.valueOf(i + 1), data.get(i));
+        }
+        flush(indexName);
+
+        // Use a fixed client in order to avoid randomizing timeouts which leads to different cache entries
+        var client = client();
+        assertRequestCacheStats(client, indexName, equalTo(0L), 0, 0);
+
+        int min = Collections.min(data);
+        int max = Collections.max(data);
+        var cacheMiss = countDocsInRange(client, indexName, min, max);
+        assertThat(cacheMiss.getHits().getTotalHits().value, equalTo((long) data.size()));
+        assertRequestCacheStats(client, indexName, greaterThan(0L), 0, 1);
+
+        int nbSearchesWithCacheHits = randomIntBetween(1, 10);
+        for (int i = 0; i < nbSearchesWithCacheHits; i++) {
+            var cacheHit = countDocsInRange(client, indexName, min, max);
+            assertThat(cacheHit.getHits().getTotalHits().value, equalTo((long) data.size()));
+            assertRequestCacheStats(client, indexName, greaterThan(0L), i + 1, 1);
+        }
+
+        List<Integer> moreData = randomList(4, 64, () -> randomIntBetween(min, max));
+        for (int i = 0; i < moreData.size(); i++) {
+            indexDocWithRange(indexName, String.valueOf(data.size() + i + 1), moreData.get(i));
+        }
+        // refresh forces a reopening of the reader on the search shard. Because the reader is part of the request
+        // cache key further count requests will account for cache misses
+        refresh(indexName);
+
+        var cacheMissDueRefresh = countDocsInRange(client, indexName, min, max);
+        assertThat(cacheMissDueRefresh.getHits().getTotalHits().value, equalTo((long) (data.size() + moreData.size())));
+        assertRequestCacheStats(client, indexName, greaterThan(0L), nbSearchesWithCacheHits, 2);
+
+        // Verify that the request cache evicts the closed index
+        client().admin().indices().prepareClose(indexName).get();
+        ensureGreen(indexName);
+        for (var indicesService : internalCluster().getInstances(IndicesService.class)) {
+            var indicesRequestCache = IndicesRequestCacheUtils.getRequestCache(indicesService);
+            IndicesRequestCacheUtils.cleanCache(indicesRequestCache);
+            assertThat(Iterables.size(IndicesRequestCacheUtils.cachedKeys(indicesRequestCache)), equalTo(0L));
+        }
+    }
+
+    private static SearchResponse countDocsInRange(Client client, String index, int min, int max) {
+        SearchResponse response = client.prepareSearch(index)
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0) // index request cache only supports count requests
+            .setQuery(QueryBuilders.rangeQuery("f").gte(min).lte(max))
+            .get();
+        assertSearchResponse(response);
+        return response;
+    }
+
+    private static void assertRequestCacheStats(
+        Client client,
+        String index,
+        Matcher<Long> memorySize,
+        long expectedHits,
+        long expectedMisses
+    ) {
+        var requestCache = client.admin().indices().prepareStats(index).setRequestCache(true).get().getTotal().getRequestCache();
+        assertThat(requestCache.getMemorySize().getBytes(), memorySize);
+        assertThat(requestCache.getHitCount(), equalTo(expectedHits));
+        assertThat(requestCache.getMissCount(), equalTo(expectedMisses));
+    }
+
+    private static void indexDocWithRange(String index, String id, int value) {
+        assertThat(client().prepareIndex(index).setId(id).setSource("f", value).get().status(), equalTo(RestStatus.CREATED));
     }
 
     private Set<String> indexDocsWithRefreshAndGetIds(String indexName, int numDocs) throws Exception {

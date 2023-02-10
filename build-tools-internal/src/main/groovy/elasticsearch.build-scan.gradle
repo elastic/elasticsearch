@@ -121,11 +121,11 @@ buildScan {
       buildScanPublished { scan ->
         // Attach build scan link as build metadata
         // See: https://buildkite.com/docs/pipelines/build-meta-data
-        "buildkite-agent meta-data set build-scan-${System.getenv('BUILDKITE_JOB_ID')} ${scan.buildScanUri}".execute()
+        ['buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"].execute()
 
         // Add a build annotation
         // See: https://buildkite.com/docs/agent/v3/cli-annotate
-        "buildkite-agent annotate --context gradle-build-scans --append --style info 'Gradle build scan `[link](${scan.buildScanUri})`'".execute()
+        ['buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', "Build scan for '${System.getenv('BUILDKITE_LABEL')}': [`gradle ${gradle.startParameter.taskNames.join(' ')}`](${scan.buildScanUri})"].execute()
       }
     } else {
       tag 'LOCAL'

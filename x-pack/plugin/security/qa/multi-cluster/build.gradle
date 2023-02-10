@@ -50,13 +50,21 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   extraConfigFile 'remote-cluster.cert', file("src/test/resources/ssl/remote_cluster.crt")
   extraConfigFile 'remote-cluster.ca', file("src/test/resources/ssl/remote-cluster-ca.crt")
 
-  setting 'xpack.security.remote_cluster.ssl.enabled', 'true'
-  setting 'xpack.security.remote_cluster.ssl.key', 'remote-cluster.key'
-  setting 'xpack.security.remote_cluster.ssl.certificate', 'remote-cluster.cert'
-  keystore 'xpack.security.remote_cluster.ssl.secure_key_passphrase', 'remote-cluster-password'
-  // client auth defaults to none for remote_cluster
+  // Remote cluster server SSL is enabled by default
   if (BuildParams.random.nextBoolean()) {
-    setting 'xpack.security.remote_cluster.ssl.client_authentication', 'none'
+    setting 'xpack.security.remote_cluster_server.ssl.enabled', 'true'
+  }
+  setting 'xpack.security.remote_cluster_server.ssl.key', 'remote-cluster.key'
+  setting 'xpack.security.remote_cluster_server.ssl.certificate', 'remote-cluster.cert'
+  keystore 'xpack.security.remote_cluster_server.ssl.secure_key_passphrase', 'remote-cluster-password'
+  // client auth defaults to none for remote_cluster_server
+  if (BuildParams.random.nextBoolean()) {
+    setting 'xpack.security.remote_cluster_server.ssl.client_authentication', 'none'
+  }
+
+  // The remote cluster client SSL can be enabled or disable independently from the server
+  if (BuildParams.random.nextBoolean()) {
+    setting 'xpack.security.remote_cluster_client.ssl.enabled', 'false'
   }
 
   user username: "test_user", password: "x-pack-test-password"
@@ -88,8 +96,12 @@ def queryingCluster = testClusters.register('querying-cluster') {
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
 
   // Client (QC) side ssl configuration for remote cluster
+  // Remote cluster client SSL is enabled by default
+  if (BuildParams.random.nextBoolean()) {
+    setting 'xpack.security.remote_cluster_client.ssl.enabled', 'true'
+  }
   extraConfigFile 'remote-cluster.ca', file("src/test/resources/ssl/remote-cluster-ca.crt")
-  setting 'xpack.security.remote_cluster.ssl.certificate_authorities', 'remote-cluster.ca'
+  setting 'xpack.security.remote_cluster_client.ssl.certificate_authorities', 'remote-cluster.ca'
 
   setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
   setting 'cluster.remote.my_remote_cluster.proxy_address', {

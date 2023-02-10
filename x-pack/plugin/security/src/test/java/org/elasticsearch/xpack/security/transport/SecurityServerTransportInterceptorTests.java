@@ -94,6 +94,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -860,7 +861,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .put(this.settings)
             .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
             .put("remote_cluster.enabled", true)
-            .put("xpack.security.remote_cluster.ssl.enabled", remoteClusterSslEnabled);
+            .put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);
+        if (randomBoolean()) {
+            builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
+        }
         final SSLService sslService = mock(SSLService.class);
 
         when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
@@ -876,9 +880,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             )
         );
 
-        when(sslService.getSSLConfiguration("xpack.security.remote_cluster.ssl.")).thenReturn(
+        when(sslService.getSSLConfiguration("xpack.security.remote_cluster_server.ssl.")).thenReturn(
             new SslConfiguration(
-                "xpack.security.remote_cluster.ssl",
+                "xpack.security.remote_cluster_server.ssl",
                 randomBoolean(),
                 mock(SslTrustConfig.class),
                 mock(SslKeyConfig.class),
@@ -888,6 +892,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 List.of("TLSv1.2")
             )
         );
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
+            .getSSLConfiguration("xpack.security.remote_cluster_client.ssl.");
 
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
@@ -918,7 +924,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .put(this.settings)
             .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
             .put("remote_cluster.enabled", false)
-            .put("xpack.security.remote_cluster.ssl.enabled", randomBoolean());
+            .put("xpack.security.remote_cluster_server.ssl.enabled", randomBoolean());
+        if (randomBoolean()) {
+            builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
+        }
         final SSLService sslService = mock(SSLService.class);
 
         when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
@@ -933,6 +942,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 List.of("TLSv1.3")
             )
         );
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster server when the port is disabled")).when(
+            sslService
+        ).getSSLConfiguration("xpack.security.remote_cluster_server.ssl.");
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
+            .getSSLConfiguration("xpack.security.remote_cluster_client.ssl.");
 
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),

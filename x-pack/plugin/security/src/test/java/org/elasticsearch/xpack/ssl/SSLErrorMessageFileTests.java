@@ -207,7 +207,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testMessageForRemoteClusterSslEnabledWithoutKeys() {
-        final String prefix = "xpack.security.remote_cluster.ssl";
+        final String prefix = "xpack.security.remote_cluster_server.ssl";
         final Settings.Builder builder = Settings.builder().put("remote_cluster.enabled", true);
         // remote cluster ssl is enabled by default
         if (randomBoolean()) {
@@ -239,7 +239,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testNoErrorIfRemoteClusterOrSslDisabledWithoutKeys() {
-        final String prefix = "xpack.security.remote_cluster.ssl";
+        final String prefix = "xpack.security.remote_cluster_server.ssl";
         final Settings.Builder builder = Settings.builder().put(prefix + ".enabled", false);
         if (randomBoolean()) {
             builder.put("remote_cluster.enabled", true);

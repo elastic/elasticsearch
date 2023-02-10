@@ -74,6 +74,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
     static {
         final Stream<String> actions = Stream.of(
+            TransportService.HANDSHAKE_ACTION_NAME,
             SearchAction.NAME,
             ClusterStateAction.NAME,
             ClusterSearchShardsAction.NAME,

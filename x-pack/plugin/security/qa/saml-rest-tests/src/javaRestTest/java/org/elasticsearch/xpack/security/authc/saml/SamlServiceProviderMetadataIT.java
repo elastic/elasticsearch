@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,12 +21,15 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.http.PemHttpsConfigurator;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -49,38 +54,42 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
     private static HttpsServer httpsServer;
     private static Map<Integer, Boolean> metadataAvailable = new HashMap<>();
 
-    @ClassRule
-    public static ElasticsearchCluster cluster;
+    public static ElasticsearchCluster cluster = initTestCluster();
 
     private static Path caPath;
 
-    static {
-        httpsServer = initMockWebserver();
-        cluster = initTestCluster(httpsServer.getAddress());
-    }
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlServiceProviderMetadataIT::initWebserver))
+        .around(cluster);
 
-    private static HttpsServer initMockWebserver() {
+    private static void initWebserver() {
         try {
             final InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
             final Path cert = getDataResource("/ssl/http.crt");
             final Path key = getDataResource("/ssl/http.key");
-            HttpsServer webServer = MockHttpServer.createHttps(address, 0);
-            webServer.setHttpsConfigurator(new PemHttpsConfigurator(cert, key, new char[0]));
-            webServer.start();
-            return webServer;
+            httpsServer = MockHttpServer.createHttps(address, 0);
+            httpsServer.setHttpsConfigurator(new PemHttpsConfigurator(cert, key, new char[0]));
+            httpsServer.start();
+            List.of(1, 2, 3).forEach(realmNumber -> {
+                try {
+                    configureMetadataResource(realmNumber);
+                } catch (CertificateException | IOException | URISyntaxException e) {
+                    throw new RuntimeException("Cannot configure metadata for realm " + realmNumber, e);
+                }
+            });
         } catch (URISyntaxException | IOException | GeneralSecurityException e) {
             throw new RuntimeException("Failed to initialise mock web server", e);
         }
     }
 
-    private static Path getDataResource(String relativePath) throws URISyntaxException {
-        return PathUtils.get(SamlServiceProviderMetadataIT.class.getResource(relativePath).toURI());
+    @AfterClass
+    public static void shutdownWebserver() {
+        httpsServer.stop(0);
+        httpsServer = null;
     }
 
-    private static ElasticsearchCluster initTestCluster(InetSocketAddress samlWebServerAddress) {
-        var https = "https://" + samlWebServerAddress.getHostName() + ":" + samlWebServerAddress.getPort() + "/";
-
-        LocalClusterSpecBuilder clusterBuilder = ElasticsearchCluster.local()
+    private static ElasticsearchCluster initTestCluster() {
+        return ElasticsearchCluster.local()
             .nodes(1)
             .module("analysis-common")
             .setting("xpack.license.self_generated.type", "trial")
@@ -101,44 +110,52 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
             .user("rest_test", "rest_password")
             .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
             .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
-            .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"));
+            .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+            .settings(node -> {
+                var samlWebServerAddress = httpsServer.getAddress();
+                var https = "https://" + samlWebServerAddress.getHostName() + ":" + samlWebServerAddress.getPort() + "/";
+                var settings = new MapBuilder<String, String>();
+                for (int realmNumber : List.of(1, 2, 3)) {
+                    var prefix = "xpack.security.authc.realms.saml.saml" + realmNumber;
+                    var idpEntityId = getIdpEntityId(realmNumber);
+                    settings.put(prefix + ".order", String.valueOf(realmNumber))
+                        .put(prefix + ".idp.entity_id", idpEntityId)
+                        .put(prefix + ".idp.metadata.path", https + "metadata/" + realmNumber + ".xml")
+                        .put(prefix + ".sp.entity_id", "https://sp" + realmNumber + ".example.org/")
+                        .put(prefix + ".sp.acs", https + "acs/" + realmNumber)
+                        .put(prefix + ".attributes.principal", "urn:oid:2.5.4.3")
+                        .put(prefix + ".ssl.certificate_authorities", "ca.crt");
 
-        for (int realmNumber : List.of(1, 2, 3)) {
-            var prefix = "xpack.security.authc.realms.saml.saml" + realmNumber;
-            var idpEntityId = "https://idp" + realmNumber + ".example.org/";
-            clusterBuilder.setting(prefix + ".order", String.valueOf(realmNumber))
-                .setting(prefix + ".idp.entity_id", idpEntityId)
-                .setting(prefix + ".idp.metadata.path", https + "metadata/" + realmNumber + ".xml")
-                .setting(prefix + ".sp.entity_id", "https://sp" + realmNumber + ".example.org/")
-                .setting(prefix + ".sp.acs", https + "acs/" + realmNumber)
-                .setting(prefix + ".attributes.principal", "urn:oid:2.5.4.3")
-                .setting(prefix + ".ssl.certificate_authorities", "ca.crt");
-
-            try {
-                configureMetadataResource(realmNumber, idpEntityId);
-            } catch (CertificateException | IOException | URISyntaxException e) {
-                throw new RuntimeException("Cannot configure metadata for realm " + realmNumber, e);
-            }
-        }
-        return clusterBuilder.build();
+                }
+                return settings.map();
+            })
+            .build();
     }
 
-    private static void configureMetadataResource(int realmNumber, String idpEntityId) throws CertificateException, IOException,
-        URISyntaxException {
+    private static void configureMetadataResource(int realmNumber) throws CertificateException, IOException, URISyntaxException {
         metadataAvailable.putIfAbsent(realmNumber, false);
+
         var signingCert = getDataResource("/saml/signing.crt");
-        var metadataBody = new SamlIdpMetadataBuilder().entityId(idpEntityId).sign(signingCert).asString();
+        var metadataBody = new SamlIdpMetadataBuilder().entityId(getIdpEntityId(realmNumber)).sign(signingCert).asString();
         httpsServer.createContext("/metadata/" + realmNumber + ".xml", http -> {
             if (metadataAvailable.get(realmNumber)) {
-                http.getResponseHeaders().add("Content-Type", "text/xml");
-                http.sendResponseHeaders(200, metadataBody.length());
-                try (var out = http.getResponseBody()) {
-                    out.write(metadataBody.getBytes(StandardCharsets.UTF_8));
-                }
+                sendXmlContent(metadataBody, http);
             } else {
-                http.sendResponseHeaders(404, 0);
+                if (randomBoolean()) {
+                    http.sendResponseHeaders(randomFrom(404, 401, 403, 500), 0);
+                } else {
+                    sendXmlContent("not valid xml", http);
+                }
             }
         });
+    }
+
+    private static void sendXmlContent(String bodyContent, HttpExchange http) throws IOException {
+        http.getResponseHeaders().add("Content-Type", "text/xml");
+        http.sendResponseHeaders(200, bodyContent.length());
+        try (var out = http.getResponseBody()) {
+            out.write(bodyContent.getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     @BeforeClass
@@ -198,7 +215,7 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
     private void samlAuthUser(int realmNumber, String username) throws Exception {
         var httpsAddress = httpsServer.getAddress();
         var message = new SamlResponseBuilder().spEntityId("https://sp" + realmNumber + ".example.org/")
-            .idpEntityId("https://idp" + realmNumber + ".example.org/")
+            .idpEntityId(getIdpEntityId(realmNumber))
             .acs(new URL("https://" + httpsAddress.getHostName() + ":" + httpsAddress.getPort() + "/acs/" + realmNumber))
             .attribute("urn:oid:2.5.4.3", username)
             .sign(getDataPath("/saml/signing.crt"), getDataPath("/saml/signing.key"), new char[0])
@@ -214,6 +231,14 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
         req.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().map(body)));
         var resp = entityAsMap(client().performRequest(req));
         assertThat(resp.get("username"), equalTo(username));
+    }
+
+    private static Path getDataResource(String relativePath) throws URISyntaxException {
+        return PathUtils.get(SamlServiceProviderMetadataIT.class.getResource(relativePath).toURI());
+    }
+
+    private static String getIdpEntityId(int realmNumber) {
+        return "https://idp" + realmNumber + ".example.org/";
     }
 
     private void makeMetadataAvailable(int... realms) {

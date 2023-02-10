@@ -815,6 +815,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().ints(streamSize);
     }
 
+    public static int randomNonNegativeInt() {
+        return randomInt() & Integer.MAX_VALUE;
+    }
+
     /**
      * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */

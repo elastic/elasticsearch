@@ -8,12 +8,13 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryCollectorContext;
 
 public interface RankContext {
 
-    public QueryCollectorContext createQueryCollectorContext(SearchContext searchContext);
-
+    Query applyRankWrappers(Query query);
+    QueryCollectorContext createQueryCollectorContext(Query query, SearchContext searchContext);
 
 }

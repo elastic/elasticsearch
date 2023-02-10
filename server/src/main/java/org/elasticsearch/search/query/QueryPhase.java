@@ -16,6 +16,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -41,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
@@ -129,10 +131,6 @@ public class QueryPhase {
             }
 
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
-            if (searchContext.rankContext() != null) {
-                // add in the rank collector just before top docs
-                collectors.add(searchContext.rankContext().createQueryCollectorContext(searchContext));
-            }
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
@@ -201,10 +199,18 @@ public class QueryPhase {
         LinkedList<QueryCollectorContext> collectors,
         boolean timeoutSet
     ) throws IOException {
+        QueryCollectorContext rankCollectorContext = null;
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext);
-        // add the top docs collector, the first collector context in the chain
-        collectors.addFirst(topDocsFactory);
+        if (searchContext.rankContext() != null) {
+            query = searchContext.rankContext().applyRankWrappers(query);
+            // add in the rank collector just before top docs
+            rankCollectorContext = searchContext.rankContext().createQueryCollectorContext(query, searchContext);
+            collectors.add(createMultiCollectorContext(List.of(topDocsFactory.create(null), rankCollectorContext.create(null))));
+        } else {
+            // add the top docs collector, the first collector context in the chain
+            collectors.addFirst(topDocsFactory);
+        }
 
         final Collector queryCollector;
         if (searchContext.getProfilers() != null) {
@@ -232,6 +238,10 @@ public class QueryPhase {
         }
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
+        }
+        if (rankCollectorContext != null) {
+            rankCollectorContext.postProcess(queryResult);
+            topDocsFactory.postProcess(queryResult);
         }
         return topDocsFactory.shouldRescore();
     }

@@ -59,7 +59,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
-        configureRemoteClusterWithApiKey("""
+        configureRemoteClustersWithApiKey("""
             [
                {
                  "names": ["index*", "not_found_index"],

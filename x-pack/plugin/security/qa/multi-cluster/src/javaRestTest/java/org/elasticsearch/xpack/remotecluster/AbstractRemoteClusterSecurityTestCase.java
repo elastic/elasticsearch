@@ -62,12 +62,11 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static RestClient fulfillingClusterClient;
 
     @Before
-    public void initFulFillingClusterClient() throws IOException {
+    public void initFulfillingClusterClient() throws IOException {
         if (fulfillingClusterClient == null) {
             assert fulfillingCluster != null;
             fulfillingClusterClient = buildClient(fulfillingCluster.getHttpAddresses());
         }
-        assert fulfillingClusterClient != null;
     }
 
     @AfterClass
@@ -86,7 +85,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected void configureRemoteClusterWithApiKey(String indicesPrivilegesJson) throws IOException {
+    protected void configureRemoteClustersWithApiKey(String indicesPrivilegesJson) throws IOException {
         // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
@@ -99,7 +98,6 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
                 }
               }
             }""", indicesPrivilegesJson));
-        // Index API key so querying cluster can retrieve and add it to its cluster settings
         final Response createApiKeyResponse = performRequestAgainstFulfillingCluster(createApiKeyRequest);
         assertOK(createApiKeyResponse);
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);

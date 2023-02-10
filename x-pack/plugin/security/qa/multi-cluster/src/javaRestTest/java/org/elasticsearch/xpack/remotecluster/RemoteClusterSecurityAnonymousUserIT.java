@@ -60,7 +60,7 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
-        configureRemoteClusterWithApiKey("""
+        configureRemoteClustersWithApiKey("""
             [
                {
                  "names": ["shared-*"],

@@ -32,6 +32,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
     public static final String NAME = "text_expansion";
@@ -133,7 +136,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
         SetOnce<SlimResults> slimResultsSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            client.execute(InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(inferenceResponse -> {
+            executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(inferenceResponse -> {
 
                 if (inferenceResponse.getInferenceResults().isEmpty()) {
                     listener.onFailure(new IllegalStateException("inference response contain no results"));

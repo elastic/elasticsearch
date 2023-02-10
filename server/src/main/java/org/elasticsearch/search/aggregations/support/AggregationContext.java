@@ -575,13 +575,6 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public void close() {
-            /*
-             * Add the breakerService to the end of the list so we release it
-             * after all the aggregations that allocate bytes on it.
-             */
-            List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
-            // NOCOMMIT - Probably remove this whole method?
-            // releaseMe.add(preallocatedBreakerService);
             Releasables.close(releaseMe);
         }
     }

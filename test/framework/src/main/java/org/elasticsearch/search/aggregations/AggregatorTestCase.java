@@ -381,6 +381,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return context;
     }
 
+    private void closePreallocatedBreaker() {
+        if (this.preallocatedCircuitBreakerService != null) {
+            Releasables.closeExpectNoException(this.preallocatedCircuitBreakerService);
+        }
+        this.preallocatedCircuitBreakerService = null;
+    }
+
     /**
      * Build a {@link FieldMapper} to create the {@link MappingLookup} used for the aggs.
      * {@code protected} so subclasses can have it.
@@ -553,6 +560,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     aggs.add(a.buildTopLevel());
                 } finally {
                     Releasables.close(context);
+                    closePreallocatedBreaker();
                 }
             }
         } else {
@@ -578,6 +586,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 aggs.add(root.buildTopLevel());
             } finally {
                 Releasables.close(context);
+                closePreallocatedBreaker();
             }
         }
         assertRoundTrip(aggs);
@@ -820,6 +829,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             verifyOutputFieldNames(builder, result);
         } finally {
             Releasables.close(context);
+            closePreallocatedBreaker();
         }
     }
 

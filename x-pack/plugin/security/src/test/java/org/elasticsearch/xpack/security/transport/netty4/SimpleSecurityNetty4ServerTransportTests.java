@@ -137,7 +137,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         // Some tests use a client profile. Put the passphrase in the secure settings for the profile (secure settings cannot be set twice)
         secureSettings.setString("transport.profiles.client.xpack.security.ssl.secure_key_passphrase", "testnode");
         // For test that enables remote cluster port
-        secureSettings.setString("xpack.security.remote_cluster.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "testnode");
         Settings settings1 = Settings.builder()
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", testnodeKey)
@@ -507,9 +507,9 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         final Settings fcSettings = Settings.builder()
             .put("remote_cluster.enabled", "true")
             .put("remote_cluster.port", "9999")
-            .put("xpack.security.remote_cluster.ssl.key", testnodeKey)
-            .put("xpack.security.remote_cluster.ssl.certificate", testnodeCert)
-            .put("xpack.security.remote_cluster.ssl.client_authentication", "none")
+            .put("xpack.security.remote_cluster_server.ssl.key", testnodeKey)
+            .put("xpack.security.remote_cluster_server.ssl.certificate", testnodeCert)
+            .put("xpack.security.remote_cluster_server.ssl.client_authentication", "none")
             .build();
 
         try (MockTransportService fcService = buildService("FC", Version.CURRENT, fcSettings)) {
@@ -535,7 +535,9 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             }
 
             // 2. Connection will success because QC does not verify FC server certificate
-            final Settings qcSettings2 = Settings.builder().put("xpack.security.remote_cluster.ssl.verification_mode", "none").build();
+            final Settings qcSettings2 = Settings.builder()
+                .put("xpack.security.remote_cluster_client.ssl.verification_mode", "none")
+                .build();
             try (
                 MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings2);
                 Transport.Connection connection = openConnection(qcService, node, connectionProfile)
@@ -557,8 +559,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
 
             // 3. Connection will success because QC is explicitly configured to trust FC server certificate
             final Settings qcSettings3 = Settings.builder()
-                .put("xpack.security.remote_cluster.ssl.certificate_authorities", testnodeCert)
-                .put("xpack.security.remote_cluster.ssl.verification_mode", "full")
+                .put("xpack.security.remote_cluster_client.ssl.certificate_authorities", testnodeCert)
+                .put("xpack.security.remote_cluster_client.ssl.verification_mode", "full")
                 .build();
             try (
                 MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings3);
@@ -600,7 +602,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         final Settings fcSettings = Settings.builder()
             .put("remote_cluster.enabled", "true")
             .put("remote_cluster.port", "9999")
-            .put("xpack.security.remote_cluster.ssl.enabled", "false")
+            .put("xpack.security.remote_cluster_server.ssl.enabled", "false")
             .build();
 
         try (MockTransportService fcService = buildService("FC", Version.CURRENT, fcSettings)) {
@@ -611,7 +613,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 remoteAccessAddress,
                 fcService.getLocalNode().getVersion()
             );
-            final Settings qcSettings = Settings.builder().put("xpack.security.remote_cluster.ssl.enabled", "false").build();
+            final Settings qcSettings = Settings.builder().put("xpack.security.remote_cluster_client.ssl.enabled", "false").build();
             try (
                 MockTransportService qcService = buildService("QC", Version.CURRENT, qcSettings);
                 Transport.Connection connection = openConnection(qcService, node, connectionProfile)

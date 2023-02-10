@@ -91,8 +91,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.multimodalDistribution = in.readOptionalBoolean();
         }
-        // TODO: change to 8.8
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             this.byFieldFirstOccurrence = in.readOptionalBoolean();
             this.byFieldRelativeRarity = in.readOptionalDouble();
         }

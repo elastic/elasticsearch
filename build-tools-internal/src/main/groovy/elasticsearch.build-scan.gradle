@@ -133,7 +133,7 @@ buildScan {
           .findAll { it.startsWith('build-scan-') }
           .collect { Integer.parseInt(it.substring(11)) }
           .max() ?: -1
-        "buildkite-agent meta-data set 'build-scan-${count + 1}' '${scan.buildScanUri}'"
+        "buildkite-agent meta-data set 'build-scan-${count + 1}' '${scan.buildScanUri}'".execute()
       }
     } else {
       tag 'LOCAL'

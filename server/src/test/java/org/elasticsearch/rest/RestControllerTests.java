@@ -59,7 +59,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.rest.RestController.ENFORCE_API_PROTECTIONS_SETTING;
+import static org.elasticsearch.rest.RestController.ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER;
+import static org.elasticsearch.rest.RestController.ENFORCE_SERVERLESS_API_SCOPE_SETTING;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
 import static org.hamcrest.Matchers.containsString;
@@ -1062,7 +1063,7 @@ public class RestControllerTests extends ESTestCase {
                 circuitBreakerService,
                 new UsageService(),
                 tracer,
-                Settings.builder().put(ENFORCE_API_PROTECTIONS_SETTING.getKey(), "true").build()
+                Settings.builder().put(ENFORCE_SERVERLESS_API_SCOPE_SETTING.getKey(), "true").build()
             );
             restController.registerHandler(new PublicRestHandler());
             restController.registerHandler(new InternalRestHandler());
@@ -1089,13 +1090,13 @@ public class RestControllerTests extends ESTestCase {
                 circuitBreakerService,
                 new UsageService(),
                 tracer,
-                Settings.builder().put(ENFORCE_API_PROTECTIONS_SETTING.getKey(), "true").build()
+                Settings.builder().put(ENFORCE_SERVERLESS_API_SCOPE_SETTING.getKey(), "true").build()
             );
             restController.registerHandler(new PublicRestHandler());
             restController.registerHandler(new InternalRestHandler());
             restController.registerHandler(new HiddenRestHandler());
             Map<String, List<String>> headers = new HashMap<>();
-            headers.put("X-elastic-internal-origin", Collections.singletonList("true"));
+            headers.put(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER, Collections.singletonList("true"));
             List<String> accessiblePaths = List.of("/public", "/internal");
             accessiblePaths.forEach(path -> {
                 RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();

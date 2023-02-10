@@ -72,10 +72,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    static final String ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER = "X-elastic-internal-origin";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
-    public static final Setting<Boolean> ENFORCE_API_PROTECTIONS_SETTING = Setting.boolSetting(
-        "rest.enforce_api_protections",
+    // The value of this setting determines whether the ServerlessScope annotations will be enforced:
+    public static final Setting<Boolean> ENFORCE_SERVERLESS_API_SCOPE_SETTING = Setting.boolSetting(
+        "rest.enforce_serverless_api_scope",
         false,
         Setting.Property.NodeScope
     );
@@ -103,7 +105,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
     private final Tracer tracer;
-    private final boolean enforceProtections;
+    // If true, the ServerlessScope annotations will be enforced
+    private final boolean enforceServerlessApiScoe;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
@@ -124,7 +127,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
-        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(settings);
+        this.enforceServerlessApiScoe = ENFORCE_SERVERLESS_API_SCOPE_SETTING.get(settings);
     }
 
     /**
@@ -311,12 +314,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * and {@code path} combinations.
      */
     public void registerHandler(final RestHandler handler) {
-        if (enforceProtections == false || getRestHandlerServlerlessScope(handler) != null) {
+        if (enforceServerlessApiScoe == false || getRestHandlerServerlessScope(handler) != null) {
             handler.routes().forEach(route -> registerHandler(route, handler));
         }
     }
 
-    private Scope getRestHandlerServlerlessScope(RestHandler handler) {
+    private Scope getRestHandlerServerlessScope(RestHandler handler) {
         ServerlessScope serverlessScope = handler.getConcreteRestHandler().getClass().getAnnotation(ServerlessScope.class);
         return serverlessScope == null ? null : serverlessScope.value();
     }
@@ -382,9 +385,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
-        if (enforceProtections) {
-            Scope scope = getRestHandlerServlerlessScope(handler);
-            final String internalOrigin = request.header("X-elastic-internal-origin");
+        if (enforceServerlessApiScoe) {
+            Scope scope = getRestHandlerServerlessScope(handler);
+            final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
             boolean internalRequest = internalOrigin != null;
             if (Scope.INTERNAL.equals(scope)) {
                 if (internalRequest == false) {

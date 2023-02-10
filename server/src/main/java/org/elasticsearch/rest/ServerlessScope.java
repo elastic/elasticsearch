@@ -8,10 +8,18 @@
 
 package org.elasticsearch.rest;
 
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
+/**
+ * This annotation is meant to be applied to RestHandler classes, and is used to determine which RestHandlers are available to requests
+ * at runtime in Serverless mode. This annotation is unused when not running in serverless mode. If this annotation is not present in a
+ * RestHandler, then that RestHandler is not available at all in Serverless mode.
+ */
 @Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
 public @interface ServerlessScope {
     Scope value();
 }

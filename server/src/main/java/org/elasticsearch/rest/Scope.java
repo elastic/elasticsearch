@@ -9,6 +9,6 @@
 package org.elasticsearch.rest;
 
 public enum Scope {
-    PUBLIC,
-    INTERNAL
+    PUBLIC, // available to all requests
+    INTERNAL // available only to requests with a X-elastic-internal-origin header
 }

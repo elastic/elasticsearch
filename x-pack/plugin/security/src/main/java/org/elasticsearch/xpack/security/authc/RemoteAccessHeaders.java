@@ -63,11 +63,11 @@ public final class RemoteAccessHeaders {
 
         private static final String PREFIX = "ApiKey";
 
-        void writeToContext(final ThreadContext ctx) {
+        private void writeToContext(final ThreadContext ctx) {
             ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, withApiKeyPrefix(encodedApiKey));
         }
 
-        static EncodedApiKeyWithPrefix readFromContext(final ThreadContext ctx) {
+        private static EncodedApiKeyWithPrefix readFromContext(final ThreadContext ctx) {
             final String clusterCredentialHeader = ctx.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
             if (clusterCredentialHeader == null) {
                 throw new IllegalArgumentException(
@@ -77,7 +77,7 @@ public final class RemoteAccessHeaders {
             return new EncodedApiKeyWithPrefix(stripApiKeyPrefix(clusterCredentialHeader));
         }
 
-        ApiKeyService.ApiKeyCredentials toApiKeyCredentials() {
+        private ApiKeyService.ApiKeyCredentials toApiKeyCredentials() {
             return ApiKeyService.getCredentialsFromHeader(withApiKeyPrefix(encodedApiKey));
         }
 

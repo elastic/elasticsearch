@@ -399,8 +399,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         };
     }
 
-    // TODO move this to RemoteClusterAuthorizationResolver;
-    public record RemoteClusterCredentials(String clusterAlias, String credential) {}
+    // TODO move this to `RemoteClusterAuthorizationResolver` and have `resolveAuthorization` return it
+    record RemoteClusterCredentials(String clusterAlias, String credential) {}
 
     private <T extends TransportResponse> void sendWithUser(
         Transport.Connection connection,

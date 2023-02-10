@@ -254,7 +254,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         ClusterState state = stateWithAssignedPrimariesAndReplicas(
             new String[] { index },
             randomIntBetween(1, 3),
-            getReplicaRoles(randomInt(2), randomInt(2))
+            getReplicaRoles(randomInt(2), randomIntBetween(1, 2))
         );
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());

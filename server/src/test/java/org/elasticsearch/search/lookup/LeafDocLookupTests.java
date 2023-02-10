@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.lookup;
 
-import net.bytebuddy.build.AccessControllerPlugin;
-
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -429,9 +427,7 @@ public class LeafDocLookupTests extends ESTestCase {
         nextDocCallback = i -> SpecialPermission.check();
 
         // mimic the untrusted codebase, which gets no permissions
-        var restrictedContext = new AccessControlContext(
-            new ProtectionDomain[] { new ProtectionDomain(null, null) }
-        );
+        var restrictedContext = new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, null) });
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
             assertEquals(docValues, fetchedDocValues);

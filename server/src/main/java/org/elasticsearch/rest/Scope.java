@@ -8,8 +8,7 @@
 
 package org.elasticsearch.rest;
 
-public enum Access {
+public enum Scope {
     PUBLIC,
-    INTERNAL,
-    HIDDEN
+    INTERNAL
 }

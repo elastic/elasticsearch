@@ -311,14 +311,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * and {@code path} combinations.
      */
     public void registerHandler(final RestHandler handler) {
-        if (enforceProtections == false || Access.HIDDEN.equals(getRestHandlerAccess(handler)) == false) {
+        if (enforceProtections == false || getRestHandlerServlerlessScope(handler) != null) {
             handler.routes().forEach(route -> registerHandler(route, handler));
         }
     }
 
-    private Access getRestHandlerAccess(RestHandler handler) {
-        AccessLevel accessLevelAnnotation = handler.getConcreteRestHandler().getClass().getAnnotation(AccessLevel.class);
-        return accessLevelAnnotation == null ? Access.HIDDEN : accessLevelAnnotation.value();
+    private Scope getRestHandlerServlerlessScope(RestHandler handler) {
+        ServerlessScope serverlessScope = handler.getConcreteRestHandler().getClass().getAnnotation(ServerlessScope.class);
+        return serverlessScope == null ? null : serverlessScope.value();
     }
 
     @Override
@@ -383,15 +383,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         RestChannel responseChannel = channel;
         if (enforceProtections) {
-            Access access = getRestHandlerAccess(handler);
+            Scope scope = getRestHandlerServlerlessScope(handler);
             final String internalOrigin = request.header("X-elastic-internal-origin");
             boolean internalRequest = internalOrigin != null;
-            if (Access.INTERNAL.equals(access)) {
+            if (Scope.INTERNAL.equals(scope)) {
                 if (internalRequest == false) {
                     handleBadRequest(request.uri(), request.method(), responseChannel);
                     return;
                 }
-            } else if (Access.PUBLIC.equals(access) == false) {
+            } else if (Scope.PUBLIC.equals(scope) == false) {
                 handleBadRequest(request.uri(), request.method(), responseChannel);
                 return;
             }
@@ -805,7 +805,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
     }
 
-    @AccessLevel(Access.PUBLIC)
+    @ServerlessScope(Scope.PUBLIC)
     private static final class RestFavIconHandler implements RestHandler {
 
         @Override

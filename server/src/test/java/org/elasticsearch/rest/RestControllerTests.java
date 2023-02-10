@@ -1111,7 +1111,7 @@ public class RestControllerTests extends ESTestCase {
         }
     }
 
-    @AccessLevel(Access.PUBLIC)
+    @ServerlessScope(Scope.PUBLIC)
     private static final class PublicRestHandler extends BaseRestHandler {
         @Override
         public String getName() {
@@ -1129,7 +1129,7 @@ public class RestControllerTests extends ESTestCase {
         }
     }
 
-    @AccessLevel(Access.INTERNAL)
+    @ServerlessScope(Scope.INTERNAL)
     private static final class InternalRestHandler extends BaseRestHandler {
         @Override
         public String getName() {

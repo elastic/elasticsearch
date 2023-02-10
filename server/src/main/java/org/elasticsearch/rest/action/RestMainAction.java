@@ -12,8 +12,8 @@ import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.rest.Access;
-import org.elasticsearch.rest.AccessLevel;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -26,7 +26,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
-@AccessLevel(Access.PUBLIC)
+@ServerlessScope(Scope.PUBLIC)
 public class RestMainAction extends BaseRestHandler {
 
     @Override

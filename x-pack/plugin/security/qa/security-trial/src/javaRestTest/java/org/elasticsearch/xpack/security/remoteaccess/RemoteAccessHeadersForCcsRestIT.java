@@ -62,6 +62,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -70,6 +71,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.UUIDs.randomBase64UUID;
@@ -175,6 +177,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 useProxyMode,
                 minimizeRoundtrips,
                 clusterCredential,
+                this::assertRemoteAccessAuthenticationMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -249,6 +252,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 useProxyModeA,
                 minimizeRoundtrips,
                 clusterCredentialA,
+                this::assertRemoteAccessAuthenticationMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -276,6 +280,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 useProxyModeB,
                 minimizeRoundtrips,
                 clusterCredentialB,
+                this::assertRemoteAccessAuthenticationMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -385,11 +390,12 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             assertOK(response);
             assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(0));
 
-            expectApiKeyActionsAndHeadersForCluster(
+            expectActionsAndHeadersForCluster(
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_A)),
                 useProxyModeA,
                 minimizeRoundtrips,
                 clusterCredentialA,
+                this::assertRemoteAccessAuthenticationMatchesApiKey,
                 new RoleDescriptorsIntersection(
                     List.of(
                         // Base API key role
@@ -428,11 +434,12 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     )
                 )
             );
-            expectApiKeyActionsAndHeadersForCluster(
+            expectActionsAndHeadersForCluster(
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_B)),
                 useProxyModeB,
                 minimizeRoundtrips,
                 clusterCredentialB,
+                this::assertRemoteAccessAuthenticationMatchesApiKey,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -745,11 +752,12 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             assertOK(response);
             assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(alsoSearchLocally ? 1 : 0));
 
-            expectApiKeyActionsAndHeadersForCluster(
+            expectActionsAndHeadersForCluster(
                 List.copyOf(capturedHeaders),
                 useProxyMode,
                 minimizeRoundtrips,
                 clusterCredential,
+                this::assertRemoteAccessAuthenticationMatchesApiKey,
                 expectedRoleDescriptorsIntersection
             );
         }
@@ -850,77 +858,57 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         }
     }
 
-    private void expectApiKeyActionsAndHeadersForCluster(
-        final List<CapturedActionWithHeaders> actualActionsWithHeaders,
-        boolean useProxyMode,
-        boolean minimizeRoundtrips,
-        final String clusterCredential,
+    private void assertRemoteAccessAuthenticationMatchesNativeUser(
+        final RemoteAccessAuthentication actualRemoteAccessAuthentication,
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
-    ) throws IOException {
-        final Set<String> expectedActions = new HashSet<>();
-        if (minimizeRoundtrips) {
-            expectedActions.add(SearchAction.NAME);
-        } else {
-            expectedActions.add(ClusterSearchShardsAction.NAME);
+    ) {
+        try {
+            final RemoteAccessAuthentication expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+                Authentication.newRealmAuthentication(
+                    new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
+                    new Authentication.RealmRef(
+                        "default_native",
+                        "native",
+                        // Since we are running on a multi-node cluster the actual node name may be different between runs
+                        // so just copy the one from the actual result
+                        actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
+                    )
+                ),
+                expectedRoleDescriptorsIntersection
+            );
+            assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        if (false == useProxyMode) {
-            expectedActions.add(ClusterStateAction.NAME);
-        }
-        assertThat(
-            actualActionsWithHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
-            equalTo(expectedActions)
-        );
-        for (CapturedActionWithHeaders actual : actualActionsWithHeaders) {
-            switch (actual.action) {
-                // the cluster state action is run by the system user, so we expect a remote access authentication header with an internal
-                // user authentication and empty role descriptors intersection
-                case ClusterStateAction.NAME -> {
-                    assertContainsRemoteAccessHeaders(actual.headers());
-                    assertContainsRemoteClusterCredential(clusterCredential, actual);
-                    final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
-                        actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
-                    );
-                    final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
-                        Authentication.newInternalAuthentication(
-                            SystemUser.INSTANCE,
-                            TransportVersion.CURRENT,
-                            // Since we are running on a multi-node cluster the actual node name may be different between runs
-                            // so just copy the one from the actual result
-                            actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
-                        ),
-                        RoleDescriptorsIntersection.EMPTY
-                    );
-                    assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
-                }
-                case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
-                    assertContainsRemoteAccessHeaders(actual.headers());
-                    assertContainsRemoteClusterCredential(clusterCredential, actual);
-                    final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
-                        actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
-                    );
-                    assertThat(
-                        actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm(),
-                        equalTo(
-                            new Authentication.RealmRef(
-                                AuthenticationField.API_KEY_REALM_NAME,
-                                AuthenticationField.API_KEY_REALM_TYPE,
-                                // Since we are running on a multi-node cluster the actual node name may be different between runs
-                                // so just copy the one from the actual result
-                                actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
-                            )
-                        )
-                    );
-                    assertThat(
-                        actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(),
-                        equalTo(REMOTE_SEARCH_USER)
-                    );
-                    assertThat(
-                        actualRemoteAccessAuthentication.getRoleDescriptorsBytesList(),
-                        equalTo(toRoleDescriptorsBytesList(expectedRoleDescriptorsIntersection))
-                    );
-                }
-                default -> fail("Unexpected action [" + actual.action + "]");
-            }
+    }
+
+    private void assertRemoteAccessAuthenticationMatchesApiKey(
+        final RemoteAccessAuthentication actualRemoteAccessAuthentication,
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
+    ) {
+        try {
+            assertThat(
+                actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm(),
+                equalTo(
+                    new Authentication.RealmRef(
+                        AuthenticationField.API_KEY_REALM_NAME,
+                        AuthenticationField.API_KEY_REALM_TYPE,
+                        // Since we are running on a multi-node cluster the actual node name may be different between runs
+                        // so just copy the one from the actual result
+                        actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
+                    )
+                )
+            );
+            assertThat(
+                actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(),
+                equalTo(REMOTE_SEARCH_USER)
+            );
+            assertThat(
+                actualRemoteAccessAuthentication.getRoleDescriptorsBytesList(),
+                equalTo(toRoleDescriptorsBytesList(expectedRoleDescriptorsIntersection))
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -939,6 +927,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         boolean useProxyMode,
         boolean minimizeRoundtrips,
         final String clusterCredential,
+        final BiConsumer<RemoteAccessAuthentication, RoleDescriptorsIntersection> remoteAccessAuthenticationChecker,
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
     ) throws IOException {
         final Set<String> expectedActions = new HashSet<>();
@@ -982,20 +971,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
                         actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
                     );
-                    final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
-                        Authentication.newRealmAuthentication(
-                            new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
-                            new Authentication.RealmRef(
-                                "default_native",
-                                "native",
-                                // Since we are running on a multi-node cluster the actual node name may be different between runs
-                                // so just copy the one from the actual result
-                                actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
-                            )
-                        ),
-                        expectedRoleDescriptorsIntersection
-                    );
-                    assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
+                    remoteAccessAuthenticationChecker.accept(actualRemoteAccessAuthentication, expectedRoleDescriptorsIntersection);
                 }
                 default -> fail("Unexpected action [" + actual.action + "]");
             }

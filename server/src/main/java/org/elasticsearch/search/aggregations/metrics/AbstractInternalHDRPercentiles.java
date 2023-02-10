@@ -157,12 +157,22 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
                 merged = new DoubleHistogram(percentiles.state);
                 merged.setAutoResize(true);
             }
-            merged.add(percentiles.state);
+            merged = merge(merged, percentiles.state);
         }
         if (merged == null) {
             merged = EMPTY_HISTOGRAM;
         }
         return createReduced(getName(), keys, merged, keyed, getMetadata());
+    }
+
+    private DoubleHistogram merge(final DoubleHistogram h1, final DoubleHistogram h2) {
+        int h1Digits = h1.getNumberOfSignificantValueDigits();
+        int h2Digits = h2.getNumberOfSignificantValueDigits();
+        final DoubleHistogram h = new DoubleHistogram(Math.max(h1Digits, h2Digits));
+        h.add(h1);
+        h.add(h2);
+
+        return h;
     }
 
     @Override

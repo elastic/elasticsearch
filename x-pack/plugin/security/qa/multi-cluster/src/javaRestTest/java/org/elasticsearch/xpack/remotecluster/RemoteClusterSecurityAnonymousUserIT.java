@@ -98,16 +98,21 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
 
             // 2. QC anonymous user fails to search more than it is allowed by the QC anonymous role
             // even when FC anonymous role allows everything
+            final String inaccessibleIndexForAnonymous = randomFrom("shared-metrics", "private-logs");
             final ResponseException e2 = expectThrows(
                 ResponseException.class,
                 () -> performAnonymousRequestAgainstQueryCluster(
-                    new Request("GET", "/my_remote_cluster:" + randomFrom("shared-metrics", "private-logs") + "/_search")
+                    new Request("GET", "/my_remote_cluster:" + inaccessibleIndexForAnonymous + "/_search")
                 )
             );
             assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(
                 e2.getMessage(),
-                containsString("action [indices:data/read/search] is unauthorized for user [_anonymous] on indices [private-logs]")
+                containsString(
+                    "action [indices:data/read/search] is unauthorized for user [_anonymous] on indices ["
+                        + inaccessibleIndexForAnonymous
+                        + "]"
+                )
             );
 
             // 3. QC search user can search both FC shared-logs (inherit from anonymous) and shared-metrics (its own role)

@@ -1024,15 +1024,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onResponse(null);
             return;
         }
-        snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
+        snapshotDeleteTaskRunner.enqueueTask(listener.map(releasable -> {
             try (releasable) {
                 deleteFromContainer(blobContainer(), filesToDelete);
-                listener.onResponse(null);
+                return null;
             } catch (Exception e) {
                 logger.warn(() -> format("%s Failed to delete some blobs during snapshot delete", snapshotIds), e);
                 throw e;
             }
-        }, listener::onFailure));
+        }));
     }
 
     // updates the shard state metadata for shards of a snapshot that is to be deleted. Also computes the files to be cleaned up.
@@ -1210,25 +1210,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (staleRootBlobs.isEmpty()) {
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
-            snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
+            snapshotDeleteTaskRunner.enqueueTask(groupedListener.map(releasable -> {
                 try (releasable) {
                     List<String> deletedBlobs = cleanupStaleRootFiles(newRepoData.getGenId() - 1, deletedSnapshots, staleRootBlobs);
-                    groupedListener.onResponse(
-                        new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum())
+                    return new DeleteResult(
+                        deletedBlobs.size(),
+                        deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum()
                     );
                 }
-            }, groupedListener::onFailure));
+            }));
         }
 
         final Set<String> survivingIndexIds = newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
         if (foundIndices.keySet().equals(survivingIndexIds)) {
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
-            snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
+            snapshotDeleteTaskRunner.enqueueTask(groupedListener.map(releasable -> {
                 try (releasable) {
-                    groupedListener.onResponse(cleanupStaleIndices(foundIndices, survivingIndexIds));
+                    return cleanupStaleIndices(foundIndices, survivingIndexIds);
                 }
-            }, groupedListener::onFailure));
+            }));
         }
     }
 
@@ -2421,7 +2422,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
-                    snapshotDeleteTaskRunner.enqueueTask(ActionListener.wrap(releasable -> {
+                    snapshotDeleteTaskRunner.enqueueTask(listener.map(releasable -> {
                         // Delete all now outdated index files up to 1000 blobs back from the new generation.
                         // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
                         // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
@@ -2436,8 +2437,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         } catch (IOException e) {
                             logger.warn(() -> "Failed to clean up old index blobs from before [" + newGen + "]", e);
                         }
-                        listener.onResponse(newRepositoryData);
-                    }, listener::onFailure));
+                        return newRepositoryData;
+                    }));
                 }
             });
         }, listener::onFailure);

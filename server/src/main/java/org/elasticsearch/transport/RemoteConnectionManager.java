@@ -285,7 +285,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         public void onRemoved() {}
     }
 
-    private static final class InternalRemoteConnection implements Transport.Connection {
+    static final class InternalRemoteConnection implements Transport.Connection {
 
         private final Transport.Connection connection;
         private final String clusterAlias;

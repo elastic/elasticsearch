@@ -11,7 +11,12 @@ package org.elasticsearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -28,6 +33,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -40,6 +46,7 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
@@ -63,7 +70,9 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -518,7 +527,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     }
                 }
             }
-
+            // Regular search
             for (int i = 0; i < 10; i++) {
                 final var search = client().prepareSearch(INDEX_NAME).setProfile(true);
                 switch (randomIntBetween(0, 2)) {
@@ -534,9 +543,51 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
                 }
             }
-
-            // TODO also verify PIT routing
-            // TODO also verify the search-shards API
+            // Search with PIT
+            for (int i = 0; i < 10; i++) {
+                final var openRequest = new OpenPointInTimeRequest(INDEX_NAME).keepAlive(TimeValue.timeValueMinutes(1));
+                switch (randomIntBetween(0, 2)) {
+                    case 0 -> openRequest.routing(randomAlphaOfLength(10));
+                    case 1 -> openRequest.preference(
+                        randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames())
+                    );
+                    default -> {
+                        // do nothing
+                    }
+                }
+                String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openRequest).actionGet().getPointInTimeId();
+                try {
+                    final var profileResults = client().prepareSearch()
+                        .setPointInTime(new PointInTimeBuilder(pitId))
+                        .setProfile(true)
+                        .get()
+                        .getProfileResults();
+                    assertThat(profileResults, not(anEmptyMap()));
+                    for (final var profileKey : profileResults.keySet()) {
+                        assertThat(profileKey, in(searchShardProfileKeys));
+                    }
+                } finally {
+                    client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId));
+                }
+            }
+            // search-shards API
+            for (int i = 0; i < 10; i++) {
+                final var search = client().admin().cluster().prepareSearchShards(INDEX_NAME);
+                switch (randomIntBetween(0, 2)) {
+                    case 0 -> search.setRouting(randomAlphaOfLength(10));
+                    case 1 -> search.setRouting(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                    default -> {
+                        // do nothing
+                    }
+                }
+                ClusterSearchShardsGroup[] groups = search.get().getGroups();
+                for (ClusterSearchShardsGroup group : groups) {
+                    for (ShardRouting shr : group.getShards()) {
+                        String profileKey = "[" + shr.currentNodeId() + "][" + INDEX_NAME + "][" + shr.id() + "]";
+                        assertThat(profileKey, in(searchShardProfileKeys));
+                    }
+                }
+            }
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }
@@ -590,13 +641,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
         installMockTransportVerifications(routingTableWatcher);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
-        final AtomicInteger refreshUnpromotableActions = new AtomicInteger(0);
+        final AtomicInteger unpromotableRefreshActions = new AtomicInteger(0);
 
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
-                    refreshUnpromotableActions.incrementAndGet();
+                    unpromotableRefreshActions.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
@@ -620,11 +671,20 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             indexRandom(true, INDEX_NAME, randomIntBetween(1, 10));
 
-            // Each primary will send a TransportUnpromotableShardRefreshAction to each of the unpromotable replica shards
-            assertThat(
-                refreshUnpromotableActions.get(),
-                is(equalTo((routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1)) * routingTableWatcher.numShards))
-            );
+            int singleRefreshExpectedUnpromotableActions = (routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1))
+                * routingTableWatcher.numShards;
+            if (singleRefreshExpectedUnpromotableActions > 0) {
+                assertThat(
+                    "at least one refresh is expected where each primary sends an unpromotable refresh to each unpromotable replica shard.",
+                    unpromotableRefreshActions.get(),
+                    greaterThanOrEqualTo(singleRefreshExpectedUnpromotableActions)
+                );
+                assertThat(
+                    "the number of unpromotable refreshes seen is expected to be a multiple of the occurred refreshes",
+                    unpromotableRefreshActions.get() % singleRefreshExpectedUnpromotableActions,
+                    is(equalTo(0))
+                );
+            }
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }

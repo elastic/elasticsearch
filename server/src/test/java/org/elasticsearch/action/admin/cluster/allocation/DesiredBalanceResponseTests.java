@@ -23,12 +23,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
 
@@ -66,7 +66,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                         DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
                         DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE
                     )
-                ).stream().map(DiscoveryNodeRole::roleName).collect(toMap(identity(), ignore -> randomTierBalanceStats()))
+                ).stream().map(DiscoveryNodeRole::roleName).collect(toMap(identity(), ignore -> randomTierBalanceStats())),
+            randomList(10, () -> randomAlphaOfLength(10)).stream().collect(toMap(identity(), ignore -> randomNodeBalanceStats()))
         );
     }
 
@@ -74,7 +75,17 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         return new ClusterBalanceStats.TierBalanceStats(
             new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
             new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
+            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
             new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble())
+        );
+    }
+
+    private ClusterBalanceStats.NodeBalanceStats randomNodeBalanceStats() {
+        return new ClusterBalanceStats.NodeBalanceStats(
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomDouble(),
+            randomLongBetween(0, Long.MAX_VALUE),
+            randomLongBetween(0, Long.MAX_VALUE)
         );
     }
 
@@ -151,7 +162,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         Map<String, Object> json = createParser(
             ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         ).map();
-        assertEquals(Set.of("stats", "cluster_balance_stats", "routing_table"), json.keySet());
+        assertThat(json.keySet(), containsInAnyOrder("stats", "cluster_balance_stats", "routing_table"));
 
         // stats
         Map<String, Object> stats = (Map<String, Object>) json.get("stats");
@@ -166,34 +177,64 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
         // cluster balance stats
         Map<String, Object> clusterBalanceStats = (Map<String, Object>) json.get("cluster_balance_stats");
-        assertEquals(clusterBalanceStats.keySet(), response.getClusterBalanceStats().tiers().keySet());
+        assertThat(clusterBalanceStats.keySet(), containsInAnyOrder("tiers", "nodes"));
+
+        // tier balance stats
+        Map<String, Object> tiers = (Map<String, Object>) clusterBalanceStats.get("tiers");
+        assertEquals(tiers.keySet(), response.getClusterBalanceStats().tiers().keySet());
         for (var entry : response.getClusterBalanceStats().tiers().entrySet()) {
-            Map<String, Object> tierStats = (Map<String, Object>) clusterBalanceStats.get(entry.getKey());
-            assertEquals(Set.of("shard_count", "total_write_load", "total_shard_size"), tierStats.keySet());
+            Map<String, Object> tierStats = (Map<String, Object>) tiers.get(entry.getKey());
+            assertThat(
+                tierStats.keySet(),
+                containsInAnyOrder("shard_count", "forecast_write_load", "forecast_disk_usage", "actual_disk_usage")
+            );
 
             Map<String, Object> shardCountStats = (Map<String, Object>) tierStats.get("shard_count");
-            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), shardCountStats.keySet());
+            assertThat(shardCountStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
             assertEquals(shardCountStats.get("total"), entry.getValue().shardCount().total());
             assertEquals(shardCountStats.get("average"), entry.getValue().shardCount().average());
             assertEquals(shardCountStats.get("min"), entry.getValue().shardCount().min());
             assertEquals(shardCountStats.get("max"), entry.getValue().shardCount().max());
             assertEquals(shardCountStats.get("std_dev"), entry.getValue().shardCount().stdDev());
 
-            Map<String, Object> totalWriteLoadStats = (Map<String, Object>) tierStats.get("total_write_load");
-            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalWriteLoadStats.keySet());
-            assertEquals(totalWriteLoadStats.get("total"), entry.getValue().totalWriteLoad().total());
-            assertEquals(totalWriteLoadStats.get("average"), entry.getValue().totalWriteLoad().average());
-            assertEquals(totalWriteLoadStats.get("min"), entry.getValue().totalWriteLoad().min());
-            assertEquals(totalWriteLoadStats.get("max"), entry.getValue().totalWriteLoad().max());
-            assertEquals(totalWriteLoadStats.get("std_dev"), entry.getValue().totalWriteLoad().stdDev());
+            Map<String, Object> forecastWriteLoadStats = (Map<String, Object>) tierStats.get("forecast_write_load");
+            assertThat(forecastWriteLoadStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
+            assertEquals(forecastWriteLoadStats.get("total"), entry.getValue().forecastWriteLoad().total());
+            assertEquals(forecastWriteLoadStats.get("average"), entry.getValue().forecastWriteLoad().average());
+            assertEquals(forecastWriteLoadStats.get("min"), entry.getValue().forecastWriteLoad().min());
+            assertEquals(forecastWriteLoadStats.get("max"), entry.getValue().forecastWriteLoad().max());
+            assertEquals(forecastWriteLoadStats.get("std_dev"), entry.getValue().forecastWriteLoad().stdDev());
 
-            Map<String, Object> totalShardStats = (Map<String, Object>) tierStats.get("total_shard_size");
-            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalShardStats.keySet());
-            assertEquals(totalShardStats.get("total"), entry.getValue().totalShardSize().total());
-            assertEquals(totalShardStats.get("average"), entry.getValue().totalShardSize().average());
-            assertEquals(totalShardStats.get("min"), entry.getValue().totalShardSize().min());
-            assertEquals(totalShardStats.get("max"), entry.getValue().totalShardSize().max());
-            assertEquals(totalShardStats.get("std_dev"), entry.getValue().totalShardSize().stdDev());
+            Map<String, Object> forecastDiskUsageStats = (Map<String, Object>) tierStats.get("forecast_disk_usage");
+            assertThat(forecastDiskUsageStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
+            assertEquals(forecastDiskUsageStats.get("total"), entry.getValue().forecastShardSize().total());
+            assertEquals(forecastDiskUsageStats.get("average"), entry.getValue().forecastShardSize().average());
+            assertEquals(forecastDiskUsageStats.get("min"), entry.getValue().forecastShardSize().min());
+            assertEquals(forecastDiskUsageStats.get("max"), entry.getValue().forecastShardSize().max());
+            assertEquals(forecastDiskUsageStats.get("std_dev"), entry.getValue().forecastShardSize().stdDev());
+
+            Map<String, Object> actualDiskUsageStats = (Map<String, Object>) tierStats.get("actual_disk_usage");
+            assertThat(actualDiskUsageStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
+            assertEquals(actualDiskUsageStats.get("total"), entry.getValue().actualShardSize().total());
+            assertEquals(actualDiskUsageStats.get("average"), entry.getValue().actualShardSize().average());
+            assertEquals(actualDiskUsageStats.get("min"), entry.getValue().actualShardSize().min());
+            assertEquals(actualDiskUsageStats.get("max"), entry.getValue().actualShardSize().max());
+            assertEquals(actualDiskUsageStats.get("std_dev"), entry.getValue().actualShardSize().stdDev());
+        }
+        // node balance stats
+        Map<String, Object> nodes = (Map<String, Object>) clusterBalanceStats.get("nodes");
+        assertEquals(nodes.keySet(), response.getClusterBalanceStats().nodes().keySet());
+        for (var entry : response.getClusterBalanceStats().nodes().entrySet()) {
+            Map<String, Object> nodesStats = (Map<String, Object>) nodes.get(entry.getKey());
+            assertThat(
+                nodesStats.keySet(),
+                containsInAnyOrder("shard_count", "forecast_write_load", "forecast_disk_usage_bytes", "actual_disk_usage_bytes")
+            );
+
+            assertEquals(nodesStats.get("shard_count"), entry.getValue().shards());
+            assertEquals(nodesStats.get("forecast_write_load"), entry.getValue().forecastWriteLoad());
+            assertEquals(nodesStats.get("forecast_disk_usage_bytes"), entry.getValue().forecastShardSize());
+            assertEquals(nodesStats.get("actual_disk_usage_bytes"), entry.getValue().actualShardSize());
         }
 
         // routing table
@@ -208,7 +249,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             for (var shardEntry : indexEntry.getValue().entrySet()) {
                 DesiredBalanceResponse.DesiredShards desiredShards = shardEntry.getValue();
                 Map<String, Object> jsonDesiredShard = (Map<String, Object>) jsonIndexShards.get(String.valueOf(shardEntry.getKey()));
-                assertEquals(Set.of("current", "desired"), jsonDesiredShard.keySet());
+                assertThat(jsonDesiredShard.keySet(), containsInAnyOrder("current", "desired"));
                 List<Map<String, Object>> jsonCurrent = (List<Map<String, Object>>) jsonDesiredShard.get("current");
                 for (int i = 0; i < jsonCurrent.size(); i++) {
                     Map<String, Object> jsonShard = jsonCurrent.get(i);
@@ -221,8 +262,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("relocating_node_is_desired"), shardView.relocatingNodeIsDesired());
                     assertEquals(jsonShard.get("shard_id"), shardView.shardId());
                     assertEquals(jsonShard.get("index"), shardView.index());
-                    assertEquals(jsonShard.get("forecasted_write_load"), shardView.forecastedWriteLoad());
-                    assertEquals(jsonShard.get("forecasted_shard_size_in_bytes"), shardView.forecastedShardSizeInBytes());
+                    assertEquals(jsonShard.get("forecast_write_load"), shardView.forecastWriteLoad());
+                    assertEquals(jsonShard.get("forecast_shard_size_in_bytes"), shardView.forecastShardSizeInBytes());
                 }
 
                 Map<String, Object> jsonDesired = (Map<String, Object>) jsonDesiredShard.get("desired");

@@ -172,15 +172,15 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     // ensures the factory is advanced to the current doc
     private void advanceToDoc(DocValuesScriptFieldFactory factory) {
-        try {
-            // advancing to the current doc could trigger low level paging, network loading, etc, so do so outside scripting privileges
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+        // advancing to the current doc could trigger low level paging, network loading, etc, so do so outside scripting privileges
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
                 factory.setNextDocId(docId);
-                return null;
-            });
-        } catch (IOException ioe) {
-            throw ExceptionsHelper.convertToElastic(ioe);
-        }
+            } catch (IOException ioe) {
+                throw ExceptionsHelper.convertToElastic(ioe);
+            }
+            return null;
+        });
     }
 
     @Override

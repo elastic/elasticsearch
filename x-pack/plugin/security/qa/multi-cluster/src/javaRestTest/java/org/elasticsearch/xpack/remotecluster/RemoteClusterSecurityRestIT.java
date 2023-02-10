@@ -74,7 +74,6 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
 
     public static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
         .name("fulfilling-cluster")
-        .nodes(1)
         .apply(commonClusterConfig)
         .setting("remote_cluster.enabled", "true")
         .setting("remote_cluster.port", "0")
@@ -86,7 +85,6 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
 
     public static ElasticsearchCluster queryCluster = ElasticsearchCluster.local()
         .name("query-cluster")
-        .nodes(1)
         .apply(commonClusterConfig)
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
         .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
@@ -122,9 +120,6 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    /**
-     * This test really depends on the local build.gradle, which configures cross-cluster search using the `remote_cluster.*` settings.
-     */
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
         // Fulfilling cluster
         {

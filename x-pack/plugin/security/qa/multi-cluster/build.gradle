@@ -9,7 +9,5 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  javaRestTestImplementation project(':x-pack:plugin:core')
-  javaRestTestImplementation project(':x-pack:plugin:security')
   clusterModules(project(":modules:analysis-common"))
 }

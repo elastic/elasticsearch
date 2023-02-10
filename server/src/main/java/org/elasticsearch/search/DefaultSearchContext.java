@@ -17,6 +17,9 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.bytes.RefCountedReleasable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -32,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -127,6 +131,8 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
+
+    private PreallocatedCircuitBreakerService preallocatedBreakerService;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -306,6 +312,21 @@ final class DefaultSearchContext extends SearchContext {
             }
             return builder.build();
         }
+    }
+
+    public void createPreallocatedBreaker(long bytesToPreallocate, CircuitBreakerService next) {
+        assert this.preallocatedBreakerService == null;
+        this.preallocatedBreakerService = new PreallocatedCircuitBreakerService(
+            next,
+            CircuitBreaker.REQUEST,
+            bytesToPreallocate,
+            "aggregations"
+        );
+        this.queryResult.attachRefCountedCircuitBreaker(new RefCountedReleasable(this.preallocatedBreakerService));
+    }
+
+    PreallocatedCircuitBreakerService getPreallocatedBreakerService() {
+       return this.preallocatedBreakerService;
     }
 
     @Override

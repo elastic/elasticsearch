@@ -49,6 +49,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -183,6 +184,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private List<AggregationContext> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
     private AnalysisModule analysisModule;
+
+    private PreallocatedCircuitBreakerService preallocatedCircuitBreakerService;
 
     // A list of field types that should not be tested, or are not currently supported
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
@@ -348,11 +351,21 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
+        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
+        assert this.preallocatedCircuitBreakerService == null;
+        if (bytesToPreallocate != 0) {
+            this.preallocatedCircuitBreakerService = new PreallocatedCircuitBreakerService(
+                bigArrays.breakerService(),
+                CircuitBreaker.REQUEST,
+                bytesToPreallocate,
+                "aggregations"
+            );
+        }
         AggregationContext context = new ProductionAggregationContext(
             Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),
             searchExecutionContext,
-            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService),
-            bytesToPreallocate,
+            bigArrays,
+            this.preallocatedCircuitBreakerService,
             () -> query,
             null,
             consumer,

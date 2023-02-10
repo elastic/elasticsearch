@@ -347,7 +347,7 @@ public abstract class AggregationContext implements Releasable {
             AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
-            long bytesToPreallocate,
+            PreallocatedCircuitBreakerService preallocatedCircuitBreakerService,
             Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
             MultiBucketConsumer multiBucketConsumer,
@@ -362,7 +362,8 @@ public abstract class AggregationContext implements Releasable {
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
-            if (bytesToPreallocate == 0) {
+            this.preallocatedBreakerService = preallocatedCircuitBreakerService;
+            if (preallocatedCircuitBreakerService == null) {
                 /*
                  * Its possible if a bit strange for the aggregations to ask
                  * to preallocate 0 bytes. Mostly this is for testing other
@@ -370,15 +371,8 @@ public abstract class AggregationContext implements Releasable {
                  * anything. Setting the breakerService reference to null will
                  * cause us to skip it when we close this context.
                  */
-                this.preallocatedBreakerService = null;
                 this.bigArrays = bigArrays.withCircuitBreaking();
             } else {
-                this.preallocatedBreakerService = new PreallocatedCircuitBreakerService(
-                    bigArrays.breakerService(),
-                    CircuitBreaker.REQUEST,
-                    bytesToPreallocate,
-                    "aggregations"
-                );
                 this.bigArrays = bigArrays.withBreakerService(preallocatedBreakerService).withCircuitBreaking();
             }
             this.topLevelQuery = topLevelQuery;

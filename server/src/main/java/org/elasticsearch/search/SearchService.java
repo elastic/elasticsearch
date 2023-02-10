@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -1216,11 +1217,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
+            PreallocatedCircuitBreakerService preallocatedCircuitBreakerService = null;
+            if (source.aggregations().bytesToPreallocate() != 0) {
+                context.createPreallocatedBreaker(source.aggregations().bytesToPreallocate(), bigArrays.breakerService());
+                preallocatedCircuitBreakerService = context.getPreallocatedBreakerService();
+            }
             AggregationContext aggContext = new ProductionAggregationContext(
                 indicesService.getAnalysis(),
                 context.getSearchExecutionContext(),
                 bigArrays,
-                source.aggregations().bytesToPreallocate(),
+                preallocatedCircuitBreakerService,
                 /*
                  * The query on the search context right now doesn't include
                  * the filter for nested documents or slicing so we have to

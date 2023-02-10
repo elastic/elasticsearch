@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
@@ -49,6 +50,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * them until just before we need them.
      */
     private DelayableWriteable<InternalAggregations> aggregations;
+    private RefCounted refCounted;
     private boolean hasAggs;
     private Suggest suggest;
     private boolean searchTimedOut;
@@ -433,5 +435,43 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
+    }
+
+    public void attachRefCountedCircuitBreaker(RefCounted refCounted) {
+        assert this.refCounted == null;
+        this.refCounted = refCounted;
+    }
+
+    @Override
+    public void incRef() {
+        if (refCounted != null) {
+            refCounted.incRef();
+        } else {
+            super.incRef();
+        }
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        if (refCounted != null) {
+            return refCounted.tryIncRef();
+        }
+        return super.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted != null) {
+            return refCounted.decRef();
+        }
+        return super.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        if (refCounted != null) {
+            return refCounted.hasReferences();
+        }
+        return super.hasReferences();
     }
 }

@@ -12,11 +12,11 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-final class RefCountedReleasable extends AbstractRefCounted {
+public final class RefCountedReleasable extends AbstractRefCounted {
 
     private final Releasable releasable;
 
-    RefCountedReleasable(Releasable releasable) {
+    public RefCountedReleasable(Releasable releasable) {
         this.releasable = releasable;
     }
 

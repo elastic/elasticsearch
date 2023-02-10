@@ -147,8 +147,7 @@ public class AllocationDecidersTests extends ESTestCase {
             (allocation, deciders) -> deciders.canAllocate(index, routingNode, allocation),
             (allocation, deciders) -> deciders.canRebalance(allocation),
             (allocation, deciders) -> deciders.canRebalance(shardRouting, allocation),
-            // TODO https://github.com/elastic/elasticsearch/pull/93374
-            // (allocation, deciders) -> deciders.canRemain(shardRouting, routingNode, allocation),
+            (allocation, deciders) -> deciders.canRemain(shardRouting, routingNode, allocation),
             (allocation, deciders) -> deciders.shouldAutoExpandToNode(index, discoveryNode, allocation),
             (allocation, deciders) -> deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation),
             (allocation, deciders) -> deciders.canForceAllocateDuringReplace(shardRouting, routingNode, allocation),

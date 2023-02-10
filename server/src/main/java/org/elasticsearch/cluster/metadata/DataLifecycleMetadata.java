@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Holds the Data Lifecycle Management metadata that are configured in a data stream.
+ * Holds the Data Lifecycle Management metadata that are configuring how a data stream is managed.
  */
 public class DataLifecycleMetadata implements SimpleDiffable<DataLifecycleMetadata>, ToXContentFragment {
 

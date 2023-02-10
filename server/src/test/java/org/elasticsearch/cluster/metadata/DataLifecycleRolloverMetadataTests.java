@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DataLifecycleRolloverMetadataSerializationTests extends AbstractXContentSerializingTestCase<DataLifecycleRolloverMetadata> {
+public class DataLifecycleRolloverMetadataTests extends AbstractXContentSerializingTestCase<DataLifecycleRolloverMetadata> {
 
     @Override
     protected Writeable.Reader<DataLifecycleRolloverMetadata> instanceReader() {
@@ -58,5 +58,17 @@ public class DataLifecycleRolloverMetadataSerializationTests extends AbstractXCo
     @Override
     protected DataLifecycleRolloverMetadata doParseInstance(XContentParser parser) throws IOException {
         return DataLifecycleRolloverMetadata.fromXContent(parser);
+    }
+
+    public void testInvalidConfigurations() {
+        expectThrows(IllegalArgumentException.class, () -> new DataLifecycleRolloverMetadata(null, null, 1L));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataLifecycleRolloverMetadata(TimeValue.timeValueMillis(randomMillisUpToYear9999()), null, null)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataLifecycleRolloverMetadata(null, ByteSizeValue.ofGb(randomIntBetween(1, 100)), 0L)
+        );
     }
 }

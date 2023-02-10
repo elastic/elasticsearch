@@ -12,6 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.IndexModule;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ public class SeekTrackingDirectoryWrapper implements IndexModule.DirectoryWrappe
     }
 
     @Override
-    public Directory apply(Directory directory) throws IOException {
+    public Directory wrap(Directory directory, ShardRouting shardRouting) {
         return new FilterDirectory(directory) {
             @Override
             public IndexInput openInput(String name, IOContext context) throws IOException {

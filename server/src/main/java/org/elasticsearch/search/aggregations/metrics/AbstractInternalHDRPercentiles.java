@@ -166,13 +166,13 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     }
 
     private DoubleHistogram merge(final DoubleHistogram h1, final DoubleHistogram h2) {
-        int h1Digits = h1.getNumberOfSignificantValueDigits();
-        int h2Digits = h2.getNumberOfSignificantValueDigits();
-        final DoubleHistogram h = new DoubleHistogram(Math.max(h1Digits, h2Digits));
-        h.add(h1);
-        h.add(h2);
+        if (h2.getNumberOfSignificantValueDigits() > h1.getNumberOfSignificantValueDigits()) {
+            return merge(h2, h1);
+        }
+        assert h1.getNumberOfSignificantValueDigits() >= h2.getNumberOfSignificantValueDigits();
+        h1.add(h2);
 
-        return h;
+        return h1;
     }
 
     @Override

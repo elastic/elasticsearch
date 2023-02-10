@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
 public final class CsvTestUtils {
@@ -89,7 +90,7 @@ public final class CsvTestUtils {
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
-                if (line.isEmpty() == false && line.startsWith("//") == false && line.startsWith("#") == false) {
+                if (shouldSkipLine(line) == false) {
                     var entries = Strings.delimitedListToStringArray(line, ",");
                     for (int i = 0; i < entries.length; i++) {
                         entries[i] = entries[i].trim();

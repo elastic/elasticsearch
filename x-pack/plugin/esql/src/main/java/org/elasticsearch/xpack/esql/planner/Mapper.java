@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -65,6 +67,9 @@ public class Mapper {
             return new RowExec(row.source(), row.fields());
         }
 
+        if (p instanceof LocalRelation local) {
+            return new LocalSourceExec(local.source(), local.output(), local.supplier());
+        }
         throw new UnsupportedOperationException(p.nodeName());
     }
 

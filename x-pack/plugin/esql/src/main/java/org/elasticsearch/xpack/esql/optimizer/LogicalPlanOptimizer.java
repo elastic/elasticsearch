@@ -8,12 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
-import org.elasticsearch.xpack.esql.session.LocalExecutable;
-import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -261,17 +258,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     private static LogicalPlan skipPlan(UnaryPlan plan) {
-        return new LocalRelation(plan.source(), new LocalExecutable() {
-            @Override
-            public List<Attribute> output() {
-                return plan.output();
-            }
-
-            @Override
-            public void execute(EsqlSession session, ActionListener<Result> listener) {
-
-            }
-        });
+        return new LocalRelation(plan.source(), plan.output(), LocalSupplier.EMPTY);
     }
 
     protected static class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {

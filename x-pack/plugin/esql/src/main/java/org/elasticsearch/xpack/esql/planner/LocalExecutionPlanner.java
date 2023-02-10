@@ -21,6 +21,8 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
+import org.elasticsearch.compute.operator.LocalSourceOperator;
+import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -63,6 +66,7 @@ import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -139,20 +143,14 @@ public class LocalExecutionPlanner {
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
             return planAggregation(aggregate, context);
-        } else if (node instanceof EsQueryExec esQuery) {
-            return planEsQueryNode(esQuery, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(context, fieldExtractExec);
-        } else if (node instanceof OutputExec outputExec) {
-            return planOutput(outputExec, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
             return planTopN(topNExec, context);
         } else if (node instanceof EvalExec eval) {
             return planEval(eval, context);
-        } else if (node instanceof RowExec row) {
-            return planRow(row, context);
         } else if (node instanceof ProjectExec project) {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
@@ -160,6 +158,19 @@ public class LocalExecutionPlanner {
         } else if (node instanceof LimitExec limit) {
             return planLimit(limit, context);
         }
+        // source nodes
+        else if (node instanceof EsQueryExec esQuery) {
+            return planEsQueryNode(esQuery, context);
+        } else if (node instanceof RowExec row) {
+            return planRow(row, context);
+        } else if (node instanceof LocalSourceExec localSource) {
+            return planLocal(localSource, context);
+        }
+        // output
+        else if (node instanceof OutputExec outputExec) {
+            return planOutput(outputExec, context);
+        }
+
         throw new UnsupportedOperationException(node.nodeName());
     }
 
@@ -311,6 +322,17 @@ public class LocalExecutionPlanner {
             layout.appendChannel(attribute.id());
         }
         return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
+    }
+
+    private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {
+
+        Layout.Builder layout = new Layout.Builder();
+        var output = localSourceExec.output();
+        for (Attribute attribute : output) {
+            layout.appendChannel(attribute.id());
+        }
+        LocalSourceOperator.ObjectSupplier supplier = Collections::emptyList;
+        return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(supplier)), layout.build());
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

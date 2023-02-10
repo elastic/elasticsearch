@@ -58,7 +58,7 @@ public final class SpecReader {
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
-                if (line.isEmpty() == false && line.startsWith("//") == false) {
+                if (shouldSkipLine(line) == false) {
                     // parse test name
                     if (testName == null) {
                         if (testNames.keySet().contains(line)) {
@@ -97,5 +97,9 @@ public final class SpecReader {
 
     public interface Parser {
         Object parse(String line);
+    }
+
+    public static boolean shouldSkipLine(String line) {
+        return line.isEmpty() || line.startsWith("//") || line.startsWith("#");
     }
 }

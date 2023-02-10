@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EmptyExecutable;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -45,7 +45,7 @@ public final class EsqlTestUtils {
     }
 
     public static LogicalPlan emptySource() {
-        return new LocalRelation(Source.EMPTY, new EmptyExecutable(emptyList()));
+        return new LocalRelation(Source.EMPTY, emptyList(), LocalSupplier.EMPTY);
     }
 
     public static <P extends Node<P>, T extends P> T as(P node, Class<T> type) {

@@ -7,25 +7,14 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.Page;
-
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.stream.Collectors.joining;
 
-public class RowOperator extends SourceOperator {
+public class RowOperator extends LocalSourceOperator {
 
     private final List<Object> objects;
-
-    boolean finished;
 
     public record RowOperatorFactory(List<Object> objects) implements SourceOperatorFactory {
 
@@ -41,47 +30,8 @@ public class RowOperator extends SourceOperator {
     }
 
     public RowOperator(List<Object> objects) {
+        super(() -> objects);
         this.objects = objects;
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished;
-    }
-
-    @Override
-    public Page getOutput() {
-        Block[] blocks = new Block[objects.size()];
-        for (int i = 0; i < objects.size(); i++) {
-            Object object = objects.get(i);
-            if (object instanceof Integer intVal) {
-                blocks[i] = IntBlock.newConstantBlockWith(intVal, 1);
-            } else if (object instanceof Long longVal) {
-                blocks[i] = LongBlock.newConstantBlockWith(longVal, 1);
-            } else if (object instanceof Double doubleVal) {
-                blocks[i] = DoubleBlock.newConstantBlockWith(doubleVal, 1);
-            } else if (object instanceof BytesRef bytesRefVal) {
-                blocks[i] = BytesRefBlock.newConstantBlockWith(bytesRefVal, 1);
-            } else if (object instanceof Boolean booleanVal) {
-                blocks[i] = BooleanBlock.newConstantBlockWith(booleanVal, 1);
-            } else if (object == null) {
-                blocks[i] = Block.constantNullBlock(1);
-            } else {
-                throw new UnsupportedOperationException();
-            }
-        }
-        finished = true;
-        return new Page(blocks);
-    }
-
-    @Override
-    public void close() {
-
     }
 
     @Override

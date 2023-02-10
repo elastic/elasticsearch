@@ -4,9 +4,8 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.logical.local;
 
-import org.elasticsearch.xpack.esql.session.LocalExecutable;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -17,20 +16,22 @@ import java.util.Objects;
 
 public class LocalRelation extends LeafPlan {
 
-    private final LocalExecutable executable;
+    private final List<Attribute> output;
+    private final LocalSupplier supplier;
 
-    public LocalRelation(Source source, LocalExecutable executable) {
+    public LocalRelation(Source source, List<Attribute> output, LocalSupplier supplier) {
         super(source);
-        this.executable = executable;
+        this.output = output;
+        this.supplier = supplier;
     }
 
     @Override
     protected NodeInfo<LocalRelation> info() {
-        return NodeInfo.create(this, LocalRelation::new, executable);
+        return NodeInfo.create(this, LocalRelation::new, output, supplier);
     }
 
-    public LocalExecutable executable() {
-        return executable;
+    public LocalSupplier supplier() {
+        return supplier;
     }
 
     @Override
@@ -40,12 +41,12 @@ public class LocalRelation extends LeafPlan {
 
     @Override
     public List<Attribute> output() {
-        return executable.output();
+        return output;
     }
 
     @Override
     public int hashCode() {
-        return executable.hashCode();
+        return Objects.hash(output, supplier);
     }
 
     @Override
@@ -59,7 +60,7 @@ public class LocalRelation extends LeafPlan {
         }
 
         LocalRelation other = (LocalRelation) obj;
-        return Objects.equals(executable, other.executable);
+        return Objects.equals(supplier, other.supplier) && Objects.equals(output, other.output);
     }
 
 }

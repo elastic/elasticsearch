@@ -331,7 +331,6 @@ public class FeatureFactory {
         org.locationtech.jts.geom.Geometry envelope,
         org.locationtech.jts.geom.Geometry geometry
     ) {
-        assert geometry.getNumGeometries() == 1 || geometry instanceof org.locationtech.jts.geom.MultiPoint;
         try {
             final IntersectionMatrix matrix = envelope.relate(geometry);
             if (matrix.isContains()) {

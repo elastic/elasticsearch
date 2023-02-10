@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class AllocationDecidersTests extends ESTestCase {
 
     public void testCheckAllDecidersBeforeReturningYes() {
-        var allDecisions = generateDecision(() -> Decision.YES);
+        var allDecisions = generateDecisions(() -> Decision.YES);
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF, EXCLUDE_YES_DECISIONS -> new Decision.Multi();
@@ -50,7 +50,7 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     public void testCheckAllDecidersBeforeReturningThrottle() {
-        var allDecisions = generateDecision(Decision.THROTTLE, () -> Decision.YES);
+        var allDecisions = generateDecisions(Decision.THROTTLE, () -> Decision.YES);
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF, EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
@@ -63,14 +63,14 @@ public class AllocationDecidersTests extends ESTestCase {
     public void testExitsAfterFirstNoDecision() {
         var expectedDecision = Decision.NO;
         var terminatingDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
-        var allDecisions = generateDecision(terminatingDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var allDecisions = generateDecisions(terminatingDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
         var expectedCalls = allDecisions.indexOf(terminatingDecision) + 1;
 
         verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, expectedCalls, expectedDecision);
     }
 
     public void testCollectsAllDecisionsForDebugModeOn() {
-        var allDecisions = generateDecision(
+        var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
                 Decision.THROTTLE,
@@ -85,7 +85,7 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     public void testCollectsNoAndThrottleDecisionsForDebugModeExcludeYesDecisions() {
-        var allDecisions = generateDecision(
+        var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
                 Decision.THROTTLE,
@@ -99,11 +99,11 @@ public class AllocationDecidersTests extends ESTestCase {
         verifyDecidersCall(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS, allDecisions, allDecisions.size(), expectedDecision);
     }
 
-    private static List<Decision> generateDecision(Supplier<Decision> others) {
+    private static List<Decision> generateDecisions(Supplier<Decision> others) {
         return shuffledList(randomList(1, 25, others));
     }
 
-    private static List<Decision> generateDecision(Decision mandatory, Supplier<Decision> others) {
+    private static List<Decision> generateDecisions(Decision mandatory, Supplier<Decision> others) {
         var decisions = new ArrayList<Decision>();
         decisions.add(mandatory);
         decisions.addAll(randomList(1, 25, others));

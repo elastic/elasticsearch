@@ -47,7 +47,6 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelText;
     private final String modelId;
     private SetOnce<SlimResults> weightedTokensSupplier;
-    private QueryBuilder termsQuery;
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         if (fieldName == null) {
@@ -67,7 +66,6 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = in.readString();
         this.modelText = in.readString();
         this.modelId = in.readString();
-        this.termsQuery = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
     private TextExpansionQueryBuilder(TextExpansionQueryBuilder other, SetOnce<SlimResults> weightedTokensSupplier) {
@@ -79,13 +77,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.weightedTokensSupplier = weightedTokensSupplier;
     }
 
-    private TextExpansionQueryBuilder(TextExpansionQueryBuilder other, QueryBuilder rewrittenTermsQuery) {
-        this.fieldName = other.fieldName;
-        this.modelText = other.modelText;
-        this.modelId = other.modelId;
-        this.boost = other.boost;
-        this.queryName = other.queryName;
-        this.termsQuery = rewrittenTermsQuery;
+    String getFieldName() {
+        return fieldName;
     }
 
     @Override
@@ -100,10 +93,12 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (weightedTokensSupplier != null) {
+            throw new IllegalStateException("token supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        }
         out.writeString(fieldName);
         out.writeString(modelText);
         out.writeString(modelId);
-        out.writeOptionalNamedWriteable(termsQuery);
     }
 
     @Override
@@ -119,13 +114,11 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (termsQuery != null) {
-            return this;
-        }
-
         if (weightedTokensSupplier != null) {
-            var query = weightedTokensToQuery(fieldName, weightedTokensSupplier.get(), queryRewriteContext);
-            return new TextExpansionQueryBuilder(this, query);
+            if (weightedTokensSupplier.get() == null) {
+                return this;
+            }
+            return weightedTokensToQuery(fieldName, weightedTokensSupplier.get(), queryRewriteContext);
         }
 
         InferModelAction.Request inferRequest = InferModelAction.Request.forTextInput(
@@ -171,23 +164,15 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         throws IOException {
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : slimResults.getWeightedTokens()) {
-            boolQuery.should(
-                QueryBuilders.termQuery(fieldName, Integer.toString(weightedToken.token()))
-                    .boost(weightedToken.weight())
-                    .rewrite(queryRewriteContext)
-            );
+            boolQuery.should(QueryBuilders.termQuery(fieldName, Integer.toString(weightedToken.token())).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
-        boolQuery.rewrite(queryRewriteContext);
         return boolQuery;
     }
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        if (termsQuery == null) {
-            throw new IllegalStateException("terms query must not be null, missing rewrite?");
-        }
-        return termsQuery.toQuery(context);
+        throw new IllegalStateException("text_expansion should have been rewritten to another query type");
     }
 
     @Override
@@ -195,13 +180,12 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(modelText, other.modelText)
             && Objects.equals(modelId, other.modelId)
-            && Objects.equals(weightedTokensSupplier, other.weightedTokensSupplier)
-            && Objects.equals(termsQuery, other.termsQuery);
+            && Objects.equals(weightedTokensSupplier, other.weightedTokensSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, modelText, modelId, weightedTokensSupplier, termsQuery);
+        return Objects.hash(fieldName, modelText, modelId, weightedTokensSupplier);
     }
 
     public static TextExpansionQueryBuilder fromXContent(XContentParser parser) throws IOException {

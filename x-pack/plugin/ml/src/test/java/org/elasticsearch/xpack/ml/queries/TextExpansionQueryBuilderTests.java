@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.queries;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -19,6 +20,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.SlimResults;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -54,7 +56,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         SearchExecutionContext context = createSearchExecutionContext();
         TextExpansionQueryBuilder builder = new TextExpansionQueryBuilder("foo", "bar", "baz");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.toQuery(context));
-        assertEquals("terms query must not be null, missing rewrite?", e.getMessage());
+        assertEquals("text_expansion should have been rewritten to another query type", e.getMessage());
     }
 
     @Override
@@ -84,9 +86,22 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     @Override
-    protected void doAssertLuceneQuery(TextExpansionQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
-        throws IOException {
-        fail("what should be asserted here?");
+    protected void doAssertLuceneQuery(TextExpansionQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
+
+        assertThat(query, Matchers.instanceOf(MatchNoDocsQuery.class));
+
+        // assertThat(query, instanceOf(BooleanQuery.class));
+        // BooleanQuery booleanQuery = (BooleanQuery) query;
+        // assertEquals(booleanQuery.getMinimumNumberShouldMatch(), 1);
+        //
+        // for (var clause : booleanQuery.clauses()) {
+        // assertEquals(BooleanClause.Occur.SHOULD, clause.getOccur());
+        // if (clause.getQuery()instanceof TermQuery termQuery) {
+        // assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName(queryBuilder.getFieldName())));
+        // } else {
+        // assertThat(clause.getQuery(), instanceOf(MatchNoDocsQuery.class));
+        // }
+        // }
     }
 
     public void testIllegalValues() {

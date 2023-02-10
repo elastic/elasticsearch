@@ -213,7 +213,10 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
             .setQuery(matchAllQuery())
             .addAggregation(
-                percentiles("percentiles").percentilesConfig(new PercentilesConfig.Hdr(sigDigits)).field("value").percentiles(pcts)
+                percentiles("percentiles").numberOfSignificantValueDigits(sigDigits)
+                    .method(PercentilesMethod.HDR)
+                    .field("value")
+                    .percentiles(pcts)
             )
             .get();
 

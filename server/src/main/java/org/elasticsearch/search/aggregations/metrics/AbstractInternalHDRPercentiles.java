@@ -165,6 +165,15 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
+    /**
+     * Merges two {@link DoubleHistogram}s such that we always merge the one with less
+     * numberOfSignificantValueDigits into the one with more numberOfSignificantValueDigits.
+     * This prevents producing a result that has lower than expected precision.
+     *
+     * @param h1 The first histogram to merge
+     * @param h2 The second histogram to merge
+     * @return One of the input histograms such that the one with higher numberOfSignificantValueDigits is used as the one for merging
+     */
     private DoubleHistogram merge(final DoubleHistogram h1, final DoubleHistogram h2) {
         if (h2.getNumberOfSignificantValueDigits() > h1.getNumberOfSignificantValueDigits()) {
             return merge(h2, h1);

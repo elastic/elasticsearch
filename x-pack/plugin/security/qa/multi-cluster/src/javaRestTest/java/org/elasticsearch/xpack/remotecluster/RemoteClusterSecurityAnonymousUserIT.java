@@ -60,16 +60,16 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
+        configureRemoteClusterWithApiKey("""
+            [
+               {
+                 "names": ["shared-*"],
+                 "privileges": ["read", "read_cross_cluster"]
+               }
+             ]""");
+
         // Fulfilling cluster
         {
-            createAndStoreRemoteAccessApiKey("""
-                [
-                   {
-                     "names": ["shared-*"],
-                     "privileges": ["read", "read_cross_cluster"]
-                   }
-                 ]""");
-
             final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
             bulkRequest.setJsonEntity(Strings.format("""
                 { "index": { "_index": "shared-logs" } }
@@ -85,8 +85,6 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
 
         // Query cluster
         {
-            configureRemoteClusterWithApiKey();
-
             // 1. QC anonymous user can search FC shared-logs because QC anonymous role allows it (and cluster API key allows it)
             final Response response1 = performAnonymousRequestAgainstQueryCluster(
                 new Request("GET", "/my_remote_cluster:" + randomFrom("*", "shared-*", "shared-logs") + "/_search")

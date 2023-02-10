@@ -59,16 +59,16 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
+        configureRemoteClusterWithApiKey("""
+            [
+               {
+                 "names": ["index*", "not_found_index"],
+                 "privileges": ["read", "read_cross_cluster"]
+               }
+             ]""");
+
         // Fulfilling cluster
         {
-            createAndStoreRemoteAccessApiKey("""
-                [
-                   {
-                     "names": ["index*", "not_found_index"],
-                     "privileges": ["read", "read_cross_cluster"]
-                   }
-                 ]""");
-
             // Index some documents, so we can attempt to search them from the querying cluster
             final var indexDocRequest = new Request("POST", "/index1/_doc?refresh=true");
             indexDocRequest.setJsonEntity("{\"foo\": \"bar\"}");
@@ -85,8 +85,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
         // Query cluster
         {
-            configureRemoteClusterWithApiKey();
-
             // Index some documents, to use them in a mixed-cluster search
             final var indexDocRequest = new Request("POST", "/local_index/_doc?refresh=true");
             indexDocRequest.setJsonEntity("{\"local_foo\": \"local_bar\"}");

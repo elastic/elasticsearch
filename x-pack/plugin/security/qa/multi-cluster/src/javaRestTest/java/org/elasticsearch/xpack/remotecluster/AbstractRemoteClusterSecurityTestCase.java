@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -87,7 +86,8 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected void createAndStoreRemoteAccessApiKey(String indicesPrivilegesJson) throws IOException {
+    protected void configureRemoteClusterWithApiKey(String indicesPrivilegesJson) throws IOException {
+        // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
             {
@@ -104,22 +104,13 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         assertOK(createApiKeyResponse);
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
         final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
-        final var indexDocRequest = new Request("POST", "/apikey/_doc?refresh=true");
-        // Store API key credential so that QC can fetch and use it for authentication
-        indexDocRequest.setJsonEntity("{\"apikey\": \"" + encodedRemoteAccessApiKey + "\"}");
-        assertOK(performRequestAgainstFulfillingCluster(indexDocRequest));
-    }
 
-    protected void configureRemoteClusterWithApiKey() throws IOException {
-        final SearchResponse apiKeyResponse = SearchResponse.fromXContent(
-            responseAsParser(performRequestAgainstFulfillingCluster(new Request("GET", "/apikey/_search")))
-        );
-        final String encodedKey = (String) apiKeyResponse.getHits().getHits()[0].getSourceAsMap().get("apikey");
+        // Update remote cluster settings on QC with the API key
         updateClusterSettings(
             Settings.builder()
                 .put("cluster.remote.my_remote_cluster.mode", "proxy")
                 .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                .put("cluster.remote.my_remote_cluster.authorization", encodedKey)
+                .put("cluster.remote.my_remote_cluster.authorization", encodedRemoteAccessApiKey)
                 .build()
         );
     }

@@ -1,0 +1,6 @@
+pr: 93704
+summary: Use max value 3 for `numberOfSignificantValueDigits` on unmapped index
+area: Aggregations
+type: bug
+issues:
+ - 92822

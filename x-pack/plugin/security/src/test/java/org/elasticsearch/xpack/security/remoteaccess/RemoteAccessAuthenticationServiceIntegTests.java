@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -65,7 +66,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
 
         try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "abc");
+            new RemoteAccessHeaders("abc", AuthenticationTestHelper.randomRemoteAccessAuthentication()).writeToContext(threadContext);
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(

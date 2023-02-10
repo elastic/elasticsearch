@@ -298,6 +298,7 @@ public class RemoteClusterSecurityRestIT extends ESRestTestCase {
         return fulfillingClusterClient.performRequest(request);
     }
 
+    // TODO centralize common usage of this across all tests
     private static String randomEncodedApiKey() {
         return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
     }

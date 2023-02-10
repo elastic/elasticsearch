@@ -74,11 +74,32 @@ public final class RemoteAccessHeaders {
                     "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"
                 );
             }
-            return new EncodedApiKeyWithPrefix(stripApiKeyPrefix(clusterCredentialHeader));
+            final var encoded = new EncodedApiKeyWithPrefix(stripApiKeyPrefix(clusterCredentialHeader));
+            encoded.validate();
+            return encoded;
+        }
+
+        private void validate() {
+            try (ApiKeyService.ApiKeyCredentials credentials = toApiKeyCredentials()) {
+                if (credentials == null) {
+                    throw new IllegalArgumentException(
+                        "remote access header ["
+                            + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                            + "] value must be a valid API key credential"
+                    );
+                }
+            }
         }
 
         private ApiKeyService.ApiKeyCredentials toApiKeyCredentials() {
-            return ApiKeyService.getCredentialsFromHeader(withApiKeyPrefix(encodedApiKey));
+            try {
+                return ApiKeyService.getCredentialsFromHeader(withApiKeyPrefix(encodedApiKey));
+            } catch (Exception ex) {
+                throw new IllegalArgumentException(
+                    "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential",
+                    ex
+                );
+            }
         }
 
         private static String withApiKeyPrefix(final String encodedCredentials) {
@@ -86,11 +107,11 @@ public final class RemoteAccessHeaders {
         }
 
         private static String stripApiKeyPrefix(final String encodedWithPrefix) {
-            if (false == encodedWithPrefix.startsWith(PREFIX)) {
-                throw new IllegalArgumentException("must start with [" + PREFIX + "]");
+            final String prefixWithSpace = PREFIX + " ";
+            if (false == encodedWithPrefix.startsWith(prefixWithSpace)) {
+                throw new IllegalArgumentException("must start with [" + prefixWithSpace + "]");
             }
-            // +1 for space
-            return encodedWithPrefix.substring(PREFIX.length() + 1);
+            return encodedWithPrefix.substring(prefixWithSpace.length());
         }
     }
 }

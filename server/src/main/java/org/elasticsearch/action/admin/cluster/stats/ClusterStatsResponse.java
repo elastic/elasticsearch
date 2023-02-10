@@ -149,7 +149,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         builder.endObject();
 
         builder.field("snapshots");
-        clusterSnapshotStats.toXContent(builder,params);
+        clusterSnapshotStats.toXContent(builder, params);
 
         return builder;
     }

@@ -143,9 +143,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
         );
     }
 
-    private static ClusterSnapshotStats.PerRepositoryStats mutateRepositoryStats(
-        ClusterSnapshotStats.PerRepositoryStats instance
-    ) {
+    private static ClusterSnapshotStats.PerRepositoryStats mutateRepositoryStats(ClusterSnapshotStats.PerRepositoryStats instance) {
         return switch (between(1, 12)) {
             case 1 -> new ClusterSnapshotStats.PerRepositoryStats(
                 randomValueOtherThan(instance.repositoryName(), () -> randomAlphaOfLength(10)),

@@ -38,10 +38,25 @@ public class RemoteAccessHeadersTests extends ESTestCase {
         assertThat(actual, equalTo(expected));
     }
 
-    public void testReadInvalidThrows() throws IOException {
+    public void testClusterCredentialsReturnsValidApiKey() {
+        final String id = UUIDs.randomBase64UUID();
+        final String key = UUIDs.randomBase64UUID();
+        final String encodedApiKey = encodedApiKey(id, key);
+        final var headers = new RemoteAccessHeaders(
+            encodedApiKey,
+            AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
+        );
+
+        final ApiKeyService.ApiKeyCredentials actual = headers.clusterCredentials();
+
+        assertThat(actual.getId(), equalTo(id));
+        assertThat(actual.getKey().toString(), equalTo(key));
+    }
+
+    public void testReadOnInvalidApiKeyValueThrows() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final var expected = new RemoteAccessHeaders(
-            randomFrom("abc", "id:key", "", randomEncodedApiKey() + "suffix"),
+            randomFrom("abc", "id:key", "", " ", randomEncodedApiKey() + "suffix"),
             AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
         );
 
@@ -54,12 +69,43 @@ public class RemoteAccessHeadersTests extends ESTestCase {
         );
     }
 
+    public void testReadOnHeaderWithMalformedPrefixThrows() throws IOException {
+        final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
+        AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection()).writeToContext(ctx);
+        ctx.putHeader(
+            REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
+            randomFrom(
+                // missing space
+                "ApiKey" + randomEncodedApiKey(),
+                // no prefix
+                randomEncodedApiKey(),
+                // wrong prefix
+                "Bearer " + randomEncodedApiKey()
+            )
+        );
+
+        var actual = expectThrows(IllegalArgumentException.class, () -> RemoteAccessHeaders.readFromContext(ctx));
+
+        assertThat(
+            actual.getMessage(),
+            equalTo(
+                "remote access header ["
+                    + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                    + "] must be a valid API key credential with [ApiKey] prefix"
+            )
+        );
+    }
+
     private static RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {
         return new RoleDescriptorsIntersection(randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1))));
     }
 
     // TODO centralize common usage of this across all tests
     private static String randomEncodedApiKey() {
-        return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
+        return encodedApiKey(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUID());
+    }
+
+    private static String encodedApiKey(String id, String key) {
+        return Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
     }
 }

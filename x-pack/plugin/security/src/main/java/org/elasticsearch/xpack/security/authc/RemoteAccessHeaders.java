@@ -74,9 +74,9 @@ public final class RemoteAccessHeaders {
                     "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"
                 );
             }
-            final var encoded = new EncodedApiKeyWithPrefix(stripApiKeyPrefix(clusterCredentialHeader));
-            encoded.validate();
-            return encoded;
+            final var encodedApiKeyWithPrefix = new EncodedApiKeyWithPrefix(stripApiKeyPrefix(clusterCredentialHeader));
+            encodedApiKeyWithPrefix.validate();
+            return encodedApiKeyWithPrefix;
         }
 
         private void validate() {
@@ -99,7 +99,11 @@ public final class RemoteAccessHeaders {
         private static String stripApiKeyPrefix(final String encodedWithPrefix) {
             final String prefixWithSpace = PREFIX + " ";
             if (false == encodedWithPrefix.startsWith(prefixWithSpace)) {
-                throw new IllegalArgumentException("encoded API key header must start with [" + prefixWithSpace + "]");
+                throw new IllegalArgumentException(
+                    "remote access header ["
+                        + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                        + "] must be a valid API key credential with [ApiKey] prefix"
+                );
             }
             return encodedWithPrefix.substring(prefixWithSpace.length());
         }

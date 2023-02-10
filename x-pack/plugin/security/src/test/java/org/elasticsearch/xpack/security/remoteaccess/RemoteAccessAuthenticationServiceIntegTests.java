@@ -91,11 +91,13 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
 
         try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + encodedRemoteAccessApiKey);
             final var internalUser = randomValueOtherThan(SystemUser.INSTANCE, AuthenticationTestHelper::randomInternalUser);
-            new RemoteAccessAuthentication(
-                AuthenticationTestHelper.builder().internal(internalUser).build(),
-                RoleDescriptorsIntersection.EMPTY
+            new RemoteAccessHeaders(
+                encodedRemoteAccessApiKey,
+                new RemoteAccessAuthentication(
+                    AuthenticationTestHelper.builder().internal(internalUser).build(),
+                    RoleDescriptorsIntersection.EMPTY
+                )
             ).writeToContext(threadContext);
             authenticateAndAssertExpectedErrorMessage(
                 service,
@@ -107,16 +109,18 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
 
         try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + encodedRemoteAccessApiKey);
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(
-                new RoleDescriptorsIntersection(
-                    randomValueOtherThanMany(
-                        rd -> false == (rd.hasClusterPrivileges()
-                            || rd.hasApplicationPrivileges()
-                            || rd.hasConfigurableClusterPrivileges()
-                            || rd.hasRunAs()
-                            || rd.hasRemoteIndicesPrivileges()),
-                        () -> RoleDescriptorTests.randomRoleDescriptor()
+            new RemoteAccessHeaders(
+                encodedRemoteAccessApiKey,
+                AuthenticationTestHelper.randomRemoteAccessAuthentication(
+                    new RoleDescriptorsIntersection(
+                        randomValueOtherThanMany(
+                            rd -> false == (rd.hasClusterPrivileges()
+                                || rd.hasApplicationPrivileges()
+                                || rd.hasConfigurableClusterPrivileges()
+                                || rd.hasRunAs()
+                                || rd.hasRemoteIndicesPrivileges()),
+                            () -> RoleDescriptorTests.randomRoleDescriptor()
+                        )
                     )
                 )
             ).writeToContext(threadContext);
@@ -132,9 +136,12 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
 
         try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + encodedRemoteAccessApiKey);
             Authentication authentication = AuthenticationTestHelper.builder().apiKey().build();
-            new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY).writeToContext(threadContext);
+            new RemoteAccessHeaders(
+                encodedRemoteAccessApiKey,
+                new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY)
+            ).writeToContext(threadContext);
+
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(
@@ -152,16 +159,17 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
     }
 
     public void testSystemUserIsMappedToCrossClusterInternalRole() throws InterruptedException, IOException, ExecutionException {
-        final String encodedRemoteAccessApiKey = getEncodedRemoteAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
         final RemoteAccessAuthenticationService service = internalCluster().getInstance(RemoteAccessAuthenticationService.class, nodeName);
 
         try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + encodedRemoteAccessApiKey);
-            new RemoteAccessAuthentication(
-                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build(),
-                new RoleDescriptorsIntersection(new RoleDescriptor("role", null, null, null, null, null, null, null))
+            new RemoteAccessHeaders(
+                getEncodedRemoteAccessApiKey(),
+                new RemoteAccessAuthentication(
+                    AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build(),
+                    new RoleDescriptorsIntersection(new RoleDescriptor("role", null, null, null, null, null, null, null))
+                )
             ).writeToContext(threadContext);
 
             final PlainActionFuture<Authentication> future = new PlainActionFuture<>();

@@ -219,9 +219,9 @@ public class AsyncShardFetchTests extends ESTestCase {
         test.fireSimulationAndWait(node2.getId());
         // no more ongoing requests, we should fetch the data
         assertThat(test.reroute.get(), equalTo(2));
+        fetchData = test.fetchData(nodes, emptySet());
         assertThat(test.getNumberOfInFlightFetches(), equalTo(0));
         assertThat(test.isFetching(), equalTo(false));
-        fetchData = test.fetchData(nodes, emptySet());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(2));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
@@ -251,10 +251,10 @@ public class AsyncShardFetchTests extends ESTestCase {
         // fire the second simulation, this should allow us to get the data
         test.fireSimulationAndWait(node2.getId());
         assertThat(test.reroute.get(), equalTo(2));
-        assertThat(test.getNumberOfInFlightFetches(), equalTo(0));
-        assertThat(test.isFetching(), equalTo(false));
         // since one of those failed, we should only have one entry
         fetchData = test.fetchData(nodes, emptySet());
+        assertThat(test.getNumberOfInFlightFetches(), equalTo(0));
+        assertThat(test.isFetching(), equalTo(false));
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));

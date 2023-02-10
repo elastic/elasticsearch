@@ -78,15 +78,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     public synchronized int getNumberOfInFlightFetches() {
         int count = 0;
-        if (fetching) {
-            for (NodeEntry<T> nodeEntry : cache.values()) {
-                if (nodeEntry.isFetching()) {
-                    count++;
-                }
-            }
+        if (fetching == false) {
+            return 0;
         }
-        if (count == 0) {
-            fetching = false;
+        for (NodeEntry<T> nodeEntry : cache.values()) {
+            if (nodeEntry.isFetching()) {
+                count++;
+            }
         }
         return count;
     }
@@ -129,6 +127,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         if (hasAnyNodeFetching(cache)) {
             return new FetchResult<>(shardId, null, emptySet());
         } else {
+            fetching = false;
             // nothing to fetch, yay, build the return value
             Map<DiscoveryNode, T> fetchData = new HashMap<>();
             Set<String> failedNodes = new HashSet<>();

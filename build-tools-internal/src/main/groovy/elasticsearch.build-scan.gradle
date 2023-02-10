@@ -10,11 +10,6 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
-import org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin
-import java.util.concurrent.TimeUnit
-import java.util.regex.Matcher
-
-long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
 
 buildScan {
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
@@ -48,13 +43,9 @@ buildScan {
 
       // Link to Jenkins worker logs and system metrics
       if (nodeName) {
-        link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?" +
-                "&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
+        link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
         buildFinished {
-          link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/" +
-                  "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
-                  "time:(from:${startTime - TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
-                  "to:${System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"
+          link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/${nodeName}"
         }
       }
 
@@ -100,7 +91,7 @@ buildScan {
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
       }
-    } else if (buildKiteUrl) {
+    } else if (buildKiteUrl) { //Buildkite-specific build scan metadata
       // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
       uploadInBackground = false
 
@@ -133,28 +124,17 @@ buildScan {
           .findAll { it.startsWith('build-scan-') }
           .collect { Integer.parseInt(it.substring(11)) }
           .max() ?: -1
-        "buildkite-agent meta-data set 'build-scan-${count + 1}' '${scan.buildScanUri}'".execute()
+
+        // Attach build scan link as build metadata
+        // See: https://buildkite.com/docs/pipelines/build-meta-data
+        "buildkite-agent meta-data set build-scan-${count + 1} ${scan.buildScanUri}".execute()
+
+        // Add a build annotation
+        // See: https://buildkite.com/docs/agent/v3/cli-annotate
+        "buildkite-agent annotate --context gradle-build-scans --append --style info \"Gradle build scan for '${System.getenv('BUILDKITE_LABEL')}': [`gradle ${gradle.startParameter.taskNames.join(' ')}`](${scan.buildScanUri})\"".execute()
       }
     } else {
       tag 'LOCAL'
     }
-  }
-}
-
-subprojects {
-  project.getPlugins().withType(TestRerunPlugin) {
-    tasks.withType(Test).configureEach(new Action<Test>() {
-      @Override
-      void execute(Test test) {
-        test.doLast(new Action<Test>() {
-          @Override
-          void execute(Test t) {
-            if(t.rerun.didRerun.get() == true) {
-              buildScan.tag 'unexpected-test-jvm-exit'
-            }
-          }
-        })
-      }
-    })
   }
 }

@@ -297,4 +297,25 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         );
     }
 
+    public void testNullIndexShardRoutingTable() throws Exception {
+        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        IndexShardRoutingTable shardRoutingTable = null;
+        assertThat(
+            expectThrows(
+                NullPointerException.class,
+                () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
+                    f -> ActionTestUtils.execute(
+                        broadcastUnpromotableAction,
+                        null,
+                        new TestBroadcastUnpromotableRequest(shardRoutingTable),
+                        f
+                    ),
+                    10,
+                    TimeUnit.SECONDS
+                )
+            ).toString(),
+            containsString("index shard routing table is null")
+        );
+    }
+
 }

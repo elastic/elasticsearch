@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,7 +46,6 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     public static final String SOURCE_API = "api";
 
     private Engine.RefreshResult primaryRefreshResult = Engine.RefreshResult.NO_REFRESH;
-    private final NodeClient client;
 
     @Inject
     public TransportShardRefreshAction(
@@ -57,7 +55,6 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        NodeClient client,
         ActionFilters actionFilters
     ) {
         super(
@@ -73,8 +70,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             BasicReplicationRequest::new,
             ThreadPool.Names.REFRESH
         );
-        this.client = client;
-        new TransportUnpromotableShardRefreshAction(clusterService, transportService, actionFilters, indicesService, client);
+        new TransportUnpromotableShardRefreshAction(clusterService, transportService, actionFilters, indicesService);
     }
 
     @Override

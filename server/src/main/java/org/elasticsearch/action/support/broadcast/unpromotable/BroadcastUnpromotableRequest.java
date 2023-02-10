@@ -42,7 +42,7 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
     }
 
     public BroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable) {
-        this.indexShardRoutingTable = Objects.requireNonNull(indexShardRoutingTable); // TODO test this
+        this.indexShardRoutingTable = Objects.requireNonNull(indexShardRoutingTable, "index shard routing table is null");
         this.primaryShardId = indexShardRoutingTable.primary().shardId();
     }
 
@@ -54,7 +54,7 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (primaryShardId == null) {
-            validationException = addValidationError("primary shard is missing", validationException); // TODO test this if possible
+            validationException = addValidationError("primary shard is missing", validationException);
         }
         return validationException;
     }

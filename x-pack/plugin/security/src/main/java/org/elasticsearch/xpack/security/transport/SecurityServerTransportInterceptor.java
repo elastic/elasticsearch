@@ -12,8 +12,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -21,6 +24,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
@@ -89,7 +93,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME,
             SearchTransportService.QUERY_CAN_MATCH_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
+            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
+            TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+            ResolveIndexAction.NAME,
+            FieldCapabilitiesAction.NAME,
+            FieldCapabilitiesAction.NAME + "[n]"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)
@@ -313,8 +321,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
 
                 if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
-                    logger.trace("Action [{}] towards remote cluster [{}] is not allow-listed", action, remoteClusterAlias);
-                    return Optional.empty();
+                    throw new IllegalStateException(
+                        Strings.format("Action [%s] towards remote cluster [%s] is not allow-listed", action, remoteClusterAlias)
+                    );
                 }
 
                 final Authentication authentication = securityContext.getAuthentication();

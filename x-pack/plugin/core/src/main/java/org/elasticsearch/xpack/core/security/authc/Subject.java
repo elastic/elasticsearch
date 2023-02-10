@@ -13,12 +13,16 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.REMOTE_ACCESS;
 
@@ -126,8 +131,22 @@ public class Subject {
                 // an API Key cannot access resources created by non-API Keys or vice-versa
                 return false;
             } else if (REMOTE_ACCESS.equals(getType()) || REMOTE_ACCESS.equals(resourceCreatorSubject.getType())) {
-                // TODO implement this once remote authentication is fully supported
-                return false;
+                final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                    .equals(resourceCreatorSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+                if (false == sameKeyId) {
+                    return false;
+                }
+                try {
+                    return AuthenticationContextSerializer.decode((String) getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY))
+                        .canAccessResourcesOf(
+                            AuthenticationContextSerializer.decode(
+                                (String) resourceCreatorSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY)
+                            )
+                        );
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+
             } else {
                 if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
                     return false;
@@ -235,17 +254,19 @@ public class Subject {
     private RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
         final List<RoleReference> roleReferences = new ArrayList<>(4);
         @SuppressWarnings("unchecked")
-        final List<RemoteAccessAuthentication.RoleDescriptorsBytes> remoteAccessRoleDescriptorsBytes = (List<
-            RemoteAccessAuthentication.RoleDescriptorsBytes>) metadata.get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY);
+        final List<RoleDescriptorsBytes> remoteAccessRoleDescriptorsBytes = ((List<BytesReference>) metadata.get(
+            AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY
+        )).stream().map(b -> b instanceof RoleDescriptorsBytes ? (RoleDescriptorsBytes) b : new RoleDescriptorsBytes(b)).toList();
+
         if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
             // If the remote access role descriptors are empty, the remote user has no privileges. We need to add an empty role to restrict
             // access of the overall intersection accordingly
-            roleReferences.add(new RoleReference.RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY));
+            roleReferences.add(new RoleReference.RemoteAccessRoleReference(RoleDescriptorsBytes.EMPTY));
         } else {
             // TODO handle this once we support API keys as querying subjects
             assert remoteAccessRoleDescriptorsBytes.size() == 1
                 : "only a singleton list of remote access role descriptors bytes is supported";
-            for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
+            for (RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
                 roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
             }
         }

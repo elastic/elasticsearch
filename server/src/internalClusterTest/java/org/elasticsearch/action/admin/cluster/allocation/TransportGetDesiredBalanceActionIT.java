@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class TransportGetDesiredBalanceActionIntegrationTests extends ESIntegTestCase {
+public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
 
     public void testDesiredBalanceOnMultiNodeCluster() throws Exception {
         internalCluster().startMasterOnlyNode();

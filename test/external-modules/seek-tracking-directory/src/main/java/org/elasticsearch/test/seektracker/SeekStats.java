@@ -44,4 +44,8 @@ public class SeekStats extends BaseNodeResponse implements ToXContentFragment {
         builder.mapContents(seeks);
         return builder;
     }
+
+    public boolean isEmpty() {
+        return seeks.isEmpty();
+    }
 }

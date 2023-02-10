@@ -44,9 +44,11 @@ public class SeekStatsResponse extends BaseNodesResponse<SeekStats> implements T
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         for (SeekStats seekStats : getNodes()) {
-            builder.startObject(seekStats.getNode().getId());
-            seekStats.toXContent(builder, params);
-            builder.endObject();
+            if (seekStats.isEmpty() == false) {
+                builder.startObject(seekStats.getNode().getId());
+                seekStats.toXContent(builder, params);
+                builder.endObject();
+            }
         }
         builder.endObject();
         return builder;

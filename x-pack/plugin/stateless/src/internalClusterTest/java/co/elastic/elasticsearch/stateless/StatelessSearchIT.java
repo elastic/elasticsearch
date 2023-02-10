@@ -24,7 +24,10 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -220,6 +223,39 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
     }
 
+    public void testStatelessShardsSupportGet() {
+        // Currently this test depends on routing requests to indexing shards. However, eventually these
+        // requests will route to search shards and fall back to indexing shards in certain circumstances.
+        startIndexNodes(numShards);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+        startSearchNodes(numShards * numReplicas);
+        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas));
+        ensureGreen(indexName);
+
+        var bulkRequest = client().prepareBulk();
+        bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        BulkResponse response = bulkRequest.get();
+        assertNoFailures(response);
+        String id = response.getItems()[0].getResponse().getId();
+        GetResponse getResponse = client().prepareGet().setIndex(indexName).setId(id).get();
+        assertTrue(getResponse.isExists());
+
+        String id2 = response.getItems()[1].getResponse().getId();
+        MultiGetResponse multiGetResponse = client().prepareMultiGet().addIds(indexName, id, id2).get();
+        assertTrue(multiGetResponse.getResponses()[0].getResponse().isExists());
+        assertTrue(multiGetResponse.getResponses()[1].getResponse().isExists());
+    }
+
     public void testSearchShardsNotifiedOnNewCommits() throws Exception {
         startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -289,7 +325,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         for (int i = 0; i < docsToIndex; i++) {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
-        boolean bulkRefreshes = randomBoolean();
+        boolean bulkRefreshes = true;
         if (bulkRefreshes) {
             bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
         }

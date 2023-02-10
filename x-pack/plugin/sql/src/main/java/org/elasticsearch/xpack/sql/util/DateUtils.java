@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.sql.util;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -25,6 +27,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
@@ -50,6 +53,7 @@ public final class DateUtils {
         ISO_LOCAL_DATE
     ).optionalStart().appendLiteral('T').append(ISO_LOCAL_TIME_OPTIONAL_TZ).optionalEnd().toFormatter(Locale.ROOT).withZone(UTC);
 
+    private static final DateMathParser DATE_MATH_PARSER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
     private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
     private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
 
@@ -100,10 +104,18 @@ public final class DateUtils {
     public static ZonedDateTime asDateOnly(String dateFormat) {
         int separatorIdx = timeSeparatorIdx(dateFormat);
         // Avoid index out of bounds - it will lead to DateTimeParseException anyways
-        if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
-            return LocalDate.parse(dateFormat, ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL).atStartOfDay(UTC);
-        } else {
-            return LocalDate.parse(dateFormat, ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE).atStartOfDay(UTC);
+        try {
+            if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
+                return LocalDate.parse(dateFormat, ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL).atStartOfDay(UTC);
+            } else {
+                return LocalDate.parse(dateFormat, ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE).atStartOfDay(UTC);
+            }
+        } catch (DateTimeParseException e) {
+            try {
+                return DATE_MATH_PARSER.parse(dateFormat, () -> System.currentTimeMillis()).atZone(UTC);
+            } catch (Exception ex) {
+                throw e;
+            }
         }
     }
 

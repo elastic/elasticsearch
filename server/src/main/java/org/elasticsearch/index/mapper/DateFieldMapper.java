@@ -34,6 +34,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -608,25 +609,48 @@ public final class DateFieldMapper extends FieldMapper {
             BiFunction<Long, Long, Query> builder
         ) {
             return handleNow(context, nowSupplier -> {
-                long l, u;
-                if (lowerTerm == null) {
-                    l = Long.MIN_VALUE;
-                } else {
-                    l = parseToLong(lowerTerm, includeLower == false, timeZone, parser, nowSupplier, resolution);
-                    if (includeLower == false) {
-                        ++l;
-                    }
-                }
-                if (upperTerm == null) {
-                    u = Long.MAX_VALUE;
-                } else {
-                    u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
-                    if (includeUpper == false) {
-                        --u;
-                    }
-                }
-                return builder.apply(l, u);
+                Tuple<Long, Long> range = toTimestampRange(
+                    lowerTerm,
+                    upperTerm,
+                    includeLower,
+                    includeUpper,
+                    timeZone,
+                    parser,
+                    resolution,
+                    nowSupplier
+                );
+                return builder.apply(range.v1(), range.v2());
             });
+        }
+
+        public static Tuple<Long, Long> toTimestampRange(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            ZoneId timeZone,
+            DateMathParser parser,
+            Resolution resolution,
+            LongSupplier nowSupplier
+        ) {
+            long l, u;
+            if (lowerTerm == null) {
+                l = Long.MIN_VALUE;
+            } else {
+                l = parseToLong(lowerTerm, includeLower == false, timeZone, parser, nowSupplier, resolution);
+                if (includeLower == false) {
+                    ++l;
+                }
+            }
+            if (upperTerm == null) {
+                u = Long.MAX_VALUE;
+            } else {
+                u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
+                if (includeUpper == false) {
+                    --u;
+                }
+            }
+            return new Tuple<>(l, u);
         }
 
         /**

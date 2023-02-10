@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
@@ -43,6 +46,8 @@ public final class DateUtils {
         .toFormatter(Locale.ROOT)
         .withZone(UTC);
 
+    public static final DateMathParser DATE_MATH_PARSER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
+
     private DateUtils() {}
 
     /**
@@ -56,21 +61,29 @@ public final class DateUtils {
      * Parses the given string into a DateTime using UTC as a default timezone.
      */
     public static ZonedDateTime asDateTime(String dateFormat) {
-        int separatorIdx = dateFormat.indexOf('-'); // Find the first `-` date separator
-        if (separatorIdx == 0) { // first char = `-` denotes a negative year
-            separatorIdx = dateFormat.indexOf('-', 1); // Find the first `-` date separator past the negative year
-        }
-        // Find the second `-` date separator and move 3 places past the dayOfYear to find the time separator
-        // e.g. 2020-06-01T10:20:30....
-        // ^
-        // +3 = ^
-        separatorIdx = dateFormat.indexOf('-', separatorIdx + 1) + 3;
+        try {
+            int separatorIdx = dateFormat.indexOf('-'); // Find the first `-` date separator
+            if (separatorIdx == 0) { // first char = `-` denotes a negative year
+                separatorIdx = dateFormat.indexOf('-', 1); // Find the first `-` date separator past the negative year
+            }
+            // Find the second `-` date separator and move 3 places past the dayOfYear to find the time separator
+            // e.g. 2020-06-01T10:20:30....
+            // ^
+            // +3 = ^
+            separatorIdx = dateFormat.indexOf('-', separatorIdx + 1) + 3;
 
-        // Avoid index out of bounds - it will lead to DateTimeParseException anyways
-        if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
-            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL.parse(dateFormat)).withZoneSameInstant(UTC);
-        } else {
-            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE.parse(dateFormat)).withZoneSameInstant(UTC);
+            // Avoid index out of bounds - it will lead to DateTimeParseException anyways
+            if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
+                return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL.parse(dateFormat)).withZoneSameInstant(UTC);
+            } else {
+                return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE.parse(dateFormat)).withZoneSameInstant(UTC);
+            }
+        } catch (DateTimeParseException e) {
+            try {
+                return DATE_MATH_PARSER.parse(dateFormat, () -> System.currentTimeMillis()).atZone(UTC);
+            } catch (Exception ex) {
+                throw e;
+            }
         }
     }
 

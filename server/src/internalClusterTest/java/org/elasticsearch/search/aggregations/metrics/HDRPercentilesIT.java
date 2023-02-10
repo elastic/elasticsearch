@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -50,7 +49,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92822")
 public class HDRPercentilesIT extends AbstractNumericTestCase {
 
     @Override
@@ -134,7 +132,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
 
     @Override
     public void testUnmapped() throws Exception {
-        int sigDigits = randomSignificantDigits();
+        // NOTE: unmapped fields use default value numberOfSignificantValueDigits = 3
+        int sigDigits = randomIntBetween(0, 3);
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
             .setQuery(matchAllQuery())
             .addAggregation(
@@ -211,14 +210,12 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         final double[] pcts = randomPercentiles();
-        int sigDigits = randomSignificantDigits();
+        // NOTE: unmapped fields use default value numberOfSignificantValueDigits = 3
+        int sigDigits = randomIntBetween(0, 3);
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
             .setQuery(matchAllQuery())
             .addAggregation(
-                percentiles("percentiles").numberOfSignificantValueDigits(sigDigits)
-                    .method(PercentilesMethod.HDR)
-                    .field("value")
-                    .percentiles(pcts)
+                percentiles("percentiles").percentilesConfig(new PercentilesConfig.Hdr(sigDigits)).field("value").percentiles(pcts)
             )
             .get();
 

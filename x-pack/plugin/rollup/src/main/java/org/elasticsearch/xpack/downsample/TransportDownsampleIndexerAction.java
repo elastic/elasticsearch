@@ -103,12 +103,20 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, DownsampleIndexerAction.Request request, String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(
+        ClusterState state,
+        DownsampleIndexerAction.Request request,
+        String[] concreteIndices
+    ) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 
     @Override
-    protected void doExecute(Task task, DownsampleIndexerAction.Request request, ActionListener<DownsampleIndexerAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        DownsampleIndexerAction.Request request,
+        ActionListener<DownsampleIndexerAction.Response> listener
+    ) {
         new Async(task, request, listener).start();
     }
 
@@ -122,8 +130,10 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected DownsampleIndexerAction.ShardDownsampleResponse shardOperation(DownsampleIndexerAction.ShardDownsampleRequest request, Task task)
-        throws IOException {
+    protected DownsampleIndexerAction.ShardDownsampleResponse shardOperation(
+        DownsampleIndexerAction.ShardDownsampleRequest request,
+        Task task
+    ) throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
         RollupShardIndexer indexer = new RollupShardIndexer(
             (RollupShardTask) task,

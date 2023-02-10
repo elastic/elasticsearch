@@ -395,7 +395,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         @Override
         public void messageReceived(FieldCapabilitiesNodeRequest request, TransportChannel channel, Task task) throws Exception {
             assert task instanceof CancellableTask;
-            final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel, ACTION_NODE_NAME, request);
+            final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel);
             ActionListener.completeWith(listener, () -> {
                 final List<FieldCapabilitiesIndexResponse> allResponses = new ArrayList<>();
                 final Map<ShardId, Exception> allFailures = new HashMap<>();

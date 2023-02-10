@@ -36,7 +36,7 @@ public class AllocationDeciders {
 
     private final AllocationDecider[] allocations;
 
-    public AllocationDeciders(Collection<AllocationDecider> allocations) {
+    public AllocationDeciders(Collection<? extends AllocationDecider> allocations) {
         this.allocations = allocations.toArray(AllocationDecider[]::new);
     }
 

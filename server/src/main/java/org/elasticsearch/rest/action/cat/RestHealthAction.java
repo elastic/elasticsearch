@@ -12,8 +12,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.rest.Access;
-import org.elasticsearch.rest.AccessLevel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -23,7 +21,6 @@ import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-@AccessLevel(Access.INTERNAL)
 public class RestHealthAction extends AbstractCatAction {
 
     @Override

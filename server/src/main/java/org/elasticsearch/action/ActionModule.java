@@ -530,7 +530,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
-        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer, settings);
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 

@@ -46,7 +46,12 @@ public interface RestHandler {
         return false;
     }
 
-    default RestHandler getRootRestHandler() {
+    /**
+     * Returns the concrete RestHandler for this RestHandler. That is, if this is a delegating RestHandler it returns the delegate.
+     * Otherwise it returns itself.
+     * @return The underlying RestHandler
+     */
+    default RestHandler getConcreteRestHandler() {
         return this;
     }
 

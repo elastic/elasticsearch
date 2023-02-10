@@ -80,8 +80,8 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.allowSystemIndexAccessByDefault();
     }
 
-    public RestHandler getRootRestHandler() {
-        return restHandler;
+    public RestHandler getConcreteRestHandler() {
+        return restHandler.getConcreteRestHandler();
     }
 
     @Override

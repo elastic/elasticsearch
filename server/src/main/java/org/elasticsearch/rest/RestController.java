@@ -111,7 +111,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        Tracer tracer,
+        Settings settings
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -123,7 +124,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
-        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(client == null ? Settings.EMPTY : client.settings());
+        this.enforceProtections = ENFORCE_API_PROTECTIONS_SETTING.get(settings);
     }
 
     /**
@@ -316,7 +317,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private Access getRestHandlerAccess(RestHandler handler) {
-        AccessLevel accessLevelAnnotation = handler.getRootRestHandler().getClass().getAnnotation(AccessLevel.class);
+        AccessLevel accessLevelAnnotation = handler.getConcreteRestHandler().getClass().getAnnotation(AccessLevel.class);
         return accessLevelAnnotation == null ? Access.HIDDEN : accessLevelAnnotation.value();
     }
 
@@ -388,9 +389,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (Access.INTERNAL.equals(access)) {
                 if (internalRequest == false) {
                     handleBadRequest(request.uri(), request.method(), responseChannel);
+                    return;
                 }
             } else if (Access.PUBLIC.equals(access) == false) {
                 handleBadRequest(request.uri(), request.method(), responseChannel);
+                return;
             }
         }
         try {

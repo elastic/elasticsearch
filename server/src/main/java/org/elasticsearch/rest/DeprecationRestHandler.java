@@ -96,8 +96,8 @@ public class DeprecationRestHandler implements RestHandler {
     }
 
     @Override
-    public RestHandler getRootRestHandler() {
-        return handler;
+    public RestHandler getConcreteRestHandler() {
+        return handler.getConcreteRestHandler();
     }
 
     @Override

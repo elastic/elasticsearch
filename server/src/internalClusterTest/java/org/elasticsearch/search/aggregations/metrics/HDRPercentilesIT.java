@@ -157,7 +157,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedField() throws Exception {
         final double[] pcts = randomPercentiles();
-        int sigDigits = randomSignificantDigits();
+        int sigDigits = randomIntBetween(1, 5);
         SearchResponse searchResponse = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
             .addAggregation(
@@ -209,7 +209,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         final double[] pcts = randomPercentiles();
-        int sigDigits = randomPercentiles();
+        int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
             .setQuery(matchAllQuery())
             .addAggregation(

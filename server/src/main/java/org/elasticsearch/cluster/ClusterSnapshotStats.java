@@ -71,10 +71,11 @@ public record ClusterSnapshotStats(
             var finalizationsCount = 0;
             var totalShards = 0;
             var completeShards = 0;
-            final var shardStatesAccumulator = new EnumMap<>(
-                Arrays.stream(SnapshotsInProgress.ShardState.values())
-                    .collect(Collectors.toMap(Function.identity(), ignored -> new AtomicInteger()))
-            );
+            final var shardStatesAccumulator = Arrays.stream(SnapshotsInProgress.ShardState.values())
+                .collect(Collectors.toMap(Function.identity(), ignored -> new AtomicInteger(), (s1, s2) -> {
+                    assert false;
+                    return s1;
+                }, () -> new EnumMap<>(SnapshotsInProgress.ShardState.class)));
             var deletionsCount = 0;
             var snapshotDeletionsCount = 0;
             var activeDeletionsCount = 0;

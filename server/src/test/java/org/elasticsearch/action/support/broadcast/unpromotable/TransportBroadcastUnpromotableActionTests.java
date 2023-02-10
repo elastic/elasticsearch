@@ -173,12 +173,12 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
     private int countRequestsForIndex(ClusterState state, String index) {
         PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
-        state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).iterator().forEachRemaining(primaryShardId -> {
-            logger.debug("--> executing for primary shard id: {}", primaryShardId.shardId());
+        state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).iterator().forEachRemaining(shardId -> {
+            logger.debug("--> executing for primary shard id: {}", shardId.shardId());
             ActionTestUtils.execute(
                 broadcastUnpromotableAction,
                 null,
-                new TestBroadcastUnpromotableRequest(state.routingTable().shardRoutingTable(primaryShardId.shardId())),
+                new TestBroadcastUnpromotableRequest(state.routingTable().shardRoutingTable(shardId.shardId())),
                 response
             );
         });
@@ -259,13 +259,13 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
 
-        ShardId primaryShardId = state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).get(0).shardId();
-        IndexShardRoutingTable routingTable = state.routingTable().shardRoutingTable(primaryShardId);
-        IndexShardRoutingTable.Builder wrongRoutingTableBuilder = new IndexShardRoutingTable.Builder(primaryShardId);
+        ShardId shardId = state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).get(0).shardId();
+        IndexShardRoutingTable routingTable = state.routingTable().shardRoutingTable(shardId);
+        IndexShardRoutingTable.Builder wrongRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardId);
         for (int i = 0; i < routingTable.size(); i++) {
             ShardRouting shardRouting = routingTable.shard(i);
             ShardRouting wrongShardRouting = newShardRouting(
-                primaryShardId,
+                shardId,
                 shardRouting.currentNodeId() + randomIntBetween(10, 100),
                 shardRouting.relocatingNodeId(),
                 shardRouting.primary(),

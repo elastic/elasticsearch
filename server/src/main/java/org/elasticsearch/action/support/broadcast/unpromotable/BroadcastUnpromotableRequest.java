@@ -33,28 +33,28 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
      */
     final @Nullable IndexShardRoutingTable indexShardRoutingTable;
 
-    protected final ShardId primaryShardId;
+    protected final ShardId shardId;
 
     public BroadcastUnpromotableRequest(StreamInput in) throws IOException {
         super(in);
-        primaryShardId = new ShardId(in);
+        shardId = new ShardId(in);
         indexShardRoutingTable = null;
     }
 
     public BroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable) {
         this.indexShardRoutingTable = Objects.requireNonNull(indexShardRoutingTable, "index shard routing table is null");
-        this.primaryShardId = indexShardRoutingTable.primary().shardId();
+        this.shardId = indexShardRoutingTable.shardId();
     }
 
-    public ShardId primaryShardId() {
-        return primaryShardId;
+    public ShardId shardId() {
+        return shardId;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (primaryShardId == null) {
-            validationException = addValidationError("primary shard is missing", validationException);
+        if (shardId == null) {
+            validationException = addValidationError("shard id is missing", validationException);
         }
         return validationException;
     }
@@ -62,12 +62,12 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeWriteable(primaryShardId);
+        out.writeWriteable(shardId);
     }
 
     @Override
     public String toString() {
-        return "BroadcastUnpromotableRequest{" + "primaryShardId=" + primaryShardId() + '}';
+        return "BroadcastUnpromotableRequest{" + "shardId=" + shardId() + '}';
     }
 
     @Override

@@ -37,7 +37,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
-            validationException = addValidationError("segment generation is unknown", validationException); // TODO test this
+            validationException = addValidationError("segment generation is unknown", validationException);
         }
         return validationException;
     }
@@ -54,6 +54,6 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
 
     @Override
     public String toString() {
-        return "UnpromotableShardRefreshRequest{" + "primaryShardId=" + primaryShardId() + ", segmentGeneration=" + segmentGeneration + '}';
+        return "UnpromotableShardRefreshRequest{" + "shardId=" + shardId() + ", segmentGeneration=" + segmentGeneration + '}';
     }
 }

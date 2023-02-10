@@ -248,6 +248,7 @@ public class LimitedRoleTests extends ESTestCase {
                     randomBoolean(),
                     randomAlphaOfLength(5)
                 );
+                default -> throw new IllegalStateException("unexpected case");
             }
         }
 

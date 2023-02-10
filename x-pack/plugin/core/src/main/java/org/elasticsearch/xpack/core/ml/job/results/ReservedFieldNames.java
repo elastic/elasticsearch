@@ -96,9 +96,8 @@ public final class ReservedFieldNames {
         AnomalyScoreExplanation.HIGH_VARIANCE_PENALTY.getPreferredName(),
         AnomalyScoreExplanation.INCOMPLETE_BUCKET_PENALTY.getPreferredName(),
         AnomalyScoreExplanation.MULTIMODAL_DISTRIBUTION.getPreferredName(),
-        AnomalyScoreExplanation.RARE_CATEGORY_SEEN_FIRST_TIME.getPreferredName(),
-        AnomalyScoreExplanation.RARE_CATEGORY_TYPICAL_CONCENTRATION.getPreferredName(),
-        AnomalyScoreExplanation.RARE_CATEGORY_ACTUAL_CONCENTRATION.getPreferredName(),
+        AnomalyScoreExplanation.BY_FIELD_FIRST_OCCURRENCE.getPreferredName(),
+        AnomalyScoreExplanation.BY_FIELD_RELATIVE_RARITY.getPreferredName(),
 
         GeoResults.TYPICAL_POINT.getPreferredName(),
         GeoResults.ACTUAL_POINT.getPreferredName(),

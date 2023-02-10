@@ -272,13 +272,10 @@
         "incomplete_bucket_penalty": {
           "type": "boolean"
         },
-        "rare_category_seen_first_time": {
+        "by_field_first_occurrence": {
           "type": "boolean"
         },
-        "rare_category_typical_concentration": {
-          "type": "double"
-        },
-        "rare_category_actual_concentration": {
+        "by_field_relative_rarity": {
           "type": "double"
         }
       }

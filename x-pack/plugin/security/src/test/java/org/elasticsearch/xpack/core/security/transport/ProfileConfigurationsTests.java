@@ -66,23 +66,24 @@ public class ProfileConfigurationsTests extends ESTestCase {
     public void testTransportAndRemoteClusterSslCanBeEnabledIndependently() {
         assumeFalse("Can't run in a FIPS JVM with JKS/PKCS12 keystore or verification mode None", inFipsJvm());
         final boolean transportSslEnabled = randomBoolean();
-        final boolean remoteClusterSslEnabled = randomBoolean();
+        final boolean remoteClusterServerSslEnabled = randomBoolean();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
             .put("xpack.security.transport.ssl.keystore.path", getKeystorePath().toString())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.NONE.name())
             .put("remote_cluster.enabled", true)
-            .put("xpack.security.remote_cluster.ssl.enabled", remoteClusterSslEnabled)
-            .put("xpack.security.remote_cluster.ssl.keystore.path", getKeystorePath().toString())
-            .put("xpack.security.remote_cluster.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
-            .setSecureSettings(getKeystoreSecureSettings("transport", "remote_cluster"))
+            .put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterServerSslEnabled)
+            .put("xpack.security.remote_cluster_server.ssl.keystore.path", getKeystorePath().toString())
+            .put("xpack.security.remote_cluster_server.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
+            .setSecureSettings(getKeystoreSecureSettings("transport", "remote_cluster_server"))
+            .put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean())  // client SSL won't be processed
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
         final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
 
-        if (transportSslEnabled && remoteClusterSslEnabled) {
+        if (transportSslEnabled && remoteClusterServerSslEnabled) {
             assertThat(profileConfigurations.size(), Matchers.equalTo(2));
             assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("default", "_remote_cluster"));
             assertThat(profileConfigurations.get("_remote_cluster").verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
@@ -97,7 +98,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
                 profileConfigurations.get("default"),
                 Matchers.sameInstance(sslService.getSSLConfiguration("xpack.security.transport.ssl"))
             );
-        } else if (remoteClusterSslEnabled) {
+        } else if (remoteClusterServerSslEnabled) {
             assertThat(profileConfigurations.size(), Matchers.equalTo(1));
             assertThat(profileConfigurations.keySet(), contains("_remote_cluster"));
             assertThat(profileConfigurations.get("_remote_cluster").verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
@@ -114,10 +115,11 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .put("xpack.security.transport.ssl.keystore.path", getKeystorePath().toString())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.NONE.name())
             .put("remote_cluster.enabled", false)
-            .put("xpack.security.remote_cluster.ssl.enabled", true)
-            .put("xpack.security.remote_cluster.ssl.keystore.path", getKeystorePath().toString())
-            .put("xpack.security.remote_cluster.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
-            .setSecureSettings(getKeystoreSecureSettings("transport", "remote_cluster"))
+            .put("xpack.security.remote_cluster_server.ssl.enabled", true)
+            .put("xpack.security.remote_cluster_server.ssl.keystore.path", getKeystorePath().toString())
+            .put("xpack.security.remote_cluster_server.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
+            .setSecureSettings(getKeystoreSecureSettings("transport", "remote_cluster_server"))
+            .put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean())  // client SSL won't be processed
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
@@ -140,10 +142,11 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .put("transport.profiles.client.xpack.security.ssl.client_authentication", SslClientAuthenticationMode.NONE)
             .put("remote_cluster.enabled", remoteClusterPortEnabled)
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.NONE.name())
-            .put("xpack.security.remote_cluster.ssl.enabled", false)
-            .put("xpack.security.remote_cluster.ssl.keystore.path", getKeystorePath().toString())
-            .put("xpack.security.remote_cluster.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
-            .setSecureSettings(getKeystoreSecureSettings("transport", "remote_cluster"))
+            .put("xpack.security.remote_cluster_server.ssl.enabled", false)
+            .put("xpack.security.remote_cluster_server.ssl.keystore.path", getKeystorePath().toString())
+            .put("xpack.security.remote_cluster_server.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
+            .setSecureSettings(getKeystoreSecureSettings("transport", "remote_cluster_server"))
+            .put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean())  // client SSL won't be processed
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);

@@ -70,8 +70,15 @@ public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequ
     @Override
     protected SeekStats nodeOperation(SeekStatsRequest request, Task task) {
         Map<String, Long> seeks = new HashMap<>();
-        for (Map.Entry<String, LongAdder> entry : seekStatsService.seeks.entrySet()) {
-            seeks.put(entry.getKey(), entry.getValue().longValue());
+        if (request.getIndices().length == 0) {
+            for (Map.Entry<String, LongAdder> entry : seekStatsService.seeks.entrySet()) {
+                seeks.put(entry.getKey(), entry.getValue().longValue());
+            }
+        } else {
+            for (String index : request.getIndices()) {
+                LongAdder longAdder = seekStatsService.seeks.get(index);
+                seeks.put(index, longAdder.longValue());
+            }
         }
         return new SeekStats(clusterService.localNode(), seeks);
     }

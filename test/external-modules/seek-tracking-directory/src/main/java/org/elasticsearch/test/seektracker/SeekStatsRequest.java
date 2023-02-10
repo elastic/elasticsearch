@@ -10,18 +10,34 @@ package org.elasticsearch.test.seektracker;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 public class SeekStatsRequest extends BaseNodesRequest<SeekStatsRequest> {
 
-    public SeekStatsRequest(String... nodeIds) {
-        super(nodeIds);
+    private final String[] indices;
+
+    public SeekStatsRequest(String... indices) {
+        super(Strings.EMPTY_ARRAY);
+        this.indices = indices;
     }
 
     public SeekStatsRequest(StreamInput in) throws IOException {
         super(in);
+        this.indices = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+    }
+
+    public String[] getIndices() {
+        return indices;
     }
 
     @Override

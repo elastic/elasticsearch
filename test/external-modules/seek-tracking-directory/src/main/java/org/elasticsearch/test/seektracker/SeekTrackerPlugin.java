@@ -81,7 +81,7 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Collections.singletonList(new RestSeekCountAction());
+        return Collections.singletonList(new RestSeekStatsAction());
     }
 
     @Override

@@ -126,6 +126,15 @@ buildScan {
         link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
         tag branch
       }
+
+      buildScanPublished { scan ->
+        // Find existing build scan metadata so we can increment the key index
+        def count = 'buildkite-agent meta-data keys'.execute().text.readLines()
+          .findAll { it.startsWith('build-scan-') }
+          .collect { Integer.parseInt(it.substring(11)) }
+          .max()
+        "buildkite-agent meta-data set 'build-scan-${count + 1}' '${scan.buildScanUri}'"
+      }
     } else {
       tag 'LOCAL'
     }

@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
@@ -982,6 +983,11 @@ public class ApiKeyService {
 
     static ApiKeyCredentials getCredentialsFromHeader(final String header) {
         return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"));
+    }
+
+    static String base64Encode(ApiKeyCredentials apiKeyCredentials) {
+        return Base64.getEncoder()
+            .encodeToString((apiKeyCredentials.getId() + ":" + apiKeyCredentials.getKey()).getBytes(StandardCharsets.UTF_8));
     }
 
     private static ApiKeyCredentials parseApiKey(SecureString apiKeyString) {

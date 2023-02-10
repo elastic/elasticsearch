@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public final class RemoteAccessHeaders {
     }
 
     public ApiKeyService.ApiKeyCredentials clusterCredentials() {
-        return clusterCredentials.toApiKeyCredentials();
+        return clusterCredentials.getOrParseApiKeyCredentials();
     }
 
     public RemoteAccessAuthentication remoteAccessAuthentication() {
@@ -59,9 +60,25 @@ public final class RemoteAccessHeaders {
         return Objects.hash(clusterCredentials, remoteAccessAuthentication);
     }
 
-    private record EncodedApiKeyWithPrefix(String encodedApiKey) {
+    private static final class EncodedApiKeyWithPrefix {
 
         private static final String PREFIX = "ApiKey";
+        private final String encodedApiKey;
+        @Nullable
+        private final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
+
+        private EncodedApiKeyWithPrefix(String encodedApiKey, @Nullable ApiKeyService.ApiKeyCredentials apiKeyCredentials) {
+            this.apiKeyCredentials = apiKeyCredentials;
+            this.encodedApiKey = encodedApiKey;
+        }
+
+        private EncodedApiKeyWithPrefix(ApiKeyService.ApiKeyCredentials apiKeyCredentials) {
+            this(ApiKeyService.base64Encode(apiKeyCredentials), apiKeyCredentials);
+        }
+
+        private EncodedApiKeyWithPrefix(String encodedApiKey) {
+            this(encodedApiKey, null);
+        }
 
         private void writeToContext(final ThreadContext ctx) {
             ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, withApiKeyPrefix(encodedApiKey));
@@ -74,13 +91,9 @@ public final class RemoteAccessHeaders {
                     "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"
                 );
             }
-            final var encodedApiKeyWithPrefix = new EncodedApiKeyWithPrefix(stripApiKeyPrefix(clusterCredentialHeader));
-            encodedApiKeyWithPrefix.validate();
-            return encodedApiKeyWithPrefix;
-        }
-
-        private void validate() {
-            try (ApiKeyService.ApiKeyCredentials ignored = toApiKeyCredentials()) {} catch (Exception ex) {
+            try {
+                return new EncodedApiKeyWithPrefix(parseApiKeyCredentials(clusterCredentialHeader));
+            } catch (Exception ex) {
                 throw new IllegalArgumentException(
                     "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential",
                     ex
@@ -88,24 +101,34 @@ public final class RemoteAccessHeaders {
             }
         }
 
-        private ApiKeyService.ApiKeyCredentials toApiKeyCredentials() {
-            return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(withApiKeyPrefix(encodedApiKey)));
+        private static ApiKeyService.ApiKeyCredentials parseApiKeyCredentials(String clusterCredentialHeader) {
+            return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(clusterCredentialHeader));
+        }
+
+        private ApiKeyService.ApiKeyCredentials getOrParseApiKeyCredentials() {
+            return apiKeyCredentials != null ? apiKeyCredentials : parseApiKeyCredentials(withApiKeyPrefix(encodedApiKey));
         }
 
         private static String withApiKeyPrefix(final String encodedCredentials) {
             return PREFIX + " " + encodedCredentials;
         }
 
-        private static String stripApiKeyPrefix(final String encodedWithPrefix) {
-            final String prefixWithSpace = PREFIX + " ";
-            if (false == encodedWithPrefix.startsWith(prefixWithSpace)) {
-                throw new IllegalArgumentException(
-                    "remote access header ["
-                        + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
-                        + "] must be a valid API key credential with [ApiKey] prefix"
-                );
-            }
-            return encodedWithPrefix.substring(prefixWithSpace.length());
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            EncodedApiKeyWithPrefix that = (EncodedApiKeyWithPrefix) o;
+
+            if (false == encodedApiKey.equals(that.encodedApiKey)) return false;
+            return Objects.equals(apiKeyCredentials, that.apiKeyCredentials);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = encodedApiKey.hashCode();
+            result = 31 * result + (apiKeyCredentials != null ? apiKeyCredentials.hashCode() : 0);
+            return result;
         }
     }
 }

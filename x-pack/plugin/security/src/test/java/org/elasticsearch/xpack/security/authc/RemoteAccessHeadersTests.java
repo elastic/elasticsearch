@@ -35,7 +35,9 @@ public class RemoteAccessHeadersTests extends ESTestCase {
         expected.writeToContext(ctx);
         final RemoteAccessHeaders actual = RemoteAccessHeaders.readFromContext(ctx);
 
-        assertThat(actual, equalTo(expected));
+        assertThat(actual.remoteAccessAuthentication(), equalTo(expected.remoteAccessAuthentication()));
+        assertThat(actual.clusterCredentials().getId(), equalTo(expected.clusterCredentials().getId()));
+        assertThat(actual.clusterCredentials().getKey().toString(), equalTo(expected.clusterCredentials().getKey().toString()));
     }
 
     public void testClusterCredentialsReturnsValidApiKey() {
@@ -88,11 +90,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
 
         assertThat(
             actual.getMessage(),
-            equalTo(
-                "remote access header ["
-                    + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
-                    + "] must be a valid API key credential with [ApiKey] prefix"
-            )
+            equalTo("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential")
         );
     }
 

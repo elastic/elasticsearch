@@ -74,6 +74,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
     static {
         final Stream<String> actions = Stream.of(
+            TransportService.HANDSHAKE_ACTION_NAME,
             SearchAction.NAME,
             ClusterStateAction.NAME,
             ClusterSearchShardsAction.NAME,
@@ -366,7 +367,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (SystemUser.is(user)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         new RemoteAccessHeaders(
-                            remoteAccessCredentials.credential(),
+                            remoteAccessCredentials.credentials(),
                             // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
                             // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
                             // authentication instance
@@ -387,7 +388,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                                 new RemoteAccessHeaders(
-                                    remoteAccessCredentials.credential(),
+                                    remoteAccessCredentials.credentials(),
                                     new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection)
                                 ).writeToContext(threadContext);
                                 sender.sendRequest(connection, action, request, options, contextRestoreHandler);
@@ -398,7 +399,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             // TODO move this to `RemoteClusterAuthorizationResolver` and have `resolveAuthorization` return it
-            record RemoteAccessCredentials(String clusterAlias, String credential) {}
+            record RemoteAccessCredentials(String clusterAlias, String credentials) {}
         };
     }
 

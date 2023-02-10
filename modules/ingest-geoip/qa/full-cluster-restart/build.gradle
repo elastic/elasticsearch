@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -37,7 +38,12 @@ tasks.withType(Test).configureEach {
   }
 }
 
-BuildParams.bwcVersions.withWireCompatible(v -> v.before("8.0.0")) { bwcVersion, baseName ->
+assert Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() == 8 :
+  "If we are targeting a branch other than 8, we should enable migration tests"
+
+// once we are ready to test migrations from 8.x to 9.x, we can set the compatible version to 8.0.0
+// see https://github.com/elastic/elasticsearch/pull/93666
+BuildParams.bwcVersions.withWireCompatible(v -> v.before("7.0.0")) { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
     if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {

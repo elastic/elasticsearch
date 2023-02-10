@@ -861,6 +861,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher searcher = newIndexSearcher(indexReader);
                 try (AggregationContext context = createAggregationContext(searcher, query, fieldTypes)) {
                     verify.accept(searcher, createAggregator(aggregationBuilder, context));
+                } finally {
+                    closePreallocatedBreaker();
                 }
             }
         }

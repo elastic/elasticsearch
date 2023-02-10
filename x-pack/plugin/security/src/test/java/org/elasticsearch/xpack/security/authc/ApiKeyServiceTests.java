@@ -2064,9 +2064,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .map(RoleDescriptor::getName)
             .toArray(String[]::new);
 
-        if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
-            assertRoleWarnings(apiKeyId, userRoleNamesWithRemoteIndicesPrivileges);
-        }
+        assertRoleWarnings(userRoleNamesWithRemoteIndicesPrivileges);
     }
 
     public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
@@ -2138,15 +2136,13 @@ public class ApiKeyServiceTests extends ESTestCase {
             .map(RoleDescriptor::getName)
             .toArray(String[]::new);
 
-        if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
-            assertRoleWarnings(apiKeyId, userRoleNamesWithRemoteIndicesPrivileges);
-        }
+        assertRoleWarnings(userRoleNamesWithRemoteIndicesPrivileges);
     }
 
-    private void assertRoleWarnings(String apiKey, String... roleNames) {
+    private void assertRoleWarnings(String... roleNames) {
         String[] warnings = new String[roleNames.length];
         for (int i = 0; i < roleNames.length; ++i) {
-            warnings[i] = "Removed remote indices privileges from role [" + roleNames[i] + "] for API key(s) [" + apiKey + "]";
+            warnings[i] = "Remote indices privileges from role [" + roleNames[i] + "] have been removed";
         }
         assertWarnings(warnings);
     }

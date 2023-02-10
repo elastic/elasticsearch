@@ -548,14 +548,12 @@ public class ApiKeyService {
         if (requestHasRoleDescriptorsWithoutRemoteIndicesPrivileges || version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
             return userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
-                    final String warningMessage = Strings.format(
-                        "Removed remote indices privileges from role [%s] for API key(s) [%s]",
+                    logger.warn(
+                        "Removed remote indices privileges from role [{}] for API key(s) [{}]",
                         roleDescriptor.getName(),
                         String.join(", ", apiKeyIds)
                     );
-
-                    logger.warn(warningMessage);
-                    HeaderWarning.addWarning(warningMessage);
+                    HeaderWarning.addWarning("Remote indices privileges from role [" + roleDescriptor.getName() + "] have been removed");
 
                     return new RoleDescriptor(
                         roleDescriptor.getName(),

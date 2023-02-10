@@ -285,7 +285,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         public void onRemoved() {}
     }
 
-    static final class InternalRemoteConnection implements Transport.Connection {
+    private static final class InternalRemoteConnection implements Transport.Connection {
 
         private final Transport.Connection connection;
         private final String clusterAlias;
@@ -369,5 +369,9 @@ public class RemoteConnectionManager implements ConnectionManager {
         public boolean hasReferences() {
             return connection.hasReferences();
         }
+    }
+
+    static InternalRemoteConnection wrapConnectionWithClusterAlias(Transport.Connection connection, String clusterAlias) {
+        return new InternalRemoteConnection(connection, clusterAlias);
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +37,6 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -92,8 +92,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 // Handshake (as part of cluster name validation) should go through the internal remote connection
                 // So it can be intercepted accordingly
                 doAnswer(invocation -> {
-                    final Object connection = invocation.getArgument(0);
-                    assertThat(connection, isA(RemoteConnectionManager.InternalRemoteConnection.class));
+                    final var connection = (Transport.Connection) invocation.getArgument(0);
+                    final Optional<String> optionalClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
+                    assertTrue(optionalClusterAlias.isPresent());
+                    assertEquals(clusterAlias, optionalClusterAlias.get());
                     invocation.callRealMethod();
                     return null;
                 }).when(localService).handshake(any(), any(), any(), any());

@@ -125,7 +125,7 @@ buildScan {
 
         // Add a build annotation
         // See: https://buildkite.com/docs/agent/v3/cli-annotate
-        "buildkite-agent annotate --context gradle-build-scans --append --style info 'Gradle build scan'".execute()
+        "buildkite-agent annotate --context gradle-build-scans --append --style info 'Gradle build scan `[link](${scan.buildScanUri})`'".execute()
       }
     } else {
       tag 'LOCAL'

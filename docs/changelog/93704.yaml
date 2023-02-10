@@ -1,5 +1,5 @@
 pr: 93704
-summary: Use the corredt value of `numberOfSignificantValueDigits` on empty aggregations
+summary: Merge two histograms usign the higher number of digits among all histograms
 area: Aggregations
 type: bug
 issues:

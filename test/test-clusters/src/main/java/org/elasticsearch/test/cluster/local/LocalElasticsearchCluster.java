@@ -99,6 +99,18 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
     }
 
     @Override
+    public String getRemoteClusterServerEndpoint() {
+        checkHandle();
+        return handle.getRemoteClusterServerEndpoint();
+    }
+
+    @Override
+    public String getRemoteClusterServerEndpoint(int index) {
+        checkHandle();
+        return handle.getRemoteClusterServerEndpoint(index);
+    }
+
+    @Override
     public void upgradeNodeToVersion(int index, Version version) {
         checkHandle();
         handle.upgradeNodeToVersion(index, version);

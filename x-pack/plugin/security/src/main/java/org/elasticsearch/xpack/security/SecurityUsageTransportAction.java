@@ -45,7 +45,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.FIPS_MODE_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TOKEN_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
 
@@ -191,7 +191,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
             map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
             if (RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
-                map.put("remote_cluster", singletonMap("enabled", REMOTE_CLUSTER_SSL_ENABLED.get(settings)));
+                map.put("remote_cluster_server", singletonMap("enabled", REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings)));
             }
             return map;
         } else {

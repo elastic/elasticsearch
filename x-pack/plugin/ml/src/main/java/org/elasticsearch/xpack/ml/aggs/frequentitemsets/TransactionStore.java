@@ -194,6 +194,10 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
         this.bigArrays = bigArrays;
     }
 
+    BigArrays getBigArrays() {
+        return bigArrays;
+    }
+
     /**
      * Get the total number of items
      *

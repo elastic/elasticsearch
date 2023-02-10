@@ -136,7 +136,9 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                     );
                 }
                 final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(shardRouting.id());
-                if (shardRouting.active() && inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
+                if (shardRouting.active()
+                    && shardRouting.isPromotableToPrimary()
+                    && inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
                     throw new IllegalStateException(
                         "active shard routing "
                             + shardRouting

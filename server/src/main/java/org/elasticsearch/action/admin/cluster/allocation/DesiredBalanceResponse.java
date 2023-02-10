@@ -174,8 +174,8 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         boolean relocatingNodeIsDesired,
         int shardId,
         String index,
-        @Nullable Double forecastedWriteLoad,
-        @Nullable Long forecastedShardSizeInBytes
+        @Nullable Double forecastWriteLoad,
+        @Nullable Long forecastShardSizeInBytes
     ) implements Writeable, ToXContentObject {
 
         private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersion.V_8_7_0;
@@ -223,8 +223,8 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             out.writeVInt(shardId);
             out.writeString(index);
             if (out.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
-                out.writeOptionalDouble(forecastedWriteLoad);
-                out.writeOptionalLong(forecastedShardSizeInBytes);
+                out.writeOptionalDouble(forecastWriteLoad);
+                out.writeOptionalLong(forecastShardSizeInBytes);
             } else {
                 out.writeMissingWriteable(AllocationId.class);
             }
@@ -241,8 +241,8 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 .field("relocating_node_is_desired", relocatingNodeIsDesired)
                 .field("shard_id", shardId)
                 .field("index", index)
-                .field("forecasted_write_load", forecastedWriteLoad)
-                .field("forecasted_shard_size_in_bytes", forecastedShardSizeInBytes)
+                .field("forecast_write_load", forecastWriteLoad)
+                .field("forecast_shard_size_in_bytes", forecastShardSizeInBytes)
                 .endObject();
         }
     }

@@ -48,7 +48,7 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
                 .setPersistentSettings(
                     Settings.builder()
                         .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                        .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
+                        .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
                         .putNull("ingest.geoip.database_validity")
                 )
                 .get()

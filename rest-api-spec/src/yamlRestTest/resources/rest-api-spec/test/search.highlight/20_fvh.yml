@@ -22,7 +22,6 @@ setup:
   - do:
       index:
         index: test
-        refresh: true
         body:
           id : 1
           title : "The quick brown fox is brown"
@@ -31,13 +30,16 @@ setup:
   - do:
       index:
         index: test
-        refresh: true
         body:
           id : 2
           title : "The quick blue fox is blue"
           nested:
             - title: "purple octopus"
             - title: "purple fish"
+
+  - do:
+      indices.refresh:
+        index: [test]
 
 ---
 "Highlight query":

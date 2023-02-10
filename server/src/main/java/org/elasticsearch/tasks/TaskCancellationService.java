@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.StepListener;
@@ -294,7 +294,7 @@ public class TaskCancellationService {
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             reason = ban ? in.readString() : null;
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
                 waitForCompletion = in.readBoolean();
             } else {
                 waitForCompletion = false;
@@ -309,7 +309,7 @@ public class TaskCancellationService {
             if (ban) {
                 out.writeString(reason);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
                 out.writeBoolean(waitForCompletion);
             }
         }
@@ -328,7 +328,7 @@ public class TaskCancellationService {
                 final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason, channel);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     childTasks.size() + 1,
-                    new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request).map(r -> TransportResponse.Empty.INSTANCE)
+                    new ChannelActionListener<>(channel).map(r -> TransportResponse.Empty.INSTANCE)
                 );
                 for (CancellableTask childTask : childTasks) {
                     cancelTaskAndDescendants(childTask, request.reason, request.waitForCompletion, listener);

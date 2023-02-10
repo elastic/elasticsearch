@@ -191,7 +191,7 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
 
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {
         // Start with no metadata available
-        makeAllMetadataUnavailable();
+        assertAllMetadataUnavailable();
 
         final String username = randomAlphaOfLengthBetween(4, 12);
         for (int realmNumber : shuffledList(List.of(1, 2, 3))) {
@@ -245,6 +245,10 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
         for (int r : realms) {
             metadataAvailable.put(Integer.valueOf(r), true);
         }
+    }
+
+    private void assertAllMetadataUnavailable() {
+        metadataAvailable.forEach((realm, available) -> assertThat("For realm #" + realm, available, is(false)));
     }
 
     private void makeAllMetadataUnavailable() {

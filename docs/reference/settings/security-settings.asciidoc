@@ -1110,7 +1110,7 @@ unavailable set `idp.metadata.http.fail_on_error` to `true`.
 `idp.metadata.http.fail_on_error`::
 (<<static-cluster-setting,Static>>)
 If set to `true`, the realm will fail on startup (and prevent the node from starting)
-if it attempts to load metadata over HTTPs and that metadata is not available.
+if it attempts to load metadata over HTTPS and that metadata is not available.
 If set to `false` (the default), the node will start but the affected SAML realm will
 not support user authentication until the metadata can be successfully loaded.
 This setting is ignored if metadata is loaded from a file.

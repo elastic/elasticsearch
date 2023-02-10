@@ -35,7 +35,11 @@ public class XPackUsageResponseTests extends ESTestCase {
             TransportVersionUtils.getFirstVersion(),
             TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT)
         );
-        newVersion = TransportVersionUtils.randomVersionBetween(random(), oldVersion, TransportVersion.CURRENT);
+        newVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getNextVersion(oldVersion),
+            TransportVersion.CURRENT
+        );
     }
 
     public static class OldUsage extends XPackFeatureSet.Usage {
@@ -75,9 +79,7 @@ public class XPackUsageResponseTests extends ESTestCase {
     public void testVersionDependentSerializationWriteToOldStream() throws IOException {
         final XPackUsageResponse before = new XPackUsageResponse(List.of(new OldUsage(), new NewUsage()));
         final BytesStreamOutput oldStream = new BytesStreamOutput();
-        oldStream.setTransportVersion(
-            TransportVersionUtils.randomVersionBetween(random(), oldVersion, TransportVersionUtils.getPreviousVersion(newVersion))
-        );
+        oldStream.setTransportVersion(oldVersion);
         before.writeTo(oldStream);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(
@@ -96,7 +98,7 @@ public class XPackUsageResponseTests extends ESTestCase {
     public void testVersionDependentSerializationWriteToNewStream() throws IOException {
         final XPackUsageResponse before = new XPackUsageResponse(List.of(new OldUsage(), new NewUsage()));
         final BytesStreamOutput newStream = new BytesStreamOutput();
-        newStream.setTransportVersion(TransportVersionUtils.randomVersionBetween(random(), newVersion, TransportVersion.CURRENT));
+        newStream.setTransportVersion(newVersion);
         before.writeTo(newStream);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -25,10 +24,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
     public void testWriteAndReadContext() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final RoleDescriptorsIntersection rds = randomRoleDescriptorsIntersection();
-        final var expected = new RemoteAccessHeaders(
-            new ApiKeyService.ApiKeyCredentials(UUIDs.base64UUID(), UUIDs.randomBase64UUIDSecureString()),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(rds)
-        );
+        final var expected = new RemoteAccessHeaders("bar", AuthenticationTestHelper.randomRemoteAccessAuthentication(rds));
 
         expected.writeToContext(ctx);
         final var actual = RemoteAccessHeaders.readFromContext(ctx);

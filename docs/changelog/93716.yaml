@@ -1,0 +1,5 @@
+pr: 93716
+summary: Clear field caps index responses on cancelled
+area: Search
+type: enhancement
+issues: []

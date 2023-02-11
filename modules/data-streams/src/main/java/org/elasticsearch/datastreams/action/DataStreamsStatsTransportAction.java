@@ -163,8 +163,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
                 }
             }
-            var indexMetadata = indexService.getMetadata();
-            assert indexMetadata != null;
             return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
         });
     }

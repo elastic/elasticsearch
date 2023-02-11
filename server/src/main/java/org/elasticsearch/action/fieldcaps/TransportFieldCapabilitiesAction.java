@@ -90,12 +90,19 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     @Override
-    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
+    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> outListener) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
+        final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
+        // wrap as `notifyOnce` as we can call `listener.onFailure` multiple times.
+        final var listener = ActionListener.notifyOnce(outListener.delegateResponse((l, e) -> {
+            indexResponses.clear();
+            l.onFailure(e);
+        }));
+        fieldCapTask.addListener(() -> fieldCapTask.notifyIfCancelled(listener));
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
@@ -116,11 +123,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         checkIndexBlocks(clusterState, concreteIndices);
-
-        final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
         final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
+            if (fieldCapTask.isCancelled() && fieldCapTask.notifyIfCancelled(listener)) {
+                return; // don't accumulate the response as we already notify the listener
+            }
             if (resp.canMatch() && resp.getIndexMappingHash() != null) {
                 FieldCapabilitiesIndexResponse curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp);
                 if (curr != null) {
@@ -262,6 +270,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
+                task.ensureNotCancelled();
                 innerMerge(subIndices, responseMapBuilder, request, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }

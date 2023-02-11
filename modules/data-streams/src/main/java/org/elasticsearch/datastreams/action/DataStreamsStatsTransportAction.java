@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Stream;
@@ -163,8 +164,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             }
             var indexMetadata = indexService.getMetadata();
             assert indexMetadata != null;
-            double writeLoadForecast = writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp, writeLoadForecast);
+            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
         });
     }
 
@@ -180,7 +180,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         Map<String, AggregatedStats> aggregatedDataStreamsStats = new HashMap<>();
         Set<String> allBackingIndices = new HashSet<>();
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
-
         // Collect the number of backing indices from the cluster state. If every shard operation for an index fails,
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used
         // shard results to calculate.
@@ -195,6 +194,14 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
+                OptionalDouble writeLoadForeCast = clusterState.getMetadata()
+                    .index(indexAbstraction.getWriteIndex())
+                    .getForecastedWriteLoad();
+                if (writeLoadForeCast.isPresent()) {
+                    stats.writeLoadForecast = writeLoadForeCast.getAsDouble();
+                } else {
+                    stats.writeLoadForecast = null;
+                }
                 dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
@@ -246,7 +253,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 stats.storageBytes += shardStat.getStoreStats().sizeInBytes();
                 stats.maxTimestamp = Math.max(stats.maxTimestamp, shardStat.getMaxTimestamp());
-                stats.writeLoadForecast += shardStat.getWriteLoadForecast();
             }
 
             DataStreamsStatsAction.DataStreamStats[] dataStreamStats = aggregatedDataStreamsStats.entrySet()
@@ -278,6 +284,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         Set<String> backingIndices = new HashSet<>();
         long storageBytes = 0L;
         long maxTimestamp = 0L;
-        double writeLoadForecast = 0.0;
+        Double writeLoadForecast = null;
     }
 }

@@ -153,9 +153,10 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final int backingIndices;
         private final ByteSizeValue storeSize;
         private final long maximumTimestamp;
-        private final double writeLoadForecast;
+        private final Double writeLoadForecast;
 
-        public DataStreamStats(String dataStream, int backingIndices, ByteSizeValue storeSize, long maximumTimestamp, double writeLoadForecast) {
+        public DataStreamStats(String dataStream, int backingIndices, ByteSizeValue storeSize, long maximumTimestamp,
+                               Double writeLoadForecast) {
             this.dataStream = dataStream;
             this.backingIndices = backingIndices;
             this.storeSize = storeSize;
@@ -168,7 +169,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             this.backingIndices = in.readVInt();
             this.storeSize = ByteSizeValue.readFrom(in);
             this.maximumTimestamp = in.readVLong();
-            this.writeLoadForecast = in.readDouble();
+            this.writeLoadForecast = in.readOptionalDouble();
         }
 
         @Override
@@ -177,7 +178,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             out.writeVInt(backingIndices);
             storeSize.writeTo(out);
             out.writeVLong(maximumTimestamp);
-            out.writeDouble(writeLoadForecast);
+            out.writeOptionalDouble(writeLoadForecast);
         }
 
         @Override
@@ -208,7 +209,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             return maximumTimestamp;
         }
 
-        public double getWriteLoadForecast() {
+        public Double getWriteLoadForecast() {
             return writeLoadForecast;
         }
 
@@ -223,7 +224,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             DataStreamStats that = (DataStreamStats) obj;
             return backingIndices == that.backingIndices
                 && maximumTimestamp == that.maximumTimestamp
-                && writeLoadForecast == that.writeLoadForecast
+                && Objects.equals(writeLoadForecast, that.writeLoadForecast)
                 && Objects.equals(dataStream, that.dataStream)
                 && Objects.equals(storeSize, that.storeSize);
         }
@@ -255,21 +256,18 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final ShardRouting shardRouting;
         private final StoreStats storeStats;
         private final long maxTimestamp;
-        private final double writeLoadForecast;
 
 
-        public DataStreamShardStats(ShardRouting shardRouting, StoreStats storeStats, long maxTimestamp, double writeLoadForecast) {
+        public DataStreamShardStats(ShardRouting shardRouting, StoreStats storeStats, long maxTimestamp) {
             this.shardRouting = shardRouting;
             this.storeStats = storeStats;
             this.maxTimestamp = maxTimestamp;
-            this.writeLoadForecast = writeLoadForecast;
         }
 
         public DataStreamShardStats(StreamInput in) throws IOException {
             this.shardRouting = new ShardRouting(in);
             this.storeStats = new StoreStats(in);
             this.maxTimestamp = in.readVLong();
-            this.writeLoadForecast = in.readDouble();
         }
 
         @Override
@@ -277,7 +275,6 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             shardRouting.writeTo(out);
             storeStats.writeTo(out);
             out.writeVLong(maxTimestamp);
-            out.writeDouble(writeLoadForecast);
         }
 
         public ShardRouting getShardRouting() {
@@ -292,9 +289,6 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             return maxTimestamp;
         }
 
-        public double getWriteLoadForecast() {
-            return writeLoadForecast;
-        }
     }
 
 }

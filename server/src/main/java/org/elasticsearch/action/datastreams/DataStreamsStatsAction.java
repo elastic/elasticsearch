@@ -258,8 +258,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final ShardRouting shardRouting;
         private final StoreStats storeStats;
         private final long maxTimestamp;
-
-
+        
         public DataStreamShardStats(ShardRouting shardRouting, StoreStats storeStats, long maxTimestamp) {
             this.shardRouting = shardRouting;
             this.storeStats = storeStats;
@@ -290,7 +289,6 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         public long getMaxTimestamp() {
             return maxTimestamp;
         }
-
     }
 
 }

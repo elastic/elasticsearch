@@ -179,6 +179,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         Map<String, AggregatedStats> aggregatedDataStreamsStats = new HashMap<>();
         Set<String> allBackingIndices = new HashSet<>();
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
+
         // Collect the number of backing indices from the cluster state. If every shard operation for an index fails,
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used
         // shard results to calculate.

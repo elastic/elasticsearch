@@ -13,14 +13,14 @@ import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-public class PendingClusterTasksResponse extends ActionResponse implements ChunkedToXContent {
+public class PendingClusterTasksResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final List<PendingClusterTask> pendingTasks;
 

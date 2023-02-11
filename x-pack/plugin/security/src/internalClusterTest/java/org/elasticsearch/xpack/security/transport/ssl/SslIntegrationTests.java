@@ -21,6 +21,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -121,6 +122,6 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
             internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses()
         );
         final InetSocketAddress inetSocketAddress = transportAddress.address();
-        return formatted("https://%s/", NetworkAddress.format(inetSocketAddress));
+        return Strings.format("https://%s/", NetworkAddress.format(inetSocketAddress));
     }
 }

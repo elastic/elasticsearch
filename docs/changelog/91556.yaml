@@ -1,5 +1,0 @@
-pr: 91556
-summary: Allow plugins to wrap Lucene directories created by the `IndexModule`
-area: Store
-type: enhancement
-issues: []

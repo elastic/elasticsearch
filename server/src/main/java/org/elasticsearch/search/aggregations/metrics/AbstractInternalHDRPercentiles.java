@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -26,6 +27,8 @@ import java.util.Objects;
 import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
+
+    private static final DoubleHistogram EMPTY_HISTOGRAM = new DoubleHistogram(3);
 
     protected final double[] keys;
     protected final DoubleHistogram state;
@@ -51,29 +54,55 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (in.readBoolean()) {
+                state = decode(in);
+            } else {
+                state = null;
+            }
+        } else {
+            state = decode(in);
+        }
+        keyed = in.readBoolean();
+    }
+
+    private DoubleHistogram decode(StreamInput in) throws IOException {
         long minBarForHighestToLowestValueRatio = in.readLong();
         final int serializedLen = in.readVInt();
         byte[] bytes = new byte[serializedLen];
         in.readBytes(bytes, 0, serializedLen);
         ByteBuffer stateBuffer = ByteBuffer.wrap(bytes);
         try {
-            state = DoubleHistogram.decodeFromCompressedByteBuffer(stateBuffer, minBarForHighestToLowestValueRatio);
+            return DoubleHistogram.decodeFromCompressedByteBuffer(stateBuffer, minBarForHighestToLowestValueRatio);
         } catch (DataFormatException e) {
             throw new IOException("Failed to decode DoubleHistogram for aggregation [" + name + "]", e);
         }
-        keyed = in.readBoolean();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (this.state != null) {
+                out.writeBoolean(true);
+                encode(this.state, out);
+            } else {
+                out.writeBoolean(false);
+            }
+        } else {
+            DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+            encode(state, out);
+        }
+        out.writeBoolean(keyed);
+    }
+
+    private static void encode(DoubleHistogram state, StreamOutput out) throws IOException {
         out.writeLong(state.getHighestToLowestValueRatio());
         ByteBuffer stateBuffer = ByteBuffer.allocate(state.getNeededByteBufferCapacity());
         final int serializedLen = state.encodeIntoCompressedByteBuffer(stateBuffer);
         out.writeVInt(serializedLen);
         out.writeBytes(stateBuffer.array(), 0, serializedLen);
-        out.writeBoolean(keyed);
     }
 
     @Override
@@ -94,10 +123,6 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     }
 
     public abstract double value(double key);
-
-    public long getEstimatedMemoryFootprint() {
-        return state.getEstimatedFootprintInBytes();
-    }
 
     /**
      * Return the internal {@link DoubleHistogram} sketch for this metric.
@@ -125,11 +150,17 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         DoubleHistogram merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;
+            if (percentiles.state == null) {
+                continue;
+            }
             if (merged == null) {
                 merged = new DoubleHistogram(percentiles.state);
                 merged.setAutoResize(true);
             }
             merged.add(percentiles.state);
+        }
+        if (merged == null) {
+            merged = EMPTY_HISTOGRAM;
         }
         return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
@@ -149,6 +180,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM;
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {
@@ -196,8 +228,8 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             super.hashCode(),
             keyed,
             Arrays.hashCode(keys),
-            state.getIntegerToDoubleValueConversionRatio(),
-            state.getTotalCount()
+            state != null ? state.getIntegerToDoubleValueConversionRatio() : 0,
+            state != null ? state.getTotalCount() : 0
         );
     }
 }

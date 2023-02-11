@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -107,7 +107,7 @@ public final class AuthorizationUtils {
     public static void switchUserBasedOnActionOriginAndExecute(
         ThreadContext threadContext,
         SecurityContext securityContext,
-        Version version,
+        TransportVersion version,
         Consumer<ThreadContext.StoredContext> consumer
     ) {
         final String actionOrigin = threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME);

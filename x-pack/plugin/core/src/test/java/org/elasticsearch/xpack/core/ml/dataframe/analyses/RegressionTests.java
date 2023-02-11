@@ -64,6 +64,11 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     }
 
     @Override
+    protected Regression mutateInstance(Regression instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());

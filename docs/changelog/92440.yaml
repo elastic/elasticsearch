@@ -1,6 +1,0 @@
-pr: 92440
-summary: Fix numOpenOutputs and modCount in ByteSizeCachingDirectory
-area: Store
-type: bug
-issues:
-  - 92434

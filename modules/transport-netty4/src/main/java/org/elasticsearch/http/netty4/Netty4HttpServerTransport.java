@@ -20,6 +20,7 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
@@ -36,7 +37,6 @@ import io.netty.util.AttributeKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -71,7 +71,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
@@ -148,7 +147,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
-    private final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator = (message, listener) -> listener.onResponse(null);
+    private final HttpHeadersAuthenticator headersAuthenticator;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -168,6 +167,34 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate
     ) {
+        this(
+            settings,
+            networkService,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            tracer,
+            tlsConfig,
+            acceptChannelPredicate,
+            null
+        );
+    }
+
+    public Netty4HttpServerTransport(
+        Settings settings,
+        NetworkService networkService,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer,
+        TLSConfig tlsConfig,
+        @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate,
+        @Nullable HttpHeadersAuthenticator headersAuthenticator
+    ) {
         super(
             settings,
             networkService,
@@ -183,6 +210,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.sharedGroupFactory = sharedGroupFactory;
         this.tlsConfig = tlsConfig;
         this.acceptChannelPredicate = acceptChannelPredicate;
+        this.headersAuthenticator = headersAuthenticator;
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
@@ -331,7 +359,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {}
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, headerValidator);
+        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, headersAuthenticator);
     }
 
     static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
@@ -343,20 +371,20 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
-        private final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator;
+        private final HttpHeadersAuthenticator headersAuthenticator;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator
+            @Nullable final HttpHeadersAuthenticator headersAuthenticator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.tlsConfig = tlsConfig;
             this.acceptChannelPredicate = acceptChannelPredicate;
-            this.headerValidator = headerValidator;
+            this.headersAuthenticator = headersAuthenticator;
         }
 
         @Override
@@ -379,32 +407,52 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (transport.readTimeoutMillis > 0) {
                 ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             }
-            final HttpRequestDecoder decoder = new HttpRequestDecoder(
-                handlingSettings.maxInitialLineLength(),
-                handlingSettings.maxHeaderSize(),
-                handlingSettings.maxChunkSize()
-            );
+            final HttpRequestDecoder decoder;
+            if (headersAuthenticator != null) {
+                decoder = new HttpRequestDecoder(
+                    handlingSettings.maxInitialLineLength(),
+                    handlingSettings.maxHeaderSize(),
+                    handlingSettings.maxChunkSize()
+                ) {
+                    @Override
+                    protected HttpMessage createMessage(String[] initialLine) throws Exception {
+                        DefaultHttpRequest httpRequest = (DefaultHttpRequest) super.createMessage(initialLine);
+                        return headersAuthenticator.wrapNewMessage(httpRequest);
+                    }
+
+                    @Override
+                    protected HttpMessage createInvalidMessage() {
+                        DefaultHttpRequest httpRequest = (DefaultHttpRequest) super.createInvalidMessage();
+                        return headersAuthenticator.wrapNewMessage(httpRequest);
+                    }
+                };
+            } else {
+                decoder = new HttpRequestDecoder(
+                    handlingSettings.maxInitialLineLength(),
+                    handlingSettings.maxHeaderSize(),
+                    handlingSettings.maxChunkSize()
+                );
+            }
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
-            Netty4HttpHeaderValidator validator = new Netty4HttpHeaderValidator(headerValidator);
+            ch.pipeline().addLast("decoder", decoder);
+            if (headersAuthenticator != null) {
+                Netty4HttpHeaderValidator validator = new Netty4HttpHeaderValidator(headersAuthenticator::authenticateMessage);
+                ch.pipeline().addLast("header_validator", validator);
+            }
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-            ch.pipeline()
-                .addLast("decoder", decoder)
-                .addLast("header_validator", validator)
-                .addLast("decoder_compress", new HttpContentDecompressor())
-                .addLast("encoder", new HttpResponseEncoder() {
-                    @Override
-                    protected boolean isContentAlwaysEmpty(HttpResponse msg) {
-                        // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
-                        // encoding are only sent by us in response to HEAD requests and must always have an empty body
-                        if (msg instanceof Netty4HttpResponse netty4HttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
-                            assert netty4HttpResponse.content().isReadable() == false;
-                            return true;
-                        }
-                        return super.isContentAlwaysEmpty(msg);
+            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor()).addLast("encoder", new HttpResponseEncoder() {
+                @Override
+                protected boolean isContentAlwaysEmpty(HttpResponse msg) {
+                    // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
+                    // encoding are only sent by us in response to HEAD requests and must always have an empty body
+                    if (msg instanceof Netty4HttpResponse netty4HttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
+                        assert netty4HttpResponse.content().isReadable() == false;
+                        return true;
                     }
-                })
-                .addLast("aggregator", aggregator);
+                    return super.isContentAlwaysEmpty(msg);
+                }
+            }).addLast("aggregator", aggregator);
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
             }

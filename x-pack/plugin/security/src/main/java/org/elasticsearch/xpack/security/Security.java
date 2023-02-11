@@ -50,6 +50,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty4.HttpHeadersAuthenticator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -1618,7 +1619,8 @@ public class Security extends Plugin
                 getNettySharedGroupFactory(settings),
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
-                acceptPredicate
+                acceptPredicate,
+                new HttpHeadersAuthenticator()
             ) {
                 @Override
                 protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {

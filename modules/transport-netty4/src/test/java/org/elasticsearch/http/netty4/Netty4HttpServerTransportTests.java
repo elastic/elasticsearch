@@ -376,13 +376,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             ) {
                 @Override
                 public ChannelHandler configureServerChannelHandler() {
-                    return new HttpChannelHandler(
-                        this,
-                        handlingSettings,
-                        TLSConfig.noTLS(),
-                        null,
-                        (message, listener) -> listener.onResponse(null)
-                    ) {
+                    return new HttpChannelHandler(this, handlingSettings, TLSConfig.noTLS(), null, HttpHeadersAuthenticator.NOOP) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {
                             super.initChannel(ch);

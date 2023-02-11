@@ -16,6 +16,7 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
 
@@ -27,11 +28,11 @@ import java.util.function.BiConsumer;
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
-    private final BiConsumer<HttpMessage, ActionListener<Void>> validator;
+    private final BiConsumer<HttpRequest, ActionListener<Void>> validator;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private STATE state = STATE.WAITING_TO_START;
 
-    public Netty4HttpHeaderValidator(BiConsumer<HttpMessage, ActionListener<Void>> validator) {
+    public Netty4HttpHeaderValidator(BiConsumer<HttpRequest, ActionListener<Void>> validator) {
         this.validator = validator;
     }
 
@@ -76,16 +77,15 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     private void requestStart(ChannelHandlerContext ctx) {
         assert pending.isEmpty() == false;
 
-        HttpObject httpObject = pending.getFirst();
-        assert httpObject instanceof HttpMessage;
+        HttpRequest httpRequest = (HttpRequest) pending.getFirst();
         // We failed in the decoding step for other reasons. Pass down the pipeline.
-        if (httpObject.decoderResult().isFailure()) {
+        if (httpRequest.decoderResult().isFailure()) {
             ctx.fireChannelRead(pending.pollFirst());
             return;
         }
 
         state = STATE.QUEUEING_DATA;
-        validator.accept((HttpMessage) httpObject, new ActionListener<>() {
+        validator.accept(httpRequest, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 // Always use "Submit" to prevent reentrancy concerns if we are still on event loop

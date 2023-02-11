@@ -96,7 +96,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     private static final String SCRIPT_4 = scriptAsJSON("params._source.field");
 
     public void testToXContent() {
-        String mapping = formatted(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1);
+        String mapping = Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1);
         IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
@@ -204,10 +204,19 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testToXContentWithSomeSharedMappings() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(SINGLE_SHARD_NO_REPLICAS)
-            .putMapping(formatted(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1))
+            .putMapping(Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1))
             .build();
         // make mappings that are slightly different because we shuffled 2 scripts between fields
-        final String mappingString2 = formatted(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_4, SCRIPT_3, SCRIPT_1);
+        final String mappingString2 = Strings.format(
+            MAPPING_TEMPLATE,
+            SCRIPT_1,
+            SCRIPT_2,
+            SCRIPT_3,
+            SCRIPT_4,
+            SCRIPT_4,
+            SCRIPT_3,
+            SCRIPT_1
+        );
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
@@ -379,7 +388,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
 
     @SuppressWarnings("OptionalGetWithoutIsPresent")
     @Override
-    protected MappingStats mutateInstance(MappingStats instance) throws IOException {
+    protected MappingStats mutateInstance(MappingStats instance) {
         List<FieldStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
         List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
         long totalFieldCount = instance.getTotalFieldCount().getAsLong();

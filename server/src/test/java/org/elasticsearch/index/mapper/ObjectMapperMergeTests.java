@@ -13,8 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class ObjectMapperMergeTests extends ESTestCase {
 
     private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
@@ -115,26 +113,6 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertFalse(merged.isEnabled());
         assertEquals(1, merged.runtimeFields().size());
         assertEquals("test", merged.runtimeFields().iterator().next().name());
-    }
-
-    public void testMergeNested() {
-        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT).includeInParent(true)
-            .includeInRoot(true)
-            .build(MapperBuilderContext.root(false));
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT).includeInParent(false)
-            .includeInRoot(true)
-            .build(MapperBuilderContext.root(false));
-
-        MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper, MapperBuilderContext.root(false)));
-        assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
-
-        NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
-            secondMapper,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperBuilderContext.root(false)
-        );
-        assertFalse(result.isIncludeInParent());
-        assertTrue(result.isIncludeInRoot());
     }
 
     public void testMergedFieldNamesFieldWithDotsSubobjectsFalseAtRoot() {

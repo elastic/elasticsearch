@@ -32,6 +32,90 @@ The API returns the following result:
     "computation_time_in_millis": 0,
     "reconciliation_time_in_millis": 0
   },
+  "cluster_balance_stats" : {
+    "tiers": {
+      "data_hot" : {
+        "shard_count" : {
+          "total" : 7.0,
+          "min" : 2.0,
+          "max" : 3.0,
+          "average" : 2.3333333333333335,
+          "std_dev" : 0.4714045207910317
+        },
+        "forecast_write_load" : {
+          "total" : 21.0,
+          "min" : 6.0,
+          "max" : 8.5,
+          "average" : 7.0,
+          "std_dev" : 1.0801234497346435
+        },
+        "forecast_disk_usage" : {
+          "total" : 36.0,
+          "min" : 10.0,
+          "max" : 16.0,
+          "average" : 12.0,
+          "std_dev" : 2.8284271247461903
+        },
+        "actual_disk_usage" : {
+          "total" : 36.0,
+          "min" : 10.0,
+          "max" : 16.0,
+          "average" : 12.0,
+          "std_dev" : 2.8284271247461903
+        }
+      },
+      "data_warm" : {
+        "shard_count" : {
+          "total" : 3.0,
+          "min" : 1.0,
+          "max" : 1.0,
+          "average" : 1.0,
+          "std_dev" : 0.0
+        },
+        "forecast_write_load" : {
+          "total" : 0.0,
+          "min" : 0.0,
+          "max" : 0.0,
+          "average" : 0.0,
+          "std_dev" : 0.0
+        },
+        "forecast_disk_usage" : {
+          "total" : 42.0,
+          "min" : 12.0,
+          "max" : 18.0,
+          "average" : 14.0,
+          "std_dev" : 2.8284271247461903
+        },
+        "actual_disk_usage" : {
+          "total" : 42.0,
+          "min" : 12.0,
+          "max" : 18.0,
+          "average" : 14.0,
+          "std_dev" : 2.8284271247461903
+        }
+      }
+    },
+    "nodes": {
+      "node-1": {
+        "shard_count": 10,
+        "forecast_write_load": 8.5,
+        "forecast_disk_usage_bytes": 498435,
+        "actual_disk_usage_bytes": 498435
+      },
+      "node-2": {
+        "shard_count": 15,
+        "forecast_write_load": 3.25,
+        "forecast_disk_usage_bytes": 384935,
+        "actual_disk_usage_bytes": 384935
+      },
+      "node-3": {
+        "shard_count": 12,
+        "forecast_write_load": 6.0,
+        "forecast_disk_usage_bytes": 648766,
+        "actual_disk_usage_bytes": 648766
+      }
+    }
+  },
   "routing_table": {
     "test": {
       "0": {
@@ -44,7 +128,9 @@ The API returns the following result:
             "relocating_node": null,
             "relocating_node_is_desired": false,
             "shard_id": 0,
-            "index": "test"
+            "index": "test",
+            "forecast_write_load": 8.0,
+            "forecast_shard_size_in_bytes": 1024
           }
         ],
         "desired": {
@@ -66,7 +152,9 @@ The API returns the following result:
             "relocating_node": null,
             "relocating_node_is_desired": false,
             "shard_id": 1,
-            "index": "test"
+            "index": "test",
+            "forecast_write_load": null,
+            "forecast_shard_size_in_bytes": null
           }
         ],
         "desired": {

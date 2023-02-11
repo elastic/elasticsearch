@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
@@ -56,8 +56,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
  * {@link CacheService} maintains a cache entry for all files read from searchable snapshot directories (see
@@ -351,12 +351,12 @@ public class CacheService extends AbstractLifecycleComponent {
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() {
-                            processShardEviction(shardEviction);
+                            processShardEviction(shard);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(() -> format("failed to evict cache files associated with shard %s", shardEviction), e);
+                            logger.warn(() -> format("failed to evict cache files associated with shard %s", shard), e);
                             assert false : e;
                         }
                     });
@@ -686,47 +686,10 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Represents the searchable snapshots information of a shard that has been removed from the node. These information are kept around
-     * to evict the cache files associated to that shard.
-     */
-    static class ShardEviction {
-
-        private final String snapshotUUID;
-        private final String snapshotIndexName;
-        private final ShardId shardId;
-
-        ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
-            this.snapshotUUID = snapshotUUID;
-            this.snapshotIndexName = snapshotIndexName;
-            this.shardId = shardId;
-        }
-
-        public String getSnapshotUUID() {
-            return snapshotUUID;
-        }
-
-        public String getSnapshotIndexName() {
-            return snapshotIndexName;
-        }
-
-        public ShardId getShardId() {
-            return shardId;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ShardEviction that = (ShardEviction) o;
-            return Objects.equals(snapshotUUID, that.snapshotUUID)
-                && Objects.equals(snapshotIndexName, that.snapshotIndexName)
-                && Objects.equals(shardId, that.shardId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(snapshotUUID, snapshotIndexName, shardId);
-        }
+         * Represents the searchable snapshots information of a shard that has been removed from the node. These information are kept around
+         * to evict the cache files associated to that shard.
+         */
+    record ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
 
         @Override
         public String toString() {
@@ -734,9 +697,9 @@ public class CacheService extends AbstractLifecycleComponent {
         }
 
         boolean matches(CacheKey cacheKey) {
-            return Objects.equals(snapshotUUID, cacheKey.getSnapshotUUID())
-                && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
-                && Objects.equals(shardId, cacheKey.getShardId());
+            return Objects.equals(snapshotUUID, cacheKey.snapshotUUID())
+                && Objects.equals(snapshotIndexName, cacheKey.snapshotIndexName())
+                && Objects.equals(shardId, cacheKey.shardId());
         }
     }
 

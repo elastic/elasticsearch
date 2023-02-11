@@ -53,6 +53,11 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
         return createRandomResults();
     }
 
+    @Override
+    protected NerResults mutateInstance(NerResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     @SuppressWarnings("unchecked")
     public void testAsMap() {
         NerResults testInstance = createTestInstance();

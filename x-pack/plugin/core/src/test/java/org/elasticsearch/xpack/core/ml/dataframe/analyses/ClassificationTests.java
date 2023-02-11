@@ -75,6 +75,11 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     @Override
+    protected Classification mutateInstance(Classification instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());

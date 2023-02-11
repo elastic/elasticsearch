@@ -214,7 +214,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         mapping.startObject(FIELD_LABEL_DOUBLE).field("type", "double").endObject();
         mapping.startObject(FIELD_LABEL_INTEGER).field("type", "integer").endObject();
         mapping.startObject(FIELD_LABEL_KEYWORD).field("type", "keyword").endObject();
-        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").endObject();
+        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").field("store", "true").endObject();
         mapping.startObject(FIELD_LABEL_BOOLEAN).field("type", "boolean").endObject();
         mapping.startObject(FIELD_LABEL_IPv4_ADDRESS).field("type", "ip").endObject();
         mapping.startObject(FIELD_LABEL_IPv6_ADDRESS).field("type", "ip").endObject();
@@ -746,7 +746,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
             if (helper.isTimeSeriesMetric(field, fieldMapping)) {
-                metricFields.put(field, TimeSeriesParams.MetricType.valueOf(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
+                metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
             } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }
@@ -911,8 +911,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         metricFields.forEach((field, metricType) -> {
             switch (metricType) {
-                case counter -> assertEquals("double", mappings.get(field).get("type"));
-                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                case COUNTER -> assertEquals("double", mappings.get(field).get("type"));
+                case GAUGE -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
                 default -> fail("Unsupported field type");
             }
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));

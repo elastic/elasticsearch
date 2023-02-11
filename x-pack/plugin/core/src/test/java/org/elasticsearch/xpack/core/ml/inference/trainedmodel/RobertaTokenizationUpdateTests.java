@@ -61,6 +61,11 @@ public class RobertaTokenizationUpdateTests extends AbstractBWCWireSerialization
     }
 
     @Override
+    protected RobertaTokenizationUpdate mutateInstance(RobertaTokenizationUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected RobertaTokenizationUpdate mutateInstanceForVersion(RobertaTokenizationUpdate instance, Version version) {
         if (version.before(Version.V_8_2_0)) {
             return new RobertaTokenizationUpdate(instance.getTruncate(), null);

@@ -69,6 +69,11 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
     }
 
     @Override
+    protected RegressionInferenceResults mutateInstance(RegressionInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RegressionInferenceResults> instanceReader() {
         return RegressionInferenceResults::new;
     }
@@ -83,7 +88,7 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
         RegressionFeatureImportance fi = new RegressionFeatureImportance("foo", 1.0);
         result = new RegressionInferenceResults(1.0, resultsField, Collections.singletonList(fi));
         stringRep = Strings.toString(result);
-        expected = formatted("""
+        expected = Strings.format("""
             {"%s":1.0,"feature_importance":[{"feature_name":"foo","importance":1.0}]}\
             """, resultsField);
         assertEquals(expected, stringRep);

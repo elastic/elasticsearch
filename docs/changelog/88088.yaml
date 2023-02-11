@@ -1,6 +1,0 @@
-pr: 88088
-summary: Move SpatialUtils to geo library
-area: Geo
-type: enhancement
-issues:
- - 86607

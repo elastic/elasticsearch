@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -2010,17 +2011,36 @@ public class JobResultsProvider {
     public void getRestartTimeInfo(String jobId, ActionListener<RestartTimeInfo> listener) {
         AtomicReference<Bucket> latestFinalBucketHolder = new AtomicReference<>();
 
-        Consumer<DataCounts> dataCountsHandler = dataCounts -> listener.onResponse(
-            new RestartTimeInfo(
-                latestFinalBucketHolder.get() == null ? null : latestFinalBucketHolder.get().getTimestamp().getTime(),
-                dataCounts.getLatestRecordTimeStamp() == null ? null : dataCounts.getLatestRecordTimeStamp().getTime(),
-                dataCounts.getInputRecordCount() > 0
-            )
-        );
+        ActionListener<GetJobsStatsAction.Response> jobStatsHandler = ActionListener.wrap(r -> {
+            QueryPage<GetJobsStatsAction.Response.JobStats> page = r.getResponse();
+            if (page.count() == 1) {
+                DataCounts dataCounts = page.results().get(0).getDataCounts();
+                listener.onResponse(
+                    new RestartTimeInfo(
+                        latestFinalBucketHolder.get() == null ? null : latestFinalBucketHolder.get().getTimestamp().getTime(),
+                        dataCounts.getLatestRecordTimeStamp() == null ? null : dataCounts.getLatestRecordTimeStamp().getTime(),
+                        dataCounts.getInputRecordCount() > 0
+                    )
+                );
+            } else {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "[" + jobId + "] Incorrect response for job stats for single job: got [" + page.count() + "] stats."
+                    )
+                );
+            }
+        }, listener::onFailure);
 
         ActionListener<Bucket> latestFinalBucketListener = ActionListener.wrap(latestFinalBucket -> {
             latestFinalBucketHolder.set(latestFinalBucket);
-            dataCounts(jobId, dataCountsHandler, listener::onFailure);
+            // If the job is open we must get the data counts from the running job instead of from the index,
+            // as the data counts in the running job might be more recent than those that have been indexed. If
+            // we go to the index it would be more efficient to just get the data counts rather than all stats.
+            // However, we _shouldn't_ ever do this when starting a datafeed, because a precondition for starting
+            // the datafeed is that its job is open. Therefore, it's reasonable to always go via the get job stats
+            // endpoint, on the assumption it will almost always get the stats from memory. (The only edge case
+            // where this won't happen is when the job fails during datafeed startup, and that should be very rare.)
+            client.execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId), jobStatsHandler);
         }, listener::onFailure);
 
         getLatestFinalBucket(jobId, latestFinalBucketListener);

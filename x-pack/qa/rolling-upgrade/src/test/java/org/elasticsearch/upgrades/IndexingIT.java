@@ -10,6 +10,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Strings;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -111,7 +112,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append(formatted("""
+            b.append(Strings.format("""
                 {"index": {"_index": "%s"}}
                 {"f1": "v%s%s", "f2": %s}
                 """, index, i, valueSuffix, i));
@@ -127,7 +128,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {"hits":{"total":%s}}\
             """, count), EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }

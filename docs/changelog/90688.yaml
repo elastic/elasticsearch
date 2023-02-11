@@ -1,7 +1,0 @@
-pr: 90688
-summary: Fixing a race condition in `EnrichCoordinatorProxyAction` that can leave
-  an item stuck in its queue
-area: Ingest Node
-type: bug
-issues:
- - 90598

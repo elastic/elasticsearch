@@ -130,7 +130,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
         final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
-            if (fieldCapTask.isCancelled() && fieldCapTask.notifyIfCancelled(listener)) {
+            if (fieldCapTask.notifyIfCancelled(listener)) {
                 LOGGER.trace("stop accumulating index responses on cancelled");
                 return;
             }

@@ -125,7 +125,8 @@ buildScan {
 
         // Add a build annotation
         // See: https://buildkite.com/docs/agent/v3/cli-annotate
-        ['buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', """<div class="mb3"><span class="p1 border rounded build-annotation-info">${System.getenv('BUILDKITE_LABEL')}</span> <span class="bold">Build scan for:</span> <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""].execute()
+        def body = """<div class="mb3"><span class="p1 border rounded build-annotation-info">${System.getenv('BUILDKITE_LABEL')}</span> <span class="bold">Build scan for:</span> <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+        ['buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body].execute()
       }
     } else {
       tag 'LOCAL'

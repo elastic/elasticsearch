@@ -16,7 +16,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -203,7 +202,7 @@ public class QueryPhase {
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext);
         if (searchContext.rankContext() != null) {
-            query = searchContext.rankContext().applyRankWrappers(query);
+            query = searchContext.rankContext().updateQuery(query);
             // add in the rank collector just before top docs
             rankCollectorContext = searchContext.rankContext().createQueryCollectorContext(query, searchContext);
             collectors.add(createMultiCollectorContext(List.of(topDocsFactory.create(null), rankCollectorContext.create(null))));
@@ -240,6 +239,8 @@ public class QueryPhase {
             ctx.postProcess(queryResult);
         }
         if (rankCollectorContext != null) {
+            // we still need to process these when ranking because they
+            // were part of a MultiCollector which doesn't process its child collectors
             rankCollectorContext.postProcess(queryResult);
             topDocsFactory.postProcess(queryResult);
         }

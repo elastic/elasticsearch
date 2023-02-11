@@ -11,10 +11,15 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryCollectorContext;
+import org.elasticsearch.search.query.QuerySearchResult;
+
+import java.util.List;
 
 public interface RankContext {
 
-    Query applyRankWrappers(Query query);
+    Query updateQuery(Query query);
+
     QueryCollectorContext createQueryCollectorContext(Query query, SearchContext searchContext);
 
+    RankResults rank(List<QuerySearchResult> querySearchResults);
 }

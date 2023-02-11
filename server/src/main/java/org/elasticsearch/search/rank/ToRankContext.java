@@ -15,5 +15,6 @@ import org.elasticsearch.xcontent.ToXContent;
 public interface ToRankContext extends Writeable, ToXContent {
 
     ParseField getRankName();
+
     RankContext toRankContext();
 }

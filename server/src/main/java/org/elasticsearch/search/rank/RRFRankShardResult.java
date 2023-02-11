@@ -33,6 +33,10 @@ public class RRFRankShardResult extends RankShardResult {
         return RRFRankBuilder.RANK_NAME.getPreferredName();
     }
 
+    public List<TopDocs> getTopDocs() {
+        return topDocs;
+    }
+
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         out.writeGenericList(topDocs, Lucene::writeOnlyTopDocs);

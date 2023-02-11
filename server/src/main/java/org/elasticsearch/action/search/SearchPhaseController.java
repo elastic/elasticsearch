@@ -171,7 +171,7 @@ public final class SearchPhaseController {
      * @param from the offset into the search results top docs
      * @param size the number of hits to return from the merged top docs
      */
-    static SortedTopDocs sortDocs(
+    public static SortedTopDocs sortDocs(
         boolean ignoreFrom,
         final Collection<TopDocs> topDocs,
         int from,
@@ -606,9 +606,9 @@ public final class SearchPhaseController {
         return toReduce.isEmpty()
             ? null
             : InternalAggregations.topLevelReduce(
-            toReduce,
-            performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-        );
+                toReduce,
+                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
+            );
     }
 
     /**
@@ -814,7 +814,7 @@ public final class SearchPhaseController {
         }
     }
 
-    record SortedTopDocs(
+    public record SortedTopDocs(
         // the searches merged top docs
         ScoreDoc[] scoreDocs,
         // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.

@@ -188,11 +188,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
     }
 
-    public void setRankResultContext(RankShardResult rankShardResult) {
+    public void setRankShardResult(RankShardResult rankShardResult) {
         this.rankShardResult = rankShardResult;
     }
 
-    public RankShardResult getRankResultContext() {
+    public RankShardResult getRankShardResult() {
         return rankShardResult;
     }
 

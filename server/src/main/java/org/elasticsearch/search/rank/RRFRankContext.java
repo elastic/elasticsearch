@@ -9,7 +9,6 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queryparser.xml.builders.BooleanQueryBuilder;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -17,6 +16,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
@@ -24,14 +24,20 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryCollectorContext;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankResults.RankResult;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 public class RRFRankContext implements RankContext {
@@ -43,9 +49,6 @@ public class RRFRankContext implements RankContext {
 
         protected Scorer scorer;
 
-        public RankScorerConsumer() {
-        }
-
         @Override
         public void accept(Scorer scorer) {
             this.scorer = scorer;
@@ -54,18 +57,16 @@ public class RRFRankContext implements RankContext {
 
     public static class RRFRankCollector extends SimpleCollector {
 
-        private List<RankScorerConsumer> rankScorerConsumers = new ArrayList<>();
+        private final List<RankScorerConsumer> rankScorerConsumers = new ArrayList<>();
+        private final ScoreMode scoreMode;
 
         public RRFRankCollector(int windowSize, Query query, SearchContext searchContext) {
-            assert query instanceof BooleanQuery;
-            BooleanQuery booleanQuery = (BooleanQuery) query;
+            assert query instanceof RRFRankQuery;
+            RRFRankQuery RRFRankQuery = (RRFRankQuery) query;
 
-            for (BooleanClause booleanClause : booleanQuery.clauses()) {
-                assert booleanClause.getQuery() instanceof RankWrapperQuery;
-                assert booleanClause.getOccur() == BooleanClause.Occur.SHOULD;
-                RankWrapperQuery rankWrapperQuery = (RankWrapperQuery)booleanClause.getQuery();
-                assert rankWrapperQuery.getConsumer() instanceof RankScorerConsumer;
-                RankScorerConsumer rankScorerConsumer = (RankScorerConsumer)rankWrapperQuery.getConsumer();
+            for (Consumer<Scorer> consumer : RRFRankQuery.getConsumers()) {
+                assert consumer instanceof RankScorerConsumer;
+                RankScorerConsumer rankScorerConsumer = (RankScorerConsumer) consumer;
                 SortAndFormats sortAndFormats = searchContext.sort();
                 FieldDoc searchAfter = searchContext.searchAfter();
                 if (searchContext.sort() == null) {
@@ -75,11 +76,12 @@ public class RRFRankContext implements RankContext {
                 }
                 rankScorerConsumers.add(rankScorerConsumer);
             }
+            scoreMode = searchContext.sort() == null ? ScoreMode.TOP_SCORES : ScoreMode.TOP_DOCS;
         }
 
         @Override
         public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE;
+            return scoreMode;
         }
 
         @Override
@@ -115,6 +117,20 @@ public class RRFRankContext implements RankContext {
     }
 
     @Override
+    public Query updateQuery(Query query) {
+        assert query instanceof BooleanQuery;
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        List<Consumer<Scorer>> rankScorerConsumers = new ArrayList<>();
+        List<Query> queries = new ArrayList<>();
+        for (BooleanClause booleanClause : booleanQuery.clauses()) {
+            assert booleanClause.getOccur() == BooleanClause.Occur.SHOULD;
+            rankScorerConsumers.add(new RankScorerConsumer());
+            queries.add(booleanClause.getQuery());
+        }
+        return new RRFRankQuery(rankScorerConsumers, queries);
+    }
+
+    @Override
     public QueryCollectorContext createQueryCollectorContext(Query query, SearchContext searchContext) {
         return new QueryCollectorContext("rrf") {
 
@@ -132,20 +148,66 @@ public class RRFRankContext implements RankContext {
                 for (RankScorerConsumer rankScorerConsumer : rrfRankCollector.rankScorerConsumers) {
                     topDocs.add(rankScorerConsumer.topDocsCollector.topDocs());
                 }
-                result.setRankResultContext(new RRFRankShardResult(topDocs));
+                result.setRankShardResult(new RRFRankShardResult(topDocs));
             }
         };
     }
 
     @Override
-    public Query applyRankWrappers(Query query) {
-        assert query instanceof BooleanQuery;
-        BooleanQuery booleanQuery = (BooleanQuery)query;
-        BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
-        for (BooleanClause booleanClause : booleanQuery.clauses()) {
-            assert booleanClause.getOccur() == BooleanClause.Occur.SHOULD;
-            booleanQueryBuilder.add(new RankWrapperQuery(new RankScorerConsumer(), booleanClause.getQuery()), BooleanClause.Occur.SHOULD);
+    public RankResults rank(List<QuerySearchResult> querySearchResults) {
+        List<List<TopDocs>> unmergedTopDocs = new ArrayList<>();
+        int size = -1;
+
+        for (QuerySearchResult querySearchResult : querySearchResults) {
+            RankShardResult rankShardResult = querySearchResult.getRankShardResult();
+            assert rankShardResult instanceof RRFRankShardResult;
+            RRFRankShardResult rrfRankShardResult = (RRFRankShardResult) rankShardResult;
+            List<TopDocs> shardTopDocs = rrfRankShardResult.getTopDocs();
+
+            if (size == -1) {
+                size = shardTopDocs.size();
+                for (int index = 0; index < size; ++index) {
+                    unmergedTopDocs.add(new ArrayList<>());
+                }
+            }
+            assert size == shardTopDocs.size();
+
+            for (int index = 0; index < size; ++index) {
+                unmergedTopDocs.get(index).add(shardTopDocs.get(index));
+            }
         }
-        return booleanQueryBuilder.build();
+
+        List<SortedTopDocs> mergedTopDocs = new ArrayList<>();
+        for (List<TopDocs> utd : unmergedTopDocs) {
+            mergedTopDocs.add(SearchPhaseController.sortDocs(false, utd, 0, 10, List.of()));
+        }
+
+        Map<String, RankResult> rankResults = new HashMap<>();
+
+        int index = 0;
+        for (SortedTopDocs mtd : mergedTopDocs) {
+            int rank = 0;
+            for (ScoreDoc scoreDoc : mtd.scoreDocs()) {
+                ++rank;
+                final int findex = index;
+                final int frank = rank;
+                rankResults.compute(scoreDoc.doc + ":" + scoreDoc.shardIndex, (key, value) -> {
+                    if (value == null) {
+                        value = new RankResult(scoreDoc.doc, scoreDoc.shardIndex, 0f, mergedTopDocs.size());
+                    }
+
+                    value.rank += 1.0f / (rankConstant + frank);
+                    value.positions[findex] = frank;
+
+                    return value;
+                });
+            }
+            ++index;
+        }
+
+        List<RankResult> sorted = new ArrayList<>(rankResults.values());
+        sorted.sort(Comparator.comparingDouble(sd -> -sd.rank));
+
+        return new RankResults(sorted);
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -284,6 +285,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         Set<String> backingIndices = new HashSet<>();
         long storageBytes = 0L;
         long maxTimestamp = 0L;
+        @Nullable
         Double writeLoadForecast = null;
     }
 }

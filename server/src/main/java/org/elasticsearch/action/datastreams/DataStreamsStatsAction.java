@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -153,10 +154,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final int backingIndices;
         private final ByteSizeValue storeSize;
         private final long maximumTimestamp;
+        @Nullable
         private final Double writeLoadForecast;
 
         public DataStreamStats(String dataStream, int backingIndices, ByteSizeValue storeSize, long maximumTimestamp,
-                               Double writeLoadForecast) {
+                               @Nullable Double writeLoadForecast) {
             this.dataStream = dataStream;
             this.backingIndices = backingIndices;
             this.storeSize = storeSize;

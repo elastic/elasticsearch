@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,7 +56,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
     public DataStreamsStatsTransportAction(
@@ -65,8 +63,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        WriteLoadForecaster writeLoadForecaster) {
+        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(
             DataStreamsStatsAction.NAME,
             clusterService,
@@ -79,7 +76,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.writeLoadForecaster = writeLoadForecaster;
     }
 
     @Override

@@ -63,7 +63,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver) {
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(
             DataStreamsStatsAction.NAME,
             clusterService,

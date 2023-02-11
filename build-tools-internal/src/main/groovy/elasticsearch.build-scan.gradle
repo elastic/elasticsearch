@@ -125,7 +125,7 @@ buildScan {
 
         // Add a build annotation
         // See: https://buildkite.com/docs/agent/v3/cli-annotate
-        def body = """<div class="mb3"><span class="p1 border rounded build-annotation-info">${System.getenv('BUILDKITE_LABEL')}</span> <img class="emoji" title="gradle" alt=":gradle:" draggable="false" src="https://buildkiteassets.com/emojis/img-buildkite-64/gradle.png"> build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+        def body = """<div class="mb3"><span class="p1 border rounded build-annotation-info">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
         ['buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body].execute()
       }
     } else {

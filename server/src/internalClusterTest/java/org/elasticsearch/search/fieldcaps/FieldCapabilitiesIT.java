@@ -10,6 +10,9 @@ package org.elasticsearch.search.fieldcaps;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -30,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
@@ -53,6 +57,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -670,49 +675,68 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testCancel() throws Exception {
-        BlockingOnRewriteQueryBuilder.blockOnRewrite();
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
-        Request restRequest = new Request("POST", "/_field_caps?fields=*");
-        restRequest.setEntity(new StringEntity("""
-                  {
-                    "index_filter": {
-                        "blocking_query": {}
-                     }
-                  }
-            """, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
-        Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
-        logger.info("--> waiting for field-caps tasks to be started");
-        assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
-                .get()
-                .getTasks();
-            assertThat(tasks.size(), greaterThanOrEqualTo(2));
-            for (TaskInfo task : tasks) {
-                assertTrue(task.cancellable());
-                assertFalse(task.cancelled());
-            }
-        }, 30, TimeUnit.SECONDS);
-
-        cancellable.cancel();
-        logger.info("--> waiting for field-caps tasks to be cancelled");
-        assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
-                .get()
-                .getTasks();
-            for (TaskInfo task : tasks) {
-                assertTrue(task.cancellable());
-                assertTrue(task.cancelled());
-            }
-        }, 30, TimeUnit.SECONDS);
-
-        BlockingOnRewriteQueryBuilder.unblockOnRewrite();
-        expectThrows(CancellationException.class, future::actionGet);
+        MockLogAppender logAppender = new MockLogAppender();
+        logAppender.start();
+        Logger fieldCapsLogger = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
+        Loggers.addAppender(fieldCapsLogger, logAppender);
+        Level previousLogLevel = fieldCapsLogger.getLevel();
+        Loggers.setLevel(fieldCapsLogger, Level.TRACE);
+        try {
+            logAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "clear resources",
+                    TransportFieldCapabilitiesAction.class.getCanonicalName(),
+                    Level.TRACE,
+                    "clear index responses on failure"
+                )
+            );
+            BlockingOnRewriteQueryBuilder.blockOnRewrite();
+            PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+            Request restRequest = new Request("POST", "/_field_caps?fields=*");
+            restRequest.setEntity(new StringEntity("""
+                      {
+                        "index_filter": {
+                            "blocking_query": {}
+                         }
+                      }
+                """, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
+            Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
+            logger.info("--> waiting for field-caps tasks to be started");
+            assertBusy(() -> {
+                List<TaskInfo> tasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                    .get()
+                    .getTasks();
+                assertThat(tasks.size(), greaterThanOrEqualTo(2));
+                for (TaskInfo task : tasks) {
+                    assertTrue(task.cancellable());
+                    assertFalse(task.cancelled());
+                }
+            }, 30, TimeUnit.SECONDS);
+            cancellable.cancel();
+            logger.info("--> waiting for field-caps tasks to be cancelled");
+            assertBusy(() -> {
+                List<TaskInfo> tasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                    .get()
+                    .getTasks();
+                for (TaskInfo task : tasks) {
+                    assertTrue(task.cancellable());
+                    assertTrue(task.cancelled());
+                }
+            }, 30, TimeUnit.SECONDS);
+            assertBusy(logAppender::assertAllExpectationsMatched);
+            BlockingOnRewriteQueryBuilder.unblockOnRewrite();
+            expectThrows(CancellationException.class, future::actionGet);
+        } finally {
+            Loggers.removeAppender(fieldCapsLogger, logAppender);
+            logAppender.stop();
+            Loggers.setLevel(fieldCapsLogger, previousLogLevel);
+        }
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

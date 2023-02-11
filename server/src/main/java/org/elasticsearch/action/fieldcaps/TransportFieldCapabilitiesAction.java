@@ -28,6 +28,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -56,6 +58,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
+    public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -99,6 +102,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         // wrap as `notifyOnce` as we can call `listener.onFailure` multiple times.
         final var listener = ActionListener.notifyOnce(outListener.delegateResponse((l, e) -> {
+            LOGGER.trace("clear index responses on failure");
             indexResponses.clear();
             l.onFailure(e);
         }));
@@ -127,7 +131,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
             if (fieldCapTask.isCancelled() && fieldCapTask.notifyIfCancelled(listener)) {
-                return; // don't accumulate the response as we already notify the listener
+                LOGGER.trace("stop accumulating index responses on cancelled");
+                return;
             }
             if (resp.canMatch() && resp.getIndexMappingHash() != null) {
                 FieldCapabilitiesIndexResponse curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp);

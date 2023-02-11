@@ -379,8 +379,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final ActionListener<GetProfilingResponse> submitListener;
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
-        private final AtomicInteger expectedExecutableSlices;
-        private final AtomicInteger expectedStackFrameSlices;
+        private final AtomicInteger expectedSlices;
         private final long start = System.nanoTime();
 
         private DetailsHandler(
@@ -395,8 +394,9 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             this.submitListener = submitListener;
             this.executables = new ConcurrentHashMap<>(executableCount);
             this.stackFrames = new ConcurrentHashMap<>(stackFrameCount);
-            this.expectedExecutableSlices = new AtomicInteger(expectedExecutableSlices);
-            this.expectedStackFrameSlices = new AtomicInteger(expectedStackFrameSlices);
+            // for deciding when we're finished it is irrelevant where a slice originated so we can
+            // simplify state handling by treating them equally.
+            this.expectedSlices = new AtomicInteger(expectedExecutableSlices + expectedStackFrameSlices);
         }
 
         public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
@@ -405,7 +405,6 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     stackFrames.put(frame.getId(), StackFrame.fromSource(frame.getResponse().getSource()));
                 }
             }
-            expectedStackFrameSlices.decrementAndGet();
             mayFinish();
         }
 
@@ -415,12 +414,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));
                 }
             }
-            expectedExecutableSlices.decrementAndGet();
             mayFinish();
         }
 
         public void mayFinish() {
-            if (expectedStackFrameSlices.get() == 0 && expectedExecutableSlices.get() == 0) {
+            if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
                 log.debug("retrieveStackTraceDetails took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");

@@ -65,6 +65,11 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof InvalidSnapshotNameException && e.getMessage() != null) {
+                    // this is not pretty, but we'd like for 7.17 to avoid introducing a custom exception to match the "snapshot already
+                    // exists" scenario (like we did for the 8.x line)
+                    // the InvalidSnapshotNameException message is in a custom format and the parts of the message are not exposed however,
+                    // we're matching on entire phrases so we will not inadvertently match different scenarios than the two we're
+                    // targeting here
                     if (e.getMessage().endsWith(SnapshotsService.SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC)
                         || e.getMessage().endsWith(SnapshotsService.SNAPSHOT_ALREADY_IN_PROGRESS_EXCEPTION_DESC)) {
                         // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is

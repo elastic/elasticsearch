@@ -16,8 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.InvalidSnapshotNameException;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -63,15 +64,22 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof SnapshotNameAlreadyInUseException snapshotNameAlreadyInUseException) {
-                    // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is triggered
-                    // by a master restart or a failover which can result in a double invocation of this step.
-                    logger.warn(
-                        "snapshot [{}] is already in-progress or in-use for index [{}], ILM will attempt to clean it up and recreate it",
-                        snapshotNameAlreadyInUseException.getSnapshotName(),
-                        indexMetadata.getIndex().getName()
-                    );
-                    onResponse(false);
+                if (e instanceof InvalidSnapshotNameException invalidSnapshotNameException && e.getMessage() != null) {
+                    if (e.getMessage().equals(SnapshotsService.SNAPSHOT_ALREADY_EXISTS_MESSAGE)
+                        || e.getMessage().equals(SnapshotsService.SNAPSHOT_ALREADY_IN_PROGRESS_MESSAGE)) {
+                        // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is
+                        // triggered
+                        // by a master restart or a failover which can result in a double invocation of this step.
+                        logger.warn(
+                            "snapshot [{}] is already in-progress or in-use for index [{}], ILM will attempt to clean it up and "
+                                + "recreate it",
+                            invalidSnapshotNameException.getSnapshotName(),
+                            indexMetadata.getIndex().getName()
+                        );
+                        onResponse(false);
+                    } else {
+                        listener.onFailure(e);
+                    }
                 } else {
                     listener.onFailure(e);
                 }

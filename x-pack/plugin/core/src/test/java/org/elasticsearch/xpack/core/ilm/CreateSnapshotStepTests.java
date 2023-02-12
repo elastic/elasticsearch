@@ -53,10 +53,17 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         StepKey nextKeyOnCompleteResponse = instance.getNextKeyOnComplete();
         StepKey nextKeyOnIncompleteResponse = instance.getNextKeyOnIncomplete();
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKeyOnCompleteResponse = randomStepKey();
-            case 2 -> nextKeyOnIncompleteResponse = randomStepKey();
-            default -> throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKeyOnCompleteResponse = randomStepKey();
+                break;
+            case 2:
+                nextKeyOnIncompleteResponse = randomStepKey();
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new CreateSnapshotStep(key, nextKeyOnCompleteResponse, nextKeyOnIncompleteResponse, instance.getClient());
     }
@@ -173,7 +180,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onResponse(true);
                     }
                 };
-                completeStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
+                completeStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
                     @Override
                     public void onResponse(Void unused) {
 
@@ -203,7 +210,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onResponse(false);
                     }
                 };
-                incompleteStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
+                incompleteStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
                     @Override
                     public void onResponse(Void unused) {
 
@@ -235,7 +242,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         );
                     }
                 };
-                doubleInvocationStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
+                doubleInvocationStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
                     @Override
                     public void onResponse(Void unused) {
 

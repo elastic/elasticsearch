@@ -238,7 +238,11 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                     @Override
                     void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
                         listener.onFailure(
-                            new InvalidSnapshotNameException(repository, snapshotName, SnapshotsService.SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC)
+                            new InvalidSnapshotNameException(
+                                repository,
+                                snapshotName,
+                                SnapshotsService.SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC
+                            )
                         );
                     }
                 };

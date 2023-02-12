@@ -744,11 +744,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static void ensureSnapshotNameAvailableInRepo(RepositoryData repositoryData, String snapshotName, Repository repository) {
         // check if the snapshot name already exists in the repository
         if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(
-                repository.getMetadata().name(),
-                snapshotName,
-                SNAPSHOT_ALREADY_EXISTS_MESSAGE
-            );
+            throw new InvalidSnapshotNameException(repository.getMetadata().name(), snapshotName, SNAPSHOT_ALREADY_EXISTS_MESSAGE);
         }
     }
 

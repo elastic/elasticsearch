@@ -64,7 +64,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof InvalidSnapshotNameException invalidSnapshotNameException && e.getMessage() != null) {
+                if (e instanceof InvalidSnapshotNameException && e.getMessage() != null) {
                     if (e.getMessage().equals(SnapshotsService.SNAPSHOT_ALREADY_EXISTS_MESSAGE)
                         || e.getMessage().equals(SnapshotsService.SNAPSHOT_ALREADY_IN_PROGRESS_MESSAGE)) {
                         // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is
@@ -72,7 +72,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                         logger.warn(
                             "snapshot [{}] is already in-progress or in-use for index [{}], ILM will attempt to clean it up and "
                                 + "recreate it",
-                            invalidSnapshotNameException.getSnapshotName(),
+                            ((InvalidSnapshotNameException) e).getSnapshotName(),
                             indexMetadata.getIndex().getName()
                         );
                         onResponse(false);

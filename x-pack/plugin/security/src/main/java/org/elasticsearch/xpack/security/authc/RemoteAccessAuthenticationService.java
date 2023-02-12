@@ -52,10 +52,16 @@ public class RemoteAccessAuthenticationService {
     private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticationService.class);
 
     private final ClusterService clusterService;
+    private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
 
-    public RemoteAccessAuthenticationService(ClusterService clusterService, AuthenticationService authenticationService) {
+    public RemoteAccessAuthenticationService(
+        ClusterService clusterService,
+        ApiKeyService apiKeyService,
+        AuthenticationService authenticationService
+    ) {
         this.clusterService = clusterService;
+        this.apiKeyService = apiKeyService;
         this.authenticationService = authenticationService;
     }
 
@@ -79,6 +85,7 @@ public class RemoteAccessAuthenticationService {
 
         final RemoteAccessHeaders remoteAccessHeaders;
         try {
+            apiKeyService.ensureEnabled();
             remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);

@@ -65,8 +65,8 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof InvalidSnapshotNameException && e.getMessage() != null) {
-                    if (e.getMessage().equals(SnapshotsService.SNAPSHOT_ALREADY_EXISTS_MESSAGE)
-                        || e.getMessage().equals(SnapshotsService.SNAPSHOT_ALREADY_IN_PROGRESS_MESSAGE)) {
+                    if (e.getMessage().endsWith(SnapshotsService.SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC)
+                        || e.getMessage().endsWith(SnapshotsService.SNAPSHOT_ALREADY_IN_PROGRESS_EXCEPTION_DESC)) {
                         // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is
                         // triggered by a master restart or a failover which can result in a double invocation of this step.
                         logger.warn(

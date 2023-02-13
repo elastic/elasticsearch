@@ -173,13 +173,15 @@ public class RRFRankContext implements RankContext {
             assert size == shardTopDocs.size();
 
             for (int index = 0; index < size; ++index) {
-                unmergedTopDocs.get(index).add(shardTopDocs.get(index));
+                TopDocs std = shardTopDocs.get(index);
+                SearchPhaseController.setShardIndex(std, querySearchResult.getShardIndex());
+                unmergedTopDocs.get(index).add(std);
             }
         }
 
         List<SortedTopDocs> mergedTopDocs = new ArrayList<>();
         for (List<TopDocs> utd : unmergedTopDocs) {
-            mergedTopDocs.add(SearchPhaseController.sortDocs(false, utd, 0, 10, List.of()));
+            mergedTopDocs.add(SearchPhaseController.sortDocs(false, utd, 0, windowSize, List.of()));
         }
 
         Map<String, RankResult> rankResults = new HashMap<>();
@@ -193,11 +195,12 @@ public class RRFRankContext implements RankContext {
                 final int frank = rank;
                 rankResults.compute(scoreDoc.doc + ":" + scoreDoc.shardIndex, (key, value) -> {
                     if (value == null) {
-                        value = new RankResult(scoreDoc.doc, scoreDoc.shardIndex, 0f, mergedTopDocs.size());
+                        value = new RankResult(scoreDoc.doc, scoreDoc.shardIndex, mergedTopDocs.size());
                     }
 
-                    value.rank += 1.0f / (rankConstant + frank);
+                    value.score += 1.0f / (rankConstant + frank);
                     value.positions[findex] = frank;
+                    value.scores[findex] = scoreDoc.score;
 
                     return value;
                 });
@@ -207,6 +210,10 @@ public class RRFRankContext implements RankContext {
 
         List<RankResult> sorted = new ArrayList<>(rankResults.values());
         sorted.sort(Comparator.comparingDouble(sd -> -sd.rank));
+        int rank = 1;
+        for (RankResult rankResult : sorted) {
+            rankResult.rank = rank++;
+        }
 
         return new RankResults(sorted);
     }

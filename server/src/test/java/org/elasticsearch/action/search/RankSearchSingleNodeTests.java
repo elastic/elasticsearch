@@ -24,7 +24,7 @@ import java.util.List;
 public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSimpleRRFRerank() throws IOException {
-        int numShards = 1;// + randomInt(3);
+        int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -44,18 +44,18 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 1000; doc++) {
-            client().prepareIndex("index").setSource("vector", new float[] { doc }, "int", doc % 20).get();
+            client().prepareIndex("index").setSource("vector", new float[] { doc }, "int", doc % 100).get();
         }
 
         client().admin().indices().prepareRefresh("index").get();
 
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 100, 300);
         SearchResponse response = client().prepareSearch("index")
             .setRank(new RankBuilder().toRankContext(new RRFRankBuilder().windowSize(100).rankConstant(1)))
             // .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
-            .setQuery(QueryBuilders.rangeQuery("int").lt(5))
+            .setQuery(QueryBuilders.rangeQuery("int").lt(10))
             // .addSort("int", SortOrder.ASC)
             // .addFetchField("*")
             .setSize(10)

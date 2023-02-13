@@ -34,6 +34,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rank.RankResults;
+import org.elasticsearch.search.rank.RankResults.RankResult;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -77,6 +79,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private static final float DEFAULT_SCORE = Float.NaN;
     private float score = DEFAULT_SCORE;
+
+    private RankResult rankResult;
 
     private final Text id;
 
@@ -134,6 +138,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public SearchHit(StreamInput in) throws IOException {
         docId = -1;
         score = in.readFloat();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            rankResult = in.readOptionalWriteable(RankResult::new);
+        }
         id = in.readOptionalText();
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readOptionalText();
@@ -233,6 +240,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(score);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeOptionalWriteable(rankResult);
+        }
         out.writeOptionalText(id);
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeOptionalText(SINGLE_MAPPING_TYPE);
@@ -287,6 +297,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      */
     public float getScore() {
         return this.score;
+    }
+
+    public void setRankResult(RankResult rankResult) {
+        this.rankResult = rankResult;
+    }
+
+    public RankResult getRankResult() {
+        return this.rankResult;
     }
 
     public void version(long version) {
@@ -607,6 +625,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String _SEQ_NO = "_seq_no";
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
+        static final String RANK = "rank";
         static final String FIELDS = "fields";
         static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
@@ -668,6 +687,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.nullField(Fields._SCORE);
         } else {
             builder.field(Fields._SCORE, score);
+        }
+
+        if (rankResult != null) {
+            builder.field(Fields.RANK, rankResult.rank);
         }
 
         for (DocumentField field : metaFields.values()) {
@@ -866,6 +889,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             searchHit.clusterAlias = clusterAlias;
         }
         searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
+        searchHit.setRankResult(get(Fields.RANK, values, null));
         searchHit.version(get(Fields._VERSION, values, -1L));
         searchHit.setSeqNo(get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO));
         searchHit.setPrimaryTerm(get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM));

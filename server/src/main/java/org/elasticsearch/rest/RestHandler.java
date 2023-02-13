@@ -55,7 +55,11 @@ public interface RestHandler {
         return this;
     }
 
-    default Scope getRestHandlerServerlessScope() {
+    /**
+     * Returns the serverless Scope of this RestHandler. This is only meaningful when running in a servlerless environment.
+     * @return
+     */
+    default Scope getServerlessScope() {
         ServerlessScope serverlessScope = getConcreteRestHandler().getClass().getAnnotation(ServerlessScope.class);
         return serverlessScope == null ? null : serverlessScope.value();
     }

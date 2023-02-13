@@ -371,7 +371,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         RestChannel responseChannel = channel;
         if (serverlessEnabled) {
-            Scope scope = handler.getRestHandlerServerlessScope();
+            Scope scope = handler.getServerlessScope();
             final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
             boolean internalRequest = internalOrigin != null;
             if (Scope.INTERNAL.equals(scope)) {

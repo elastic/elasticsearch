@@ -748,7 +748,6 @@ public class ActionModule extends AbstractModule {
                 restController.registerHandler(handler);
             }
         };
-        long startTime = System.currentTimeMillis();
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
         registerHandler.accept(new RestMainAction());
@@ -930,11 +929,10 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
-        logger.info("**** handler load time: {}", (System.currentTimeMillis() - startTime));
     }
 
     private boolean shouldKeepRestHandler(final RestHandler handler) {
-        return serverlessEnabled == false || handler.getRestHandlerServerlessScope() != null;
+        return serverlessEnabled == false || handler.getServerlessScope() != null;
     }
 
     @Override

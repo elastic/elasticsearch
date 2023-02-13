@@ -99,6 +99,7 @@ Dense vector fields cannot be indexed if they are within
 
 The following mapping parameters are accepted:
 
+[[dense-vector-element-type]]
 `element_type`::
 (Optional, string)
 The data type used to encode vectors. The supported data types are

@@ -56,7 +56,11 @@ public final class RemoteAccessAuthentication {
     }
 
     public static RemoteAccessAuthentication readFromContext(final ThreadContext ctx) throws IOException {
-        return decode(ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY));
+        final String header = ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
+        if (header == null) {
+            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
+        }
+        return decode(header);
     }
 
     public Authentication getAuthentication() {
@@ -211,6 +215,24 @@ public final class RemoteAccessAuthentication {
         @Override
         public String toString() {
             return "RoleDescriptorsBytes{" + "rawBytes=" + rawBytes + '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (false == super.equals(o)) return false;
+
+            RoleDescriptorsBytes that = (RoleDescriptorsBytes) o;
+
+            return Objects.equals(rawBytes, that.rawBytes);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = super.hashCode();
+            result = 31 * result + (rawBytes != null ? rawBytes.hashCode() : 0);
+            return result;
         }
     }
 }

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -581,7 +582,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             : AuthenticationTestHelper.builder().user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
-        final String remoteClusterCredential = "ApiKey " + randomAlphaOfLengthBetween(10, 42);
+        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
         when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(remoteClusterCredential);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final AuthorizationService authzService = mock(AuthorizationService.class);
@@ -693,7 +694,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         }
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
         when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(
-            noCredential ? null : "ApiKey " + randomAlphaOfLengthBetween(10, 42)
+            noCredential ? null : ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42))
         );
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
         final Authentication authentication;
@@ -773,7 +774,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .build();
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
-        final String remoteClusterCredential = "ApiKey " + randomAlphaOfLengthBetween(10, 42);
+        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
         when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(remoteClusterCredential);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
 
@@ -981,4 +982,5 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     private static Consumer<ThreadContext.StoredContext> anyConsumer() {
         return any(Consumer.class);
     }
+
 }

@@ -985,6 +985,10 @@ public class ApiKeyService {
         return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"));
     }
 
+    public static String withApiKeyPrefix(final String encodedApiKey) {
+        return "ApiKey " + encodedApiKey;
+    }
+
     private static ApiKeyCredentials parseApiKey(SecureString apiKeyString) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));

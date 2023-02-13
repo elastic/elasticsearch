@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
 import org.junit.BeforeClass;
@@ -66,9 +67,8 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
 
         try (var ignored = threadContext.stashContext()) {
-            new RemoteAccessHeaders("ApiKey abc", AuthenticationTestHelper.randomRemoteAccessAuthentication()).writeToContext(
-                threadContext
-            );
+            new RemoteAccessHeaders(ApiKeyService.withApiKeyPrefix("abc"), AuthenticationTestHelper.randomRemoteAccessAuthentication())
+                .writeToContext(threadContext);
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(
@@ -85,7 +85,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         try (var ignored = threadContext.stashContext()) {
             final String randomApiKey = Base64.getEncoder()
                 .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
-            threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + randomApiKey);
+            threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, ApiKeyService.withApiKeyPrefix(randomApiKey));
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(msg, equalTo("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"))
@@ -192,8 +192,9 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
 
     private String getEncodedRemoteAccessApiKey() {
         final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("remote_access_key").get();
-        return "ApiKey "
-            + Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8));
+        return ApiKeyService.withApiKeyPrefix(
+            Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))
+        );
     }
 
     private void authenticateAndAssertExpectedErrorMessage(

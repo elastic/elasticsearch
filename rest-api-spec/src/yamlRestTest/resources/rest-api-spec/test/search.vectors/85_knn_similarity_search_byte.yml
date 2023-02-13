@@ -65,6 +65,40 @@ setup:
   - match: {hits.hits.0._id: "2"}
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
 ---
+"Vector similarity with filter only":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              num_candidates: 3
+              field: vector
+              similarity: 82
+              query_vector: [127.0, -128.0, 0.0, 10.0, -1.0]
+              filter: {"term": {"name": "moose.jpg"}}
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            vector_similarity:
+              num_candidates: 3
+              field: vector
+              similarity: 82
+              query_vector: [127.0, -128.0, 0.0, 10.0, -1.0]
+              filter: {"term": {"name": "cow.jpg"}}
+
+  - length: {hits.hits: 0}
+---
 "Vector similarity search under bool":
   - do:
       search:

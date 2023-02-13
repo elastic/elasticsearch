@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,11 +22,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +39,7 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
     private static final ParseField QUERY_VECTOR = new ParseField("query_vector");
     private static final ParseField NUM_CANDIDATES = new ParseField("num_candidates");
     private static final ParseField SIMILARITY = new ParseField("similarity");
-    private static final ParseField PRE_FILTER = new ParseField("pre_filter");
+    private static final ParseField FILTER = new ParseField("filter");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<VectorSimilarityQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
@@ -47,13 +51,7 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
             for (int i = 0; i < vector.size(); i++) {
                 vectorArray[i] = vector.get(i);
             }
-            return new VectorSimilarityQueryBuilder(
-                (String) args[0],
-                vectorArray,
-                (Integer) args[2],
-                (Float) args[3],
-                (QueryBuilder) args[4]
-            );
+            return new VectorSimilarityQueryBuilder((String) args[0], vectorArray, (Integer) args[2], (Float) args[3]);
         }
     );
     static {
@@ -61,10 +59,11 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
         PARSER.declareFloatArray(ConstructingObjectParser.constructorArg(), QUERY_VECTOR);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_CANDIDATES);
         PARSER.declareFloat(ConstructingObjectParser.constructorArg(), SIMILARITY);
-        PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
+        PARSER.declareFieldArray(
+            VectorSimilarityQueryBuilder::addFilterQueries,
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
-            PRE_FILTER
+            FILTER,
+            ObjectParser.ValueType.OBJECT_ARRAY
         );
         AbstractQueryBuilder.declareStandardFields(PARSER);
     }
@@ -77,9 +76,9 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
     private final float[] queryVector;
     private final int numCandidates;
     private final float similarity;
-    private final QueryBuilder preFilter;
+    private final List<QueryBuilder> filters;
 
-    public VectorSimilarityQueryBuilder(String field, float[] queryVector, int numCandidates, float similarity, QueryBuilder preFilter) {
+    public VectorSimilarityQueryBuilder(String field, float[] queryVector, int numCandidates, float similarity) {
         this.field = Objects.requireNonNull(field, Strings.format("[%s] must not be null", FIELD.getPreferredName()));
         this.queryVector = Objects.requireNonNull(queryVector, Strings.format("[%s] must not be null", QUERY_VECTOR.getPreferredName()));
         if (numCandidates <= 0) {
@@ -87,7 +86,7 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
         }
         this.numCandidates = numCandidates;
         this.similarity = similarity;
-        this.preFilter = preFilter;
+        this.filters = new ArrayList<>();
     }
 
     public VectorSimilarityQueryBuilder(StreamInput in) throws IOException {
@@ -96,7 +95,7 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
         this.queryVector = in.readFloatArray();
         this.numCandidates = in.readVInt();
         this.similarity = in.readFloat();
-        this.preFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.filters = in.readNamedWriteableList(QueryBuilder.class);
     }
 
     public String getField() {
@@ -115,8 +114,8 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
         return similarity;
     }
 
-    public QueryBuilder getPreFilter() {
-        return preFilter;
+    public List<QueryBuilder> getFilters() {
+        return filters;
     }
 
     @Override
@@ -129,13 +128,25 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
         return TransportVersion.CURRENT;
     }
 
+    public VectorSimilarityQueryBuilder addFilterQuery(QueryBuilder filterQuery) {
+        Objects.requireNonNull(filterQuery);
+        this.filters.add(filterQuery);
+        return this;
+    }
+
+    public VectorSimilarityQueryBuilder addFilterQueries(List<QueryBuilder> filterQueries) {
+        Objects.requireNonNull(filterQueries);
+        this.filters.addAll(filterQueries);
+        return this;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeFloatArray(queryVector);
         out.writeVInt(numCandidates);
         out.writeFloat(similarity);
-        out.writeOptionalNamedWriteable(preFilter);
+        out.writeNamedWriteableList(filters);
     }
 
     @Override
@@ -146,8 +157,12 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
         builder.field(QUERY_VECTOR.getPreferredName(), queryVector);
         builder.field(NUM_CANDIDATES.getPreferredName(), numCandidates);
         builder.field(SIMILARITY.getPreferredName(), similarity);
-        if (preFilter != null) {
-            builder.field(PRE_FILTER.getPreferredName(), preFilter);
+        if (filters.size() > 0) {
+            builder.startArray(FILTER.getPreferredName());
+            for (QueryBuilder filterQuery : filters) {
+                filterQuery.toXContent(builder, params);
+            }
+            builder.endArray();
         }
         builder.endObject();
     }
@@ -166,26 +181,41 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
         }
 
         DenseVectorFieldMapper.DenseVectorFieldType vectorFieldType = (DenseVectorFieldMapper.DenseVectorFieldType) fieldType;
-        Query preFilterQuery = preFilter == null ? null : preFilter.toQuery(context);
-        return vectorFieldType.createVectorSimilarity(queryVector, similarity, numCandidates, preFilterQuery);
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (QueryBuilder query : this.filters) {
+            builder.add(query.toQuery(context), BooleanClause.Occur.FILTER);
+        }
+        BooleanQuery booleanQuery = builder.build();
+        Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
+        return vectorFieldType.createVectorSimilarity(queryVector, similarity, numCandidates, filterQuery);
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (preFilter == null) {
+        if (filters.isEmpty()) {
             return this;
         }
-        QueryBuilder rewritten = preFilter.rewrite(queryRewriteContext);
-        if (rewritten == preFilter) {
+        boolean changed = false;
+        List<QueryBuilder> rewrittenQueries = new ArrayList<>(filters.size());
+        for (QueryBuilder query : filters) {
+            QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
+            if (rewrittenQuery != query) {
+                changed = true;
+            }
+            rewrittenQueries.add(rewrittenQuery);
+        }
+        if (changed == false) {
             return this;
         }
-        return new VectorSimilarityQueryBuilder(field, queryVector, numCandidates, similarity, rewritten).queryName(queryName).boost(boost);
+        return new VectorSimilarityQueryBuilder(field, queryVector, numCandidates, similarity).addFilterQueries(rewrittenQueries)
+            .queryName(queryName)
+            .boost(boost);
     }
 
     @Override
     protected boolean doEquals(VectorSimilarityQueryBuilder other) {
         return Objects.equals(field, other.field)
-            && Objects.equals(preFilter, other.preFilter)
+            && Objects.equals(filters, other.filters)
             && Arrays.equals(queryVector, other.queryVector)
             && similarity == other.similarity
             && numCandidates == other.numCandidates;
@@ -193,6 +223,6 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, Arrays.hashCode(queryVector), numCandidates, similarity, preFilter);
+        return Objects.hash(field, Arrays.hashCode(queryVector), numCandidates, similarity, filters);
     }
 }

@@ -75,7 +75,8 @@ GET /_search
           "query_vector": [-5, 9, -12],
           "num_candidates": 100,
           "similarity": 10.0,
-          "boost": 5.0
+          "boost": 5.0,
+          "filter": { "term": {"title": "snow" } }
         }
       }
     }
@@ -97,6 +98,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 (Required, int)
 The number of nearest neighbor candidates to consider per shard. Cannot exceed
 10,000.
+
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 
 `similarity`::
 (Required, float)

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
@@ -25,6 +26,8 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class VectorSimilarityQueryBuilderTests extends AbstractQueryTestCase<VectorSimilarityQueryBuilder> {
 
@@ -61,22 +64,24 @@ public class VectorSimilarityQueryBuilderTests extends AbstractQueryTestCase<Vec
 
     @Override
     protected VectorSimilarityQueryBuilder doCreateTestQueryBuilder() {
-        return switch (randomFrom(DenseVectorFieldMapper.ElementType.values())) {
+        VectorSimilarityQueryBuilder queryBuilder = switch (randomFrom(DenseVectorFieldMapper.ElementType.values())) {
             case BYTE -> new VectorSimilarityQueryBuilder(
                 BYTE_VECTOR_FIELD,
                 new float[] { randomByte(), randomByte(), randomByte() },
                 randomIntBetween(1, 10),
-                (float) randomDoubleBetween(0.1, 0.9, true),
-                randomBoolean() ? null : new MatchAllQueryBuilder()
+                (float) randomDoubleBetween(0.1, 0.9, true)
             );
             case FLOAT -> new VectorSimilarityQueryBuilder(
                 VECTOR_FIELD,
                 new float[] { randomFloat(), randomFloat(), randomFloat() },
                 randomIntBetween(1, 10),
-                (float) randomDoubleBetween(0.1, 0.9, true),
-                randomBoolean() ? null : new MatchAllQueryBuilder()
+                (float) randomDoubleBetween(0.1, 0.9, true)
             );
         };
+        if (randomBoolean()) {
+            queryBuilder.addFilterQuery(new MatchAllQueryBuilder());
+        }
+        return queryBuilder;
     }
 
     @Override
@@ -96,8 +101,10 @@ public class VectorSimilarityQueryBuilderTests extends AbstractQueryTestCase<Vec
                 assertThat(floatVectorQuery.getField(), equalTo(queryBuilder.getField()));
                 assertThat(floatVectorQuery.getTargetCopy(), equalTo(queryBuilder.getQueryVector()));
                 assertThat(floatVectorQuery.getK(), equalTo(queryBuilder.getNumCandidates()));
-                if (queryBuilder.getPreFilter() != null) {
-                    assertThat(queryBuilder.getPreFilter().toQuery(context), equalTo(floatVectorQuery.getFilter()));
+                if (queryBuilder.getFilters().isEmpty() == false) {
+                    Query q = floatVectorQuery.getFilter();
+                    assertThat(q, is(notNullValue()));
+                    assertThat(q, instanceOf(BooleanQuery.class));
                 }
             }
             case (BYTE_VECTOR_FIELD) -> {
@@ -110,8 +117,10 @@ public class VectorSimilarityQueryBuilderTests extends AbstractQueryTestCase<Vec
                 }
                 assertThat(knnByteVectorQuery.getTargetCopy(), equalTo(queryVector));
                 assertThat(knnByteVectorQuery.getK(), equalTo(queryBuilder.getNumCandidates()));
-                if (queryBuilder.getPreFilter() != null) {
-                    assertThat(queryBuilder.getPreFilter().toQuery(context), equalTo(knnByteVectorQuery.getFilter()));
+                if (queryBuilder.getFilters().isEmpty() == false) {
+                    Query q = knnByteVectorQuery.getFilter();
+                    assertThat(q, is(notNullValue()));
+                    assertThat(q, instanceOf(BooleanQuery.class));
                 }
             }
             default -> throw new AssertionError("unexpected vector field");

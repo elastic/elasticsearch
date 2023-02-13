@@ -16,11 +16,12 @@ public final class EmptyDoubleHdrHistogram extends DoubleHistogram {
 
     public EmptyDoubleHdrHistogram() {
         super(0);
+        setAutoResize(false);
     }
 
     @Override
     public void setAutoResize(boolean ignored) {
-        super.setAutoResize(false);
+        // DO NOT CHANGE 'autoResize'
     }
 
     @Override

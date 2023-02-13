@@ -10,7 +10,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.InetAddresses;
@@ -18,7 +18,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -61,7 +61,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     @Override
-    protected SortValue mutateInstance(SortValue instance) throws IOException {
+    protected SortValue mutateInstance(SortValue instance) {
         return randomValueOtherThanMany(mut -> instance.getKey().equals(mut.getKey()), this::createTestInstance);
     }
 
@@ -223,13 +223,15 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     public void testSerializeBytesToOldVersion() {
         SortValue value = SortValue.from(new BytesRef("can't send me!"));
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_10_1);
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_0_0,
+            TransportVersion.V_7_10_1
+        );
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyInstance(value, version));
         assertThat(
             e.getMessage(),
-            equalTo(
-                "versions of Elasticsearch before 7.11.0 can't handle non-numeric sort values and attempted to send to [" + version + "]"
-            )
+            equalTo("transport versions before [7110099] can't handle non-numeric sort values, attempted to send to [" + version + "]")
         );
     }
 
@@ -241,5 +243,11 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
                 return sortValue.toXContent(builder, format);
             }
         });
+    }
+
+    @Override
+    public void testToString() throws Exception {
+        // override parent since empty sort value serializes to empty string
+        assertNotNull(createTestInstance().toString());
     }
 }

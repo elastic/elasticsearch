@@ -40,7 +40,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         if (randomBoolean()) {
             numberOfShards = randomIntBetween(1, 20);
         } else {
-            maxPrimaryShardSize = new ByteSizeValue(between(1, 100));
+            maxPrimaryShardSize = ByteSizeValue.ofBytes(between(1, 100));
         }
         return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxPrimaryShardSize);
     }
@@ -60,7 +60,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                     numberOfShards = numberOfShards + 1;
                 }
                 if (maxPrimaryShardSize != null) {
-                    maxPrimaryShardSize = new ByteSizeValue(maxPrimaryShardSize.getBytes() + 1);
+                    maxPrimaryShardSize = ByteSizeValue.ofBytes(maxPrimaryShardSize.getBytes() + 1);
                 }
             }
             default -> throw new AssertionError("Illegal randomisation branch");

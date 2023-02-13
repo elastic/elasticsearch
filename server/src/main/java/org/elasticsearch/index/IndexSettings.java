@@ -251,9 +251,15 @@ public final class IndexSettings {
         Property.IndexScope
     );
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
+    public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "node._internal.default_refresh_interval",
+        DEFAULT_REFRESH_INTERVAL,
+        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        Property.NodeScope
+    );
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "index.refresh_interval",
-        DEFAULT_REFRESH_INTERVAL,
+        NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
         new TimeValue(-1, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope
@@ -266,8 +272,8 @@ public final class IndexSettings {
          * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
          * However, small thresholds are useful for testing so we do not add a large lower bound here.
          */
-        new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ofBytes(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -278,8 +284,8 @@ public final class IndexSettings {
     public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.flush_after_merge",
         new ByteSizeValue(512, ByteSizeUnit.MB),
-        new ByteSizeValue(0, ByteSizeUnit.BYTES), // always flush after merge
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES), // never flush after merge
+        ByteSizeValue.ZERO, // always flush after merge
+        ByteSizeValue.ofBytes(Long.MAX_VALUE), // never flush after merge
         Property.Dynamic,
         Property.IndexScope
     );
@@ -297,8 +303,8 @@ public final class IndexSettings {
          * generation threshold. However, small thresholds are useful for testing so we
          * do not add a large lower bound here.
          */
-        new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ofBytes(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -550,6 +556,20 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING = Setting.intSetting(
+        "index.max_adjacency_matrix_filters",
+        100,
+        2,
+        Property.Dynamic,
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -760,7 +780,11 @@ public final class IndexSettings {
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
 
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
+        scopedSettings.addSettingsUpdateConsumer(
+            MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+            mergePolicyConfig::setCompoundFormatThreshold
+        );
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING, mergePolicyConfig::setMergePolicyType);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
             mergePolicyConfig::setDeletesPctAllowed
@@ -785,6 +809,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
             mergePolicyConfig::setSegmentsPerTier
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
+            mergePolicyConfig::setMergeFactor
         );
 
         scopedSettings.addSettingsUpdateConsumer(
@@ -1193,8 +1221,8 @@ public final class IndexSettings {
     /**
      * Returns the merge policy that should be used for this index.
      */
-    public MergePolicy getMergePolicy() {
-        return mergePolicyConfig.getMergePolicy();
+    public MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
+        return mergePolicyConfig.getMergePolicy(isTimeBasedIndex);
     }
 
     public <T> T getValue(Setting<T> setting) {

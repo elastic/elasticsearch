@@ -74,7 +74,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
             } else if (dataStream != null) {
-                indexMode = dataStream.getIndexMode();
+                indexMode = timeSeries ? dataStream.getIndexMode() : null;
             } else if (timeSeries) {
                 indexMode = IndexMode.TIME_SERIES;
             } else {
@@ -181,7 +181,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 MappingParserContext parserContext = mapperService.parserContext();
                 var mapper = parserContext.typeParser(mappingSnippetType)
                     .parse(template.pathMatch(), mappingSnippet, parserContext)
-                    .build(MapperBuilderContext.ROOT);
+                    .build(MapperBuilderContext.root(false));
                 extractPath(routingPaths, mapper);
             }
             return routingPaths;

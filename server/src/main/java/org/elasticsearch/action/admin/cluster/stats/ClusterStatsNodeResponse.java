@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -26,6 +27,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final NodeStats nodeStats;
     private final ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
+    private final SearchUsageStats searchUsageStats;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -36,6 +38,11 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
         shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            searchUsageStats = new SearchUsageStats(in);
+        } else {
+            searchUsageStats = new SearchUsageStats();
+        }
     }
 
     public ClusterStatsNodeResponse(
@@ -43,13 +50,15 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         @Nullable ClusterHealthStatus clusterStatus,
         NodeInfo nodeInfo,
         NodeStats nodeStats,
-        ShardStats[] shardsStats
+        ShardStats[] shardsStats,
+        SearchUsageStats searchUsageStats
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
+        this.searchUsageStats = searchUsageStats;
     }
 
     public NodeInfo nodeInfo() {
@@ -72,6 +81,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return this.shardsStats;
     }
 
+    public SearchUsageStats searchUsageStats() {
+        return searchUsageStats;
+    }
+
     public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
         return new ClusterStatsNodeResponse(in);
     }
@@ -88,5 +101,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            searchUsageStats.writeTo(out);
+        }
     }
 }

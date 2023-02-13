@@ -1,5 +1,0 @@
-pr: 90950
-summary: Validate field names when subobjects are disabled
-area: Mapping
-type: bug
-issues: []

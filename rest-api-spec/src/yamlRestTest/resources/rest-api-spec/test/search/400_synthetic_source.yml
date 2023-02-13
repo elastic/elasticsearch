@@ -436,3 +436,61 @@ _source filtering:
   - match:
       hits.hits.0._source:
         kwd: foo
+
+---
+_doc_count:
+  - skip:
+      version: " - 8.6.99"
+      reason: bug caused by many not having _doc_count fixed in 8.7.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        body:
+          foo: baz
+  - do:
+      index:
+        index:   test
+        id:      3
+        body:
+          foo: baz
+  - do:
+      index:
+        index:   test
+        id:      4
+        body:
+          foo: baz
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:
+          _doc_count: 3
+          foo: bar
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: foo.keyword
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+  - match:
+      hits.hits.0._source:
+        _doc_count: 3
+        foo: bar
+  - match:
+      hits.hits.1._source:
+        foo: baz
+

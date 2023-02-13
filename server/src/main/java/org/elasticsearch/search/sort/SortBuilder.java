@@ -195,7 +195,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
         final NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         final Query parentQuery;
         if (objectMapper == null) {
-            parentQuery = Queries.newNonNestedFilter();
+            parentQuery = Queries.newNonNestedFilter(context.indexVersionCreated());
         } else {
             parentQuery = objectMapper.nestedTypeFilter();
         }

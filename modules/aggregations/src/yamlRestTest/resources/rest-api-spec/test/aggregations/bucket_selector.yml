@@ -1,0 +1,352 @@
+setup:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "a": 2, "b": 12, "c": 21, "gappy": 99 }
+          - { "index": { } }
+          - { "a": 3, "b": 56, "c": 12 }
+          - { "index": { } }
+          - { "a": 4, "b": 82, "c": 13, "gappy": 98 }
+          - { "index": { } }
+          - { "a": 5, "b": 12, "c": 54 }
+
+---
+prune some buckets:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                c:
+                  sum:
+                    field: c
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      b: b
+                      c: c
+                    script: params.b > params.c
+
+  - length: { aggregations.a.buckets: 2 }
+  - match: { aggregations.a.buckets.0.key: 3.0 }
+  - match: { aggregations.a.buckets.1.key: 4.0 }
+
+---
+prune no buckets:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                c:
+                  sum:
+                    field: c
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      b: b
+                    script: params.b > 0
+
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.key: 2.0 }
+  - match: { aggregations.a.buckets.1.key: 3.0 }
+  - match: { aggregations.a.buckets.2.key: 4.0 }
+  - match: { aggregations.a.buckets.3.key: 5.0 }
+
+---
+prune all buckets:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                c:
+                  sum:
+                    field: c
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      b: b
+                    script: params.b < 0
+
+  - length: { aggregations.a.buckets: 0 }
+
+---
+input is unmapped sum:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                unmapped:
+                  sum:
+                    field: unmapped
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      b: b
+                      unmapped: unmapped
+                    script: params.b > params.unmapped
+
+  # sum(unmapped) is 0 so all of these pass
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.key: 2.0 }
+  - match: { aggregations.a.buckets.1.key: 3.0 }
+  - match: { aggregations.a.buckets.2.key: 4.0 }
+  - match: { aggregations.a.buckets.3.key: 5.0 }
+
+---
+input is unmapped avg:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  avg:
+                    field: b
+                unmapped:
+                  avg:
+                    field: unmapped
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      b: b
+                      unmapped: unmapped
+                    script: params.b > params.unmapped
+
+  # unmapped avg is null which we see as NaN
+  - length: { aggregations.a.buckets: 0 }
+
+---
+params:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                c:
+                  sum:
+                    field: c
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      b: b
+                    script:
+                      source: params.b > params.min
+                      params:
+                        min: 1000
+
+  - length: { aggregations.a.buckets: 0 }
+
+---
+default gap_policy is skip:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b < params.gappy
+
+  - length: { aggregations.a.buckets: 2 }
+  - match: { aggregations.a.buckets.0.key: 2.0 }
+  - match: { aggregations.a.buckets.1.key: 4.0 }
+
+---
+gap_policy is skip:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                selector:
+                  bucket_selector:
+                    gap_policy: skip
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b < params.gappy
+
+  - length: { aggregations.a.buckets: 2 }
+  - match: { aggregations.a.buckets.0.key: 2.0 }
+  - match: { aggregations.a.buckets.1.key: 4.0 }
+
+---
+gap_policy is insert_zeros:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                selector:
+                  bucket_selector:
+                    gap_policy: insert_zeros
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b > params.gappy
+
+  - length: { aggregations.a.buckets: 2 }
+  - match: { aggregations.a.buckets.0.key: 3.0 }
+  - match: { aggregations.a.buckets.1.key: 5.0 }
+
+---
+gap_policy is keep_values:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                selector:
+                  bucket_selector:
+                    gap_policy: keep_values
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b > params.gappy
+
+  - length: { aggregations.a.buckets: 2 }
+  - match: { aggregations.a.buckets.0.key: 3.0 }
+  - match: { aggregations.a.buckets.1.key: 5.0 }
+
+---
+bad script:
+  - do:
+      catch: /NullPointerException/
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      b: b
+                    script: params.garbage > 0
+
+---
+invalid path:
+  - do:
+      catch: /No aggregation found for path \[missing\]/
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      missing: missing
+                    script: params.missing > 0
+
+---
+top level fails:
+  - do:
+      catch: /bucket_selector aggregation \[selector\] must be declared inside of another aggregation/
+      search:
+        body:
+          aggs:
+            b:
+              sum:
+                field: b
+            selector:
+              bucket_selector:
+                buckets_path:
+                  b: b
+                script: params.b > 0

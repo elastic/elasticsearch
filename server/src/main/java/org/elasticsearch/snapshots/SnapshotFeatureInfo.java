@@ -48,7 +48,7 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
     }
 
     public SnapshotFeatureInfo(final StreamInput in) throws IOException {
-        this(in.readString(), in.readImmutableList(StreamInput::readString));
+        this(in.readString(), in.readImmutableStringList());
     }
 
     @Override

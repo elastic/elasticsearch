@@ -108,15 +108,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        return createMapperService(version, mappings);
-    }
-
-    @Override
-    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
-        assumeFalse("LegacyGeoShapeFieldMapper can't be created in version " + version, version.onOrAfter(Version.V_8_0_0));
-        return super.createMapperService(version, mapping);
+    protected Version getVersion() {
+        return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
     }
 
     public void testLegacySwitches() throws IOException {

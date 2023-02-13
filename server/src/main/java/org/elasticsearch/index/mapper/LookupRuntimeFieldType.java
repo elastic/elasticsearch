@@ -159,7 +159,8 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         protected RuntimeField createChildRuntimeField(
             MappingParserContext parserContext,
             String parentName,
-            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+            OnScriptError onScriptError
         ) {
             return createRuntimeField(parserContext);
         }

@@ -70,7 +70,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         ensureYellow("test");
         GetHealthAction.Response healthResponse = client().execute(
             GetHealthAction.INSTANCE,
-            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true)
+            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
         HealthIndicatorResult indicatorResult = healthResponse.findIndicator(ShardsAvailabilityHealthIndicatorService.NAME);
         assertThat(indicatorResult.status(), equalTo(HealthStatus.YELLOW));
@@ -107,7 +107,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         ensureYellow("test");
         GetHealthAction.Response healthResponse = client().execute(
             GetHealthAction.INSTANCE,
-            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true)
+            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
         ClusterAllocationExplanation explain = client().admin()
             .cluster()
@@ -152,7 +152,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         ensureYellow("test");
         GetHealthAction.Response healthResponse = client().execute(
             GetHealthAction.INSTANCE,
-            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true)
+            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
         HealthIndicatorResult indicatorResult = healthResponse.findIndicator(ShardsAvailabilityHealthIndicatorService.NAME);
         assertThat(indicatorResult.status(), equalTo(HealthStatus.YELLOW));

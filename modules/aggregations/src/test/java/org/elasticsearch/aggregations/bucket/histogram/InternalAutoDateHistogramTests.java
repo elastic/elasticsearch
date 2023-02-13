@@ -8,8 +8,8 @@
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
 import org.elasticsearch.common.Rounding;
@@ -17,10 +17,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -28,11 +26,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -57,22 +52,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
-public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
+public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
 
-    // TODO: maybe add base class that overwrites registerPlugin(...) for all tests that will be added to this module.
     @Override
-    protected SearchPlugin registerPlugin() {
-        return new AggregationsPlugin();
-    }
-
-    // TODO: the base test class should be able to get this from the search plugin? (^)
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        ContextParser<Object, Aggregation> parser = (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c);
-        return CollectionUtils.appendToCopy(
-            getDefaultNamedXContents(),
-            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(AutoDateHistogramAggregationBuilder.NAME), parser)
-        );
+    protected Map.Entry<String, ContextParser<Object, Aggregation>> getParser() {
+        return Map.entry(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
     }
 
     protected InternalAutoDateHistogram createTestInstance(
@@ -491,10 +475,10 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             createTestMetadata(),
             InternalAggregations.EMPTY
         );
-        Version version = VersionUtils.randomVersionBetween(
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(Version.V_8_3_0)
+            TransportVersion.CURRENT.minimumCompatibilityVersion(),
+            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_3_0)
         );
         InternalAutoDateHistogram deserialized = copyInstance(instance, version);
         assertEquals(1, deserialized.getBucketInnerInterval());
@@ -520,7 +504,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                     + "AAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
             );
         try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(bytes).streamInput(), getNamedWriteableRegistry())) {
-            in.setVersion(Version.V_8_2_0);
+            in.setTransportVersion(TransportVersion.V_8_2_0);
             InternalAutoDateHistogram deserialized = new InternalAutoDateHistogram(in);
             assertEquals("name", deserialized.getName());
             assertEquals(1, deserialized.getBucketInnerInterval());

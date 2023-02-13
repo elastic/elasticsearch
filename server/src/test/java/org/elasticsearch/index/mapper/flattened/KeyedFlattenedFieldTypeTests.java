@@ -23,7 +23,8 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -180,11 +181,14 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         when(searchExecutionContext.sourcePath("field.key")).thenReturn(Set.of("field.key"));
 
         ValueFetcher fetcher = ft.valueFetcher(searchExecutionContext, null);
-        SourceLookup lookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap("field", sourceValue)));
-
-        assertEquals(List.of("value"), fetcher.fetchValues(lookup, -1, new ArrayList<>()));
-        lookup.setSourceProvider(new SourceLookup.MapSourceProvider(Collections.singletonMap("field", null)));
-        assertEquals(List.of(), fetcher.fetchValues(lookup, -1, new ArrayList<>()));
+        {
+            Source source = Source.fromMap(Collections.singletonMap("field", sourceValue), randomFrom(XContentType.values()));
+            assertEquals(List.of("value"), fetcher.fetchValues(source, -1, new ArrayList<>()));
+        }
+        {
+            Source source = Source.fromMap(Collections.singletonMap("field", null), randomFrom(XContentType.values()));
+            assertEquals(List.of(), fetcher.fetchValues(source, -1, new ArrayList<>()));
+        }
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.valueFetcher(searchExecutionContext, "format"));
         assertEquals("Field [field.key] of type [flattened] doesn't support formats.", e.getMessage());

@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -241,12 +240,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 Response::new,
                 executor
             );
-        }
-
-        @Override
-        protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-            // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
         }
 
         @Override
@@ -586,7 +579,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
                 throws Exception {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
-                setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+                setState(
+                    clusterService,
+                    ClusterState.builder(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes)).incrementVersion().build()
+                );
                 Exception failure = randomBoolean()
                     ? new FailedToCommitClusterStateException("Fake error")
                     : new NotMasterException("Fake error");

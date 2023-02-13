@@ -9,9 +9,11 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -59,7 +61,9 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .routingTable(RoutingTable.builder().addAsNew(sourceMetadata.index(sourceIndex)))
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(sourceMetadata.index(sourceIndex))
+            )
             .metadata(sourceMetadata)
             .nodes(discoveryNodes)
             .build();
@@ -77,7 +81,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 16)
                 .build()
         );
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         {
             IndexRoutingTable sourceRoutingTable = clusterState.routingTable().index(sourceIndex);
@@ -122,7 +126,10 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             )
             .build();
         clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.builder(clusterState.routingTable()).addAsNew(clusterState.metadata().index(targetIndex)))
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.routingTable())
+                    .addAsNew(clusterState.metadata().index(targetIndex))
+            )
             .build();
 
         {
@@ -134,7 +141,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             }
         }
 
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         {
             IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndex);

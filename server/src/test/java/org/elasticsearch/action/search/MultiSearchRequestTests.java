@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -95,7 +96,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true)
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder())
         );
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
@@ -109,7 +110,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             new BytesArray(requestContent),
             XContentType.JSON
         ).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder());
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(
@@ -127,7 +128,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             new BytesArray(requestContent),
             XContentType.JSON
         ).withParams(Collections.singletonMap("ignore_unavailable", "true")).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder());
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(
@@ -194,7 +195,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             tookInMillis
         );
 
-        assertEquals(XContentHelper.stripWhitespace(formatted("""
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "took": %s,
               "responses": [
@@ -232,7 +233,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true)
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder())
         );
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
@@ -241,7 +242,12 @@ public class MultiSearchRequestTests extends ESTestCase {
             new BytesArray(mserchActionWithNewLine.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         ).build();
-        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, null, true);
+        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(
+            restRequestWithNewLine,
+            null,
+            true,
+            new UsageService().getSearchUsageHolder()
+        );
         assertEquals(3, msearchRequest.requests().size());
     }
 
@@ -257,7 +263,7 @@ public class MultiSearchRequestTests extends ESTestCase {
 
         MultiSearchRequest request = new MultiSearchRequest();
         RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true, (searchRequest, parser) -> {
-            searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+            searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder()));
             request.add(searchRequest);
         });
         return request;
@@ -304,7 +310,11 @@ public class MultiSearchRequestTests extends ESTestCase {
             byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, xContentType.xContent());
             MultiSearchRequest parsedRequest = new MultiSearchRequest();
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(
+                    p,
+                    false,
+                    new UsageService().getSearchUsageHolder()
+                );
                 if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                     r.source(searchSourceBuilder);
                 }

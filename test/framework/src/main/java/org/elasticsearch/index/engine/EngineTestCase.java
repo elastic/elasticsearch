@@ -249,7 +249,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return randomBoolean() ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : TsidExtractingIdFieldMapper.FIELD_TYPE;
     }
 
-    public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
+    public static EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
@@ -259,7 +259,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -274,7 +274,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier()
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary()
         );
     }
 
@@ -288,7 +290,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -303,7 +305,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier()
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary()
         );
     }
 
@@ -317,7 +321,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -332,7 +336,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier()
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary()
         );
     }
 
@@ -754,7 +760,8 @@ public abstract class EngineTestCase extends ESTestCase {
             indexSort,
             globalCheckpointSupplier,
             retentionLeasesSupplier,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            null
         );
     }
 
@@ -779,7 +786,8 @@ public abstract class EngineTestCase extends ESTestCase {
             indexSort,
             maybeGlobalCheckpointSupplier,
             maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
-            breakerService
+            breakerService,
+            null
         );
     }
 
@@ -793,7 +801,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final Sort indexSort,
         final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
         final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
-        final CircuitBreakerService breakerService
+        final CircuitBreakerService breakerService,
+        final @Nullable Engine.IndexCommitListener indexCommitListener
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -851,7 +860,9 @@ public abstract class EngineTestCase extends ESTestCase {
             primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            System::nanoTime
+            System::nanoTime,
+            indexCommitListener,
+            true
         );
     }
 
@@ -888,7 +899,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier()
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary()
         );
     }
 
@@ -1620,7 +1633,7 @@ public abstract class EngineTestCase extends ESTestCase {
         throw new IllegalStateException("Can not extract lazy bits from given index reader [" + reader + "]");
     }
 
-    static CodecService newCodecService() {
+    protected static CodecService newCodecService() {
         return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 }

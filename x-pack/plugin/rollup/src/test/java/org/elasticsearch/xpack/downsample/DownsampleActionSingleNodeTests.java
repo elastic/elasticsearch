@@ -39,12 +39,14 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -65,6 +67,9 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -75,6 +80,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
@@ -96,11 +102,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -206,7 +214,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         mapping.startObject(FIELD_LABEL_DOUBLE).field("type", "double").endObject();
         mapping.startObject(FIELD_LABEL_INTEGER).field("type", "integer").endObject();
         mapping.startObject(FIELD_LABEL_KEYWORD).field("type", "keyword").endObject();
-        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").endObject();
+        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").field("store", "true").endObject();
         mapping.startObject(FIELD_LABEL_BOOLEAN).field("type", "boolean").endObject();
         mapping.startObject(FIELD_LABEL_IPv4_ADDRESS).field("type", "ip").endObject();
         mapping.startObject(FIELD_LABEL_IPv6_ADDRESS).field("type", "ip").endObject();
@@ -571,6 +579,78 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertFalse(indices.stream().filter(i -> i.getName().equals(sourceIndex)).toList().isEmpty());
     }
 
+    public void testCancelRollupIndexer() throws IOException {
+        // create rollup config and index documents into source index
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(sourceIndex);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        int shardNum = randomIntBetween(0, numOfShards - 1);
+        IndexShard shard = indexService.getShard(shardNum);
+        RollupShardTask task = new RollupShardTask(
+            randomLong(),
+            "rollup",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            rollupIndex,
+            config,
+            emptyMap(),
+            shard.shardId()
+        );
+        TaskCancelHelper.cancel(task, "test cancel");
+
+        // re-use source index as temp index for test
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            task,
+            client(),
+            indexService,
+            shard.shardId(),
+            rollupIndex,
+            config,
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+            new String[] {}
+        );
+
+        TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
+        assertThat(exception.getMessage(), equalTo("Shard [" + sourceIndex + "][" + shardNum + "] rollup cancelled"));
+    }
+
+    public void testRollupBulkFailed() throws IOException {
+        // create rollup config and index documents into source index
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        // block rollup index
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate(rollupIndex)
+                .setPatterns(List.of(rollupIndex))
+                .setSettings(Settings.builder().put("index.blocks.write", "true").build())
+                .get()
+        );
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
+        assertThat(exception.getMessage(), equalTo("Unable to rollup index [" + sourceIndex + "]"));
+    }
+
     private DateHistogramInterval randomInterval() {
         return ConfigTestHelpers.randomInterval();
     }
@@ -666,7 +746,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
             if (helper.isTimeSeriesMetric(field, fieldMapping)) {
-                metricFields.put(field, TimeSeriesParams.MetricType.valueOf(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
+                metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
             } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }
@@ -831,8 +911,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         metricFields.forEach((field, metricType) -> {
             switch (metricType) {
-                case counter -> assertEquals("double", mappings.get(field).get("type"));
-                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                case COUNTER -> assertEquals("double", mappings.get(field).get("type"));
+                case GAUGE -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
                 default -> fail("Unsupported field type");
             }
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));

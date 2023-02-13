@@ -8,7 +8,9 @@
 
 package org.elasticsearch.plugin.scanner.test_classes;
 
-@org.elasticsearch.plugin.api.NamedComponent(name = "test_named_component")
+import org.elasticsearch.plugin.NamedComponent;
+
+@NamedComponent("test_named_component")
 public class TestNamedComponent implements ExtensibleInterface {
 
 }

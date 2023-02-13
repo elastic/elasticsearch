@@ -63,7 +63,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(
-        new ByteSizeValue(1),
+        ByteSizeValue.ofBytes(1),
         null,
         null,
         null,

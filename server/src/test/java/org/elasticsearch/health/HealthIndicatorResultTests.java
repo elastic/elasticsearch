@@ -10,11 +10,13 @@ package org.elasticsearch.health;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -68,7 +70,15 @@ public class HealthIndicatorResultTests extends ESTestCase {
         diagnosisList.add(diagnosis2);
         HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, diagnosisList);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-        result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        result.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
+            try {
+                xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            } catch (IOException e) {
+                logger.error(e.getMessage(), e);
+                fail(e.getMessage());
+            }
+        });
         Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertEquals(status.xContentValue(), xContentMap.get("status"));
         assertEquals(symptom, xContentMap.get("symptom"));
@@ -97,7 +107,14 @@ public class HealthIndicatorResultTests extends ESTestCase {
 
             if (diagnosis1.affectedResources() != null) {
                 XContentBuilder diagnosisXContent = XContentFactory.jsonBuilder().prettyPrint();
-                diagnosis1.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
+                diagnosis1.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
+                    try {
+                        xcontent.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
+                    } catch (IOException e) {
+                        logger.error(e.getMessage(), e);
+                        fail(e.getMessage());
+                    }
+                });
                 expectedDiagnosis1.put(
                     "affected_resources",
                     XContentHelper.convertToMap(BytesReference.bytes(diagnosisXContent), false, builder.contentType())
@@ -115,7 +132,14 @@ public class HealthIndicatorResultTests extends ESTestCase {
             expectedDiagnosis2.put("help_url", diagnosis2.definition().helpURL());
             if (diagnosis2.affectedResources() != null) {
                 XContentBuilder diagnosisXContent = XContentFactory.jsonBuilder().prettyPrint();
-                diagnosis2.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
+                diagnosis2.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
+                    try {
+                        xcontent.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
+                    } catch (IOException e) {
+                        logger.error(e.getMessage(), e);
+                        fail(e.getMessage());
+                    }
+                });
                 expectedDiagnosis2.put(
                     "affected_resources",
                     XContentHelper.convertToMap(BytesReference.bytes(diagnosisXContent), false, builder.contentType())
@@ -126,5 +150,55 @@ public class HealthIndicatorResultTests extends ESTestCase {
             expectedDiagnosis.add(expectedDiagnosis2);
         }
         assertEquals(expectedDiagnosis, xContentMap.get("diagnosis"));
+    }
+
+    public void testChunkCount() {
+        String name = randomAlphaOfLength(10);
+        HealthStatus status = randomFrom(HealthStatus.RED, HealthStatus.YELLOW, HealthStatus.GREEN);
+        String symptom = randomAlphaOfLength(20);
+        Map<String, Object> detailsMap = new HashMap<>();
+        detailsMap.put("key", "value");
+        HealthIndicatorDetails details = new SimpleHealthIndicatorDetails(detailsMap);
+        List<HealthIndicatorImpact> impacts = new ArrayList<>();
+        String impact1Id = randomAlphaOfLength(30);
+        int impact1Severity = randomIntBetween(1, 5);
+        String impact1Description = randomAlphaOfLength(30);
+        ImpactArea firstImpactArea = randomFrom(ImpactArea.values());
+        impacts.add(new HealthIndicatorImpact(name, impact1Id, impact1Severity, impact1Description, List.of(firstImpactArea)));
+        String impact2Id = randomAlphaOfLength(30);
+        int impact2Severity = randomIntBetween(1, 5);
+        String impact2Description = randomAlphaOfLength(30);
+        ImpactArea secondImpactArea = randomFrom(ImpactArea.values());
+        impacts.add(new HealthIndicatorImpact(name, impact2Id, impact2Severity, impact2Description, List.of(secondImpactArea)));
+        List<Diagnosis> diagnosisList = new ArrayList<>();
+        Diagnosis.Resource resource1 = new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(randomAlphaOfLength(10)));
+        Diagnosis diagnosis1 = new Diagnosis(
+            new Diagnosis.Definition(
+                name,
+                randomAlphaOfLength(30),
+                randomAlphaOfLength(50),
+                randomAlphaOfLength(50),
+                randomAlphaOfLength(30)
+            ),
+            List.of(resource1)
+        );
+        diagnosisList.add(diagnosis1);
+        Diagnosis.Resource resource2 = new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(randomAlphaOfLength(10)));
+        Diagnosis diagnosis2 = new Diagnosis(
+            new Diagnosis.Definition(
+                name,
+                randomAlphaOfLength(30),
+                randomAlphaOfLength(50),
+                randomAlphaOfLength(50),
+                randomAlphaOfLength(30)
+            ),
+            List.of(resource2)
+        );
+        diagnosisList.add(diagnosis2);
+        HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, diagnosisList);
+
+        // -> each Diagnosis yields 5 chunks => 10 chunks from both diagnosis
+        // -> HealthIndicatorResult surrounds the diagnosis list by 2 chunks
+        AbstractChunkedSerializingTestCase.assertChunkCount(result, ignored -> 12);
     }
 }

@@ -1,5 +1,0 @@
-pr: 90632
-summary: Fix `RecyclerBytesStreamOutput` allocating unlimited heap for some capacities
-area: Network
-type: bug
-issues: []

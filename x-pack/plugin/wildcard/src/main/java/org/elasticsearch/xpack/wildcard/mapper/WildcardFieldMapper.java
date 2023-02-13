@@ -239,6 +239,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 name,
                 new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
+                context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 nullValue.get(),
@@ -873,11 +874,13 @@ public class WildcardFieldMapper extends FieldMapper {
     private final String nullValue;
     private final FieldType ngramFieldType;
     private final Version indexVersionCreated;
+    private final boolean storeIgnored;
 
     private WildcardFieldMapper(
         String simpleName,
         WildcardFieldType mappedFieldType,
         int ignoreAbove,
+        boolean storeIgnored,
         MultiFields multiFields,
         CopyTo copyTo,
         String nullValue,
@@ -886,6 +889,7 @@ public class WildcardFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
+        this.storeIgnored = storeIgnored;
         this.indexVersionCreated = indexVersionCreated;
         this.ngramFieldType = new FieldType(Defaults.FIELD_TYPE);
         this.ngramFieldType.setTokenized(true);
@@ -927,7 +931,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 createFields(value, parseDoc, fields);
             } else {
                 context.addIgnoredField(name());
-                if (context.isSyntheticSource()) {
+                if (storeIgnored) {
                     parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
                 }
             }

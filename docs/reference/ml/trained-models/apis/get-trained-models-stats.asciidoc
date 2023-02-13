@@ -271,6 +271,10 @@ The peak number of requests processed in a 1 minute period for
 all nodes in the deployment. This is calculated as the sum of
 each node's `peak_throughput_per_minute` value.
 
+`priority`:::
+(string)
+The deployment priority.
+
 `rejected_execution_count`:::
 (integer)
 The sum of `rejected_execution_count` for all nodes in the deployment.

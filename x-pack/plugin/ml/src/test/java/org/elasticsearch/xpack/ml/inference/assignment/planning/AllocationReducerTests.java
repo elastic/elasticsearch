@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -172,10 +173,11 @@ public class AllocationReducerTests extends ESTestCase {
             new StartTrainedModelDeploymentAction.TaskParams(
                 modelId,
                 randomNonNegativeLong(),
-                randomIntBetween(1, 16),
                 numberOfAllocations,
+                randomIntBetween(1, 16),
                 1024,
-                null
+                null,
+                Priority.NORMAL
             )
         );
         allocationsByNode.entrySet()

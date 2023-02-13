@@ -9,7 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,7 +57,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
         Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 in.readOptionalString();
             }
             id = in.readString();
@@ -88,7 +88,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
             }
             out.writeString(id);

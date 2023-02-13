@@ -13,7 +13,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
@@ -24,8 +23,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -94,11 +91,6 @@ public enum GlobalOrdinalsBuilder {
                 @Override
                 public long ramBytesUsed() {
                     return 0;
-                }
-
-                @Override
-                public Collection<Accountable> getChildResources() {
-                    return Collections.emptyList();
                 }
 
                 @Override

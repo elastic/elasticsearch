@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -506,7 +507,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         @Override
         public Engine.Index createIndexOp(int docIdent) {
-            SourceToParse source = new SourceToParse(null, new BytesArray(formatted("""
+            SourceToParse source = new SourceToParse(null, new BytesArray(Strings.format("""
                 {
                     "@timestamp": %s,
                     "dim": "dim"

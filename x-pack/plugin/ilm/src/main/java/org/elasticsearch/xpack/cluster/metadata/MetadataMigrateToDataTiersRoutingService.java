@@ -51,6 +51,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQ
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
@@ -182,9 +183,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
     ) {
         if (dryRun == false) {
             IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-            if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
+            if (currentMetadata != null && currentILMMode(currentState) != STOPPED) {
                 throw new IllegalStateException(
-                    "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
+                    "stop ILM before migrating to data tiers, current state is [" + currentILMMode(currentState) + "]"
                 );
             }
         }
@@ -274,7 +275,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         }
 
         if (migratedPolicies.size() > 0) {
-            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentLifecycleMetadata.getOperationMode());
+            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(currentState));
             mb.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
         }
         return migratedPolicies;
@@ -692,6 +693,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     migratedComposableTemplateBuilder.metadata(composableTemplate.metadata());
                     migratedComposableTemplateBuilder.dataStreamTemplate(composableTemplate.getDataStreamTemplate());
                     migratedComposableTemplateBuilder.allowAutoCreate(composableTemplate.getAllowAutoCreate());
+                    migratedComposableTemplateBuilder.ignoreMissingComponentTemplates(
+                        composableTemplate.getIgnoreMissingComponentTemplates()
+                    );
 
                     mb.put(templateEntry.getKey(), migratedComposableTemplateBuilder.build());
                     migratedComposableTemplates.add(templateEntry.getKey());

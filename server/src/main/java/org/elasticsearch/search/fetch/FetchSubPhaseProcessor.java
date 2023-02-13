@@ -36,4 +36,9 @@ public interface FetchSubPhaseProcessor {
     default Map<String, Object> getDebugInfo() {
         return null;
     }
+
+    /**
+     * The stored fields or source required by this sub phase
+     */
+    StoredFieldsSpec storedFieldsSpec();
 }

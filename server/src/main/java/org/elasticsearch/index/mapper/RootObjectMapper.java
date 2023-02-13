@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -119,36 +120,6 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
-    /**
-     * Removes redundant root includes in {@link NestedObjectMapper} trees to avoid duplicate
-     * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
-     * itself included into a parent node, for which either {@code isIncludeInRoot} is
-     * {@code true} or which is transitively included in root by a chain of nodes with
-     * {@code isIncludeInParent} returning {@code true}.
-     */
-    // TODO it would be really nice to make this an implementation detail of NestedObjectMapper
-    // and run it as part of the builder, but this does not yet work because of the way that
-    // index templates are merged together. If merge() was run on Builder objects rather than
-    // on Mappers then we could move this.
-    public void fixRedundantIncludes() {
-        fixRedundantIncludes(this, true);
-    }
-
-    private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
-        for (Mapper mapper : objectMapper) {
-            if (mapper instanceof NestedObjectMapper child) {
-                boolean isNested = child.isNested();
-                boolean includeInRootViaParent = parentIncluded && isNested && child.isIncludeInParent();
-                boolean includedInRoot = isNested && child.isIncludeInRoot();
-                if (includeInRootViaParent && includedInRoot) {
-                    child.setIncludeInParent(true);
-                    child.setIncludeInRoot(false);
-                }
-                fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
-            }
-        }
-    }
-
     private Explicit<DateFormatter[]> dynamicDateTimeFormatters;
     private Explicit<Boolean> dateDetection;
     private Explicit<Boolean> numericDetection;
@@ -228,7 +199,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        assert mapperBuilderContext == MapperBuilderContext.ROOT;
+        assert Objects.equals(mapperBuilderContext.buildFullName("foo"), "foo");
         return mapperBuilderContext;
     }
 
@@ -350,7 +321,7 @@ public class RootObjectMapper extends ObjectMapper {
                     validate(
                         template,
                         dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.ROOT)
+                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false))
                     );
                 }
                 lastError = null; // ok, the template is valid for at least one type

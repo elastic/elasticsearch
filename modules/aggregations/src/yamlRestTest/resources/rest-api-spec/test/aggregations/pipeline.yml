@@ -354,28 +354,6 @@ setup:
   - match: { aggregations.the_max.keys.0: "4" }
 
 ---
-"Top level bucket_sort":
-  - skip:
-      version: " - 7.7.99"
-      reason:  This validation was changed in 7.8.0
-
-  - do:
-      catch: /bucket_sort aggregation \[the_bad_bucket_sort\] must be declared inside of another aggregation/
-      search:
-        body:
-          aggs:
-            the_terms:
-              terms:
-                field: "int_field"
-              aggs:
-                the_max:
-                  max:
-                    field: "int_field"
-            the_bad_bucket_sort:
-              bucket_sort:
-                sort:
-                  - the_terms>the_max
----
 "Max pipeline on percentiles with incorrect name":
   - skip:
       version: " - 8.3.99"

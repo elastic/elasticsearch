@@ -1,6 +1,0 @@
-pr: 88914
-summary: Support camel case dates on 7.x indices
-area: Infra/Core
-type: bug
-issues:
- - 84199

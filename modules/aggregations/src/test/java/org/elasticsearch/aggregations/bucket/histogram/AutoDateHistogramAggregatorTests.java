@@ -26,11 +26,13 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -56,7 +58,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
@@ -105,7 +106,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
 
-    // TODO: maybe add base class that overwrites getSearchPlugins(...) for all tests that will be added to this module.
+    // TODO: remove when moving DateHistogramAggregatorTestCase to aggregations module
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
         return List.of(new AggregationsPlugin());
@@ -307,8 +308,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 docs.add(
                     List.of(
                         new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
-                        new SortedSetDocValuesField("k1", aBytes),
-                        new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
                         new Field("k1", aBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new Field("k1", d < useC ? bBytes : cBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new SortedNumericDocValuesField("n", n++)
@@ -859,7 +858,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         fullDocCount.clear();
         fullDocCount.putAll(skeletonDocCount);
         for (int minute = 3; minute < 15; minute++) {
-            fullDocCount.put(formatted("2017-02-01T09:%02d:00.000Z", minute), 0);
+            fullDocCount.put(Strings.format("2017-02-01T09:%02d:00.000Z", minute), 0);
         }
         testSearchCase(
             DEFAULT_QUERY,

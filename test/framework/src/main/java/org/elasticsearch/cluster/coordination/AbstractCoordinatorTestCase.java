@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
@@ -53,7 +55,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
@@ -72,11 +73,11 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.DisruptableMockTransport;
-import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.DisruptableMockTransport;
+import org.elasticsearch.transport.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -208,7 +209,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return setting.get(Settings.EMPTY);
     }
 
-    // Updating the cluster state involves up to 7 delays:
+    // Updating the cluster state involves up to the following number of delays:
     // 1. submit the task to the master service
     // 2. state publisher task on master
     // 3. master sends out PublishRequests to nodes
@@ -271,6 +272,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
         private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
+        private final CountingPageCacheRecycler countingPageCacheRecycler;
         private final Recycler<BytesRef> recycler;
         private final NodeHealthService nodeHealthService;
 
@@ -289,9 +291,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
-            this.recycler = usually()
-                ? BytesRefRecycler.NON_RECYCLING_INSTANCE
-                : new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+            this.countingPageCacheRecycler = new CountingPageCacheRecycler();
+            this.recycler = new BytesRefRecycler(countingPageCacheRecycler);
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertThat(initialNodeCount, greaterThan(0));
@@ -876,6 +877,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             clusterNodes.forEach(ClusterNode::close);
+
+            // Closing nodes may spawn some other background cleanup tasks that must also be run
+            runFor(DEFAULT_DELAY_VARIABILITY, "accumulate close-time tasks");
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            countingPageCacheRecycler.assertAllPagesReleased();
         }
 
         protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
@@ -949,7 +956,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     } else {
                         nodeEnvironment = null;
                         BytesStreamOutput outStream = new BytesStreamOutput();
-                        outStream.setVersion(Version.CURRENT);
+                        outStream.setTransportVersion(TransportVersion.CURRENT);
 
                         final long persistedCurrentTerm;
 
@@ -1135,7 +1142,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private void setUp() {
                 final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
                 clearableRecycler = new ClearableRecycler(recycler);
-                mockTransport = new DisruptableMockTransport(localNode, logger, deterministicTaskQueue) {
+                mockTransport = new DisruptableMockTransport(localNode, deterministicTaskQueue) {
                     @Override
                     protected void execute(Runnable runnable) {
                         deterministicTaskQueue.scheduleNow(onNode(runnable));
@@ -1289,6 +1296,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     settings,
                     new BatchedRerouteService(clusterService, allocationService::reroute),
                     clusterService,
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
                     threadPool
                 );
 
@@ -1390,13 +1398,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     public void run() {
                         if (clusterNodes.contains(ClusterNode.this)) {
                             wrapped.run();
-                        } else if (runnable instanceof DisruptableMockTransport.RebootSensitiveRunnable) {
+                        } else if (runnable instanceof DisruptableMockTransport.RebootSensitiveRunnable rebootSensitiveRunnable) {
                             logger.trace(
                                 "completing reboot-sensitive runnable {} from node {} as node has been removed from cluster",
                                 runnable,
                                 localNode
                             );
-                            ((DisruptableMockTransport.RebootSensitiveRunnable) runnable).ifRebooted();
+                            rebootSensitiveRunnable.ifRebooted();
                         } else {
                             logger.trace("ignoring runnable {} from node {} as node has been removed from cluster", runnable, localNode);
                         }

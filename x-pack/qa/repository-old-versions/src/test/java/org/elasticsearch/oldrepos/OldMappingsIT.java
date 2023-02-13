@@ -79,9 +79,9 @@ public class OldMappingsIT extends ESRestTestCase {
         String snapshotName = "snap";
         List<String> indices;
         if (oldVersion.before(Version.fromString("6.0.0"))) {
-            indices = Arrays.asList("filebeat", "winlogbeat", "custom");
+            indices = Arrays.asList("filebeat", "winlogbeat", "custom", "nested");
         } else {
-            indices = Arrays.asList("filebeat", "custom");
+            indices = Arrays.asList("filebeat", "custom", "nested");
         }
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
@@ -92,6 +92,7 @@ public class OldMappingsIT extends ESRestTestCase {
                 assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
             }
             assertOK(oldEs.performRequest(createIndex("custom", "custom.json")));
+            assertOK(oldEs.performRequest(createIndex("nested", "nested.json")));
 
             Request doc1 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "1");
             doc1.addParameter("refresh", "true");
@@ -122,9 +123,28 @@ public class OldMappingsIT extends ESRestTestCase {
             doc2.setJsonEntity(Strings.toString(bodyDoc2));
             assertOK(oldEs.performRequest(doc2));
 
+            Request doc3 = new Request("PUT", "/" + "nested" + "/" + "doc" + "/" + "1");
+            doc3.addParameter("refresh", "true");
+            XContentBuilder bodyDoc3 = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("group", "fans")
+                .startArray("user")
+                .startObject()
+                .field("first", "John")
+                .field("last", "Smith")
+                .endObject()
+                .startObject()
+                .field("first", "Alice")
+                .field("last", "White")
+                .endObject()
+                .endArray()
+                .endObject();
+            doc3.setJsonEntity(Strings.toString(bodyDoc3));
+            assertOK(oldEs.performRequest(doc3));
+
             // register repo on old ES and take snapshot
             Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-            createRepoRequest.setJsonEntity(formatted("""
+            createRepoRequest.setJsonEntity(Strings.format("""
                 {"type":"fs","settings":{"location":"%s"}}
                 """, repoLocation));
             assertOK(oldEs.performRequest(createRepoRequest));
@@ -137,7 +157,7 @@ public class OldMappingsIT extends ESRestTestCase {
 
         // register repo on new ES and restore snapshot
         Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest2.setJsonEntity(formatted("""
+        createRepoRequest2.setJsonEntity(Strings.format("""
             {"type":"fs","settings":{"location":"%s"}}
             """, repoLocation));
         assertOK(client().performRequest(createRepoRequest2));
@@ -293,6 +313,49 @@ public class OldMappingsIT extends ESRestTestCase {
         logger.info(hits);
         Map<?, ?> fields = (Map<?, ?>) (XContentMapValues.extractValue("fields", (Map<?, ?>) hits.get(0)));
         assertEquals(List.of("some_value"), fields.get("completion"));
+    }
+
+    public void testNestedDocuments() throws IOException {
+        Request search = new Request("POST", "/" + "nested" + "/_search");
+        Map<String, Object> response = entityAsMap(client().performRequest(search));
+        logger.info(response);
+        List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
+        assertThat(hits, hasSize(1));
+        Map<?, ?> source = (Map<?, ?>) (XContentMapValues.extractValue("_source", (Map<?, ?>) hits.get(0)));
+        assertEquals("fans", source.get("group"));
+
+        search = new Request("POST", "/" + "nested" + "/_search");
+        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .startObject("query")
+            .startObject("nested")
+            .field("path", "user")
+            .startObject("query")
+            .startObject("bool")
+            .startArray("must")
+            .startObject()
+            .startObject("match")
+            .field("user.first", "Alice")
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("match")
+            .field("user.last", "White")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        search.setJsonEntity(Strings.toString(query));
+        response = entityAsMap(client().performRequest(search));
+        logger.info(response);
+        hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
+        assertThat(hits, hasSize(1));
+        source = (Map<?, ?>) (XContentMapValues.extractValue("_source", (Map<?, ?>) hits.get(0)));
+        assertEquals("fans", source.get("group"));
     }
 
 }

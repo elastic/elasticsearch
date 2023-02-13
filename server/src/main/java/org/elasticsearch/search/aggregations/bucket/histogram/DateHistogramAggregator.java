@@ -87,7 +87,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
+        Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer(context).apply(rounding);
         Aggregator asRange = adaptIntoRangeOrNull(
             name,
             factories,

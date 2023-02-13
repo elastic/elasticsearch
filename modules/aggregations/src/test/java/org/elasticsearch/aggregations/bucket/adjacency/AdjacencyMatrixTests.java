@@ -8,26 +8,16 @@
 
 package org.elasticsearch.aggregations.bucket.adjacency;
 
-import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.bucket.AggregationBuilderTestCase;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-public class AdjacencyMatrixTests extends BaseAggregationTestCase<AdjacencyMatrixAggregationBuilder> {
-
-    // TODO: maybe add base class that overwrites getPlugins(...) for all tests that will be added to this module.
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(AggregationsPlugin.class);
-    }
+public class AdjacencyMatrixTests extends AggregationBuilderTestCase<AdjacencyMatrixAggregationBuilder> {
 
     @Override
     protected AdjacencyMatrixAggregationBuilder createTestAggregatorBuilder() {

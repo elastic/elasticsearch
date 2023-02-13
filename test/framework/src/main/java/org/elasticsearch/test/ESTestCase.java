@@ -38,6 +38,8 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
@@ -71,6 +73,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -130,6 +133,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -155,6 +160,9 @@ import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -220,6 +228,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
     public static final String FIPS_SYSPROP = "tests.fips.enabled";
+
+    private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -797,12 +807,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
+    public static IntStream randomInts() {
+        return random().ints();
+    }
+
+    public static IntStream randomInts(long streamSize) {
+        return random().ints(streamSize);
+    }
+
     /**
      * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */
     public static long randomNonNegativeLong() {
-        long randomLong = randomLong();
-        return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
+        return randomLong() & Long.MAX_VALUE;
+    }
+
+    /**
+     * @return an <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        return randomInt() & Integer.MAX_VALUE;
     }
 
     public static float randomFloat() {
@@ -811,6 +835,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static double randomDouble() {
         return random().nextDouble();
+    }
+
+    public static DoubleStream randomDoubles() {
+        return random().doubles();
+    }
+
+    public static DoubleStream randomDoubles(long streamSize) {
+        return random().doubles(streamSize);
     }
 
     /**
@@ -844,6 +876,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    public static LongStream randomLongs() {
+        return random().longs();
+    }
+
+    public static LongStream randomLongs(long streamSize) {
+        return random().longs(streamSize);
     }
 
     /**
@@ -904,6 +944,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
+    }
+
+    /**
+     * Creates a valid random identifier such as node id or index name
+     */
+    public static String randomIdentifier() {
+        return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
     }
 
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -1431,18 +1478,32 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader
     ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, Version.CURRENT);
+        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.CURRENT);
     }
 
     /**
      * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
      * a {@link Version} argument which will be used to write and read back the object.
      */
+    @Deprecated
     public static <T extends Writeable> T copyWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader,
         Version version
+    ) throws IOException {
+        return copyWriteable(original, namedWriteableRegistry, reader, version.transportVersion);
+    }
+
+    /**
+     * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
+     * a {@link TransportVersion} argument which will be used to write and read back the object.
+     */
+    public static <T extends Writeable> T copyWriteable(
+        T original,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Writeable.Reader<T> reader,
+        TransportVersion version
     ) throws IOException {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
     }
@@ -1456,7 +1517,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass
     ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, Version.CURRENT);
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.CURRENT);
     }
 
     /**
@@ -1465,11 +1526,27 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Deprecated
     public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Class<C> categoryClass,
         Version version
+    ) throws IOException {
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, version.transportVersion);
+    }
+
+    /**
+     * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
+     * a {@link TransportVersion} argument which will be used to write and read back the object.
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
+        T original,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Class<C> categoryClass,
+        TransportVersion version
     ) throws IOException {
         return copyInstance(
             original,
@@ -1480,6 +1557,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
+    @Deprecated
     protected static <T> T copyInstance(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -1487,11 +1565,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         Writeable.Reader<T> reader,
         Version version
     ) throws IOException {
+        return copyInstance(original, namedWriteableRegistry, writer, reader, version.transportVersion);
+    }
+
+    protected static <T> T copyInstance(
+        T original,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Writeable.Writer<T> writer,
+        Writeable.Reader<T> reader,
+        TransportVersion version
+    ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
+            output.setTransportVersion(version);
             writer.write(output, original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 return reader.read(in);
             }
         }
@@ -1725,7 +1813,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Defines the maximum port that test workers should use. See also [NOTE: Port ranges for tests].
      */
-    private static final int MAX_PRIVATE_PORT = 36600;
+    private static final int MAX_PRIVATE_PORT = 32767;
 
     /**
      * Wrap around after reaching this worker ID.
@@ -1807,12 +1895,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s: %s", level.name(), message);
+            return Strings.format("%s: %s", level.name(), message);
         }
-    }
-
-    protected static String formatted(String string, Object... args) {
-        return String.format(Locale.ROOT, string, args);
     }
 
     /**
@@ -1828,23 +1912,75 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Get a deterministic SecureRandom SHA1PRNG instance seeded by deterministic LuceneTestCase.random().
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by deterministic LuceneTestCase.random().
      * @return SecureRandom SHA1PRNG instance.
-     * @throws NoSuchAlgorithmException SHA1PRNG algorithm not found.
+     * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
+     * @throws NoSuchProviderException BCFIPS algorithm not found.
      */
-    public static SecureRandom secureRandom() throws NoSuchAlgorithmException {
+    public static SecureRandom secureRandom() throws NoSuchAlgorithmException, NoSuchProviderException {
         return secureRandom(randomByteArrayOfLength(32));
     }
 
     /**
-     * Get a deterministic SecureRandom SHA1PRNG instance seeded by the input value.
-     * @param seed Byte array to use for seeding the SecureRandom SHA1PRNG instance.
-     * @return SecureRandom SHA1PRNG instance.
-     * @throws NoSuchAlgorithmException SHA1PRNG algorithm not found.
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by the input value.
+     * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by the input value.
+     * @param seed Byte array to use for seeding the SecureRandom instance.
+     * @return SecureRandom SHA1PRNG or DEFAULT/BCFIPS instance, depending on FIPS mode.
+     * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
+     * @throws NoSuchProviderException BCFIPS algorithm not found.
      */
-    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException {
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        secureRandom.setSeed(seed);
-        return secureRandom;
+    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException, NoSuchProviderException {
+        return inFipsJvm() ? secureRandomFips(seed) : secureRandomNonFips(seed);
+    }
+
+    /**
+     * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
+     */
+    protected static SecureRandom secureRandomNonFips() throws NoSuchAlgorithmException {
+        return secureRandomNonFips(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
+     */
+    protected static SecureRandom secureRandomFips() throws NoSuchAlgorithmException {
+        return secureRandomFips(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
+     */
+    protected static SecureRandom secureRandomNonFips(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomNonFips = SecureRandom.getInstance("SHA1PRNG"); // SHA1PRNG/SUN
+        secureRandomNonFips.setSeed(seed); // SHA1PRNG/SUN setSeed() is deterministic
+        return secureRandomNonFips;
+    }
+
+    /**
+     * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
+     */
+    protected static SecureRandom secureRandomFips(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomFips = SecureRandom.getInstance("DEFAULT"); // DEFAULT/BCFIPS
+        if (WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.get() == null) {
+            WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.set(Boolean.TRUE);
+            final Provider provider = secureRandomFips.getProvider();
+            final String providerName = provider.getName();
+            final Logger logger = LogManager.getLogger(ESTestCase.class);
+            logger.warn(
+                "Returning a non-deterministic secureRandom for use with FIPS. "
+                    + "This may result in difficulty reproducing test failures with from a given a seed."
+            );
+        }
+        secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic
+        return secureRandomFips;
     }
 }

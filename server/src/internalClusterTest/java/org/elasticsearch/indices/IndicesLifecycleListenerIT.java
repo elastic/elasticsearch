@@ -35,7 +35,6 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -114,7 +113,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
      * Tests that if an *index* structure creation fails on relocation to a new node, the shard
      * is not stuck but properly failed.
      */
-    public void testIndexShardFailedOnRelocation() throws Throwable {
+    public void testIndexShardFailedOnRelocation() {
         String node1 = internalCluster().startNode();
         client().admin()
             .indices()
@@ -272,7 +271,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         try {
             assertBusy(waitPredicate, 1, TimeUnit.MINUTES);
         } catch (AssertionError ae) {
-            fail(String.format(Locale.ROOT, """
+            fail(Strings.format("""
                 failed to observe expect shard states
                 expected: [%d] shards with states: %s
                 observed:

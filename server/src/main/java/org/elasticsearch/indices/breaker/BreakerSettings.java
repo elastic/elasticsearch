@@ -69,7 +69,7 @@ public final class BreakerSettings {
             breakerName,
             getOrDefault(
                 CIRCUIT_BREAKER_LIMIT_SETTING.getConcreteSetting(breakerLimitSettingKey(breakerName)),
-                new ByteSizeValue(defaultSettings.limitBytes),
+                ByteSizeValue.ofBytes(defaultSettings.limitBytes),
                 currentSettings
             ).getBytes(),
             getOrDefault(
@@ -133,7 +133,7 @@ public final class BreakerSettings {
             + ",limit="
             + this.limitBytes
             + "/"
-            + new ByteSizeValue(this.limitBytes)
+            + ByteSizeValue.ofBytes(this.limitBytes)
             + ",overhead="
             + this.overhead
             + "]";

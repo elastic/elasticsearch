@@ -1,6 +1,0 @@
-pr: 90317
-summary: "Aggs: fix `auto_date_histogram` > `ip_range`"
-area: Aggregations
-type: bug
-issues:
- - 90121

@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.Map;
@@ -37,6 +38,12 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
                 fieldFetcher.setNextReader(readerContext);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                // TODO can we get finer-grained information from the FieldFetcher for this?
+                return StoredFieldsSpec.NEEDS_SOURCE;
             }
 
             @Override

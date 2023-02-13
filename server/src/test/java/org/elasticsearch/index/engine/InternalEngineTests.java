@@ -193,6 +193,7 @@ import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1549,7 +1550,7 @@ public class InternalEngineTests extends EngineTestCase {
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertEquals(1, reader.leaves().size());
-                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false));
+                    assertNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false));
                 }
             }
         }
@@ -3588,7 +3589,9 @@ public class InternalEngineTests extends EngineTestCase {
             primaryTerm::get,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            config.getRelativeTimeInNanosSupplier()
+            config.getRelativeTimeInNanosSupplier(),
+            null,
+            true
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -5426,7 +5429,9 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(primaryResponse);
             }
             assertTrue(engine.refreshNeeded());
-            engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+            var refreshResult = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+            assertTrue(refreshResult.refreshed());
+            assertNotEquals(refreshResult.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
             try (
                 Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
                 Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
@@ -7257,7 +7262,9 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getPrimaryTermSupplier(),
                 config.getSnapshotCommitSupplier(),
                 config.getLeafSorter(),
-                config.getRelativeTimeInNanosSupplier()
+                config.getRelativeTimeInNanosSupplier(),
+                config.getIndexCommitListener(),
+                config.isPromotableToPrimary()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
@@ -7469,6 +7476,161 @@ public class InternalEngineTests extends EngineTestCase {
             Map<String, String> userDataAfterTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
             assertThat(userDataAfterTrimUnsafeCommits, hasKey(ES_VERSION));
             assertThat(userDataAfterTrimUnsafeCommits.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+        }
+    }
+
+    public void testIndexCommitsListener() throws Exception {
+        final Map<IndexCommit, Engine.IndexCommitRef> acquiredCommits = new HashMap<>();
+        final List<IndexCommit> deletedCommits = new ArrayList<>();
+        final List<Long> acquiredPrimaryTerms = new ArrayList<>();
+
+        final Engine.IndexCommitListener indexCommitListener = new Engine.IndexCommitListener() {
+            @Override
+            public void onNewCommit(
+                ShardId shardId,
+                Store store,
+                long primaryTerm,
+                Engine.IndexCommitRef indexCommitRef,
+                Set<String> additionalFiles
+            ) {
+                assertNotNull(store);
+                assertTrue(store.hasReferences());
+                assertThat(acquiredCommits.put(indexCommitRef.getIndexCommit(), indexCommitRef), nullValue());
+                assertThat(shardId, equalTo(InternalEngineTests.this.shardId));
+                assertThat(primaryTerm, greaterThanOrEqualTo(0L));
+                acquiredPrimaryTerms.add(primaryTerm);
+            }
+
+            @Override
+            public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
+                assertThat(acquiredCommits.remove(deletedCommit), notNullValue());
+                assertThat(deletedCommits.add(deletedCommit), equalTo(true));
+                assertThat(deletedCommit.isDeleted(), equalTo(true));
+                assertThat(shardId, equalTo(InternalEngineTests.this.shardId));
+            }
+        };
+
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                config(
+                    defaultSettings,
+                    store,
+                    createTempDir(),
+                    NoMergePolicy.INSTANCE,
+                    null,
+                    null,
+                    null,
+                    globalCheckpoint::get,
+                    () -> RetentionLeases.EMPTY,
+                    new NoneCircuitBreakerService(),
+                    indexCommitListener
+                )
+            )
+        ) {
+            assertCommitGenerations(acquiredCommits, List.of(2L));
+            assertCommitGenerations(deletedCommits, List.of());
+
+            engine.index(indexForDoc(createParsedDoc("a", EngineTestCase.randomIdFieldType(), null)));
+            engine.flush();
+
+            assertCommitGenerations(acquiredCommits, List.of(2L, 3L));
+            assertCommitGenerations(deletedCommits, List.of());
+
+            globalCheckpoint.set(0L);
+            engine.index(indexForDoc(createParsedDoc("b", EngineTestCase.randomIdFieldType(), null)));
+            engine.flush();
+
+            assertCommitGenerations(acquiredCommits, List.of(2L, 3L, 4L));
+            assertCommitGenerations(deletedCommits, List.of());
+
+            releaseCommitRef(acquiredCommits, 2L);
+
+            globalCheckpoint.set(1L);
+            engine.index(indexForDoc(createParsedDoc("c", EngineTestCase.randomIdFieldType(), null)));
+            engine.flush();
+
+            assertCommitGenerations(acquiredCommits, List.of(3L, 4L, 5L));
+            assertCommitGenerations(deletedCommits, List.of(2L));
+
+            releaseCommitRef(acquiredCommits, 4L);
+
+            globalCheckpoint.set(2L);
+            engine.index(indexForDoc(createParsedDoc("d", EngineTestCase.randomIdFieldType(), null)));
+            engine.flush();
+
+            assertCommitGenerations(acquiredCommits, List.of(3L, 5L, 6L));
+            assertCommitGenerations(deletedCommits, List.of(2L, 4L));
+
+            releaseCommitRef(acquiredCommits, 5L);
+            releaseCommitRef(acquiredCommits, 6L);
+            releaseCommitRef(acquiredCommits, 3L);
+
+            final boolean globalCheckpointCatchUp = randomBoolean();
+            globalCheckpoint.set(globalCheckpointCatchUp ? 4L : 3L);
+
+            engine.index(indexForDoc(createParsedDoc("e", EngineTestCase.randomIdFieldType(), null)));
+            engine.flush();
+
+            if (globalCheckpointCatchUp) {
+                assertCommitGenerations(acquiredCommits, List.of(7L));
+                assertCommitGenerations(deletedCommits, List.of(2L, 3L, 4L, 5L, 6L));
+            } else {
+                assertCommitGenerations(acquiredCommits, List.of(6L, 7L));
+                assertCommitGenerations(deletedCommits, List.of(2L, 3L, 4L, 5L));
+            }
+
+            releaseCommitRef(acquiredCommits, 7L);
+
+            final long primaryTerm = engine.config().getPrimaryTermSupplier().getAsLong();
+            assertThat(acquiredPrimaryTerms.stream().allMatch(value -> value == primaryTerm), is(true));
+        }
+    }
+
+    public void testRefreshResult() throws IOException {
+        try (
+            Store store = createStore();
+            InternalEngine engine =
+                // disable merges to make sure that the reader doesn't change unexpectedly during the test
+                createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
+        ) {
+            var refresh1Result = engine.refresh("warm_up");
+            assertTrue(refresh1Result.refreshed());
+            assertNotEquals("when refreshed, generation must be set", refresh1Result.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
+            for (int i = 0; i < 10; i++) {
+                engine.index(indexForDoc(createParsedDoc(String.valueOf(i), EngineTestCase.randomIdFieldType(), null)));
+            }
+            assertTrue(engine.refreshNeeded());
+            var refresh2Result = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+            assertTrue(refresh2Result.refreshed());
+            assertThat(refresh2Result.generation(), greaterThanOrEqualTo(refresh1Result.generation()));
+            engine.flush(true, true);
+            var refresh3Result = engine.refresh("test");
+            assertTrue(refresh3Result.refreshed());
+            assertThat(refresh3Result.generation(), greaterThan(refresh2Result.generation()));
+        }
+    }
+
+    private static void assertCommitGenerations(Map<IndexCommit, Engine.IndexCommitRef> commits, List<Long> expectedGenerations) {
+        assertCommitGenerations(commits.values().stream().map(Engine.IndexCommitRef::getIndexCommit).toList(), expectedGenerations);
+    }
+
+    private static void assertCommitGenerations(List<IndexCommit> commits, List<Long> expectedGenerations) {
+        assertThat(
+            commits.stream().map(IndexCommit::getGeneration).sorted().toList(),
+            expectedGenerations.isEmpty() ? emptyIterable() : equalTo(expectedGenerations)
+        );
+    }
+
+    private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
+        var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
+        assertThat(releasable.isPresent(), is(true));
+        Engine.IndexCommitRef indexCommitRef = commits.get(releasable.get());
+        try {
+            indexCommitRef.close();
+        } catch (IOException e) {
+            throw new AssertionError("Failed to release IndexCommitRef for commit generation " + generation, e);
         }
     }
 }

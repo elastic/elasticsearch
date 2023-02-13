@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,7 +45,7 @@ import java.util.Objects;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
-    private static final Version VERSION_SUPPORTING_NODE_MAPPINGS = Version.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersion.V_8_5_0;
 
     @Nullable
     public DocsStats docs;
@@ -201,11 +201,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
         shards = in.readOptionalWriteable(ShardCountStats::new);
-        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
         }
     }
@@ -228,11 +228,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeOptionalWriteable(bulk);
         }
         out.writeOptionalWriteable(shards);
-        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             out.writeOptionalWriteable(nodeMappings);
         }
     }
@@ -554,7 +554,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             size += this.getSegments().getIndexWriterMemoryInBytes() + this.getSegments().getVersionMapMemoryInBytes();
         }
 
-        return new ByteSizeValue(size);
+        return ByteSizeValue.ofBytes(size);
     }
 
     // note, requires a wrapping object

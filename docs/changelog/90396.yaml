@@ -1,6 +1,0 @@
-pr: 90396
-summary: Don't fail a transform on a ClusterBlockException, this may be due to ILM closing an index
-area: Transform
-type: bug
-issues:
- - 89802

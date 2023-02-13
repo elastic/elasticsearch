@@ -1,6 +1,0 @@
-pr: 90626
-summary: Avoid capturing per-task `RolloverResult`
-area: Indices APIs
-type: bug
-issues:
- - 90620

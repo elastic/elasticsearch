@@ -17,8 +17,6 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class CcrRestIT extends ESClientYamlSuiteTestCase {
 
     public CcrRestIT(final ClientYamlTestCandidate testCandidate) {

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -157,18 +157,18 @@ public class RolloverAction implements LifecycleAction {
     }
 
     public RolloverAction(StreamInput in) throws IOException {
-        maxSize = in.readOptionalWriteable(ByteSizeValue::new);
-        maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+        maxSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+        maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             maxPrimaryShardDocs = in.readOptionalVLong();
         } else {
             maxPrimaryShardDocs = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            minSize = in.readOptionalWriteable(ByteSizeValue::new);
-            minPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            minSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            minPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             minAge = in.readOptionalTimeValue();
             minDocs = in.readOptionalVLong();
             minPrimaryShardDocs = in.readOptionalVLong();
@@ -187,10 +187,10 @@ public class RolloverAction implements LifecycleAction {
         out.writeOptionalWriteable(maxPrimaryShardSize);
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeOptionalVLong(maxPrimaryShardDocs);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeOptionalWriteable(minSize);
             out.writeOptionalWriteable(minPrimaryShardSize);
             out.writeOptionalTimeValue(minAge);

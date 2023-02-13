@@ -32,6 +32,11 @@ public class RegressionConfigTests extends AbstractBWCSerializationTestCase<Regr
     }
 
     @Override
+    protected RegressionConfig mutateInstance(RegressionConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RegressionConfig> instanceReader() {
         return RegressionConfig::new;
     }

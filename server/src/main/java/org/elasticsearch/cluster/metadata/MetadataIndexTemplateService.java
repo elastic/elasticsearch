@@ -38,7 +38,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -309,14 +308,7 @@ public class MetadataIndexTemplateService {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
-                    validateCompositeTemplate(
-                        tempStateWithComponentTemplateAdded,
-                        composableTemplateName,
-                        composableTemplate,
-                        indicesService,
-                        xContentRegistry,
-                        systemIndices
-                    );
+                    validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
                     if (validationFailure == null) {
                         validationFailure = new IllegalArgumentException(
@@ -513,15 +505,32 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        final List<String> ignoreMissingComponentTemplates = (template.getIgnoreMissingComponentTemplates() == null
+            ? List.of()
+            : template.getIgnoreMissingComponentTemplates());
         final List<String> missingComponentTemplates = template.composedOf()
             .stream()
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
+            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
             .toList();
 
-        if (missingComponentTemplates.size() > 0) {
+        if (missingComponentTemplates.size() > 0 && ignoreMissingComponentTemplates.size() == 0) {
             throw new InvalidIndexTemplateException(
                 name,
                 "index template [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
+            );
+        }
+
+        if (missingComponentTemplates.size() > 0 && ignoreMissingComponentTemplates.size() > 0) {
+
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template ["
+                    + name
+                    + "] specifies a missing component templates "
+                    + missingComponentTemplates
+                    + " "
+                    + "that does not exist and is not part of 'ignore_missing_component_templates'"
             );
         }
     }
@@ -587,7 +596,8 @@ public class MetadataIndexTemplateService {
                 template.version(),
                 template.metadata(),
                 template.getDataStreamTemplate(),
-                template.getAllowAutoCreate()
+                template.getAllowAutoCreate(),
+                template.getIgnoreMissingComponentTemplates()
             );
         }
 
@@ -687,12 +697,12 @@ public class MetadataIndexTemplateService {
             indexTemplate.version(),
             indexTemplate.metadata(),
             indexTemplate.getDataStreamTemplate(),
-            indexTemplate.getAllowAutoCreate()
+            indexTemplate.getAllowAutoCreate(),
+            indexTemplate.getIgnoreMissingComponentTemplates()
         );
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateTsdbDataStreamsReferringTsdbTemplate(currentState, name, templateToValidate);
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
@@ -761,56 +771,6 @@ public class MetadataIndexTemplateService {
                     + "would cause data streams "
                     + newlyUnreferenced
                     + " to no longer match a data stream template"
-            );
-        }
-    }
-
-    // This method should be invoked after validateDataStreamsStillReferenced(...)
-    private static void validateTsdbDataStreamsReferringTsdbTemplate(
-        ClusterState state,
-        String templateName,
-        ComposableIndexTemplate newTemplate
-    ) {
-        Metadata currentMetadata = state.getMetadata();
-        Metadata updatedMetadata = null;
-        Set<String> dataStreamsWithNonTsdbTemplate = null;
-
-        for (var dataStream : state.metadata().dataStreams().values()) {
-            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
-                continue;
-            }
-
-            if (updatedMetadata == null) {
-                updatedMetadata = Metadata.builder(state.metadata()).put(templateName, newTemplate).build();
-            }
-            var matchingTemplate = findV2Template(updatedMetadata, dataStream.getName(), false);
-            if (templateName.equals(matchingTemplate)) {
-                if (currentMetadata.isTimeSeriesTemplate(newTemplate) == false) {
-                    if (dataStreamsWithNonTsdbTemplate == null) {
-                        dataStreamsWithNonTsdbTemplate = new HashSet<>();
-                    }
-                    dataStreamsWithNonTsdbTemplate.add(dataStream.getName());
-                }
-            }
-        }
-
-        if (dataStreamsWithNonTsdbTemplate != null) {
-            var settings = MetadataIndexTemplateService.resolveSettings(newTemplate, currentMetadata.componentTemplates());
-            var routingPaths = IndexMetadata.INDEX_ROUTING_PATH.get(settings);
-            throw new IllegalArgumentException(
-                "composable template ["
-                    + templateName
-                    + "] with index patterns "
-                    + newTemplate.indexPatterns()
-                    + ", priority ["
-                    + newTemplate.priority()
-                    + "]"
-                    + ", index.routing_path "
-                    + routingPaths
-                    + " "
-                    + "would cause tsdb data streams "
-                    + dataStreamsWithNonTsdbTemplate
-                    + " to no longer match a data stream template with a time_series index_mode"
             );
         }
     }

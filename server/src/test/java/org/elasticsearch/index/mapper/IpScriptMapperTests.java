@@ -21,11 +21,16 @@ public class IpScriptMapperTests extends MapperScriptTestCase<IpFieldScript.Fact
     private static IpFieldScript.Factory factory(Consumer<IpFieldScript> executor) {
         return new IpFieldScript.Factory() {
             @Override
-            public IpFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public IpFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new IpFieldScript.LeafFactory() {
                     @Override
                     public IpFieldScript newInstance(LeafReaderContext ctx) {
-                        return new IpFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new IpFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);

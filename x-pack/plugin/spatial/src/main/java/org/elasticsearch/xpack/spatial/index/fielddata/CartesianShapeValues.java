@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.geo.XYPoint;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
@@ -46,6 +48,13 @@ public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeVal
      */
     protected CartesianShapeValues() {
         super(CoordinateEncoder.CARTESIAN, CartesianShapeValues.CartesianShapeValue::new, new CartesianShapeIndexer("missing"));
+    }
+
+    /**
+     * Cartesian data is not limited to geographic lat/lon degrees, so we use the standard validator
+     */
+    public GeometryValidator geometryValidator() {
+        return StandardValidator.instance(true);
     }
 
     /**

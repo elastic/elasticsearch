@@ -1,5 +1,0 @@
-pr: 88695
-summary: "[TSDB] Metric fields in the field caps API"
-area: TSDB
-type: enhancement
-issues: []

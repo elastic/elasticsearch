@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -346,7 +347,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             3,
                             null,
-                            new AssignmentStats("model_3", null, null, null, null, Instant.now(), List.of()).setState(
+                            new AssignmentStats("model_3", null, null, null, null, Instant.now(), List.of(), Priority.NORMAL).setState(
                                 AssignmentState.STOPPING
                             )
                         ),
@@ -415,7 +416,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         34.0,
                                         1L
                                     )
-                                )
+                                ),
+                                Priority.NORMAL
                             ).setState(AssignmentState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
                         )
                     ),

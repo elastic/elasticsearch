@@ -1,6 +1,0 @@
-pr: 90850
-summary: "[CCR] Data streams: order follower backing indices by original name"
-area: "CCR"
-type: bug
-issues:
- - 90820

@@ -229,7 +229,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             );
         }
 
-        ByteSizeValue freeBytesValue = new ByteSizeValue(freeBytes);
+        ByteSizeValue freeBytesValue = ByteSizeValue.ofBytes(freeBytes);
         if (logger.isTraceEnabled()) {
             logger.trace("node [{}] has {}% used disk", node.nodeId(), usedDiskPercentage);
         }
@@ -299,14 +299,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
-        final long shardSize = getExpectedShardSize(
-            shardRouting,
-            0L,
-            allocation.clusterInfo(),
-            allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
-        );
+        final long shardSize = getExpectedShardSize(shardRouting, 0L, allocation);
         assert shardSize >= 0 : shardSize;
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHighStage(total).getBytes()) {
@@ -319,7 +312,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 diskThresholdSettings.getFreeBytesThresholdHighStage(total),
                 freeBytesValue,
                 Strings.format1Decimals(usedDiskPercentage, "%"),
-                new ByteSizeValue(shardSize)
+                ByteSizeValue.ofBytes(shardSize)
             );
             return allocation.decision(
                 Decision.NO,
@@ -331,7 +324,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 diskThresholdSettings.getFreeBytesThresholdHighStage(total),
                 freeBytesValue,
                 Strings.format1Decimals(usedDiskPercentage, "%"),
-                new ByteSizeValue(shardSize)
+                ByteSizeValue.ofBytes(shardSize)
             );
         }
 
@@ -342,8 +335,8 @@ public class DiskThresholdDecider extends AllocationDecider {
             "enough disk for shard on node, free: [%s], used: [%s], shard size: [%s], free after allocating shard: [%s]",
             freeBytesValue,
             Strings.format1Decimals(usedDiskPercentage, "%"),
-            new ByteSizeValue(shardSize),
-            new ByteSizeValue(freeBytesAfterShard)
+            ByteSizeValue.ofBytes(shardSize),
+            ByteSizeValue.ofBytes(freeBytesAfterShard)
         );
     }
 
@@ -360,14 +353,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
-        final long shardSize = getExpectedShardSize(
-            shardRouting,
-            0L,
-            allocation.clusterInfo(),
-            allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
-        );
+        final long shardSize = getExpectedShardSize(shardRouting, 0L, allocation);
         assert shardSize >= 0 : shardSize;
         final long freeBytesAfterShard = usage.getFreeBytes() - shardSize;
         if (freeBytesAfterShard < 0) {
@@ -466,7 +452,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     + "and there is less than the required [%s] free space on node, actual free: [%s], actual used: [%s]",
                 diskThresholdSettings.describeHighThreshold(total, true),
                 diskThresholdSettings.getFreeBytesThresholdHighStage(total),
-                new ByteSizeValue(freeBytes),
+                ByteSizeValue.ofBytes(freeBytes),
                 Strings.format1Decimals(usedDiskPercentage, "%")
             );
         }
@@ -475,7 +461,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             Decision.YES,
             NAME,
             "there is enough disk on this node for the shard to remain, free: [%s]",
-            new ByteSizeValue(freeBytes)
+            ByteSizeValue.ofBytes(freeBytes)
         );
     }
 
@@ -551,6 +537,17 @@ public class DiskThresholdDecider extends AllocationDecider {
             return YES_USAGES_UNAVAILABLE;
         }
         return null;
+    }
+
+    public static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
+        return DiskThresholdDecider.getExpectedShardSize(
+            shardRouting,
+            defaultSize,
+            allocation.clusterInfo(),
+            allocation.snapshotShardSizeInfo(),
+            allocation.metadata(),
+            allocation.routingTable()
+        );
     }
 
     /**

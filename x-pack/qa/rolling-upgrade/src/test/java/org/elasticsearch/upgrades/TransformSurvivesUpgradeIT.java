@@ -14,13 +14,13 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -256,7 +256,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             TRANSFORM_INTERNAL_INDEX_PREFIX + "*," + TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*" + "/_search"
         );
 
-        getStatsDocsRequest.setJsonEntity(formatted("""
+        getStatsDocsRequest.setJsonEntity(Strings.format("""
             {
                "query": {
                  "bool": {
@@ -373,7 +373,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
             for (String entity : entityIds) {
-                bulk.append(formatted("""
+                bulk.append(Strings.format("""
                     {"index":{"_index":"%s"}}
                     {"user_id":"%s","stars":%s,"timestamp":%s}
                     """, indexName, entity, randomLongBetween(0, 5), timeStamp));

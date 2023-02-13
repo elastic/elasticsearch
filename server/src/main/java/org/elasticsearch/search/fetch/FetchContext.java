@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -36,16 +37,53 @@ import java.util.List;
 public class FetchContext {
 
     private final SearchContext searchContext;
-    private final SearchLookup searchLookup;
     private final SourceLoader sourceLoader;
+    private final FetchSourceContext fetchSourceContext;
+    private final StoredFieldsContext storedFieldsContext;
 
     /**
      * Create a FetchContext based on a SearchContext
      */
     public FetchContext(SearchContext searchContext) {
         this.searchContext = searchContext;
-        this.searchLookup = searchContext.getSearchExecutionContext().lookup();
         this.sourceLoader = searchContext.newSourceLoader();
+        this.storedFieldsContext = buildStoredFieldsContext(searchContext);
+        this.fetchSourceContext = buildFetchSourceContext(searchContext);
+    }
+
+    private static FetchSourceContext buildFetchSourceContext(SearchContext in) {
+        FetchSourceContext fsc = in.fetchSourceContext();
+        StoredFieldsContext sfc = in.storedFieldsContext();
+        if (fsc == null) {
+            boolean hasStoredFields = in.hasStoredFields();
+            boolean hasScriptFields = in.hasScriptFields();
+            // TODO it seems a bit odd that we disable implicit source loading if we've asked
+            // for stored fields or script fields? But not eg doc_value fields or via
+            // the `fields` API
+            if (hasStoredFields == false && hasScriptFields == false) {
+                fsc = FetchSourceContext.of(true);
+            }
+        }
+        if (sfc != null && sfc.fetchFields()) {
+            for (String field : sfc.fieldNames()) {
+                if (SourceFieldMapper.NAME.equals(field)) {
+                    fsc = fsc == null ? FetchSourceContext.of(true) : FetchSourceContext.of(true, fsc.includes(), fsc.excludes());
+                }
+            }
+        }
+        if (sfc != null && sfc.fetchFields() == false) {
+            fsc = null;
+        }
+        return fsc;
+    }
+
+    private static StoredFieldsContext buildStoredFieldsContext(SearchContext in) {
+        StoredFieldsContext sfc = in.storedFieldsContext();
+        if (sfc == null) {
+            // if nothing is requested then we just do a standard metadata stored fields request
+            sfc = StoredFieldsContext.metadataOnly();
+        }
+        return sfc;
     }
 
     /**
@@ -66,7 +104,7 @@ public class FetchContext {
      * The {@code SearchLookup} for the this context
      */
     public SearchLookup searchLookup() {
-        return searchLookup;
+        return searchContext.getSearchExecutionContext().lookup();
     }
 
     /**
@@ -101,7 +139,14 @@ public class FetchContext {
      * Configuration for fetching _source
      */
     public FetchSourceContext fetchSourceContext() {
-        return searchContext.fetchSourceContext();
+        return this.fetchSourceContext;
+    }
+
+    /**
+     * Configuration for fetching stored fields
+     */
+    public StoredFieldsContext storedFieldsContext() {
+        return storedFieldsContext;
     }
 
     /**

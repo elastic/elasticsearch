@@ -20,6 +20,8 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
 import java.io.IOException;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,6 +69,11 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
     }
 
     public void testStats() throws Exception {
+        /*
+         * Testing without the geoip endpoint fixture falls back to https://storage.googleapis.com/, which can cause this test to run too
+         * slowly to pass.
+         */
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         GeoIpDownloaderStatsAction.Request req = new GeoIpDownloaderStatsAction.Request();
         GeoIpDownloaderStatsAction.Response response = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
         XContentTestUtils.JsonMapView jsonMapView = new XContentTestUtils.JsonMapView(convertToMap(response));
@@ -75,7 +83,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         assertThat(jsonMapView.get("stats.databases_count"), equalTo(0));
         assertThat(jsonMapView.get("stats.total_download_time"), equalTo(0));
         assertEquals(0, jsonMapView.<Map<String, Object>>get("nodes").size());
-
+        putPipeline();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -101,6 +109,33 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
                 );
             }
         });
+    }
+
+    private void putPipeline() throws IOException {
+        BytesReference bytes;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            {
+                builder.startArray("processors");
+                {
+                    builder.startObject();
+                    {
+                        builder.startObject("geoip");
+                        {
+                            builder.field("field", "ip");
+                            builder.field("target_field", "ip-city");
+                            builder.field("database_file", "GeoLite2-City.mmdb");
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            bytes = BytesReference.bytes(builder);
+        }
+        assertAcked(client().admin().cluster().preparePutPipeline("_id", bytes, XContentType.JSON).get());
     }
 
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {

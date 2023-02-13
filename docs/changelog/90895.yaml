@@ -1,5 +1,0 @@
-pr: 90895
-summary: Fix true/false accumulation bug in boolean source fallback
-area: Infra/Scripting
-type: bug
-issues: []

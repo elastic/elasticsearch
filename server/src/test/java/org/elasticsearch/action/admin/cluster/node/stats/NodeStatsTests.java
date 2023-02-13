@@ -575,6 +575,7 @@ public class NodeStatsTests extends ESTestCase {
             ++iota,
             false,
             ++iota,
+            ++iota,
             ++iota
         );
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));
@@ -634,8 +635,9 @@ public class NodeStatsTests extends ESTestCase {
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             shardId,
             true,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message")
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
+            ShardRouting.Role.DEFAULT
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())

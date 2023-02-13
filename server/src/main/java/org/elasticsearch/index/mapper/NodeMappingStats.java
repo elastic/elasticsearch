@@ -60,7 +60,7 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getTotalEstimatedOverhead() {
-        return new ByteSizeValue(totalEstimatedOverhead);
+        return ByteSizeValue.ofBytes(totalEstimatedOverhead);
     }
 
     @Override

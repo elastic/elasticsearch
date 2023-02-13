@@ -213,7 +213,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         }
         assertNotNull(authenticationSetOnce.get());
         assertNotEquals(authentication, authenticationSetOnce.get());
-        assertEquals(SystemUser.INSTANCE, authenticationSetOnce.get().getUser());
+        assertEquals(SystemUser.INSTANCE, authenticationSetOnce.get().getEffectiveSubject().getUser());
         assertThat(accessControlSetOnce.get(), sameInstance(authzAccessControl));
         assertThat(requestIdOnActionHandler.get(), is(requestIdFromAuthn.get()));
     }

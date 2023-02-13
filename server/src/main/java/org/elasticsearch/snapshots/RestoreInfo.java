@@ -47,7 +47,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
 
     public RestoreInfo(StreamInput in) throws IOException {
         name = in.readString();
-        indices = in.readImmutableList(StreamInput::readString);
+        indices = in.readImmutableStringList();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
     }

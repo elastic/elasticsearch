@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -21,15 +21,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
-    CartesianPointValuesSource,
-    CartesianCentroidAggregationBuilder> {
+public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<CartesianCentroidAggregationBuilder> {
     public static final String NAME = "cartesian_centroid";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -114,7 +111,7 @@ public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_6_0;
     }
 }

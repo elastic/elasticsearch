@@ -174,7 +174,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final IndicesAccessControl.IndexAccessControl indexAccessControl = mock(IndicesAccessControl.IndexAccessControl.class);
-        when(indexAccessControl.getFieldPermissions()).thenReturn(new FieldPermissions());
+        when(indexAccessControl.getFieldPermissions()).thenReturn(FieldPermissions.DEFAULT);
         final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
         when(indicesAccessControl.isGranted()).thenReturn(true);

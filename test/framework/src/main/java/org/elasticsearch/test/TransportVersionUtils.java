@@ -19,7 +19,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ALL_VERSIONS;
+import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
 
 public class TransportVersionUtils {
     /** Returns all released versions */

@@ -13,6 +13,6 @@ import java.util.List;
 /**
  * Provides access to all known transport versions.
  */
-public class TransportVersions {
+public class KnownTransportVersions {
     public static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
 }

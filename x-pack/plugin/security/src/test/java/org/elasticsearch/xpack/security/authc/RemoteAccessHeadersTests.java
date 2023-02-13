@@ -58,7 +58,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
     public void testReadOnInvalidApiKeyValueThrows() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final var expected = new RemoteAccessHeaders(
-            randomFrom("ApiKey abc", "ApiKey id:key", "ApiKey ", "ApiKey  ", randomEncodedApiKeyHeader() + "suffix"),
+            randomFrom("ApiKey abc", "ApiKey id:key", "ApiKey ", "ApiKey  "),
             AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
         );
 

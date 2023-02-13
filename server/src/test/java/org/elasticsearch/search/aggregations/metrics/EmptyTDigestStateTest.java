@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import net.bytebuddy.matcher.FilterableList;
-
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -27,7 +25,7 @@ public class EmptyTDigestStateTests extends ESTestCase {
     }
 
     public void testTestAddTDigest() {
-        expectThrows(UnsupportedOperationException.class, () -> singleton.add(new FilterableList.Empty<>()));
+        expectThrows(UnsupportedOperationException.class, () -> singleton.add(new EmptyTDigestState()));
     }
 
     public void testTestAddWithWeight() {

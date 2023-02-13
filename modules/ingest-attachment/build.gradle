@@ -29,8 +29,8 @@ configurations.testRuntimeClasspath { exclude module: 'commons-logging' }
 
 dependencies {
   // take over logging for all dependencies, route slf4j and jcl over log4j
-  api "org.slf4j:slf4j-api:2.0.3"
-  api "org.slf4j:jcl-over-slf4j:2.0.3"
+  api "org.slf4j:slf4j-api:2.0.6"
+  api "org.slf4j:jcl-over-slf4j:2.0.6"
   api "org.apache.logging.log4j:log4j-slf4j2-impl:2.19.0"
 
   // mandatory for tika

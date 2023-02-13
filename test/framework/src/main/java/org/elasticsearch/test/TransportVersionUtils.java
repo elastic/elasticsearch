@@ -92,6 +92,18 @@ public class TransportVersionUtils {
         return ALL_VERSIONS.get(place - 1);
     }
 
+    public static TransportVersion getNextVersion(TransportVersion version) {
+        int place = Collections.binarySearch(ALL_VERSIONS, version);
+        if (place < 0) {
+            // version does not exist - need the item at the index this version should be inserted
+            place = -(place + 1);
+        }
+        if (place <= 1) {
+            throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
+        }
+        return ALL_VERSIONS.get(place + 1);
+    }
+
     public static boolean isCompatible(TransportVersion version1, TransportVersion version2) {
         return version1.onOrAfter(minimumCompatibilityVersion(version2)) && version2.onOrAfter(minimumCompatibilityVersion(version1));
     }

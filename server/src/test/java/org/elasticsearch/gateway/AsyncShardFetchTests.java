@@ -335,6 +335,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93729")
     public void testTwoNodesRemoveOne() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         test.addSimulation(node1.getId(), response1);

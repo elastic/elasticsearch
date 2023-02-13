@@ -46,7 +46,7 @@ dependencies {
   api 'commons-io:commons-io:2.11.0'
 
   // character set detection
-  api 'com.github.albfernandez:juniversalchardet:2.4.0'
+  api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
 
   // external parser libraries
   // HTML

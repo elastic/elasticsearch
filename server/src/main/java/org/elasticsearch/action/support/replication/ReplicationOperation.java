@@ -10,6 +10,7 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -138,7 +139,10 @@ public class ReplicationOperation<
             replicasProxy.onPrimaryOperationComplete(
                 replicaRequest,
                 replicationGroup.getRoutingTable(),
-                ActionListener.wrap(ignored -> decPendingAndFinishIfNeeded(), this::finishAsFailed)
+                ActionListener.wrap(
+                    ignored -> decPendingAndFinishIfNeeded(),
+                    exception -> this.finishAsFailed(new OnPrimaryOperationCompleteException(primary.routingEntry().shardId(), exception))
+                )
             );
 
             // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
@@ -679,4 +683,21 @@ public class ReplicationOperation<
          * */
         void runPostReplicationActions(ActionListener<Void> listener);
     }
+
+    /**
+     * An exception indicating that a failure occurred during
+     * {@link Replicas#onPrimaryOperationComplete(ReplicationRequest, IndexShardRoutingTable, ActionListener)}.
+     */
+    public static class OnPrimaryOperationCompleteException extends ElasticsearchException implements ElasticsearchWrapperException {
+
+        public OnPrimaryOperationCompleteException(ShardId shardId, Throwable cause) {
+            super(cause);
+            setShard(shardId);
+        }
+
+        public OnPrimaryOperationCompleteException(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
+
 }

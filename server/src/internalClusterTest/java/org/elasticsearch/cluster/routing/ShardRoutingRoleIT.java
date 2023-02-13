@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -50,6 +51,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,6 +63,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -685,6 +690,82 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     is(equalTo(0))
                 );
             }
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
+        }
+    }
+
+    public void testRefreshFailsIfUnpromotableDisconnects() throws Exception {
+        var routingTableWatcher = new RoutingTableWatcher();
+        var additionalNumberOfNodesWithUnpromotableShards = 1;
+        routingTableWatcher.numReplicas = routingTableWatcher.numIndexingCopies + additionalNumberOfNodesWithUnpromotableShards - 1;
+        internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numIndexingCopies + 1);
+        final String nodeWithUnpromotableOnly = internalCluster().startDataOnlyNode(
+            Settings.builder().put("node.attr." + TestPlugin.NODE_ATTR_UNPROMOTABLE_ONLY, "true").build()
+        );
+        installMockTransportVerifications(routingTableWatcher);
+        getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
+
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
+
+            createIndex(
+                INDEX_NAME,
+                Settings.builder()
+                    .put(routingTableWatcher.getIndexSettings())
+                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .build()
+            );
+            ensureGreen(INDEX_NAME);
+            assertEngineTypes();
+
+            indexRandom(false, INDEX_NAME, randomIntBetween(1, 10));
+
+            Set<String> side1 = new HashSet<>();
+            Set<String> side2 = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+            side1.add(nodeWithUnpromotableOnly);
+            side2.remove(nodeWithUnpromotableOnly);
+            NetworkDisruption networkDisruption = new NetworkDisruption(
+                new NetworkDisruption.TwoPartitions(side1, side2),
+                NetworkDisruption.DISCONNECT
+            );
+
+            AtomicBoolean disrupting = new AtomicBoolean(false);
+            CountDownLatch finishedDisrupting = new CountDownLatch(1);
+            MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                nodeWithUnpromotableOnly
+            );
+            mockTransportService.addRequestHandlingBehavior(
+                TransportUnpromotableShardRefreshAction.NAME + "[u]",
+                (handler, request, channel, task) -> {
+                    if (disrupting.compareAndSet(false, true)) {
+                        logger.info("will ignore refresh unpromotable messages on unpromotables-only node [{}]", nodeWithUnpromotableOnly);
+                        setDisruptionScheme(networkDisruption);
+                        networkDisruption.startDisrupting();
+                    }
+                    finishedDisrupting.await();
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
+            List<String> clientNodes = Arrays.stream(internalCluster().getNodeNames())
+                .filter(s -> s.contains(nodeWithUnpromotableOnly) == false)
+                .toList();
+
+            RefreshResponse response = client(randomFrom(clientNodes)).admin().indices().prepareRefresh(INDEX_NAME).execute().actionGet();
+            assertThat(
+                response.getFailedShards(),
+                greaterThanOrEqualTo(
+                    (routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1)) * routingTableWatcher.numShards
+                )
+            );
+
+            finishedDisrupting.countDown();
+            networkDisruption.removeAndEnsureHealthy(internalCluster());
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }

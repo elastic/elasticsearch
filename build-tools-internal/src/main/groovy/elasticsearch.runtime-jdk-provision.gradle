@@ -48,8 +48,8 @@ configure(allprojects) {
   project.plugins.withType(RestTestBasePlugin) {
     tasks.withType(StandaloneRestIntegTestTask).configureEach {
       if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
-        dependsOn(project.jdks.provisioned_runtime)
-        nonInputProperties.systemProperty("tests.runtime.java", "${-> project.jdks.provisioned_runtime.javaHomePath}")
+        dependsOn(rootProject.jdks.provisioned_runtime)
+        nonInputProperties.systemProperty("tests.runtime.java", "${-> rootProject.jdks.provisioned_runtime.javaHomePath}")
       }
     }
   }

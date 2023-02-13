@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -344,13 +343,8 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     private static Authentication replaceWithInternalUserAuthcForHandshake(String action, Authentication authentication) {
-        return Set.of(TransportService.HANDSHAKE_ACTION_NAME, TransportActionProxy.getProxyAction(TransportService.HANDSHAKE_ACTION_NAME))
-            .contains(action)
-                ? Authentication.newInternalAuthentication(
-                    SystemUser.INSTANCE,
-                    authentication.getEffectiveSubject().getTransportVersion(),
-                    ""
-                )
-                : authentication;
+        return action.equals(TransportService.HANDSHAKE_ACTION_NAME)
+            ? Authentication.newInternalAuthentication(SystemUser.INSTANCE, authentication.getEffectiveSubject().getTransportVersion(), "")
+            : authentication;
     }
 }

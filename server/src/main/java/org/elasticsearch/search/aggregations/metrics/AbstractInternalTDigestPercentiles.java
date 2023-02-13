@@ -27,7 +27,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     // NOTE: using compression = 1.0 empty histograms will track just about 5 centroids.
     // This reduces the amount of data to serialize and deserialize.
-    private static final TDigestState EMPTY_HISTOGRAM = new TDigestState(1.0D);
+    private static final TDigestState EMPTY_HISTOGRAM = new EmptyTDigestState();
 
     protected final double[] keys;
     protected final TDigestState state;

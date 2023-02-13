@@ -232,7 +232,7 @@ public class InboundHandlerTests extends ESTestCase {
                 "expected message",
                 InboundHandler.class.getCanonicalName(),
                 Level.WARN,
-                "error processing handshake received"
+                "error processing handshake version"
             )
         );
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);

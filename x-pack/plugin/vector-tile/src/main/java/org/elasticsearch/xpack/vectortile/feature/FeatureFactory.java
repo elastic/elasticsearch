@@ -151,45 +151,41 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Point point) throws RuntimeException {
-            return toMVTGeometry(buildMercatorPoint(geomFactory, point));
+            return toMVTGeometry(buildMercatorPoint(point));
         }
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(MultiPoint multiPoint) throws RuntimeException {
-            return toMVTGeometry(buildMercatorMultiPoint(geomFactory, multiPoint));
+            return toMVTGeometry(buildMercatorMultiPoint(multiPoint));
         }
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Line line) {
-            return toMVTGeometry(buildMercatorLine(geomFactory, line));
+            return toMVTGeometry(buildMercatorLine(line));
         }
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(MultiLine multiLine) throws RuntimeException {
-            /*
-             Elasticsearch accepts lines that intersects but this might cause issues on JTS algorithms. It is then
-             important to transform each line individually, therefore we treat it as a collection.
-            */
+            // Elasticsearch accepts lines that intersect but this might cause issues on JTS algorithms.
+            // It is then important to transform each line individually, therefore we treat it as a collection.
             return buildCollection(multiLine);
         }
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Polygon polygon) throws RuntimeException {
-            return toMVTGeometry(buildMercatorPolygon(geomFactory, polygon));
+            return toMVTGeometry(buildMercatorPolygon(polygon));
         }
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(MultiPolygon multiPolygon) throws RuntimeException {
-            /*
-              Elasticsearch accepts polygons that overlap but this causes issues on JTS algorithms. It is then
-              important to transform each polygon individually, therefore we treat it as a collection.
-             */
+            // Elasticsearch accepts polygons that overlap but this causes issues on JTS algorithms.
+            // It is then important to transform each polygon individually, therefore we treat it as a collection.
             return buildCollection(multiPolygon);
         }
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Rectangle rectangle) throws RuntimeException {
-            return toMVTGeometry(buildMercatorRectangle(geomFactory, rectangle));
+            return toMVTGeometry(buildMercatorRectangle(rectangle));
         }
 
         private org.locationtech.jts.geom.Geometry toMVTGeometry(org.locationtech.jts.geom.Geometry geometry) {
@@ -210,16 +206,106 @@ public class FeatureFactory {
             for (int i = 0; i < collection.size(); i++) {
                 final org.locationtech.jts.geom.Geometry geometry = collection.get(i).visit(this);
                 if (geometry != null) {
-                    /*
-                    Simplification can transform simple shae sin multi-shapes, we flat them out here so multi-polygons
-                    and multilines are not transform to geometry collections.
-                     */
+                    // Simplification can transform simple shapes into multi-shapes.
+                    // We flatten them out here so multi-polygons and multi-lines are not transformed to geometry collections.
                     for (int j = 0; j < geometry.getNumGeometries(); j++) {
                         geoms.add(geometry.getGeometryN(j));
                     }
                 }
             }
             return geomFactory.buildGeometry(geoms);
+        }
+
+        private org.locationtech.jts.geom.Polygon buildMercatorPolygon(Polygon polygon) {
+            final org.locationtech.jts.geom.LinearRing outerShell = buildMercatorLinearRing(polygon.getPolygon());
+            if (polygon.getNumberOfHoles() == 0) {
+                return geomFactory.createPolygon(outerShell);
+            }
+            final org.locationtech.jts.geom.LinearRing[] holes = new org.locationtech.jts.geom.LinearRing[polygon.getNumberOfHoles()];
+            for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+                holes[i] = buildMercatorLinearRing(polygon.getHole(i));
+            }
+            return geomFactory.createPolygon(outerShell, holes);
+        }
+
+        private org.locationtech.jts.geom.LinearRing buildMercatorLinearRing(LinearRing ring) {
+            return geomFactory.createLinearRing(buildMercatorCoordinates(ring));
+        }
+
+        private LineString buildMercatorLine(Line line) {
+            return geomFactory.createLineString(buildMercatorCoordinates(line));
+        }
+
+        private Coordinate[] buildMercatorCoordinates(Line line) {
+            final Coordinate[] coordinates = new Coordinate[line.length()];
+            for (int i = 0; i < line.length(); i++) {
+                final double x = SphericalMercatorUtils.lonToSphericalMercator(line.getX(i));
+                final double y = SphericalMercatorUtils.latToSphericalMercator(line.getY(i));
+                coordinates[i] = new Coordinate(x, y);
+            }
+            return coordinates;
+        }
+
+        private org.locationtech.jts.geom.Geometry buildMercatorRectangle(Rectangle rectangle) {
+            final double xMin = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMinX());
+            final double yMin = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMinY());
+            final double xMax = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMaxX());
+            final double yMax = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMaxY());
+            final org.locationtech.jts.geom.Geometry geometry;
+            if (rectangle.getMinX() > rectangle.getMaxX()) {
+                // crosses dateline
+                final Envelope westEnvelope = new Envelope(-SphericalMercatorUtils.MERCATOR_BOUNDS, xMax, yMin, yMax);
+                final Envelope eastEnvelope = new Envelope(xMin, SphericalMercatorUtils.MERCATOR_BOUNDS, yMin, yMax);
+                geometry = geomFactory.buildGeometry(List.of(geomFactory.toGeometry(westEnvelope), geomFactory.toGeometry(eastEnvelope)));
+            } else {
+                final Envelope envelope = new Envelope(xMin, xMax, yMin, yMax);
+                geometry = geomFactory.toGeometry(envelope);
+            }
+            return geometry;
+        }
+
+        private org.locationtech.jts.geom.Point buildMercatorPoint(Point point) {
+            final double x = SphericalMercatorUtils.lonToSphericalMercator(point.getX());
+            final double y = SphericalMercatorUtils.latToSphericalMercator(point.getY());
+            return geomFactory.createPoint(new Coordinate(x, y));
+        }
+
+        private org.locationtech.jts.geom.MultiPoint buildMercatorMultiPoint(MultiPoint multiPoint) {
+            final org.locationtech.jts.geom.Point[] points = new org.locationtech.jts.geom.Point[multiPoint.size()];
+            for (int i = 0; i < multiPoint.size(); i++) {
+                points[i] = buildMercatorPoint(multiPoint.get(i));
+            }
+            Arrays.sort(
+                points,
+                Comparator.comparingDouble(org.locationtech.jts.geom.Point::getX).thenComparingDouble(org.locationtech.jts.geom.Point::getY)
+            );
+            return geomFactory.createMultiPoint(points);
+        }
+
+        private org.locationtech.jts.geom.Geometry clipGeometry(
+            org.locationtech.jts.geom.Geometry envelope,
+            org.locationtech.jts.geom.Geometry geometry
+        ) {
+            try {
+                final IntersectionMatrix matrix = envelope.relate(geometry);
+                if (matrix.isContains()) {
+                    // no need to clip
+                    return geometry;
+                } else if (matrix.isWithin()) {
+                    // the clipped geometry is the envelope
+                    return envelope.copy();
+                } else if (matrix.isIntersects()) {
+                    // clip it (clone envelope as coordinates are copied by reference)
+                    return envelope.copy().intersection(geometry);
+                } else {
+                    // disjoint
+                    assert envelope.copy().intersection(geometry).isEmpty();
+                    return null;
+                }
+            } catch (TopologyException ex) {
+                // we should never get here but just to be super safe because a TopologyException will kill the node
+                throw new IllegalArgumentException(ex);
+            }
         }
     }
 
@@ -258,98 +344,6 @@ public class FeatureFactory {
 
         private int lon(double lon) {
             return (int) Math.round(pointXScale * lon + pointXTranslate);
-        }
-    }
-
-    private static org.locationtech.jts.geom.Polygon buildMercatorPolygon(GeometryFactory geomFactory, Polygon polygon) {
-        final org.locationtech.jts.geom.LinearRing outerShell = buildMercatorLinearRing(geomFactory, polygon.getPolygon());
-        if (polygon.getNumberOfHoles() == 0) {
-            return geomFactory.createPolygon(outerShell);
-        }
-        final org.locationtech.jts.geom.LinearRing[] holes = new org.locationtech.jts.geom.LinearRing[polygon.getNumberOfHoles()];
-        for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-            holes[i] = buildMercatorLinearRing(geomFactory, polygon.getHole(i));
-        }
-        return geomFactory.createPolygon(outerShell, holes);
-    }
-
-    private static org.locationtech.jts.geom.LinearRing buildMercatorLinearRing(GeometryFactory geomFactory, LinearRing ring) {
-        return geomFactory.createLinearRing(Mercator(ring));
-    }
-
-    private static LineString buildMercatorLine(GeometryFactory geomFactory, Line line) {
-        return geomFactory.createLineString(Mercator(line));
-    }
-
-    private static Coordinate[] Mercator(Line line) {
-        final Coordinate[] coordinates = new Coordinate[line.length()];
-        for (int i = 0; i < line.length(); i++) {
-            final double x = SphericalMercatorUtils.lonToSphericalMercator(line.getX(i));
-            final double y = SphericalMercatorUtils.latToSphericalMercator(line.getY(i));
-            coordinates[i] = new Coordinate(x, y);
-        }
-        return coordinates;
-    }
-
-    private static org.locationtech.jts.geom.Geometry buildMercatorRectangle(GeometryFactory geomFactory, Rectangle rectangle) {
-        final double xMin = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMinX());
-        final double yMin = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMinY());
-        final double xMax = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMaxX());
-        final double yMax = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMaxY());
-        final org.locationtech.jts.geom.Geometry geometry;
-        if (rectangle.getMinX() > rectangle.getMaxX()) {
-            // crosses dateline
-            final Envelope westEnvelope = new Envelope(-SphericalMercatorUtils.MERCATOR_BOUNDS, xMax, yMin, yMax);
-            final Envelope eastEnvelope = new Envelope(xMin, SphericalMercatorUtils.MERCATOR_BOUNDS, yMin, yMax);
-            geometry = geomFactory.buildGeometry(List.of(geomFactory.toGeometry(westEnvelope), geomFactory.toGeometry(eastEnvelope)));
-        } else {
-            final Envelope envelope = new Envelope(xMin, xMax, yMin, yMax);
-            geometry = geomFactory.toGeometry(envelope);
-        }
-        return geometry;
-    }
-
-    private static org.locationtech.jts.geom.Point buildMercatorPoint(GeometryFactory geomFactory, Point point) {
-        final double x = SphericalMercatorUtils.lonToSphericalMercator(point.getX());
-        final double y = SphericalMercatorUtils.latToSphericalMercator(point.getY());
-        return geomFactory.createPoint(new Coordinate(x, y));
-    }
-
-    private static org.locationtech.jts.geom.MultiPoint buildMercatorMultiPoint(GeometryFactory geomFactory, MultiPoint multiPoint) {
-        final org.locationtech.jts.geom.Point[] points = new org.locationtech.jts.geom.Point[multiPoint.size()];
-        for (int i = 0; i < multiPoint.size(); i++) {
-            points[i] = buildMercatorPoint(geomFactory, multiPoint.get(i));
-        }
-        Arrays.sort(
-            points,
-            Comparator.comparingDouble(org.locationtech.jts.geom.Point::getX).thenComparingDouble(org.locationtech.jts.geom.Point::getY)
-        );
-        return geomFactory.createMultiPoint(points);
-    }
-
-    private static org.locationtech.jts.geom.Geometry clipGeometry(
-        org.locationtech.jts.geom.Geometry envelope,
-        org.locationtech.jts.geom.Geometry geometry
-    ) {
-        try {
-            final IntersectionMatrix matrix = envelope.relate(geometry);
-            if (matrix.isContains()) {
-                // no need to clip
-                return geometry;
-            } else if (matrix.isWithin()) {
-                // the clipped geometry is the envelope
-                return envelope.copy();
-            } else if (matrix.isIntersects()) {
-                // clip it (clone envelope as coordinates are copied by reference)
-                return envelope.copy().intersection(geometry);
-            } else {
-                // disjoint
-                assert envelope.copy().intersection(geometry).isEmpty();
-                return null;
-            }
-        } catch (TopologyException ex) {
-            // we should never get here but just to be super safe because a TopologyException will kill the node
-            throw new IllegalArgumentException(ex);
         }
     }
 }

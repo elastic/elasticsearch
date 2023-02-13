@@ -30,6 +30,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 
+@SuppressWarnings("checkstyle:linelength")
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
@@ -108,6 +109,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_17_7 = new Version(7_17_07_99, TransportVersion.V_7_17_7, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_7_17_8 = new Version(7_17_08_99, TransportVersion.V_7_17_8, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_7_17_9 = new Version(7_17_09_99, TransportVersion.V_7_17_9, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_10 = new Version(7_17_10_99, TransportVersion.V_7_17_10, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_8_0_0 = new Version(8_00_00_99, TransportVersion.V_8_0_0, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_0_1 = new Version(8_00_01_99, TransportVersion.V_8_0_1, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_1_0 = new Version(8_01_00_99, TransportVersion.V_8_1_0, org.apache.lucene.util.Version.LUCENE_9_0_0);
@@ -135,7 +137,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_6_2 = new Version(8_06_02_99, TransportVersion.V_8_6_2, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_8_7_0 = new Version(8_07_00_99, TransportVersion.V_8_7_0, org.apache.lucene.util.Version.LUCENE_9_5_0);
 
-    public static final Version CURRENT = V_8_7_0;
+    public static final Version V_8_8_0 = new Version(8_08_00_99, TransportVersion.V_8_8_0, org.apache.lucene.util.Version.LUCENE_9_5_0);
+    public static final Version CURRENT = V_8_8_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;

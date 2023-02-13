@@ -107,7 +107,7 @@ public class LocalAllocateDangledIndices {
             final String source = "allocation dangled indices " + Arrays.toString(indexNames);
 
             var listener = new AllocationActionListener<AllocateDangledResponse>(
-                new ChannelActionListener<>(channel, task.getAction(), request),
+                new ChannelActionListener<>(channel),
                 transportService.getThreadPool().getThreadContext()
             );
 

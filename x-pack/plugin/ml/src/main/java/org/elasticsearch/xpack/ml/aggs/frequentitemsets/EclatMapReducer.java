@@ -120,6 +120,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
     private static final Logger logger = LogManager.getLogger(EclatMapReducer.class);
     private static final int VERSION = 1;
 
+    // named writable for this implementation
     public static final String NAME = "frequent_items-eclat-" + VERSION;
 
     // cache for marking transactions visited, memory usage: ((BITSET_CACHE_TRAVERSAL_DEPTH -2) * BITSET_CACHE_NUMBER_OF_TRANSACTIONS) / 8

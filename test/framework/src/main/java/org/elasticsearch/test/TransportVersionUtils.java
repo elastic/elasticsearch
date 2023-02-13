@@ -14,12 +14,23 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
+
 public class TransportVersionUtils {
-    private static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
+    /** Returns all released versions */
+    public static List<TransportVersion> allReleasedVersions() {
+        return ALL_VERSIONS;
+    }
+
+    /** Returns the oldest {@link TransportVersion} */
+    public static TransportVersion getFirstVersion() {
+        return ALL_VERSIONS.get(0);
+    }
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion() {
@@ -63,10 +74,6 @@ public class TransportVersionUtils {
         }
     }
 
-    public static TransportVersion getFirstVersion() {
-        return ALL_VERSIONS.get(0);
-    }
-
     public static TransportVersion getPreviousVersion() {
         TransportVersion version = getPreviousVersion(TransportVersion.CURRENT);
         assert version.before(TransportVersion.CURRENT);
@@ -101,5 +108,12 @@ public class TransportVersionUtils {
 
     public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
         return randomVersionBetween(random, minimumCompatibilityVersion(version), getPreviousVersion(version));
+    }
+
+    /** returns the first future compatible version */
+    public static TransportVersion compatibleFutureVersion(TransportVersion version) {
+        final Optional<TransportVersion> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> isCompatible(v, version)).findAny();
+        assert opt.isPresent() : "no future compatible version for " + version;
+        return opt.get();
     }
 }

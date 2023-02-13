@@ -1,16 +1,17 @@
 [[creating-classic-plugins]]
 === Creating classic plugins
 
-Plugins provide {es} with mechanisms for custom authentication, authorization,
-scoring, and more.
+Classic plugins provide {es} with mechanisms for custom authentication,
+authorization, scoring, and more.
 
 [IMPORTANT]
 .Plugin release lifecycle
 ==============================================
 
 Classic plugins require you to build a new version for each new {es} release.
-This version is checked when the plugin is loaded. {es} will refuse to start in
-the presence of plugins with the incorrect `elasticsearch.version`.
+This version is checked when the plugin is installed and when it is loaded. {es}
+will refuse to start in the presence of plugins with the incorrect
+`elasticsearch.version`.
 
 ==============================================
 

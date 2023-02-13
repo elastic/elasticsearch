@@ -86,9 +86,9 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     @Override
     public double value(String name) {
         if (this.keys.length == 1 && this.name.equals(name)) {
-            return this.state != null ? value(this.keys[0]) : 0.0D;
+            return value(this.keys[0]);
         }
-        return this.state != null ? value(Double.parseDouble(name)) : 0.0D;
+        return value(Double.parseDouble(name));
     }
 
     @Override
@@ -186,7 +186,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {
                 String key = String.valueOf(keys[i]);
-                double value = this.state != null ? value(keys[i]) : 0.0D;
+                double value = value(keys[i]);
                 builder.field(key, state.size() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.size() > 0) {
                     builder.field(key + "_as_string", format.format(value).toString());
@@ -196,7 +196,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         } else {
             builder.startArray(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; i++) {
-                double value = this.state != null ? value(keys[i]) : 0.0D;
+                double value = value(keys[i]);
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), keys[i]);
                 builder.field(CommonFields.VALUE.getPreferredName(), state.size() == 0 ? null : value);

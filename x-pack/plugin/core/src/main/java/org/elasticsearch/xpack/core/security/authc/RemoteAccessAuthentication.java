@@ -216,23 +216,5 @@ public final class RemoteAccessAuthentication {
         public String toString() {
             return "RoleDescriptorsBytes{" + "rawBytes=" + rawBytes + '}';
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (false == super.equals(o)) return false;
-
-            RoleDescriptorsBytes that = (RoleDescriptorsBytes) o;
-
-            return Objects.equals(rawBytes, that.rawBytes);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = super.hashCode();
-            result = 31 * result + (rawBytes != null ? rawBytes.hashCode() : 0);
-            return result;
-        }
     }
 }

@@ -25,6 +25,10 @@ def versions = [
 ]
 
 dependencies {
+  // logging
+  api "org.slf4j:slf4j-api:1.6.2"
+  api "commons-logging:commons-logging:1.2"
+
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
   api "org.apache.tika:tika-langdetect:${versions.tika}"
@@ -40,7 +44,6 @@ dependencies {
   api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
   api 'org.tukaani:xz:1.8'
   api 'commons-io:commons-io:2.11.0'
-  api "org.slf4j:slf4j-api:1.6.2"
 
   // character set detection
   api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
@@ -52,7 +55,6 @@ dependencies {
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:1.8.17"
-  api "commons-logging:commons-logging:1.2"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"

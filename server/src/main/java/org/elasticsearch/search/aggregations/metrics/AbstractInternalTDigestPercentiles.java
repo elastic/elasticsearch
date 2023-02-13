@@ -86,9 +86,9 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     @Override
     public double value(String name) {
         if (this.keys.length == 1 && this.name.equals(name)) {
-            return value(this.keys[0]);
+            return this.state != null ? value(this.keys[0]) : 0.0D;
         }
-        return value(Double.parseDouble(name));
+        return this.state != null ? value(Double.parseDouble(name)) : 0.0D;
     }
 
     @Override

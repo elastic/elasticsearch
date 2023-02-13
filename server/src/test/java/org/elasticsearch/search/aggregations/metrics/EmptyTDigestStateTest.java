@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
-public class EmptyTDigestStateTest extends ESTestCase {
+public class EmptyTDigestStateTests extends ESTestCase {
 
     private static final TDigestState singleton = new EmptyTDigestState();
 

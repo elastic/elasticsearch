@@ -8,7 +8,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -279,18 +279,21 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        writeToAndReadFrom(aggregations, Version.CURRENT, 0);
+        writeToAndReadFrom(aggregations, TransportVersion.CURRENT, 0);
     }
 
     public void testSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        assertThat(DelayableWriteable.getSerializedSize(aggregations), equalTo((long) serialize(aggregations, Version.CURRENT).length));
+        assertThat(
+            DelayableWriteable.getSerializedSize(aggregations),
+            equalTo((long) serialize(aggregations, TransportVersion.CURRENT).length)
+        );
     }
 
-    private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {
+    private void writeToAndReadFrom(InternalAggregations aggregations, TransportVersion version, int iteration) throws IOException {
         BytesRef serializedAggs = serialize(aggregations, version);
         try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(serializedAggs.bytes), registry)) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             InternalAggregations deserialized = InternalAggregations.readFrom(in);
             assertEquals(aggregations.aggregations, deserialized.aggregations);
             if (iteration < 2) {
@@ -299,9 +302,9 @@ public class InternalAggregationsTests extends ESTestCase {
         }
     }
 
-    private BytesRef serialize(InternalAggregations aggs, Version version) throws IOException {
+    private BytesRef serialize(InternalAggregations aggs, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version);
             aggs.writeTo(out);
             return out.bytes().toBytesRef();
         }

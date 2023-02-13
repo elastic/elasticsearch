@@ -27,7 +27,7 @@ public class TransportVersionUtils {
         return ALL_VERSIONS;
     }
 
-    /** Returns the oldest {@link TransportVersion} */
+    /** Returns the oldest known {@link TransportVersion} */
     public static TransportVersion getFirstVersion() {
         return ALL_VERSIONS.get(0);
     }
@@ -42,12 +42,12 @@ public class TransportVersionUtils {
         return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
-    /** Returns a random {@link Version} from all available versions. */
+    /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion(Random random) {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
     }
 
-    /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
+    /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static TransportVersion randomVersionBetween(
         Random random,
         @Nullable TransportVersion minVersion,
@@ -112,7 +112,7 @@ public class TransportVersionUtils {
         return VersionUtils.findVersion(version).minimumCompatibilityVersion().transportVersion;
     }
 
-    /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
+    /** Returns a random {@link TransportVersion} from all available versions, that is compatible with the given version. */
     public static TransportVersion randomCompatibleVersion(Random random, TransportVersion version) {
         final List<TransportVersion> compatible = ALL_VERSIONS.stream().filter(v -> isCompatible(v, version)).toList();
         return compatible.get(random.nextInt(compatible.size()));

@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -62,7 +63,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     @Override
-    public Operator.OperatorFactory groupingOperatorFactory(
+    public Operator.OperatorFactory ordinalGroupingOperatorFactory(
         PhysicalOperation source,
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
@@ -71,7 +72,13 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         BigArrays bigArrays
     ) {
         int channelIndex = source.layout.numberOfChannels();
-        return new TestHashAggregationOperatorFactory(channelIndex, aggregatorFactories, groupElementType, bigArrays, attrSource.name());
+        return new TestOrdinalsGroupingAggregationOperatorFactory(
+            channelIndex,
+            aggregatorFactories,
+            groupElementType,
+            bigArrays,
+            attrSource.name()
+        );
     }
 
     private class TestSourceOperator extends SourceOperator {
@@ -199,29 +206,32 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private final String columnName;
 
         TestHashAggregationOperator(
-            int groupByChannel,
             List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
             Supplier<BlockHash> blockHash,
             String columnName
         ) {
-            super(groupByChannel, aggregators, blockHash);
+            super(aggregators, blockHash);
             this.columnName = columnName;
         }
 
         @Override
-        protected Block extractBlockFromPage(Page page) {
-            return extractBlockForColumn(page, columnName);
+        protected Page wrapPage(Page page) {
+            return page.appendBlock(extractBlockForColumn(page, columnName));
         }
     }
 
-    private class TestHashAggregationOperatorFactory implements Operator.OperatorFactory {
+    /**
+     * Pretends to be the {@link OrdinalsGroupingOperator} but always delegates to the
+     * {@link HashAggregationOperator}.
+     */
+    private class TestOrdinalsGroupingAggregationOperatorFactory implements Operator.OperatorFactory {
         private int groupByChannel;
         private List<GroupingAggregator.GroupingAggregatorFactory> aggregators;
         private ElementType groupElementType;
         private BigArrays bigArrays;
         private String columnName;
 
-        TestHashAggregationOperatorFactory(
+        TestOrdinalsGroupingAggregationOperatorFactory(
             int channelIndex,
             List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
             ElementType groupElementType,
@@ -238,9 +248,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         @Override
         public Operator get() {
             return new TestHashAggregationOperator(
-                groupByChannel,
                 aggregators,
-                () -> BlockHash.newForElementType(groupElementType, bigArrays),
+                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)), bigArrays),
                 columnName
             );
         }

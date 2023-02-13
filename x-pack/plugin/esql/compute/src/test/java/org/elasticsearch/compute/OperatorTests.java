@@ -35,9 +35,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -602,7 +602,6 @@ public class OperatorTests extends ESTestCase {
                                 new LuceneDocRef(0, 1, 2)
                             ),
                             new HashAggregationOperator(
-                                3, // group by channel
                                 List.of(
                                     new GroupingAggregator.GroupingAggregatorFactory(
                                         bigArrays,
@@ -611,10 +610,9 @@ public class OperatorTests extends ESTestCase {
                                         3
                                     )
                                 ),
-                                () -> BlockHash.newForElementType(ElementType.LONG, bigArrays)
+                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(3, ElementType.LONG)), bigArrays)
                             ),
                             new HashAggregationOperator(
-                                0, // group by channel
                                 List.of(
                                     new GroupingAggregator.GroupingAggregatorFactory(
                                         bigArrays,
@@ -623,14 +621,13 @@ public class OperatorTests extends ESTestCase {
                                         1
                                     )
                                 ),
-                                () -> BlockHash.newForElementType(ElementType.LONG, bigArrays)
+                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), bigArrays)
                             ),
                             new HashAggregationOperator(
-                                0, // group by channel
                                 List.of(
                                     new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                                 ),
-                                () -> BlockHash.newForElementType(ElementType.LONG, bigArrays)
+                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), bigArrays)
                             )
                         ),
                         new PageConsumerOperator(page -> {
@@ -693,11 +690,10 @@ public class OperatorTests extends ESTestCase {
                             bigArrays
                         ),
                         new HashAggregationOperator(
-                            0, // group by channel
                             List.of(
                                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                             ),
-                            () -> BlockHash.newForElementType(ElementType.BYTES_REF, bigArrays)
+                            () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)), bigArrays)
                         )
                     ),
                     new PageConsumerOperator(page -> {

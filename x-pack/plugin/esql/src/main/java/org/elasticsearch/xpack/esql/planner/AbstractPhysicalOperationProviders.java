@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -84,22 +85,27 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             // grouping
             List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = new ArrayList<>();
             AttributeSet groups = Expressions.references(aggregateExec.groupings());
-            if (groups.size() != 1) {
-                throw new UnsupportedOperationException("just one group, for now");
-            }
-            Attribute grpAttrib = groups.iterator().next();
-            Set<NameId> grpAttribIds = new HashSet<>(List.of(grpAttrib.id()));
-            // since the aggregate node can define aliases of the grouping column, there might be additional ids for the grouping column
-            // e.g. in `... | stats c = count(a) by b | project c, bb = b`, the alias `bb = b` will be inlined in the resulting aggregation
-            // node.
-            for (NamedExpression agg : aggregateExec.aggregates()) {
-                if (agg instanceof Alias a && a.child()instanceof Attribute attr && attr.id() == grpAttrib.id()) {
-                    grpAttribIds.add(a.id());
+            List<GroupSpec> groupSpecs = new ArrayList<>(groups.size());
+            Set<NameId> allGrpAttribIds = new HashSet<>();
+            for (Attribute grpAttrib : groups) {
+                Set<NameId> grpAttribIds = new HashSet<>();
+                grpAttribIds.add(grpAttrib.id());
+                /*
+                 * since the aggregate node can define aliases of the grouping column,
+                 * there might be additional ids for the grouping column e.g. in
+                 * `... | stats c = count(a) by b | project c, bb = b`,
+                 * the alias `bb = b` will be inlined in the resulting aggregation node.
+                 */
+                for (NamedExpression agg : aggregateExec.aggregates()) {
+                    if (agg instanceof Alias a && a.child()instanceof Attribute attr && attr.id() == grpAttrib.id()) {
+                        grpAttribIds.add(a.id());
+                    }
                 }
-            }
-            layout.appendChannel(grpAttribIds);
+                allGrpAttribIds.addAll(grpAttribIds);
+                layout.appendChannel(grpAttribIds);
 
-            final ElementType groupElementType = LocalExecutionPlanner.toElementType(grpAttrib.dataType());
+                groupSpecs.add(new GroupSpec(source.layout.getChannel(grpAttrib.id()), grpAttrib));
+            }
 
             for (NamedExpression ne : aggregateExec.aggregates()) {
 
@@ -128,31 +134,27 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                             source.layout.getChannel(sourceAttr.id())
                         )
                     );
-                } else if (grpAttribIds.contains(ne.id()) == false && aggregateExec.groupings().contains(ne) == false) {
+                } else if (allGrpAttribIds.contains(ne.id()) == false && aggregateExec.groupings().contains(ne) == false) {
                     var u = ne instanceof Alias ? ((Alias) ne).child() : ne;
                     throw new UnsupportedOperationException(
                         "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
                     );
                 }
             }
-            var attrSource = grpAttrib;
 
-            final Integer inputChannel = source.layout.getChannel(attrSource.id());
-
-            if (inputChannel == null) {
-                operatorFactory = groupingOperatorFactory(
+            if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
+                operatorFactory = ordinalGroupingOperatorFactory(
                     source,
                     aggregateExec,
                     aggregatorFactories,
-                    attrSource,
-                    groupElementType,
+                    groupSpecs.get(0).attribute,
+                    groupSpecs.get(0).elementType(),
                     context.bigArrays()
                 );
             } else {
                 operatorFactory = new HashAggregationOperatorFactory(
-                    inputChannel,
+                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorFactories,
-                    groupElementType,
                     context.bigArrays()
                 );
             }
@@ -163,7 +165,23 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         throw new UnsupportedOperationException();
     }
 
-    public abstract Operator.OperatorFactory groupingOperatorFactory(
+    private record GroupSpec(Integer channel, Attribute attribute) {
+        HashAggregationOperator.GroupSpec toHashGroupSpec() {
+            if (channel == null) {
+                throw new UnsupportedOperationException("planned to use ordinals but tried to use the hash instead");
+            }
+            return new HashAggregationOperator.GroupSpec(channel, elementType());
+        }
+
+        ElementType elementType() {
+            return LocalExecutionPlanner.toElementType(attribute.dataType());
+        }
+    }
+
+    /**
+     * Build a grouping operator that operates on ordinals if possible.
+     */
+    public abstract Operator.OperatorFactory ordinalGroupingOperatorFactory(
         LocalExecutionPlanner.PhysicalOperation source,
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,

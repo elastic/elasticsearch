@@ -36,7 +36,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
         return new HashAggregationOperator.HashAggregationOperatorFactory(
-            0,
+            List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(
                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.AVG_LONGS, mode, 1),
                 new GroupingAggregator.GroupingAggregatorFactory(
@@ -46,7 +46,6 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     mode.isInputPartial() ? 2 : 1
                 )
             ),
-            ElementType.LONG,
             bigArrays
         );
     }
@@ -58,7 +57,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected String expectedToStringOfSimple() {
-        return "HashAggregationOperator[groupByChannel=0, aggregators=["
+        return "HashAggregationOperator[blockHash=LongBlockHash{channel=0, entries=0}, aggregators=["
             + "GroupingAggregator[aggregatorFunction=AvgLongGroupingAggregatorFunction[channel=1], mode=SINGLE], "
             + "GroupingAggregator[aggregatorFunction=MaxLongGroupingAggregatorFunction[channel=1], mode=SINGLE]]]";
     }

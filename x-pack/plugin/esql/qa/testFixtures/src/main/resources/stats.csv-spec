@@ -195,3 +195,59 @@ languages:i
 5
 ;
 
+
+byStringAndLong
+from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by gender, trunk_worked_seconds | sort c desc;
+
+c:long | gender:keyword | trunk_worked_seconds:long
+30 | M | 300000000
+27 | M | 200000000
+22 | F | 300000000
+11 | F | 200000000
+;
+
+byStringAndString
+from test | eval hire_year_str = date_format(hire_date, "yyyy") | stats c = count(gender) by gender, hire_year_str | sort c desc, gender, hire_year_str | where c >= 5;
+
+c:long | gender:keyword | hire_year_str:keyword
+8 | F | 1989
+8 | M | 1987
+8 | M | 1990
+7 | M | 1986
+6 | M | 1985
+6 | M | 1988
+5 | M | 1991
+5 | M | 1992
+;
+
+byLongAndLong
+from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(languages.long) by languages.long, trunk_worked_seconds | sort c desc;
+
+c:long | languages.long:long | trunk_worked_seconds:long
+15 | 5 | 300000000
+11 | 2 | 300000000
+10 | 4 | 300000000
+ 9 | 3 | 200000000
+ 8 | 2 | 200000000
+ 8 | 4 | 200000000
+ 8 | 3 | 300000000
+ 8 | 1 | 200000000
+ 7 | 1 | 300000000
+ 6 | 5 | 200000000
+;
+
+byUnmentionedLongAndLong
+from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages.long, trunk_worked_seconds | sort c desc;
+
+c:long | languages.long:long | trunk_worked_seconds:long
+13 | 5 | 300000000
+10 | 2 | 300000000
+ 9 | 4 | 300000000
+ 9 | 3 | 200000000
+ 8 | 4 | 200000000
+ 8 | 3 | 300000000
+ 7 | 1 | 200000000
+ 6 | 2 | 200000000
+ 6 | 1 | 300000000
+ 4 | 5 | 200000000
+;

@@ -15,9 +15,9 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -374,9 +374,8 @@ public class OrdinalsGroupingOperator implements Operator {
         ) {
             this.extractor = new ValuesSourceReaderOperator(sources, luceneDocRef);
             this.aggregator = new HashAggregationOperator(
-                channelIndex,
                 aggregatorFactories,
-                () -> BlockHash.newForElementType(sources.get(0).elementType(), bigArrays)
+                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays)
             );
         }
 

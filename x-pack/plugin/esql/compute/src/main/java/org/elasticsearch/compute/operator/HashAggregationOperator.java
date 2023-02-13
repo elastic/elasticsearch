@@ -9,12 +9,11 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -35,23 +34,16 @@ public class HashAggregationOperator implements Operator {
     private static final int FINISHING = 2;
     private static final int FINISHED = 3;
 
-    private int state;
-
-    private final int groupByChannel;
-
-    private final BlockHash blockHash;
-
-    private final List<GroupingAggregator> aggregators;
+    public record GroupSpec(int channel, ElementType elementType) {}
 
     public record HashAggregationOperatorFactory(
-        int groupByChannel,
+        List<GroupSpec> groups,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
-        ElementType groupElementType,
         BigArrays bigArrays
     ) implements OperatorFactory {
         @Override
         public Operator get() {
-            return new HashAggregationOperator(groupByChannel, aggregators, () -> BlockHash.newForElementType(groupElementType, bigArrays));
+            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays));
         }
 
         @Override
@@ -64,12 +56,13 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    public HashAggregationOperator(
-        int groupByChannel,
-        List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
-        Supplier<BlockHash> blockHash
-    ) {
-        this.groupByChannel = groupByChannel;
+    private int state;
+
+    private final BlockHash blockHash;
+
+    private final List<GroupingAggregator> aggregators;
+
+    public HashAggregationOperator(List<GroupingAggregator.GroupingAggregatorFactory> aggregators, Supplier<BlockHash> blockHash) {
         state = NEEDS_INPUT;
 
         this.aggregators = new ArrayList<>(aggregators.size());
@@ -97,36 +90,7 @@ public class HashAggregationOperator implements Operator {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
 
-        Block block = extractBlockFromPage(page);
-        int positionCount = block.getPositionCount();
-        final LongBlock groupIdBlock;
-        if (block.asVector() != null) {
-            long[] groups = new long[positionCount];
-            for (int i = 0; i < positionCount; i++) {
-                long bucketOrd = blockHash.add(block, i);
-                if (bucketOrd < 0) { // already seen
-                    // TODO can we use this "already seen"-ness?
-                    bucketOrd = -1 - bucketOrd;
-                }
-                groups[i] = bucketOrd;
-            }
-            groupIdBlock = new LongArrayVector(groups, positionCount).asBlock();
-        } else {
-            final LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-            for (int i = 0; i < positionCount; i++) {
-                if (block.isNull(i)) {
-                    builder.appendNull();
-                } else {
-                    long bucketOrd = blockHash.add(block, i);
-                    if (bucketOrd < 0) { // already seen
-                        // TODO can we use this "already seen"-ness?
-                        bucketOrd = -1 - bucketOrd;
-                    }
-                    builder.appendLong(bucketOrd);
-                }
-            }
-            groupIdBlock = builder.build();
-        }
+        LongBlock groupIdBlock = blockHash.add(wrapPage(page));
 
         for (GroupingAggregator aggregator : aggregators) {
             aggregator.processPage(groupIdBlock, page);
@@ -141,11 +105,12 @@ public class HashAggregationOperator implements Operator {
 
         state = FINISHING;  // << allows to produce output step by step
 
-        Block[] blocks = new Block[aggregators.size() + 1];
-        blocks[0] = blockHash.getKeys();
+        Block[] keys = blockHash.getKeys();
+        Block[] blocks = new Block[keys.length + aggregators.size()];
+        System.arraycopy(keys, 0, blocks, 0, keys.length);
         for (int i = 0; i < aggregators.size(); i++) {
             var aggregator = aggregators.get(i);
-            blocks[i + 1] = aggregator.evaluate();
+            blocks[i + keys.length] = aggregator.evaluate();
         }
 
         Page page = new Page(blocks);
@@ -184,15 +149,15 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    protected Block extractBlockFromPage(Page page) {
-        return page.getBlock(groupByChannel);
+    protected Page wrapPage(Page page) {
+        return page;
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("groupByChannel=").append(groupByChannel).append(", ");
+        sb.append("blockHash=").append(blockHash).append(", ");
         sb.append("aggregators=").append(aggregators);
         sb.append("]");
         return sb.toString();

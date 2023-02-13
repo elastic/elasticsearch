@@ -312,8 +312,12 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             plan = plan.transformUp(UnaryExec.class, p -> {
                 var missing = missingAttributes(p);
 
-                // don't extract grouping fields, the hash aggregator will do the extraction by itself, unless used themselves in the aggs
-                if (p instanceof AggregateExec agg) {
+                /*
+                 * If there is a single grouping then we'll try to use ords. Either way
+                 * it loads the field lazily. If we have more than one field we need to
+                 * make sure the fields are loaded for the standard hash aggregator.
+                 */
+                if (p instanceof AggregateExec agg && agg.groupings().size() == 1) {
                     var leaves = new LinkedList<>();
                     agg.aggregates()
                         .stream()

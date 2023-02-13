@@ -14,9 +14,9 @@ import org.elasticsearch.compute.aggregation.AggregationType;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -95,9 +95,8 @@ public class AggregatorBenchmark {
         if (grouping) {
             GroupingAggregatorFunction.Factory factory = GroupingAggregatorFunction.of(aggName, aggType);
             return new HashAggregationOperator(
-                0,
                 List.of(new GroupingAggregator.GroupingAggregatorFactory(BIG_ARRAYS, factory, AggregatorMode.SINGLE, 1)),
-                () -> BlockHash.newForElementType(ElementType.LONG, BIG_ARRAYS)
+                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), BIG_ARRAYS)
             );
         }
         AggregatorFunction.Factory factory = AggregatorFunction.of(aggName, aggType);

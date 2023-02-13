@@ -94,7 +94,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     @Override
-    public final Operator.OperatorFactory groupingOperatorFactory(
+    public final Operator.OperatorFactory ordinalGroupingOperatorFactory(
         LocalExecutionPlanner.PhysicalOperation source,
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,

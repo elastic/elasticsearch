@@ -68,9 +68,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
         return new HashAggregationOperator.HashAggregationOperatorFactory(
-            0,
+            List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), mode, 1)),
-            ElementType.LONG,
             bigArrays
         );
     }
@@ -83,7 +82,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     @Override
     protected final String expectedToStringOfSimple() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return "HashAggregationOperator[groupByChannel=0, aggregators=[GroupingAggregator[aggregatorFunction="
+        return "HashAggregationOperator[blockHash=LongBlockHash{channel=0, entries=0}, aggregators=[GroupingAggregator[aggregatorFunction="
             + type
             + "[channel=1], mode=SINGLE]]]";
     }

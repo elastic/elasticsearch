@@ -68,7 +68,7 @@ avg:double | min:long | max:long | languages.long:long
 2.978159518235294E8 | 203989706 | 394597613 | 3
 ;
 
-statsBySubFieldSortedByKey-Ignore
+statsBySubFieldSortedByKey
 // https://github.com/elastic/elasticsearch-internal/issues/414
 from test | stats avg=avg(avg_worked_seconds),min=min(avg_worked_seconds),max=max(avg_worked_seconds) by languages.long | sort languages.long;
 
@@ -80,7 +80,7 @@ avg:double | min:long | max:long | languages.long:long
 3.133013149047619E8 | 203838153 | 390266432 | 5
 ;
 
-avgOfIntegerWithSortByGroupingKey-Ignore
+avgOfIntegerWithSortByGroupingKey
 // https://github.com/elastic/elasticsearch-internal/issues/414
 from test | stats avg(salary) by last_name | sort last_name desc | limit 10;
 
@@ -149,11 +149,11 @@ med:double | languages:integer
 38992.0 | 5
 ;
 
-medianByFieldAndSortedByValue2-Ignore
+medianByFieldAndSortedByValue2
 // https://github.com/elastic/elasticsearch-internal/issues/414
 from test | where languages > 0 | stats med=median(salary) by languages | sort med;
 
-med:double | languages:long
+med:double | languages:integer
 38992.0 | 5
 44353.0 | 4
 44956.0 | 2
@@ -161,11 +161,11 @@ med:double | languages:long
 54462.0 | 3
 ;
 
-medianByFieldAndSortedByAggregatedValue-Ignore
+medianByFieldAndSortedByAggregatedValue
 // https://github.com/elastic/elasticsearch-internal/issues/414
 from test | where languages > 0 | stats med=median(salary) by languages | sort languages;
 
-med:double | languages:long
+med:double | languages:integer
 49095.0 | 1
 44956.0 | 2
 54462.0 | 3
@@ -228,23 +228,21 @@ m:long | last_name:keyword
 393084805 | F
 ;
 
-sortFirstProjectAfter-Ignore
+sortFirstProjectAfter
 // https://github.com/elastic/elasticsearch-internal/issues/414
 from test | sort languages asc nulls last, emp_no asc | limit 3 | project emp_no, languages, first_name, last_name;
 
-emp_no:long | languages:long | first_name:keyword | last_name:keyword
+emp_no:integer | languages:integer | first_name:keyword | last_name:keyword
 10005 | 1 | Kyoichi | Maliniak
 10009 | 1 | Sumant | Peac
 10013 | 1 | Eberhardt | Terkki
 ;
 
-sortWithLimitOne-Ignore
-// the result from running on ES is the one with many decimals 1.76818359375, the test that runs locally is the one rounded to 2 decimals
-// the "height" fields have the values as 2.05, 2.049999952316284, 2.05078125, 2.05
+sortWithLimitOne
 from test | sort languages | limit 1;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean
-244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 2.05 | 2.05 | 2.05 | 2.05 | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true
+244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 2.05 | 2.049999952316284 | 2.05078125 | 2.05 | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true
 ;
 
 sortWithLimitOne_ExcludeHeight
@@ -254,7 +252,7 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true
 ;
 
-sortWithLimitFifteenAndProject-Ignore
+sortWithLimitFifteenAndProject
 //https://github.com/elastic/elasticsearch-internal/issues/414
 from test | sort height desc, languages.long nulls last, still_hired | limit 15 | project height, languages.long, still_hired;
 
@@ -276,13 +274,11 @@ height:double | languages.long:long | still_hired:boolean
 2.03 | 2 | true
 ;
 
-simpleEvalWithSortAndLimitOne-Ignore
-// the result from running on ES is the one with many decimals the test that runs locally is the one rounded to 2 decimals
-// the "height" fields have the values as 2.05, 2.049999952316284, 2.05078125, 2.05
+simpleEvalWithSortAndLimitOne
 from test | eval x = languages + 7 | sort x | limit 1;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
-244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 2.05 | 2.05 |  2.05 | 2.05 | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true | 8
+244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 2.05 | 2.049999952316284 | 2.05078125 | 2.05 | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true | 8
 ;
 
 simpleEvalWithSortAndLimitOne_ExcludeHeight
@@ -334,15 +330,15 @@ salary:integer
 73578
 ;
 
-whereWithEvalGeneratedValue-Ignore
+whereWithEvalGeneratedValue
 // the result from running on ES is the one with many decimals the test that runs locally is the one rounded to 2 decimals
 // the "height" fields have the values as 1.7, 1.7000000476837158, 1.7001953125, 1.7
 from test | eval x = salary / 2 | where x > 37000;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
-393084805 | 1957-05-23T00:00:00.000Z | 10007 | Tzvetan | F | 1.7  | 1.7  | 1.7  | 1.7  | 1989-02-10T00:00:00.000Z |    4 |    4 |    4 |    4 | Zielinski  | 74572 | true  | 37286
-257694181 | 1956-12-13T00:00:00.000Z | 10029 | Otmar   | M | 1.99 | 1.99 | 1.99 | 1.99 | 1985-11-20T00:00:00.000Z | null | null | null | null | Herbst     | 74999 | false | 37499
-371418933 | null                     | 10045 | Moss    | M | 1.7  | 1.7  | 1.7  | 1.7  | 1989-09-02T00:00:00.000Z |    3 |    3 |    3 |    3 | Shanbhogue | 74970 | false | 37485
+393084805 | 1957-05-23T00:00:00.000Z | 10007 | Tzvetan | F | 1.7  | 1.7000000476837158 | 1.7001953125 | 1.7  | 1989-02-10T00:00:00.000Z |    4 |    4 |    4 |    4 | Zielinski  | 74572 | true  | 37286
+257694181 | 1956-12-13T00:00:00.000Z | 10029 | Otmar   | M | 1.99 | 1.9900000095367432 | 1.990234375  | 1.99 | 1985-11-20T00:00:00.000Z | null | null | null | null | Herbst     | 74999 | false | 37499
+371418933 | null                     | 10045 | Moss    | M | 1.7  | 1.7000000476837158 | 1.7001953125 | 1.7  | 1989-09-02T00:00:00.000Z |    3 |    3 |    3 |    3 | Shanbhogue | 74970 | false | 37485
 ;
 
 whereWithEvalGeneratedValue_ExcludeHeight

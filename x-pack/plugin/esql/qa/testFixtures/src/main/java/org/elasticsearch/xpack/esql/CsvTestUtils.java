@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatters;
@@ -282,8 +283,11 @@ public final class CsvTestUtils {
         SHORT(Integer::parseInt),
         BYTE(Integer::parseInt),
         DOUBLE(Double::parseDouble),
-        FLOAT(Double::parseDouble),
-        HALF_FLOAT(Double::parseDouble),
+        FLOAT(
+            // Simulate writing the index as `float` precision by parsing as a float and rounding back to double
+            s -> (double) Float.parseFloat(s)
+        ),
+        HALF_FLOAT(s -> (double) HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(Float.parseFloat(s)))),
         SCALED_FLOAT(Double::parseDouble),
         KEYWORD(Object::toString),
         NULL(s -> null),

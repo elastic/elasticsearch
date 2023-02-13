@@ -35,22 +35,20 @@ h:double
 2.1
 ;
 
-maxOfFloat-Ignore
+maxOfFloat
 // float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
-// running in ES this tests yields 2.0999999046325684
 from test | stats h = max(height.float);
 
 h:double
-2.1
+2.0999999046325684
 ;
 
-maxOfHalfFloat-Ignore
+maxOfHalfFloat
 // float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
-// running in ES this tests yields 2.099609375
 from test | stats h = max(height.half_float);
 
 h:double
-2.1
+2.099609375
 ;
 
 
@@ -98,20 +96,18 @@ h:double
 1.7682
 ;
 
-avgOfFloat-Ignore
-// the result from running on ES is the one with many decimals 1.7681999909877777, the test that runs locally is the one rounded to 4 decimals
+avgOfFloat
 from test | stats h = avg(height.float);
 
 h:double
-1.7682
+1.7681999909877777
 ;
 
-avgOfHalfFloat-Ignore
-// the result from running on ES is the one with many decimals 1.76818359375, the test that runs locally is the one rounded to 4 decimals
+avgOfHalfFloat
 from test | stats h = avg(height.half_float);
 
 h:double
-1.7682
+1.76818359375
 ;
 avgOfScaledFloat
 from test | stats h = avg(height.scaled_float);
@@ -155,16 +151,14 @@ h:double
 176.82
 ;
 
-sumOfFloat-Ignore
-// the result from running on ES is the one with many decimals, the test that runs locally is the one rounded to 2 decimals
+sumOfFloat
 from test | stats h = sum(height.float);
 
 h:double
 176.81999909877777
 ;
 
-sumOfHalfFloat-Ignore
-// the result from running on ES is the one with many decimals, the test that runs locally is the one rounded to 2 decimals
+sumOfHalfFloat
 from test | stats h = sum(height.half_float);
 
 h:double

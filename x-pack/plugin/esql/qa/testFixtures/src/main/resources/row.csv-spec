@@ -190,7 +190,7 @@ a:keyword
 "hello world"
 ;
 
-limitRow-Ignore
+limitRow
 row a = 1 | limit 0;
 
 a:integer

@@ -49,7 +49,7 @@ public class RestInferTrainedModelAction extends BaseRestHandler {
         if (restRequest.hasParam(InferModelAction.Request.TIMEOUT.getPreferredName())) {
             TimeValue inferTimeout = restRequest.paramAsTime(
                 InferModelAction.Request.TIMEOUT.getPreferredName(),
-                InferModelAction.Request.DEFAULT_TIMEOUT
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
             );
             request.setInferenceTimeout(inferTimeout);
         }

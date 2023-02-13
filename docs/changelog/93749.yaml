@@ -1,0 +1,5 @@
+pr: 93749
+summary: Always report dimension and time series metric attributes in field caps api
+area: TSDB
+type: bug
+issues: []

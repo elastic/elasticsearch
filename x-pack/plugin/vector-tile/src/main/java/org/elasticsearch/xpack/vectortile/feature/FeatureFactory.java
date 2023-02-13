@@ -295,10 +295,7 @@ public class FeatureFactory {
             } else {
                 try {
                     final IntersectionMatrix matrix = tile.relate(geometry);
-                    if (matrix.isContains()) {
-                        // no need to clip
-                        return geometry;
-                    } else if (matrix.isWithin()) {
+                    if (matrix.isWithin()) {
                         // the clipped geometry is the envelope
                         return tile.copy();
                     } else if (matrix.isIntersects()) {

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.EnumSet.copyOf;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -34,15 +34,15 @@ public class ClusterBlockTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            Version version = randomVersion(random());
-            ClusterBlock clusterBlock = randomClusterBlock(version);
+            TransportVersion version = randomVersion(random());
+            ClusterBlock clusterBlock = randomClusterBlock();
 
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(version);
+            out.setTransportVersion(version);
             clusterBlock.writeTo(out);
 
             StreamInput in = out.bytes().streamInput();
-            in.setVersion(version);
+            in.setTransportVersion(version);
             ClusterBlock result = new ClusterBlock(in);
 
             assertClusterBlockEquals(clusterBlock, result);
@@ -112,11 +112,7 @@ public class ClusterBlockTests extends ESTestCase {
         assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, ESTestCase::randomInt)), nullValue());
     }
 
-    private ClusterBlock randomClusterBlock() {
-        return randomClusterBlock(randomVersion(random()));
-    }
-
-    private ClusterBlock randomClusterBlock(final Version version) {
+    private static ClusterBlock randomClusterBlock() {
         final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
         return new ClusterBlock(

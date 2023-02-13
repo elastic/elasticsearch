@@ -38,8 +38,8 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        this.authenticationService = mock(AuthenticationService.class);
         this.apiKeyService = mock(ApiKeyService.class);
+        this.authenticationService = mock(AuthenticationService.class);
         this.clusterService = mock(ClusterService.class);
     }
 

@@ -112,7 +112,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
@@ -1092,9 +1091,6 @@ public class ApiKeyService {
             close();
         }
 
-        public String getBase64Encoded() {
-            return Base64.getEncoder().encodeToString((getId() + ":" + getKey()).getBytes(StandardCharsets.UTF_8));
-        }
     }
 
     private static class ApiKeyLoggingDeprecationHandler implements DeprecationHandler {

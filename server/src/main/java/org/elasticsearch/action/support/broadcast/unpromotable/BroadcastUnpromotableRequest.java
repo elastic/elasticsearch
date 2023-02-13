@@ -67,7 +67,7 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "BroadcastUnpromotableRequest{" + "shardId=" + shardId() + '}';
+        return "BroadcastUnpromotableRequest{shardId=" + shardId() + '}';
     }
 
     @Override

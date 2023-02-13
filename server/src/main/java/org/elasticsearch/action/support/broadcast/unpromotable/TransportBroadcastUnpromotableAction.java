@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.support.broadcast.unpromotable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -31,8 +29,6 @@ import org.elasticsearch.transport.TransportService;
 public abstract class TransportBroadcastUnpromotableAction<Request extends BroadcastUnpromotableRequest> extends HandledTransportAction<
     Request,
     ActionResponse.Empty> {
-
-    protected Logger logger = LogManager.getLogger(getClass());
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;

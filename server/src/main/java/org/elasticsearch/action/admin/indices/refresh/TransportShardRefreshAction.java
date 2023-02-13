@@ -23,9 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -36,7 +34,7 @@ import java.io.IOException;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
     BasicReplicationRequest,
-    BasicReplicationRequest,
+    ShardRefreshReplicaRequest,
     ReplicationResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportShardRefreshAction.class);
@@ -44,8 +42,6 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     public static final String NAME = RefreshAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
     public static final String SOURCE_API = "api";
-
-    private Engine.RefreshResult primaryRefreshResult = Engine.RefreshResult.NO_REFRESH;
 
     @Inject
     public TransportShardRefreshAction(
@@ -67,9 +63,10 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             shardStateAction,
             actionFilters,
             BasicReplicationRequest::new,
-            BasicReplicationRequest::new,
+            ShardRefreshReplicaRequest::new,
             ThreadPool.Names.REFRESH
         );
+        // registers the unpromotable version of shard refresh action
         new TransportUnpromotableShardRefreshAction(clusterService, transportService, actionFilters, indicesService);
     }
 
@@ -82,17 +79,18 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     protected void shardOperationOnPrimary(
         BasicReplicationRequest shardRequest,
         IndexShard primary,
-        ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener
+        ActionListener<PrimaryResult<ShardRefreshReplicaRequest, ReplicationResponse>> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            primaryRefreshResult = primary.refresh(SOURCE_API);
+            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), primary.refresh(SOURCE_API));
+            replicaRequest.setParentTask(shardRequest.getParentTask());
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+            return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
         });
     }
 
     @Override
-    protected void shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+    protected void shardOperationOnReplica(ShardRefreshReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
             replica.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on replica", replica.shardId());
@@ -101,7 +99,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     }
 
     @Override
-    protected ReplicationOperation.Replicas<BasicReplicationRequest> newReplicasProxy() {
+    protected ReplicationOperation.Replicas<ShardRefreshReplicaRequest> newReplicasProxy() {
         return new UnpromotableReplicasRefreshProxy();
     }
 
@@ -109,15 +107,14 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
 
         @Override
         public void onPrimaryOperationComplete(
-            BasicReplicationRequest replicaRequest,
+            ShardRefreshReplicaRequest replicaRequest,
             IndexShardRoutingTable indexShardRoutingTable,
             ActionListener<Void> listener
         ) {
-            assert primaryRefreshResult.refreshed() : "primary has not refreshed";
-            ShardId primary = replicaRequest.shardId();
+            assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
             UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                 indexShardRoutingTable,
-                primaryRefreshResult.generation()
+                replicaRequest.primaryRefreshResult.generation()
             );
             transportService.sendRequest(
                 transportService.getLocalNode(),

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.KnownTransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;

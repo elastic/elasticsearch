@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +37,9 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 public class ProxyConnectionStrategyTests extends ESTestCase {
 
@@ -79,9 +83,22 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         try (MockTransportService transport1 = startTransport("node1", Version.CURRENT)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = spy(MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool))
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
+
+                // Handshake (as part of cluster name validation) should go through the internal remote connection
+                // So it can be intercepted accordingly
+                doAnswer(invocation -> {
+                    final var connection = (Transport.Connection) invocation.getArgument(0);
+                    final Optional<String> optionalClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
+                    assertTrue(optionalClusterAlias.isPresent());
+                    assertEquals(clusterAlias, optionalClusterAlias.get());
+                    invocation.callRealMethod();
+                    return null;
+                }).when(localService).handshake(any(), any(), any(), any());
 
                 final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
                     profile,

@@ -1,0 +1,5 @@
+pr: 93680
+summary: Add cluster stats re. snapshot activity
+area: Snapshot/Restore
+type: enhancement
+issues: []

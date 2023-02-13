@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -113,7 +113,7 @@ public final class RemoteAccessAuthentication {
         out.setTransportVersion(authentication.getEffectiveSubject().getTransportVersion());
         TransportVersion.writeVersion(authentication.getEffectiveSubject().getTransportVersion(), out);
         authentication.writeTo(out);
-        out.writeCollection(roleDescriptorsBytesList, StreamOutput::writeBytesReference);
+        out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
@@ -144,7 +144,7 @@ public final class RemoteAccessAuthentication {
         return Collections.unmodifiableMap(copy);
     }
 
-    public static final class RoleDescriptorsBytes extends AbstractBytesReference {
+    public static final class RoleDescriptorsBytes implements Writeable {
 
         public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
         private final BytesReference rawBytes;
@@ -157,8 +157,17 @@ public final class RemoteAccessAuthentication {
             this(streamInput.readBytesReference());
         }
 
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBytesReference(rawBytes);
+        }
+
+        /**
+         * Compute the sha256 digest of the bytes
+         * @return A hexadecimal representation of the sha256 digest
+         */
+        public String digest() {
+            return MessageDigests.toHexString(MessageDigests.digest(rawBytes, MessageDigests.sha256()));
         }
 
         public static RoleDescriptorsBytes fromRoleDescriptors(final Set<RoleDescriptor> roleDescriptors) throws IOException {
@@ -187,28 +196,21 @@ public final class RemoteAccessAuthentication {
         }
 
         @Override
-        public byte get(int index) {
-            return rawBytes.get(index);
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RoleDescriptorsBytes that = (RoleDescriptorsBytes) o;
+            return Objects.equals(rawBytes, that.rawBytes);
         }
 
         @Override
-        public int length() {
-            return rawBytes.length();
+        public int hashCode() {
+            return Objects.hash(rawBytes);
         }
 
         @Override
-        public BytesReference slice(int from, int length) {
-            return rawBytes.slice(from, length);
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return rawBytes.ramBytesUsed();
-        }
-
-        @Override
-        public BytesRef toBytesRef() {
-            return rawBytes.toBytesRef();
+        public String toString() {
+            return "RoleDescriptorsBytes{" + "rawBytes=" + rawBytes + '}';
         }
     }
 }

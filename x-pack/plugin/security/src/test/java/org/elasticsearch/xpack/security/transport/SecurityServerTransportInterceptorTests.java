@@ -860,7 +860,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder()
             .put(this.settings)
             .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
-            .put("remote_cluster.enabled", true)
+            .put("remote_cluster_server.enabled", true)
             .put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);
         if (randomBoolean()) {
             builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
@@ -923,7 +923,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder()
             .put(this.settings)
             .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
-            .put("remote_cluster.enabled", false)
+            .put("remote_cluster_server.enabled", false)
             .put("xpack.security.remote_cluster_server.ssl.enabled", randomBoolean());
         if (randomBoolean()) {
             builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed

@@ -53,6 +53,7 @@ public class Constants {
         "cluster:admin/repository/get",
         "cluster:admin/repository/put",
         "cluster:admin/repository/verify",
+        "cluster:admin/repository/verify_integrity",
         "cluster:admin/reroute",
         "cluster:admin/script/delete",
         "cluster:admin/script/get",

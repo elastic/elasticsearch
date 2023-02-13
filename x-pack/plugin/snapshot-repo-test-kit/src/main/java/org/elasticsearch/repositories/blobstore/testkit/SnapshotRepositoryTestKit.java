@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -18,8 +19,11 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.integrity.RestVerifyRepositoryIntegrityAction;
+import org.elasticsearch.repositories.blobstore.integrity.VerifyRepositoryIntegrityAction;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,7 +37,8 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
         return List.of(
             new ActionHandler<>(RepositoryAnalyzeAction.INSTANCE, RepositoryAnalyzeAction.TransportAction.class),
             new ActionHandler<>(BlobAnalyzeAction.INSTANCE, BlobAnalyzeAction.TransportAction.class),
-            new ActionHandler<>(GetBlobChecksumAction.INSTANCE, GetBlobChecksumAction.TransportAction.class)
+            new ActionHandler<>(GetBlobChecksumAction.INSTANCE, GetBlobChecksumAction.TransportAction.class),
+            new ActionHandler<>(VerifyRepositoryIntegrityAction.INSTANCE, VerifyRepositoryIntegrityAction.TransportAction.class)
         );
     }
 
@@ -47,7 +52,7 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestRepositoryAnalyzeAction());
+        return List.of(new RestRepositoryAnalyzeAction(), new RestVerifyRepositoryIntegrityAction());
     }
 
     static void humanReadableNanos(XContentBuilder builder, String rawFieldName, String readableFieldName, long nanos) throws IOException {
@@ -58,5 +63,16 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
         }
 
         builder.field(rawFieldName, nanos);
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                VerifyRepositoryIntegrityAction.Status.NAME,
+                VerifyRepositoryIntegrityAction.Status::new
+            )
+        );
     }
 }

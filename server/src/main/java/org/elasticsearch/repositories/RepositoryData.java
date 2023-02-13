@@ -275,6 +275,10 @@ public final class RepositoryData {
         return snapshotIds.values();
     }
 
+    public long getIndexSnapshotCount() {
+        return indexSnapshots.values().stream().mapToLong(List::size).sum();
+    }
+
     /**
      * @return whether some of the {@link SnapshotDetails} of the given snapshot are missing, due to BwC, so that they must be loaded from
      * the {@link SnapshotInfo} blob instead.

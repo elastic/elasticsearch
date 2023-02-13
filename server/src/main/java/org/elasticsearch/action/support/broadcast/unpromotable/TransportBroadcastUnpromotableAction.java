@@ -86,11 +86,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
 
         @Override
         public void messageReceived(Request request, TransportChannel channel, Task task) throws Exception {
-            final ActionListener<ActionResponse.Empty> channelActionListener = new ChannelActionListener<>(
-                channel,
-                transportUnpromotableAction,
-                request
-            );
+            final ActionListener<ActionResponse.Empty> channelActionListener = new ChannelActionListener<ActionResponse.Empty>(channel);
             ActionListener.run(channelActionListener, (listener) -> { unpromotableShardOperation(task, request, listener); });
         }
 

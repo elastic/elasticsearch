@@ -28,8 +28,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
-import static org.elasticsearch.core.Strings.format;
-
 /**
  * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
  * it to the appropriate handler.
@@ -217,7 +215,7 @@ public class InboundHandler {
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                logger.warn(() -> format("error processing handshake received on [%s], closing channel", channel), e);
+                logger.warn(() -> "error processing handshake version [" + version + "] received on [" + channel + "], closing channel", e);
                 channel.close();
             }
         } else {

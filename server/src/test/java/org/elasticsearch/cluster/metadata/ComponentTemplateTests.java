@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
@@ -58,6 +59,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
+        DataLifecycle lifecycle = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -67,7 +69,10 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        Template template = new Template(settings, mappings, aliases);
+        if (randomBoolean()) {
+            lifecycle = randomLifecycle();
+        }
+        Template template = new Template(settings, mappings, aliases, lifecycle);
 
         Map<String, Object> meta = null;
         if (randomBoolean()) {
@@ -107,6 +112,10 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             .build();
     }
 
+    private static DataLifecycle randomLifecycle() {
+        return new DataLifecycle(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+    }
+
     private static Map<String, Object> randomMeta() {
         if (randomBoolean()) {
             return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
@@ -124,62 +133,65 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     public static ComponentTemplate mutateTemplate(ComponentTemplate orig) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                switch (randomIntBetween(0, 2)) {
-                    case 0 -> {
-                        Template ot = orig.template();
-                        return new ComponentTemplate(
-                            new Template(
-                                randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
-                                ot.mappings(),
-                                ot.aliases()
-                            ),
-                            orig.version(),
-                            orig.metadata()
-                        );
-                    }
-                    case 1 -> {
-                        Template ot2 = orig.template();
-                        return new ComponentTemplate(
-                            new Template(
-                                ot2.settings(),
-                                randomValueOtherThan(ot2.mappings(), ComponentTemplateTests::randomMappings),
-                                ot2.aliases()
-                            ),
-                            orig.version(),
-                            orig.metadata()
-                        );
-                    }
-                    case 2 -> {
-                        Template ot3 = orig.template();
-                        return new ComponentTemplate(
-                            new Template(
-                                ot3.settings(),
-                                ot3.mappings(),
-                                randomValueOtherThan(ot3.aliases(), ComponentTemplateTests::randomAliases)
-                            ),
-                            orig.version(),
-                            orig.metadata()
-                        );
-                    }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> {
+                Template ot = orig.template();
+                yield switch (randomIntBetween(0, 3)) {
+                    case 0 -> new ComponentTemplate(
+                        new Template(
+                            randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
+                            ot.mappings(),
+                            ot.aliases(),
+                            ot.getLifecycle()
+                        ),
+                        orig.version(),
+                        orig.metadata()
+                    );
+                    case 1 -> new ComponentTemplate(
+                        new Template(
+                            ot.settings(),
+                            randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings),
+                            ot.aliases(),
+                            ot.getLifecycle()
+                        ),
+                        orig.version(),
+                        orig.metadata()
+                    );
+                    case 2 -> new ComponentTemplate(
+                        new Template(
+                            ot.settings(),
+                            ot.mappings(),
+                            randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases),
+                            ot.getLifecycle()
+                        ),
+                        orig.version(),
+                        orig.metadata()
+                    );
+                    case 3 -> new ComponentTemplate(
+                        new Template(
+                            ot.settings(),
+                            ot.mappings(),
+                            ot.aliases(),
+                            randomValueOtherThan(ot.getLifecycle(), ComponentTemplateTests::randomLifecycle)
+                        ),
+                        orig.version(),
+                        orig.metadata()
+                    );
                     default -> throw new IllegalStateException("illegal randomization branch");
-                }
-            case 1:
-                return new ComponentTemplate(
-                    orig.template(),
-                    randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
-                    orig.metadata()
-                );
-            case 2:
-                return new ComponentTemplate(
-                    orig.template(),
-                    orig.version(),
-                    randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
-                );
-            default:
-                throw new IllegalStateException("illegal randomization branch");
-        }
+                };
+            }
+            case 1 -> new ComponentTemplate(
+                orig.template(),
+                randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
+                orig.metadata()
+            );
+            case 2 -> new ComponentTemplate(
+                orig.template(),
+                orig.version(),
+                randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
+            );
+            default -> throw new IllegalStateException("illegal randomization branch");
+        };
     }
 
     public void testMappingsEquals() throws IOException {

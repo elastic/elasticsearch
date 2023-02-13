@@ -33,7 +33,7 @@ import java.util.Objects;
  */
 public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentFragment {
 
-    public static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.dlm_feature_flag_enabled"));
+    private static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.dlm_feature_flag_enabled"));
 
     public static boolean isEnabled() {
         return FEATURE_FLAG_ENABLED;

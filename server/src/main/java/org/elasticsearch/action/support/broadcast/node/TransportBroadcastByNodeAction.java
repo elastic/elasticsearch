@@ -401,7 +401,7 @@ public abstract class TransportBroadcastByNodeAction<
                 request.getIndicesLevelRequest(),
                 request.getShards(),
                 request.getNodeId(),
-                new ChannelActionListener<>(channel, transportNodeBroadcastAction, request)
+                new ChannelActionListener<>(channel)
             );
         }
     }

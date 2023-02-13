@@ -8,13 +8,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import junit.framework.TestCase;
-
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.test.ESTestCase;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
-
-public class EmptyDoubleHdrHistogramTests extends TestCase {
+public class EmptyDoubleHdrHistogramTests extends ESTestCase {
 
     private static final DoubleHistogram singleton = new EmptyDoubleHdrHistogram();
 

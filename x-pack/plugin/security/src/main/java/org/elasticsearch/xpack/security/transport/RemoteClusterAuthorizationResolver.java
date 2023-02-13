@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.util.Map;
 
@@ -47,7 +48,8 @@ public class RemoteClusterAuthorizationResolver {
 
     public String resolveAuthorization(final String clusterAlias) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            return this.apiKeys.get(clusterAlias);
+            final String apiKey = apiKeys.get(clusterAlias);
+            return apiKey == null ? null : ApiKeyService.withApiKeyPrefix(apiKey);
         }
         return null;
     }

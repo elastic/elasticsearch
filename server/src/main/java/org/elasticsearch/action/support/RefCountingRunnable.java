@@ -110,6 +110,18 @@ public final class RefCountingRunnable implements Releasable {
     }
 
     /**
+     * Returns {@code true} only if there was at least one active reference when the method was called; if it returns {@code false} then the
+     * object is closed; future attempts to acquire references will fail.
+     */
+    public Releasable tryAcquire() {
+        if (refCounted.tryIncRef()) {
+            return new AcquiredRef();
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Acquire a reference to this object and return a listener which releases it when notified. The delegate {@link Runnable} is called
      * when all its references have been released.
      */

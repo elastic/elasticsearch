@@ -498,7 +498,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         for (int i = 0; i < data.size(); i++) {
             indexDocWithRange(indexName, String.valueOf(i + 1), data.get(i));
         }
-        flush(indexName);
+        refresh(indexName);
 
         // Use a fixed client in order to avoid randomizing timeouts which leads to different cache entries
         var client = client();

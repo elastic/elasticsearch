@@ -173,19 +173,20 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
      * numberOfSignificantValueDigits into the one with more numberOfSignificantValueDigits.
      * This prevents producing a result that has lower than expected precision.
      *
-     * @param h1 The first histogram to merge
-     * @param h2 The second histogram to merge
+     * @param histogram1 The first histogram to merge
+     * @param histogram2 The second histogram to merge
      * @return One of the input histograms such that the one with higher numberOfSignificantValueDigits is used as the one for merging
      */
-    private DoubleHistogram merge(final DoubleHistogram h1, final DoubleHistogram h2) {
-        if (h2.getNumberOfSignificantValueDigits() > h1.getNumberOfSignificantValueDigits()) {
-            return merge(h2, h1);
+    private DoubleHistogram merge(final DoubleHistogram histogram1, final DoubleHistogram histogram2) {
+        DoubleHistogram moreDigits = histogram1;
+        DoubleHistogram lessDigits = histogram2;
+        if (histogram2.getNumberOfSignificantValueDigits() > histogram1.getNumberOfSignificantValueDigits()) {
+            moreDigits = histogram2;
+            lessDigits = histogram1;
         }
-        assert h1.getNumberOfSignificantValueDigits() >= h2.getNumberOfSignificantValueDigits();
-        h1.setAutoResize(true);
-        h1.add(h2);
-
-        return h1;
+        moreDigits.setAutoResize(true);
+        moreDigits.add(lessDigits);
+        return moreDigits;
     }
 
     @Override

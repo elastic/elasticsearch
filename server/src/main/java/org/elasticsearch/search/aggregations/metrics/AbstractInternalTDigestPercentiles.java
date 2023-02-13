@@ -112,9 +112,18 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             if (merged == null) {
                 merged = new TDigestState(percentiles.state.compression());
             }
-            merged.add(percentiles.state);
+            merged = merge(merged, percentiles.state);
         }
         return createReduced(getName(), keys, merged, keyed, getMetadata());
+    }
+
+    private TDigestState merge(final TDigestState digest1, final TDigestState digest2) {
+        if (digest2.compression() < digest1.compression()) {
+            return merge(digest2, digest1);
+        }
+        assert digest1.compression() < digest2.compression();
+        digest1.add(digest2);
+        return digest1;
     }
 
     @Override

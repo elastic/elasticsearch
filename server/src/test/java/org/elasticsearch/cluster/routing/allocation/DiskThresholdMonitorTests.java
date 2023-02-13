@@ -1311,7 +1311,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder()
             .add(newNormalNode("node1", "node1"))
             .add(newNormalNode("node2", "node2"));
-        // node3 which is to replace node1 may or may not bee in the cluster
+        // node3 which is to replace node1 may or may not be in the cluster
         if (shutdownMetadataInState && randomBoolean()) {
             discoveryNodes.add(newNormalNode("node3", "node3"));
         }
@@ -1331,7 +1331,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertTrue(result.v1()); // reroute on new nodes
         assertEquals(Set.of("test"), result.v2());
 
-        final ClusterState blockedClusterState = ClusterState.builder(clusterState)
+        final ClusterState blockedClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .nodes(discoveryNodes)
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();
         var result2 = runDiskThresholdMonitor(blockedClusterState, clusterInfo);

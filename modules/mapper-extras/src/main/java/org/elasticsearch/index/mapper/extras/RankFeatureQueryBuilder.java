@@ -383,13 +383,17 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         if (ft instanceof final RankFeatureFieldType fft) {
             return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
         } else if (ft == null) {
-            final int lastDotIndex = field.lastIndexOf('.');
-            if (lastDotIndex != -1) {
-                final String parentField = field.substring(0, lastDotIndex);
+            // for fields of RankFeaturesFieldType need to find where the feature name starts
+            int featureNameStart = field.lastIndexOf('.');
+            while (featureNameStart != -1) {
+                final String parentField = field.substring(0, featureNameStart);
                 final MappedFieldType parentFt = context.getFieldType(parentField);
                 if (parentFt instanceof RankFeaturesFieldType) {
-                    return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
+                    return scoreFunction.toQuery(parentField, field.substring(featureNameStart + 1), true);
                 }
+                // if we haven't found a RankFeaturesFieldType parent field yet, this could be because
+                // the feature name contains one or multiple dots. In this case, repeat the above for the remaining prefix
+                featureNameStart = field.substring(0, featureNameStart).lastIndexOf('.');
             }
             return new MatchNoDocsQuery(); // unmapped field
         } else {

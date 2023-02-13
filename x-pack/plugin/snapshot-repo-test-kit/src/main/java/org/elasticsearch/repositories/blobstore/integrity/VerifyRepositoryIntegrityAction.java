@@ -344,8 +344,8 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
             builder.endObject();
             builder.startObject("blobs");
             builder.field("verified", blobsVerified);
-            builder.humanReadableField("verified_size_in_bytes", "verified_size", ByteSizeValue.ofBytes(blobBytesVerified));
             if (throttledNanos > 0) {
+                builder.humanReadableField("verified_size_in_bytes", "verified_size", ByteSizeValue.ofBytes(blobBytesVerified));
                 builder.humanReadableField("throttled_time_in_millis", "throttled_time", TimeValue.timeValueNanos(throttledNanos));
             }
             builder.endObject();

@@ -60,8 +60,8 @@ public class VerifyRepositoryIntegrityActionTests extends ESTestCase {
                 6,
                 7,
                 8,
+                ByteSizeValue.ofKb(4000).getBytes(),
                 0,
-                TimeValue.timeValueSeconds(350).nanos(),
                 9,
                 "results"
             ).toXContent(builder, new ToXContent.MapParams(Map.of("human", "true")));

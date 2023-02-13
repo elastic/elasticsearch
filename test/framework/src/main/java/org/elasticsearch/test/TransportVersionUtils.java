@@ -9,7 +9,6 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;

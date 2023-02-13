@@ -11,8 +11,6 @@ package org.elasticsearch.search.fieldcaps;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -33,8 +31,8 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -681,10 +679,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     )
     public void testCancel() throws Exception {
         MockLogAppender logAppender = new MockLogAppender();
-        logAppender.start();
-        Logger fieldCapsLogger = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
-        Loggers.addAppender(fieldCapsLogger, logAppender);
-        try {
+        try (Releasable ignored = logAppender.capturing(TransportFieldCapabilitiesAction.class)) {
             logAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "clear resources",
@@ -735,9 +730,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertBusy(logAppender::assertAllExpectationsMatched);
             BlockingOnRewriteQueryBuilder.unblockOnRewrite();
             expectThrows(CancellationException.class, future::actionGet);
-        } finally {
-            Loggers.removeAppender(fieldCapsLogger, logAppender);
-            logAppender.stop();
         }
     }
 

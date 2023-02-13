@@ -16,8 +16,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -25,6 +27,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -64,8 +67,10 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
 /**
@@ -100,6 +105,7 @@ public final class Authentication implements ToXContentObject {
     public static final TransportVersion VERSION_REMOTE_ACCESS_REALM = TransportVersion.V_8_7_0;
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
+    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -151,7 +157,7 @@ public final class Authentication implements ToXContentObject {
         final Map<String, Object> metadata;
         if (version.onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
             type = AuthenticationType.values()[in.readVInt()];
-            metadata = in.readMap();
+            metadata = readMetadata(in);
         } else {
             type = AuthenticationType.REALM;
             metadata = Map.of();
@@ -529,7 +535,7 @@ public final class Authentication implements ToXContentObject {
         final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
         if (out.getTransportVersion().onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
             out.writeVInt(type.ordinal());
-            out.writeGenericMap(metadata);
+            writeMetadata(out, metadata);
         } else {
             assert type == AuthenticationType.REALM && metadata.isEmpty()
                 : Strings.format(
@@ -652,6 +658,56 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
+    private static final Map<String, CheckedFunction<StreamInput, Object, IOException>> METADATA_VALUE_READER = Map.of(
+        REMOTE_ACCESS_AUTHENTICATION_KEY,
+        Authentication::new,
+        REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+        in -> in.readList(RoleDescriptorsBytes::new)
+    );
+
+    private static Map<String, Object> readMetadata(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(VERSION_METADATA_BEYOND_GENERIC_MAP)) {
+            final int size = in.readVInt();
+            final Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++) {
+                final String key = in.readString();
+                final Object value = METADATA_VALUE_READER.getOrDefault(key, StreamInput::readGenericValue).apply(in);
+                metadata.put(key, value);
+            }
+            return metadata;
+        } else {
+            return in.readMap();
+        }
+    }
+
+    private static final Map<String, Writeable.Writer<?>> METADATA_VALUE_WRITER = Map.of(
+        REMOTE_ACCESS_AUTHENTICATION_KEY,
+        (out, v) -> ((Authentication) v).writeTo(out),
+        REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+        (out, v) -> {
+            @SuppressWarnings("unchecked")
+            final List<RoleDescriptorsBytes> roleDescriptorsBytesList = (List<RoleDescriptorsBytes>) v;
+            out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
+        }
+    );
+
+    private static void writeMetadata(StreamOutput out, Map<String, Object> metadata) throws IOException {
+        if (out.getTransportVersion().onOrAfter(VERSION_METADATA_BEYOND_GENERIC_MAP)) {
+            out.writeVInt(metadata.size());
+            for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+                out.writeString(entry.getKey());
+                @SuppressWarnings("unchecked")
+                final var valueWriter = (Writeable.Writer<Object>) METADATA_VALUE_WRITER.getOrDefault(
+                    entry.getKey(),
+                    StreamOutput::writeGenericValue
+                );
+                valueWriter.write(out, entry.getValue());
+            }
+        } else {
+            out.writeGenericMap(metadata);
+        }
+    }
+
     private void assertInternalConsistency() {
         if (false == Assertions.ENABLED) {
             return;
@@ -676,10 +732,10 @@ public final class Authentication implements ToXContentObject {
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
 
         if (isRemoteAccess()) {
-            assert getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY) != null
+            assert getAuthenticatingSubject().getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY) != null
                 : "Remote access authentication requires metadata to contain a serialized remote access authentication, "
                     + "and the value must be non-null.";
-            assert getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) != null
+            assert getAuthenticatingSubject().getMetadata().get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) != null
                 : "Remote access authentication requires metadata to contain a serialized remote access role descriptors, "
                     + "and the value must be non-null.";
         }
@@ -1050,27 +1106,15 @@ public final class Authentication implements ToXContentObject {
     ) {
         assert authentication.isRemoteAccess() : "authentication must be remote access";
         final Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
-        assert metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+        assert metadata.containsKey(REMOTE_ACCESS_AUTHENTICATION_KEY)
             : "metadata must contain authentication object for remote access authentication";
-        try {
-            final Authentication authenticationFromMetadata = AuthenticationContextSerializer.decode(
-                (String) metadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-            );
-            if (authenticationFromMetadata.getEffectiveSubject().getTransportVersion().after(olderVersion)) {
-                final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
-                rewrittenMetadata.put(
-                    AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
-                    authenticationFromMetadata.maybeRewriteForOlderVersion(olderVersion).encode()
-                );
-                return rewrittenMetadata;
-            } else {
-                return metadata;
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(
-                "failed serialization while rewriting [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] metadata field",
-                e
-            );
+        final Authentication authenticationFromMetadata = (Authentication) metadata.get(REMOTE_ACCESS_AUTHENTICATION_KEY);
+        if (authenticationFromMetadata.getEffectiveSubject().getTransportVersion().after(olderVersion)) {
+            final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
+            rewrittenMetadata.put(REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromMetadata.maybeRewriteForOlderVersion(olderVersion));
+            return rewrittenMetadata;
+        } else {
+            return metadata;
         }
     }
 

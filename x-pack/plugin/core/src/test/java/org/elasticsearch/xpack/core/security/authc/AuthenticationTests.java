@@ -476,12 +476,20 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication().encode())
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication())
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
             hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthentication.getRoleDescriptorsBytesList())
         );
+
+        // Serialization round-trip
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            authentication.writeTo(out);
+            final StreamInput in = out.bytes().streamInput();
+            final Authentication deserialized = new Authentication(in);
+            assertThat(deserialized, equalTo(authentication));
+        }
     }
 
     public void testSupportsRunAs() {
@@ -650,9 +658,9 @@ public class AuthenticationTests extends ESTestCase {
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
-        final Authentication innerActualAuthentication = AuthenticationContextSerializer.decode(
-            (String) actual.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-        );
+        final Authentication innerActualAuthentication = (Authentication) actual.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
         assertThat(innerActualAuthentication, equalTo(innerAuthentication.maybeRewriteForOlderVersion(maybeOldVersion)));
     }
 
@@ -672,9 +680,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication
         );
 
-        final Authentication innerRewritten = AuthenticationContextSerializer.decode(
-            (String) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-        );
+        final Authentication innerRewritten = (Authentication) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
         assertThat(innerRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(olderVersion)));
     }
 

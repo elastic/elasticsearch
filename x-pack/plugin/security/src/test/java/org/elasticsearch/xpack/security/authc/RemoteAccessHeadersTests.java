@@ -28,7 +28,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
     public void testWriteReadContextRoundtrip() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final var expected = new RemoteAccessHeaders(
-            randomEncodedApiKey(),
+            randomEncodedApiKeyHeader(),
             AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
         );
 
@@ -43,7 +43,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
     public void testClusterCredentialsReturnsValidApiKey() {
         final String id = UUIDs.randomBase64UUID();
         final String key = UUIDs.randomBase64UUID();
-        final String encodedApiKey = encodedApiKey(id, key);
+        final String encodedApiKey = encodedApiKeyWithPrefix(id, key);
         final var headers = new RemoteAccessHeaders(
             encodedApiKey,
             AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
@@ -58,7 +58,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
     public void testReadOnInvalidApiKeyValueThrows() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final var expected = new RemoteAccessHeaders(
-            randomFrom("abc", "id:key", "", " ", randomEncodedApiKey() + "suffix"),
+            randomFrom("ApiKey abc", "ApiKey id:key", "ApiKey ", "ApiKey  ", randomEncodedApiKeyHeader() + "suffix"),
             AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
         );
 
@@ -74,15 +74,16 @@ public class RemoteAccessHeadersTests extends ESTestCase {
     public void testReadOnHeaderWithMalformedPrefixThrows() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection()).writeToContext(ctx);
+        final String encodedApiKey = encodedApiKey(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUID());
         ctx.putHeader(
             REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
             randomFrom(
                 // missing space
-                "ApiKey" + randomEncodedApiKey(),
+                "ApiKey" + encodedApiKey,
                 // no prefix
-                randomEncodedApiKey(),
+                encodedApiKey,
                 // wrong prefix
-                "Bearer " + randomEncodedApiKey()
+                "Bearer " + encodedApiKey
             )
         );
 
@@ -99,8 +100,12 @@ public class RemoteAccessHeadersTests extends ESTestCase {
     }
 
     // TODO centralize common usage of this across all tests
-    private static String randomEncodedApiKey() {
-        return encodedApiKey(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUID());
+    private static String randomEncodedApiKeyHeader() {
+        return encodedApiKeyWithPrefix(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUID());
+    }
+
+    private static String encodedApiKeyWithPrefix(String id, String key) {
+        return "ApiKey " + encodedApiKey(id, key);
     }
 
     private static String encodedApiKey(String id, String key) {

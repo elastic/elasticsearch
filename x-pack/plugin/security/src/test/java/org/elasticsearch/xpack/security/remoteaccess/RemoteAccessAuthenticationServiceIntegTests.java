@@ -66,7 +66,9 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
 
         try (var ignored = threadContext.stashContext()) {
-            new RemoteAccessHeaders("abc", AuthenticationTestHelper.randomRemoteAccessAuthentication()).writeToContext(threadContext);
+            new RemoteAccessHeaders("ApiKey abc", AuthenticationTestHelper.randomRemoteAccessAuthentication()).writeToContext(
+                threadContext
+            );
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(
@@ -190,7 +192,8 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
 
     private String getEncodedRemoteAccessApiKey() {
         final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("remote_access_key").get();
-        return Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8));
+        return "ApiKey "
+            + Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8));
     }
 
     private void authenticateAndAssertExpectedErrorMessage(

@@ -985,11 +985,6 @@ public class ApiKeyService {
         return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"));
     }
 
-    static String base64Encode(ApiKeyCredentials apiKeyCredentials) {
-        return Base64.getEncoder()
-            .encodeToString((apiKeyCredentials.getId() + ":" + apiKeyCredentials.getKey()).getBytes(StandardCharsets.UTF_8));
-    }
-
     private static ApiKeyCredentials parseApiKey(SecureString apiKeyString) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
@@ -1091,6 +1086,10 @@ public class ApiKeyService {
         @Override
         public void clearCredentials() {
             close();
+        }
+
+        public String getBase64Encoded() {
+            return Base64.getEncoder().encodeToString((getId() + ":" + getKey()).getBytes(StandardCharsets.UTF_8));
         }
     }
 

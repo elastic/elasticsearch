@@ -25,6 +25,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -217,8 +218,7 @@ public class InboundPipelineTests extends ESTestCase {
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
-            final TransportVersion invalidVersion = TransportVersion.CURRENT.calculateMinimumCompatVersion()
-                .calculateMinimumCompatVersion();
+            final TransportVersion invalidVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
             final String value = randomAlphaOfLength(1000);
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();

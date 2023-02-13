@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.blobcache.store;
+package org.elasticsearch.xpack.searchablesnapshots.store;
 
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -28,12 +28,12 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * A {@link Directory} which wraps a read-only "real" directory with a wrapper that allows no-op (in-memory) commits, and peer recoveries
  * of the same, so that we can start a shard on a completely readonly data set.
  */
-public class InMemoryNoOpCommitDirectory extends FilterDirectory {
+class InMemoryNoOpCommitDirectory extends FilterDirectory {
 
     private final Directory realDirectory;
     private final Set<String> deletedFiles = new CopyOnWriteArraySet<>();
 
-    public InMemoryNoOpCommitDirectory(Directory realDirectory) {
+    InMemoryNoOpCommitDirectory(Directory realDirectory) {
         super(new ByteBuffersDirectory(NoLockFactory.INSTANCE));
         this.realDirectory = realDirectory;
     }

@@ -478,11 +478,7 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             ThreadPool.Names.SAME,
             ShardSearchRequest::new,
-            (request, channel, task) -> searchService.executeDfsPhase(
-                request,
-                (SearchShardTask) task,
-                new ChannelActionListener<>(channel, DFS_ACTION_NAME, request)
-            )
+            (request, channel, task) -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
         );
 
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
@@ -494,7 +490,7 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request)
+                new ChannelActionListener<>(channel)
             )
         );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(
@@ -509,11 +505,7 @@ public class SearchTransportService {
             ThreadPool.Names.SAME,
             QuerySearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(
-                    request,
-                    (SearchShardTask) task,
-                    new ChannelActionListener<>(channel, QUERY_ID_ACTION_NAME, request)
-                );
+                searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, true, QuerySearchResult::new);
@@ -523,11 +515,7 @@ public class SearchTransportService {
             ThreadPool.Names.SAME,
             InternalScrollSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(
-                    request,
-                    (SearchShardTask) task,
-                    new ChannelActionListener<>(channel, QUERY_SCROLL_ACTION_NAME, request)
-                );
+                searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, true, ScrollQuerySearchResult::new);
@@ -537,11 +525,7 @@ public class SearchTransportService {
             ThreadPool.Names.SAME,
             InternalScrollSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(
-                    request,
-                    (SearchShardTask) task,
-                    new ChannelActionListener<>(channel, QUERY_FETCH_SCROLL_ACTION_NAME, request)
-                );
+                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
@@ -551,11 +535,7 @@ public class SearchTransportService {
             ThreadPool.Names.SAME,
             ShardFetchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(
-                    request,
-                    (SearchShardTask) task,
-                    new ChannelActionListener<>(channel, FETCH_ID_SCROLL_ACTION_NAME, request)
-                );
+                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, true, FetchSearchResult::new);
@@ -567,11 +547,7 @@ public class SearchTransportService {
             true,
             ShardFetchSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(
-                    request,
-                    (SearchShardTask) task,
-                    new ChannelActionListener<>(channel, FETCH_ID_ACTION_NAME, request)
-                );
+                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, true, FetchSearchResult::new);
@@ -581,9 +557,7 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NAME,
             ThreadPool.Names.SAME,
             ShardSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
-            }
+            (request, channel, task) -> { searchService.canMatch(request, new ChannelActionListener<>(channel)); }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, true, CanMatchShardResponse::new);
 
@@ -591,9 +565,7 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NODE_NAME,
             ThreadPool.Names.SEARCH_COORDINATION,
             CanMatchNodeRequest::new,
-            (request, channel, task) -> {
-                searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
-            }
+            (request, channel, task) -> { searchService.canMatch(request, new ChannelActionListener<>(channel)); }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
     }

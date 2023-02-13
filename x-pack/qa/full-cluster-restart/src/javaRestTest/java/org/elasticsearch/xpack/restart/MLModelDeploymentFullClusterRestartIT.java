@@ -13,6 +13,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -88,7 +89,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93325")
     public void testDeploymentSurvivesRestart() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
 
@@ -107,8 +107,14 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
             }));
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
-                assertInfer(modelId);
-                assertNewInfer(modelId);
+                try {
+                    assertInfer(modelId);
+                    assertNewInfer(modelId);
+                } catch (ResponseException e) {
+                    // assertBusy only loops on AssertionErrors, so we have
+                    // to convert failure status exceptions to these
+                    throw new AssertionError("Inference failed", e);
+                }
             }, 90, TimeUnit.SECONDS);
             stopDeployment(modelId);
         }

@@ -132,7 +132,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 copyExtraConfigFiles();
             }
 
-            deleteGcLogs();
             writeConfiguration();
             createKeystore();
             addKeystoreSettings();
@@ -172,15 +171,25 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             return readPortsFile(portsFile).get(0);
         }
 
+        public String getRemoteClusterServerEndpoint() {
+            Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
+            if (Files.notExists(portsFile)) {
+                waitUntilReady();
+            }
+            return readPortsFile(portsFile).get(0);
+        }
+
         public void deletePortsFiles() {
             try {
                 Path hostsFile = workingDir.resolve("config").resolve("unicast_hosts.txt");
                 Path httpPortsFile = workingDir.resolve("logs").resolve("http.ports");
                 Path transportPortsFile = workingDir.resolve("logs").resolve("transport.ports");
+                Path remoteClusterServerPortsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
 
                 Files.deleteIfExists(hostsFile);
                 Files.deleteIfExists(httpPortsFile);
                 Files.deleteIfExists(transportPortsFile);
+                Files.deleteIfExists(remoteClusterServerPortsFile);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + this, e);
             }
@@ -212,20 +221,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 throw new RuntimeException("Timed out after " + NODE_UP_TIMEOUT + " waiting for ports files for: " + this);
             } catch (ExecutionException e) {
                 throw new RuntimeException("An error occurred while waiting for ports file for: " + this, e);
-            }
-        }
-
-        private void deleteGcLogs() {
-            try (Stream<Path> logs = Files.list(logsDir)) {
-                logs.filter(l -> l.getFileName().toString().startsWith("gc.log")).forEach(path -> {
-                    try {
-                        IOUtils.deleteWithRetry(path);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
         }
 
@@ -615,14 +610,13 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private Map<String, String> getJvmOptionsReplacements() {
-            Path relativeLogsDir = workingDir.relativize(logsDir);
             return Map.of(
                 "-XX:HeapDumpPath=data",
-                "-XX:HeapDumpPath=" + relativeLogsDir,
+                "-XX:HeapDumpPath=" + logsDir,
                 "logs/gc.log",
-                relativeLogsDir.resolve("gc.log").toString(),
+                logsDir.resolve("gc.log").toString(),
                 "-XX:ErrorFile=logs/hs_err_pid%p.log",
-                "-XX:ErrorFile=" + relativeLogsDir.resolve("hs_err_pid%p.log")
+                "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log")
             );
         }
 

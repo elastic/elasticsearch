@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -2053,7 +2055,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             version
         );
         final boolean emptyRemoteRole = randomBoolean();
-        final Authentication authentication = apiKeyAuthentication.toRemoteAccess(
+        Authentication authentication = apiKeyAuthentication.toRemoteAccess(
             AuthenticationTestHelper.randomRemoteAccessAuthentication(
                 emptyRemoteRole
                     ? RoleDescriptorsIntersection.EMPTY
@@ -2073,6 +2075,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     )
             )
         );
+
+        // Randomly serialize and deserialize the authentication object to simulate authentication getting sent across nodes
+        if (randomBoolean()) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                authentication.writeTo(out);
+                final StreamInput in = out.bytes().streamInput();
+                authentication = new Authentication(in);
+            }
+        }
 
         final PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);

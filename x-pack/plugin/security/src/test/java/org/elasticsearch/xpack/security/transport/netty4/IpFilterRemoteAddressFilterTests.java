@@ -49,7 +49,7 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
             .put("xpack.security.transport.filter.allow", "127.0.0.1")
             .put("xpack.security.transport.filter.deny", "10.0.0.0/8");
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            settingsBuilder.put("remote_cluster.enabled", true);
+            settingsBuilder.put("remote_cluster_server.enabled", true);
         }
         Settings settings = settingsBuilder.build();
 

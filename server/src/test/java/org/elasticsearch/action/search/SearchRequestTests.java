@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -332,7 +333,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest request = new SearchRequest();
         request.setForceSyntheticSource(true);
         StreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_8_3_0);
+        out.setTransportVersion(TransportVersion.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }

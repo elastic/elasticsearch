@@ -78,8 +78,6 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
-
-
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting(
         "xpack.security.audit.enabled",

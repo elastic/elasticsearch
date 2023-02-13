@@ -12,7 +12,7 @@ highlight:
     over `geo_shape` as well, which completes the long desired need to perform hexagonal aggregations on spatial data.
 
     [role="screenshot"]
-    image::../images/spatial/geogrid_h3_aggregation.png[Kibana map with geohex aggregation inclusing polygons and lines]
+    image::images/spatial/geogrid_h3_aggregation.png[Kibana map with geohex aggregation inclusing polygons and lines]
 
     In 2018 [Uber announced they had open sourced their H3 library](https://www.uber.com/en-SE/blog/h3/),
     enabling hexagonal tiling of the planet for much better analytics of their traffic and regional pricing models.

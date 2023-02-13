@@ -22,6 +22,7 @@ Aggregations::
 
 Allocation::
 * Fallback to the actual shard size when forecast is not available {es-pull}93461[#93461]
+* Only simulate legal desired moves {es-pull}93635[#93635] (issue: {es-issue}93271[#93271])
 
 Authentication::
 * -| Correctly remove domain from realm when rewriting `Authentication` for compatibility with node versions that don't support domains {es-pull}93276[#93276]

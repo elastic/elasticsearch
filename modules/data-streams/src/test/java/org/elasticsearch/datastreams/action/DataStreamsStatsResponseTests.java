@@ -49,7 +49,8 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
                     backingIndices,
                     ByteSizeValue.ofBytes(storeSize),
                     maximumTimestamp,
-                    writeLoadForecast)
+                    writeLoadForecast
+                )
             );
         }
         int totalShards = randomIntBetween(backingIndicesTotal, backingIndicesTotal * 3);

@@ -19,9 +19,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,6 +58,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
     public DataStreamsStatsTransportAction(
@@ -63,7 +66,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        WriteLoadForecaster writeLoadForecaster
     ) {
         super(
             DataStreamsStatsAction.NAME,
@@ -77,6 +81,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.writeLoadForecaster = writeLoadForecaster;
     }
 
     @Override
@@ -191,14 +196,15 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                OptionalDouble writeLoadForeCast = clusterState.getMetadata()
-                    .index(indexAbstraction.getWriteIndex())
-                    .getForecastedWriteLoad();
-                if (writeLoadForeCast.isPresent()) {
-                    stats.writeLoadForecast = writeLoadForeCast.getAsDouble();
-                } else {
-                    stats.writeLoadForecast = null;
+                Index writeIndex = indexAbstraction.getWriteIndex();
+                if (writeIndex != null) {
+                    IndexMetadata writeIndexMetadata = clusterState.getMetadata().index(writeIndex);
+                    OptionalDouble writeLoadForecast = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
+                    if (writeLoadForecast.isPresent()) {
+                        stats.writeLoadForecast = writeLoadForecast.getAsDouble() * writeIndexMetadata.getNumberOfShards();
+                    }
                 }
+
                 dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
@@ -260,7 +266,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                         entry.getValue().backingIndices.size(),
                         ByteSizeValue.ofBytes(entry.getValue().storageBytes),
                         entry.getValue().maxTimestamp,
-                        entry.getValue().writeLoadForecast)
+                        entry.getValue().writeLoadForecast
+                    )
                 )
                 .toArray(DataStreamsStatsAction.DataStreamStats[]::new);
 

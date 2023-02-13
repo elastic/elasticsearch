@@ -11,12 +11,14 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.hamcrest.Matchers.containsString;
@@ -29,7 +31,7 @@ public class RefCountingListenerTests extends ESTestCase {
         final var executed = new AtomicBoolean();
         final var exceptionCount = new AtomicInteger();
         final var threads = new Thread[between(0, 3)];
-        final var exceptionLimit = Math.max(1, between(0, threads.length));
+        final var exceptionLimit = Math.max(1, between(0, threads.length + 2));
 
         boolean async = false;
         final var startLatch = new CountDownLatch(1);
@@ -73,9 +75,42 @@ public class RefCountingListenerTests extends ESTestCase {
             }
         })) {
             assertEquals("refCounting[test listener]", refs.toString());
+
             var listener = refs.acquire();
             assertThat(listener.toString(), containsString("refCounting[test listener]"));
-            listener.onResponse(null);
+            if (randomBoolean()) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new ElasticsearchException("simulated"));
+                exceptionCount.incrementAndGet();
+            }
+
+            var reachChecker = new ReachabilityChecker();
+            var consumed = new AtomicBoolean();
+            var consumingListener = refs.acquire(reachChecker.register(new Consumer<String>() {
+                @Override
+                public void accept(String s) {
+                    assertEquals("test response", s);
+                    consumed.set(true);
+                }
+
+                @Override
+                public String toString() {
+                    return "test consumer";
+                }
+            }));
+            assertFalse(consumed.get());
+            assertThat(consumingListener.toString(), containsString("refCounting[test listener][test consumer]"));
+            if (randomBoolean()) {
+                consumingListener.onResponse("test response");
+                assertTrue(consumed.get());
+            } else {
+                consumingListener.onFailure(new ElasticsearchException("simulated"));
+                assertFalse(consumed.get());
+                exceptionCount.incrementAndGet();
+            }
+            reachChecker.ensureUnreachable();
+            assertThat(consumingListener.toString(), containsString("refCounting[test listener][null]"));
 
             for (int i = 0; i < threads.length; i++) {
                 if (randomBoolean()) {
@@ -164,11 +199,11 @@ public class RefCountingListenerTests extends ESTestCase {
         try (var refs = new RefCountingListener(finalListener)) {
             for (var item : collection) {
                 if (condition(item)) {
-                    runAsyncAction(item, refs.acquire().map(results::add));
+                    runAsyncAction(item, refs.acquire(results::add));
                 }
             }
             if (flag) {
-                runOneOffAsyncAction(refs.acquire().map(results::add));
+                runOneOffAsyncAction(refs.acquire(results::add));
                 return;
             }
             for (var item : otherCollection) {
@@ -176,7 +211,7 @@ public class RefCountingListenerTests extends ESTestCase {
                 executorService.execute(() -> {
                     try {
                         if (condition(item)) {
-                            runOtherAsyncAction(item, refs.acquire().map(results::add));
+                            runOtherAsyncAction(item, refs.acquire(results::add));
                         }
                     } finally {
                         itemRef.onResponse(null);

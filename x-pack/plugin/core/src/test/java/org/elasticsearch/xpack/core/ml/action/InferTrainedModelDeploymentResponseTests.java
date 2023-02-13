@@ -58,6 +58,11 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
     }
 
     @Override
+    protected InferTrainedModelDeploymentAction.Response mutateInstance(InferTrainedModelDeploymentAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected InferTrainedModelDeploymentAction.Response mutateInstanceForVersion(
         InferTrainedModelDeploymentAction.Response instance,
         Version version

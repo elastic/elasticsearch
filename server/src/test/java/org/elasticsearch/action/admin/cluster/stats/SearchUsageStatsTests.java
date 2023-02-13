@@ -75,7 +75,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
     }
 
     @Override
-    protected SearchUsageStats mutateInstance(SearchUsageStats instance) throws IOException {
+    protected SearchUsageStats mutateInstance(SearchUsageStats instance) {
         if (randomBoolean()) {
             return new SearchUsageStats(
                 randomQueryUsage(instance.getQueryUsage().size() + 1),

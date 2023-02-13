@@ -2924,8 +2924,6 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.openEngineAndRecoverFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
-        // Recovery state should be propagated to the engine
-        assertEquals(isPrimary, shard.getEngine().config().isRecoveringAsPrimary());
         closeShards(shard);
     }
 
@@ -4533,7 +4531,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.isRecoveringAsPrimary()
+                config.isPromotableToPrimary()
             );
             return new InternalEngine(configWithWarmer);
         });

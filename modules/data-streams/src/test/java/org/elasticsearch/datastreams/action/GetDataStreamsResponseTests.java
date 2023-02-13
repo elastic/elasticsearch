@@ -51,4 +51,9 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         }
         return new Response(dataStreams);
     }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

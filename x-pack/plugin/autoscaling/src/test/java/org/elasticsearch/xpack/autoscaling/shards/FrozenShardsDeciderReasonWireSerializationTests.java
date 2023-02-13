@@ -11,8 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-
 public class FrozenShardsDeciderReasonWireSerializationTests extends AbstractWireSerializingTestCase<
     FrozenShardsDeciderService.FrozenShardsReason> {
 
@@ -27,8 +25,7 @@ public class FrozenShardsDeciderReasonWireSerializationTests extends AbstractWir
     }
 
     @Override
-    protected FrozenShardsDeciderService.FrozenShardsReason mutateInstance(FrozenShardsDeciderService.FrozenShardsReason instance)
-        throws IOException {
+    protected FrozenShardsDeciderService.FrozenShardsReason mutateInstance(FrozenShardsDeciderService.FrozenShardsReason instance) {
         return new FrozenShardsDeciderService.FrozenShardsReason(
             randomValueOtherThan(instance.shards(), ESTestCase::randomNonNegativeLong)
         );

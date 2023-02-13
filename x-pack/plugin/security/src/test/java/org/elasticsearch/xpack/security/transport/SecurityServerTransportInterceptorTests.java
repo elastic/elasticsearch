@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -17,12 +16,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
@@ -38,6 +42,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -54,12 +59,14 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -76,14 +83,18 @@ import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentica
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -133,6 +144,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -155,12 +167,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         sender.sendRequest(connection, "indices:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(TransportVersion.class), anyConsumer());
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {
@@ -183,6 +195,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -205,13 +218,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         Connection connection = mock(Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertNotEquals(user, sendingUser.get());
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext).executeAsInternalUser(any(User.class), eq(Version.CURRENT), anyConsumer());
+        verify(securityContext).executeAsInternalUser(any(User.class), eq(TransportVersion.CURRENT), anyConsumer());
     }
 
     public void testSendWithoutUser() throws Exception {
@@ -226,6 +239,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         ) {
             @Override
@@ -247,14 +261,14 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> sender.sendRequest(connection, "indices:foo", null, null, null)
         );
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(TransportVersion.class), anyConsumer());
     }
 
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {
@@ -287,6 +301,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -311,17 +326,17 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
-        final Version connectionVersion = Version.fromId(Version.CURRENT.id + randomIntBetween(100, 100000));
-        assertEquals(Version.CURRENT, Version.min(connectionVersion, Version.CURRENT));
+        final TransportVersion connectionVersion = TransportVersion.fromId(Version.CURRENT.id + randomIntBetween(100, 100000));
+        assertEquals(TransportVersion.CURRENT, TransportVersion.min(connectionVersion, TransportVersion.CURRENT));
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(connectionVersion);
+        when(connection.getTransportVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), securityContext.getUser());
-        assertEquals(Version.CURRENT, authRef.get().getEffectiveSubject().getVersion());
-        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getVersion());
+        assertEquals(TransportVersion.CURRENT, authRef.get().getEffectiveSubject().getTransportVersion());
+        assertEquals(TransportVersion.CURRENT, authentication.getEffectiveSubject().getTransportVersion());
     }
 
     public void testSendToOlderVersionSetsCorrectVersion() throws Exception {
@@ -354,6 +369,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -378,17 +394,17 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
-        final Version connectionVersion = Version.fromId(Version.CURRENT.id - randomIntBetween(100, 100000));
-        assertEquals(connectionVersion, Version.min(connectionVersion, Version.CURRENT));
+        final TransportVersion connectionVersion = TransportVersion.fromId(Version.CURRENT.id - randomIntBetween(100, 100000));
+        assertEquals(connectionVersion, TransportVersion.min(connectionVersion, TransportVersion.CURRENT));
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(connectionVersion);
+        when(connection.getTransportVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), securityContext.getUser());
-        assertEquals(connectionVersion, authRef.get().getEffectiveSubject().getVersion());
-        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getVersion());
+        assertEquals(connectionVersion, authRef.get().getEffectiveSubject().getTransportVersion());
+        assertEquals(TransportVersion.CURRENT, authentication.getEffectiveSubject().getTransportVersion());
     }
 
     public void testSetUserBasedOnActionOrigin() {
@@ -417,6 +433,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
         );
 
@@ -440,15 +457,15 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AsyncSender sender = interceptor.interceptSender(intercepted);
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        final Version connectionVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        when(connection.getVersion()).thenReturn(connectionVersion);
+        final TransportVersion connectionVersion = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(connectionVersion);
 
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertThat(calledWrappedSender.get(), is(true));
         final Authentication authentication = authenticationRef.get();
         assertThat(authentication, notNullValue());
         assertThat(authentication.getEffectiveSubject().getUser(), equalTo(originToUserMap.get(origin)));
-        assertThat(authentication.getEffectiveSubject().getVersion(), equalTo(connectionVersion));
+        assertThat(authentication.getEffectiveSubject().getTransportVersion(), equalTo(connectionVersion));
     }
 
     public void testContextRestoreResponseHandler() throws Exception {
@@ -558,10 +575,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSendWithRemoteAccessHeaders() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles()))
-            .realm()
-            .build();
+        final boolean internalUser = randomBoolean();
+        final Authentication authentication = internalUser
+            ? AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+            : AuthenticationTestHelper.builder().user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
         final String remoteClusterCredential = randomAlphaOfLengthBetween(10, 42);
@@ -584,6 +601,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
@@ -614,7 +632,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
             @Override
@@ -635,11 +653,16 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 return null;
             }
         });
-        // Call listener to complete flow
-        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
-            randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
-        );
-        listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection;
+        if (internalUser) {
+            expectedRoleDescriptorsIntersection = RoleDescriptorsIntersection.EMPTY;
+        } else {
+            expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
+                randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
+            );
+            // Call listener to complete flow
+            listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
+        }
         assertTrue(calledWrappedSender.get());
         assertThat(sentCredential.get(), equalTo("ApiKey " + remoteClusterCredential));
         assertThat(
@@ -648,7 +671,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
         verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
-        verify(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(
+        verify(authzService, times(internalUser ? 0 : 1)).retrieveRemoteAccessRoleDescriptorsIntersection(
             eq(remoteClusterAlias),
             eq(authentication.getEffectiveSubject()),
             anyActionListener()
@@ -675,13 +698,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
         final Authentication authentication;
         if (unsupportedAuthentication) {
-            authentication = randomFrom(builder.apiKey().build(), builder.serviceAccount().build(), builder.internal().build());
+            authentication = randomFrom(builder.apiKey().build(), builder.serviceAccount().build());
         } else {
             authentication = builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
         }
         authentication.writeToContext(threadContext);
         final Tuple<String, TransportRequest> actionAndReq = nonAllowlistedRequest
-            ? new Tuple<>(ClusterStateAction.NAME, mock(ClusterStatsRequest.class))
+            ? new Tuple<>(FollowInfoAction.NAME, mock(TransportRequest.class))
             : randomAllowlistedActionAndRequest();
 
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
@@ -697,6 +720,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias)
         );
@@ -721,7 +745,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, null);
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
@@ -764,6 +788,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
+            mock(RemoteAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
@@ -781,13 +806,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        final Version versionBeforeRemoteAccessHeaders = VersionUtils.getPreviousVersion(Version.V_8_7_0);
-        final Version version = VersionUtils.randomVersionBetween(
+        final TransportVersion versionBeforeRemoteAccessHeaders = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_7_0);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            versionBeforeRemoteAccessHeaders.minimumCompatibilityVersion(),
+            versionBeforeRemoteAccessHeaders.calculateMinimumCompatVersion(),
             versionBeforeRemoteAccessHeaders
         );
-        when(connection.getVersion()).thenReturn(version);
+        when(connection.getTransportVersion()).thenReturn(version);
         final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
@@ -819,13 +844,128 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 "Settings for remote cluster ["
                     + remoteClusterAlias
                     + "] indicate remote access headers should be sent but target cluster version ["
-                    + connection.getVersion()
+                    + connection.getTransportVersion()
                     + "] does not support receiving them"
             )
         );
         verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
+    }
+
+    public void testProfileFiltersCreatedDifferentlyForDifferentTransportAndRemoteClusterSslSettings() {
+        // filters are created irrespective of ssl enabled
+        final boolean transportSslEnabled = randomBoolean();
+        final boolean remoteClusterSslEnabled = randomBoolean();
+        final Settings.Builder builder = Settings.builder()
+            .put(this.settings)
+            .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
+            .put("remote_cluster.enabled", true)
+            .put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);
+        if (randomBoolean()) {
+            builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
+        }
+        final SSLService sslService = mock(SSLService.class);
+
+        when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
+            new SslConfiguration(
+                "xpack.security.transport.ssl",
+                randomBoolean(),
+                mock(SslTrustConfig.class),
+                mock(SslKeyConfig.class),
+                randomFrom(SslVerificationMode.values()),
+                SslClientAuthenticationMode.REQUIRED,
+                List.of("TLS_AES_256_GCM_SHA384"),
+                List.of("TLSv1.3")
+            )
+        );
+
+        when(sslService.getSSLConfiguration("xpack.security.remote_cluster_server.ssl.")).thenReturn(
+            new SslConfiguration(
+                "xpack.security.remote_cluster_server.ssl",
+                randomBoolean(),
+                mock(SslTrustConfig.class),
+                mock(SslKeyConfig.class),
+                randomFrom(SslVerificationMode.values()),
+                SslClientAuthenticationMode.NONE,
+                List.of("TLS_RSA_WITH_AES_256_GCM_SHA384"),
+                List.of("TLSv1.2")
+            )
+        );
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
+            .getSSLConfiguration("xpack.security.remote_cluster_client.ssl.");
+
+        final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
+            builder.build(),
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            sslService,
+            securityContext,
+            new DestructiveOperations(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+            ),
+            mock(RemoteAccessAuthenticationService.class),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+        );
+
+        final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
+        assertThat(profileFilters.keySet(), containsInAnyOrder("default", "_remote_cluster"));
+        assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
+        assertThat(profileFilters.get("default"), not(instanceOf(RemoteAccessServerTransportFilter.class)));
+        assertThat(profileFilters.get("_remote_cluster").isExtractClientCert(), is(false));
+        assertThat(profileFilters.get("_remote_cluster"), instanceOf(RemoteAccessServerTransportFilter.class));
+    }
+
+    public void testNoProfileFilterForRemoteClusterWhenTheFeatureIsDisabled() {
+        final boolean transportSslEnabled = randomBoolean();
+        final Settings.Builder builder = Settings.builder()
+            .put(this.settings)
+            .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
+            .put("remote_cluster.enabled", false)
+            .put("xpack.security.remote_cluster_server.ssl.enabled", randomBoolean());
+        if (randomBoolean()) {
+            builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
+        }
+        final SSLService sslService = mock(SSLService.class);
+
+        when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
+            new SslConfiguration(
+                "xpack.security.transport.ssl",
+                randomBoolean(),
+                mock(SslTrustConfig.class),
+                mock(SslKeyConfig.class),
+                randomFrom(SslVerificationMode.values()),
+                SslClientAuthenticationMode.REQUIRED,
+                List.of("TLS_AES_256_GCM_SHA384"),
+                List.of("TLSv1.3")
+            )
+        );
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster server when the port is disabled")).when(
+            sslService
+        ).getSSLConfiguration("xpack.security.remote_cluster_server.ssl.");
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
+            .getSSLConfiguration("xpack.security.remote_cluster_client.ssl.");
+
+        final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
+            builder.build(),
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            sslService,
+            securityContext,
+            new DestructiveOperations(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+            ),
+            mock(RemoteAccessAuthenticationService.class),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+        );
+
+        final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
+        assertThat(profileFilters.keySet(), contains("default"));
+        assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
     }
 
     private Tuple<String, TransportRequest> randomAllowlistedActionAndRequest() {

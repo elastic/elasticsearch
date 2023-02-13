@@ -12,11 +12,12 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -27,10 +28,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -50,7 +51,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class InboundHandlerTests extends ESTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
-    private final Version version = Version.CURRENT;
+    private final TransportVersion version = TransportVersion.CURRENT;
 
     private TaskManager taskManager;
     private Transport.ResponseHandlers responseHandlers;
@@ -178,7 +179,7 @@ public class InboundHandlerTests extends ESTestCase {
         handler.inboundMessage(channel, requestMessage);
 
         TransportChannel transportChannel = channelCaptor.get();
-        assertEquals(Version.CURRENT, transportChannel.getVersion());
+        assertEquals(TransportVersion.CURRENT, transportChannel.getVersion());
         assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 
@@ -207,32 +208,7 @@ public class InboundHandlerTests extends ESTestCase {
         }
     }
 
-    public void testSendsErrorResponseToHandshakeFromCompatibleVersion() throws Exception {
-        // Nodes use their minimum compatibility version for the TCP handshake, so a node from v(major-1).x will report its version as
-        // v(major-2).last in the TCP handshake, with which we are not really compatible. We put extra effort into making sure that if
-        // successful we can respond correctly in a format this old, but we do not guarantee that we can respond correctly with an error
-        // response. However if the two nodes are from the same major version then we do guarantee compatibility of error responses.
-
-        final Version remoteVersion = VersionUtils.randomCompatibleVersion(random(), version);
-        final long requestId = randomNonNegativeLong();
-        final Header requestHeader = new Header(
-            between(0, 100),
-            requestId,
-            TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
-            remoteVersion
-        );
-        final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
-        requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
-        requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
-        handler.inboundMessage(channel, requestMessage);
-
-        final BytesReference responseBytesReference = channel.getMessageCaptor().get();
-        final Header responseHeader = InboundDecoder.readHeader(remoteVersion, responseBytesReference.length(), responseBytesReference);
-        assertTrue(responseHeader.isResponse());
-        assertTrue(responseHeader.isError());
-    }
-
-    public void testClosesChannelOnErrorInHandshakeWithIncompatibleVersion() throws Exception {
+    public void testClosesChannelOnErrorInHandshake() throws Exception {
         // Nodes use their minimum compatibility version for the TCP handshake, so a node from v(major-1).x will report its version as
         // v(major-2).last in the TCP handshake, with which we are not really compatible. We put extra effort into making sure that if
         // successful we can respond correctly in a format this old, but we do not guarantee that we can respond correctly with an error
@@ -246,7 +222,7 @@ public class InboundHandlerTests extends ESTestCase {
                 "expected message",
                 InboundHandler.class.getCanonicalName(),
                 Level.WARN,
-                "could not send error response to handshake"
+                "error processing handshake version"
             )
         );
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
@@ -256,7 +232,9 @@ public class InboundHandlerTests extends ESTestCase {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.wrap(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
-            final Version remoteVersion = Version.fromId(randomIntBetween(0, version.minimumCompatibilityVersion().id - 1));
+            final TransportVersion remoteVersion = TransportVersion.fromId(
+                randomIntBetween(0, version.minimumCompatibilityVersion().id - 1)
+            );
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
                 between(0, 100),
@@ -285,7 +263,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
         try {
-            final Version remoteVersion = Version.CURRENT;
+            final TransportVersion remoteVersion = TransportVersion.CURRENT;
 
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
@@ -303,7 +281,10 @@ public class InboundHandlerTests extends ESTestCase {
                 TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
                 remoteVersion
             );
-            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.empty(), () -> {
+            BytesStreamOutput byteData = new BytesStreamOutput();
+            TaskId.EMPTY_TASK_ID.writeTo(byteData);
+            TransportVersion.writeVersion(remoteVersion, byteData);
+            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(byteData.bytes()), () -> {
                 try {
                     TimeUnit.SECONDS.sleep(1L);
                 } catch (InterruptedException e) {
@@ -313,7 +294,7 @@ public class InboundHandlerTests extends ESTestCase {
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
-            assertNotNull(channel.getMessageCaptor().get());
+            // expect no response - channel just closed on exception
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(
@@ -349,7 +330,7 @@ public class InboundHandlerTests extends ESTestCase {
         }
     }
 
-    private static InboundMessage unreadableInboundHandshake(Version remoteVersion, Header requestHeader) {
+    private static InboundMessage unreadableInboundHandshake(TransportVersion remoteVersion, Header requestHeader) {
         return new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {}) {
             @Override
             public StreamInput openOrGetStreamInput() {
@@ -359,7 +340,7 @@ public class InboundHandlerTests extends ESTestCase {
                         throw new ElasticsearchException("unreadable handshake");
                     }
                 });
-                streamInput.setVersion(remoteVersion);
+                streamInput.setTransportVersion(remoteVersion);
                 return streamInput;
             }
         };

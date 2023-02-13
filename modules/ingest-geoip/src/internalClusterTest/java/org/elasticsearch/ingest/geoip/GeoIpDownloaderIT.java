@@ -27,10 +27,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
@@ -51,11 +54,13 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -82,7 +87,12 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
+        return Arrays.asList(
+            ReindexPlugin.class,
+            IngestGeoIpPlugin.class,
+            GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
+            NonGeoProcessorsPlugin.class
+        );
     }
 
     @Override
@@ -104,7 +114,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .setPersistentSettings(
                 Settings.builder()
                     .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                    .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
+                    .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
                     .putNull("ingest.geoip.database_validity")
             )
             .get();
@@ -149,6 +159,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        putGeoIpPipeline();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -160,7 +171,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
         }, 2, TimeUnit.MINUTES);
 
-        putPipeline();
+        putGeoIpPipeline();
         verifyUpdatedDatabase();
 
         settingsResponse = client().admin()
@@ -172,7 +183,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
+            .setPersistentSettings(
+                Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+            )
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         List<Path> geoIpTmpDirs = getGeoIpTmpDirs();
@@ -186,7 +199,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 }
             }
         });
-        putPipeline();
+        putGeoIpPipeline();
         assertBusy(() -> {
             SimulateDocumentBaseResult result = simulatePipeline();
             assertThat(result.getFailure(), nullValue());
@@ -221,7 +234,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
+            .setPersistentSettings(
+                Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+            )
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> assertNotEquals(lastCheck, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck()));
@@ -229,6 +244,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
+        putGeoIpPipeline();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -238,6 +254,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            putGeoIpPipeline(); // This is to work around the race condition described in #92888
         }, 2, TimeUnit.MINUTES);
 
         for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
@@ -283,12 +300,39 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
     }
 
+    public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        String pipelineId = randomAlphaOfLength(10);
+        putGeoIpPipeline(pipelineId);
+        ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
+            .get();
+        assertTrue(settingsResponse.isAcknowledged());
+        assertBusy(() -> {
+            PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
+            assertNotNull(task);
+            assertNull(task.getState());
+            putGeoIpPipeline(); // This is to work around the race condition described in #92888
+        });
+        putNonGeoipPipeline(pipelineId);
+        assertBusy(() -> { assertNull(getTask().getState()); });
+        putNonGeoipPipeline(pipelineId);
+        assertNull(getTask().getState());
+        putGeoIpPipeline();
+        assertBusy(() -> {
+            GeoIpTaskState state = getGeoIpTaskState();
+            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+        }, 2, TimeUnit.MINUTES);
+    }
+
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         setupDatabasesInConfigDirectory();
         // setup:
-        putPipeline();
+        putGeoIpPipeline();
 
         // verify before updating dbs
         {
@@ -355,7 +399,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/79074")
     public void testStartWithNoDatabases() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
-        putPipeline();
+        putGeoIpPipeline();
 
         // Behaviour without any databases loaded:
         {
@@ -438,7 +482,21 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         return (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
     }
 
-    private void putPipeline() throws IOException {
+    /**
+     * This creates a pipeline with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is enabled).
+     * @throws IOException
+     */
+    private void putGeoIpPipeline() throws IOException {
+        putGeoIpPipeline("_id");
+    }
+
+    /**
+     * This creates a pipeline named pipelineId with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is
+     * enabled).
+     * @param pipelineId The name of the new pipeline with a geoip processor
+     * @throws IOException
+     */
+    private void putGeoIpPipeline(String pipelineId) throws IOException {
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -484,7 +542,45 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        assertAcked(client().admin().cluster().preparePutPipeline("_id", bytes, XContentType.JSON).get());
+        assertAcked(client().admin().cluster().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
+    }
+
+    /**
+     * This creates a pipeline named pipelineId that does _not_ have a geoip processor.
+     * @throws IOException
+     */
+    private void putNonGeoipPipeline(String pipelineId) throws IOException {
+        BytesReference bytes;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            {
+                builder.startArray("processors");
+                {
+                    builder.startObject();
+                    {
+                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    builder.startObject();
+                    {
+                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    builder.startObject();
+                    {
+                        builder.startObject(NonGeoProcessorsPlugin.NON_GEO_PROCESSOR_TYPE);
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            bytes = BytesReference.bytes(builder);
+        }
+        assertAcked(client().admin().cluster().preparePutPipeline(pipelineId, bytes, XContentType.JSON).get());
     }
 
     private List<Path> getGeoIpTmpDirs() throws IOException {
@@ -622,6 +718,34 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 return read(b, off, len);
             }
             return read;
+        }
+    }
+
+    /**
+     * This class defines a processor of type "test".
+     */
+    public static final class NonGeoProcessorsPlugin extends Plugin implements IngestPlugin {
+        public static final String NON_GEO_PROCESSOR_TYPE = "test";
+
+        @Override
+        public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+            Map<String, Processor.Factory> procMap = new HashMap<>();
+            procMap.put(NON_GEO_PROCESSOR_TYPE, (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                @Override
+                public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {}
+
+                @Override
+                public String getType() {
+                    return NON_GEO_PROCESSOR_TYPE;
+                }
+
+                @Override
+                public boolean isAsync() {
+                    return false;
+                }
+
+            });
+            return procMap;
         }
     }
 }

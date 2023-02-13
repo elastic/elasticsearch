@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -75,7 +75,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return builder;
         }
 
-        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_API = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_INGEST = TimeValue.MAX_VALUE;
 
         private final String modelId;
         private final List<Map<String, Object>> objectsToInfer;
@@ -87,7 +88,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         // input and so cannot construct a document.
         private final List<String> textInput;
 
-        public static Request forDocs(
+        /**
+         * Build a request from a list of documents as maps.
+         * The inference timeout (how long the request waits in
+         * the inference queue for) is set to a high value {@code #DEFAULT_TIMEOUT_FOR_INGEST}
+         * to prefer slow ingest over dropping documents.
+         */
+        public static Request forIngestDocs(
             String modelId,
             List<Map<String, Object>> docs,
             InferenceConfigUpdate update,
@@ -98,18 +105,24 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
-                DEFAULT_TIMEOUT,
+                DEFAULT_TIMEOUT_FOR_INGEST,
                 previouslyLicensed
             );
         }
 
+        /**
+         * Build a request from a list of strings, each string
+         * is one evaluation of the model.
+         * The inference timeout (how long the request waits in
+         * the inference queue for) is set to {@code #DEFAULT_TIMEOUT_FOR_API}
+         */
         public static Request forTextInput(String modelId, InferenceConfigUpdate update, List<String> textInput) {
             return new Request(
                 modelId,
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
-                DEFAULT_TIMEOUT,
+                DEFAULT_TIMEOUT_FOR_API,
                 false
             );
         }
@@ -136,12 +149,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.objectsToInfer = in.readImmutableList(StreamInput::readMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
                 this.inferenceTimeout = TimeValue.MAX_VALUE;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 textInput = in.readOptionalStringList();
             } else {
                 textInput = null;
@@ -180,8 +193,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return inferenceTimeout;
         }
 
-        public void setInferenceTimeout(TimeValue inferenceTimeout) {
+        public Request setInferenceTimeout(TimeValue inferenceTimeout) {
             this.inferenceTimeout = inferenceTimeout;
+            return this;
         }
 
         @Override
@@ -196,10 +210,10 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 out.writeTimeValue(inferenceTimeout);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
         }

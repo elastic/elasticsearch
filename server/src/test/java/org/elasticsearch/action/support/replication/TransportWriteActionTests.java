@@ -129,7 +129,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(listener.map(ignore -> result.finalResponseIfSuccessful));
+            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
             assertNotNull(listener.response);
             assertNull(listener.failure);
             verify(indexShard, never()).refresh(any());
@@ -158,7 +158,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(listener.map(ignore -> result.finalResponseIfSuccessful));
+            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
             assertNotNull(listener.response);
             assertNull(listener.failure);
             assertTrue(listener.response.forcedRefresh);
@@ -189,7 +189,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(listener.map(ignore -> result.finalResponseIfSuccessful));
+            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
             assertNull(listener.response); // Haven't really responded yet
 
             @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -228,15 +228,21 @@ public class TransportWriteActionTests extends ESTestCase {
         assertNull(listener.failure);
     }
 
-    public void testDocumentFailureInShardOperationOnPrimary() throws Exception {
-        TestRequest request = new TestRequest();
-        TestAction testAction = new TestAction(true, true);
-        testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
-            CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(listener.map(ignore -> result.finalResponseIfSuccessful));
-            assertNull(listener.response);
-            assertNotNull(listener.failure);
-        }));
+    public void testDocumentFailureInShardOperationOnPrimary() {
+        assertEquals(
+            "simulated",
+            expectThrows(
+                RuntimeException.class,
+                () -> PlainActionFuture.get(
+                    (PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> future) -> new TestAction(
+                        true,
+                        randomBoolean()
+                    ).dispatchedShardOperationOnPrimary(new TestRequest(), indexShard, future),
+                    0,
+                    TimeUnit.SECONDS
+                )
+            ).getMessage()
+        );
     }
 
     public void testDocumentFailureInShardOperationOnReplica() throws Exception {
@@ -447,9 +453,9 @@ public class TransportWriteActionTests extends ESTestCase {
         ) {
             ActionListener.completeWith(listener, () -> {
                 if (withDocumentFailureOnPrimary) {
-                    return new WritePrimaryResult<>(request, null, null, new RuntimeException("simulated"), primary, logger);
+                    throw new RuntimeException("simulated");
                 } else {
-                    return new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger);
+                    return new WritePrimaryResult<>(request, new TestResponse(), location, primary, logger);
                 }
             });
         }

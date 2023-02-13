@@ -31,6 +31,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1189,6 +1190,63 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             createPreviewResponse.getWarnings().get(0),
             allOf(containsString("Pipeline returned 100 errors, first error:"), containsString("type=script_exception"))
         );
+    }
+
+    public void testPreviewTransformWithDateHistogramOffset() throws Exception {
+        assertThat(
+            previewWithOffset("+2d"),
+            contains("2017-01-04T00:00:00.000Z", "2017-01-11T00:00:00.000Z", "2017-01-18T00:00:00.000Z", "2017-01-25T00:00:00.000Z")
+        );
+        assertThat(previewWithOffset("+1d"), contains("2017-01-10T00:00:00.000Z", "2017-01-17T00:00:00.000Z", "2017-01-24T00:00:00.000Z"));
+        assertThat(
+            previewWithOffset("0"),
+            contains("2017-01-09T00:00:00.000Z", "2017-01-16T00:00:00.000Z", "2017-01-23T00:00:00.000Z", "2017-01-30T00:00:00.000Z")
+        );
+        assertThat(
+            previewWithOffset("-1d"),
+            contains("2017-01-08T00:00:00.000Z", "2017-01-15T00:00:00.000Z", "2017-01-22T00:00:00.000Z", "2017-01-29T00:00:00.000Z")
+        );
+        assertThat(
+            previewWithOffset("-2d"),
+            contains("2017-01-07T00:00:00.000Z", "2017-01-14T00:00:00.000Z", "2017-01-21T00:00:00.000Z", "2017-01-28T00:00:00.000Z")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> previewWithOffset(String offset) throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        createPreviewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "by_week": {
+                    "date_histogram": {
+                      "calendar_interval": "1w",
+                      "field": "timestamp",
+                      "offset": "%s"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "user.avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, offset);
+        createPreviewRequest.setJsonEntity(config);
+
+        Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
+        return preview.stream().map(p -> (String) p.get("by_week")).toList();
     }
 
     public void testPivotWithMaxOnDateField() throws Exception {

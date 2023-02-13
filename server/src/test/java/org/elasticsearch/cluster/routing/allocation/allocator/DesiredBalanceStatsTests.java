@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +38,7 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
     }
 
     @Override
-    protected DesiredBalanceStats mutateInstance(DesiredBalanceStats instance) throws IOException {
+    protected DesiredBalanceStats mutateInstance(DesiredBalanceStats instance) {
         return createTestInstance();
     }
 

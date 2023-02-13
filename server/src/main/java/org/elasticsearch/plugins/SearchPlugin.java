@@ -39,6 +39,7 @@ import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
@@ -70,6 +71,14 @@ public interface SearchPlugin {
      * {@link SignificantTerms} aggregation to pick which terms are significant for a given query.
      */
     default List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
+        return emptyList();
+    }
+
+    /**
+     * The new {@link QueryVectorBuilder}s defined by this plugin. {@linkplain QueryVectorBuilder}s can be used within a kNN
+     * search to build the query vector instead of having the user provide the vector directly
+     */
+    default List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
         return emptyList();
     }
 
@@ -590,6 +599,39 @@ public interface SearchPlugin {
 
         public Map<String, Highlighter> getHighlighters() {
             return highlighters;
+        }
+    }
+
+    /**
+     * Specification of custom {@link QueryVectorBuilder}.
+     */
+    class QueryVectorBuilderSpec<T extends QueryVectorBuilder> extends SearchExtensionSpec<T, BiFunction<XContentParser, Void, T>> {
+        /**
+         * Specification of custom {@link QueryVectorBuilder}.
+         *
+         * @param name holds the names by which this query vector builder might be parsed.
+         *             The {@link ParseField#getPreferredName()} is special as it
+         *             is the name by under which the reader is registered. So it is the name that the builder should use as its
+         *             {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this query vector builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the query vector builder from xcontent
+         */
+        public QueryVectorBuilderSpec(ParseField name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link QueryVectorBuilder}.
+         *
+         * @param name the name by which this query vector builder might be parsed or deserialized.
+         *             Make sure that the query builder returns this name for {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this query vector builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the query vector builder from xcontent
+         */
+        public QueryVectorBuilderSpec(String name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
+            super(name, reader, parser);
         }
     }
 }

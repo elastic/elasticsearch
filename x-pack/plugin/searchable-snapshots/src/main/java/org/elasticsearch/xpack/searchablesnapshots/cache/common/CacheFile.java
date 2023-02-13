@@ -35,7 +35,7 @@ import java.util.SortedSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class CacheFile {
 
@@ -334,7 +334,7 @@ public class CacheFile {
 
     @FunctionalInterface
     public interface RangeMissingHandler {
-        void fillCacheRange(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
+        void fillCacheRange(FileChannel channel, long from, long to, LongConsumer progressUpdater) throws IOException;
     }
 
     /**

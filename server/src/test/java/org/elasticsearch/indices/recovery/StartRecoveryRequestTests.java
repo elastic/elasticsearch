@@ -53,12 +53,12 @@ public class StartRecoveryRequestTests extends ESTestCase {
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(targetNodeVersion);
+        out.setTransportVersion(targetNodeVersion.transportVersion);
         outRequest.writeTo(out);
 
         final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
-        in.setVersion(targetNodeVersion);
+        in.setTransportVersion(targetNodeVersion.transportVersion);
         final StartRecoveryRequest inRequest = new StartRecoveryRequest(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));

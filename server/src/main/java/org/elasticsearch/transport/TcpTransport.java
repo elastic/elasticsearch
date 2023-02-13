@@ -403,7 +403,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                final TcpChannel channel = initiateChannel(node);
+                final TcpChannel channel = initiateChannel(node, connectionProfile);
                 if (logger.isTraceEnabled()) {
                     channel.addConnectListener(new ChannelOpenTraceLogger(channel));
                 }
@@ -807,10 +807,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * Initiate a single tcp socket channel.
      *
      * @param node for the initiated connection
+     * @param connectionProfile the connection profile to use when connecting to the node
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 
     /**
      * Called to tear down internal resources
@@ -1018,6 +1019,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public static Set<ProfileSettings> getProfileSettings(Settings settings) {
         HashSet<ProfileSettings> profiles = new HashSet<>();
+        // Process remote cluster port first so that errors are consistently reported if there
+        // is direct usage of the _remote_cluster profile
+        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
+        }
         boolean isDefaultSet = false;
         for (String profile : settings.getGroups("transport.profiles.", true).keySet()) {
             profiles.add(new ProfileSettings(settings, profile));
@@ -1027,9 +1033,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         if (isDefaultSet == false) {
             profiles.add(new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE));
-        }
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
-            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
         }
         // Add the remote access profile
         return Collections.unmodifiableSet(profiles);

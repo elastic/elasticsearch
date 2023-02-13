@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -22,25 +22,25 @@ public interface AuditTrail {
 
     String name();
 
-    void authenticationSuccess(String requestId, Authentication authentication, RestRequest request);
+    void authenticationSuccess(String requestId, Authentication authentication, BasicHttpRequest request);
 
     void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest);
 
     void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest);
 
-    void anonymousAccessDenied(String requestId, RestRequest request);
+    void anonymousAccessDenied(String requestId, BasicHttpRequest request);
 
-    void authenticationFailed(String requestId, RestRequest request);
+    void authenticationFailed(String requestId, BasicHttpRequest request);
 
     void authenticationFailed(String requestId, String action, TransportRequest transportRequest);
 
     void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest);
 
-    void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request);
+    void authenticationFailed(String requestId, AuthenticationToken token, BasicHttpRequest request);
 
     void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportRequest transportRequest);
 
-    void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request);
+    void authenticationFailed(String requestId, String realm, AuthenticationToken token, BasicHttpRequest request);
 
     void accessGranted(
         String requestId,
@@ -58,7 +58,7 @@ public interface AuditTrail {
         AuthorizationInfo authorizationInfo
     );
 
-    void tamperedRequest(String requestId, RestRequest request);
+    void tamperedRequest(String requestId, BasicHttpRequest request);
 
     void tamperedRequest(String requestId, String action, TransportRequest transportRequest);
 
@@ -90,7 +90,7 @@ public interface AuditTrail {
         AuthorizationInfo authorizationInfo
     );
 
-    void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo);
+    void runAsDenied(String requestId, Authentication authentication, BasicHttpRequest request, AuthorizationInfo authorizationInfo);
 
     /**
      * This is a "workaround" method to log index "access_granted" and "access_denied" events for actions not tied to a

@@ -301,38 +301,46 @@ public class XContentHelper {
         return convertToJson(new BytesArray(json), true, XContentType.JSON);
     }
 
-    public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
-        throws IOException {
+    public static BytesReference convertToJsonBytesReference(
+        BytesReference bytes,
+        boolean reformatJson,
+        boolean prettyPrint,
+        XContentType xContentType
+    ) throws IOException {
         Objects.requireNonNull(xContentType);
         if (xContentType.canonical() == XContentType.JSON && reformatJson == false) {
-            return bytes.utf8ToString();
+            return bytes;
         }
-
         if (bytes.hasArray()) {
             try (
                 XContentParser parser = XContentFactory.xContent(xContentType)
                     .createParser(XContentParserConfiguration.EMPTY, bytes.array(), bytes.arrayOffset(), bytes.length())
             ) {
-                return toJsonString(prettyPrint, parser);
+                return toJson(prettyPrint, parser);
             }
         } else {
             try (
                 InputStream stream = bytes.streamInput();
                 XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, stream)
             ) {
-                return toJsonString(prettyPrint, parser);
+                return toJson(prettyPrint, parser);
             }
         }
     }
 
-    private static String toJsonString(boolean prettyPrint, XContentParser parser) throws IOException {
+    private static BytesReference toJson(boolean prettyPrint, XContentParser parser) throws IOException {
         parser.nextToken();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         if (prettyPrint) {
             builder.prettyPrint();
         }
         builder.copyCurrentStructure(parser);
-        return Strings.toString(builder);
+        return BytesReference.bytes(builder);
+    }
+
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
+        throws IOException {
+        return convertToJsonBytesReference(bytes, reformatJson, prettyPrint, xContentType).utf8ToString();
     }
 
     /**

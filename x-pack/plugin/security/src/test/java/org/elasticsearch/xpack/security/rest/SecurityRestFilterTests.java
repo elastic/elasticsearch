@@ -15,7 +15,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -83,25 +83,22 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcess() throws Exception {
-        RestRequest request = mock(RestRequest.class);
-        when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+        RestRequest request = new FakeRestRequest();
         Authentication authentication = AuthenticationTestHelper.builder().build();
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(request), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
         verifyNoMoreInteractions(channel);
     }
 
     public void testProcessSecondaryAuthentication() throws Exception {
-        RestRequest request = mock(RestRequest.class);
+        RestRequest request = new FakeRestRequest();
         when(channel.request()).thenReturn(request);
-
-        when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
 
         Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
@@ -110,7 +107,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(primaryAuthentication);
             return null;
-        }).when(authcService).authenticate(eq(request), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
 
         Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
@@ -119,7 +116,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(secondaryAuthentication);
             return null;
-        }).when(authcService).authenticate(eq(request), eq(false), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), eq(false), anyActionListener());
 
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AtomicReference<SecondaryAuthentication> secondaryAuthRef = new AtomicReference<>();
@@ -213,7 +210,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onFailure(authnException);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(request), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
         RestChannel channel = mock(RestChannel.class);
         when(channel.detailedErrorsEnabled()).thenReturn(detailedErrorsEnabled);
         when(channel.request()).thenReturn(request);
@@ -258,14 +255,14 @@ public class SecurityRestFilterTests extends ESTestCase {
                 return Collections.singleton("password");
             }
         };
-        SetOnce<RestRequest> authcServiceRequest = new SetOnce<>();
+        SetOnce<HttpRequest> authcServiceRequest = new SetOnce<>();
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
-            authcServiceRequest.set((RestRequest) i.getArguments()[0]);
+            authcServiceRequest.set((HttpRequest) i.getArguments()[0]);
             callback.onResponse(AuthenticationTestHelper.builder().realmRef(new RealmRef("test", "test", "t")).build(false));
             return Void.TYPE;
-        }).when(authcService).authenticate(any(RestRequest.class), anyActionListener());
+        }).when(authcService).authenticate(any(HttpRequest.class), anyActionListener());
         filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler);
 
         filter.handleRequest(restRequest, channel, null);
@@ -283,7 +280,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertEquals(SecuritySettingsSourceField.TEST_PASSWORD, original.get("password"));
         assertEquals("bar", original.get("foo"));
 
-        assertNotEquals(restRequest, authcServiceRequest.get());
+        assertNotEquals(restRequest.getHttpRequest(), authcServiceRequest.get());
         assertNotEquals(restRequest.content(), authcServiceRequest.get().content());
 
         Map<String, Object> map = XContentType.JSON.xContent()
@@ -300,8 +297,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     public void testSanitizeHeaders() throws Exception {
         for (boolean failRequest : List.of(true, false)) {
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, randomAlphaOfLengthBetween(1, 10));
-            RestRequest request = mock(RestRequest.class);
-            when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+            RestRequest request = new FakeRestRequest();
             Authentication authentication = AuthenticationTestHelper.builder().build();
             doAnswer((i) -> {
                 @SuppressWarnings("unchecked")
@@ -312,7 +308,7 @@ public class SecurityRestFilterTests extends ESTestCase {
                     callback.onResponse(authentication);
                 }
                 return Void.TYPE;
-            }).when(authcService).authenticate(eq(request), anyActionListener());
+            }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
             Set<String> foundKeys = threadContext.getHeaders().keySet();
             assertThat(foundKeys, hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER));
 

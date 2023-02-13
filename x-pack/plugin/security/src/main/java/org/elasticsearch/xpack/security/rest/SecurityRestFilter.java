@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -21,11 +22,13 @@ import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -88,15 +91,16 @@ public class SecurityRestFilter implements RestHandler {
             return;
         }
 
-        authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(authentication -> {
+        final HttpRequest httpRequest = wrapHttpContent(request.getHttpRequest(), request.getXContentType());
+        authenticationService.authenticate(httpRequest, ActionListener.wrap(authentication -> {
             if (authentication == null) {
-                logger.trace("No authentication available for REST request [{}]", request.uri());
+                logger.trace("No authentication available for REST request [{}]", httpRequest.uri());
             } else {
-                logger.trace("Authenticated REST request [{}] as {}", request.uri(), authentication);
+                logger.trace("Authenticated REST request [{}] as {}", httpRequest.uri(), authentication);
             }
-            secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(secondaryAuthentication -> {
+            secondaryAuthenticator.authenticateAndAttachToContext(httpRequest, ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
-                    logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
+                    logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, httpRequest.uri());
                 }
                 try {
                     doHandleRequest(request, channel, client);
@@ -165,15 +169,16 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.routes();
     }
 
-    private RestRequest maybeWrapRestRequest(RestRequest restRequest) {
-        if (restHandler instanceof RestRequestFilter) {
-            return ((RestRequestFilter) restHandler).getFilteredRequest(restRequest);
-        }
-        return restRequest;
-    }
-
     @Override
     public boolean mediaTypesValid(RestRequest request) {
         return restHandler.mediaTypesValid(request);
+    }
+
+    private HttpRequest wrapHttpContent(HttpRequest httpRequest, XContentType xContentType) {
+        return RestRequestFilter.formatRequestContentForAuditing(
+            httpRequest,
+            xContentType,
+            restHandler instanceof RestRequestFilter ? ((RestRequestFilter) restHandler).getFilteredFields() : Set.of()
+        );
     }
 }

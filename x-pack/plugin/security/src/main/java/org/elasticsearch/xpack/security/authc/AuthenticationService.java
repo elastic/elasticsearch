@@ -18,8 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -123,7 +123,7 @@ public class AuthenticationService {
      *
      * @param request The request to be authenticated
      */
-    public void authenticate(RestRequest request, ActionListener<Authentication> authenticationListener) {
+    public void authenticate(BasicHttpRequest request, ActionListener<Authentication> authenticationListener) {
         authenticate(request, true, authenticationListener);
     }
 
@@ -138,10 +138,10 @@ public class AuthenticationService {
      *                               If {@code true}, then authentication <em>will</em> fallback to anonymous, if this service is
      *                               configured to allow anonymous access.
      */
-    public void authenticate(RestRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
+    public void authenticate(BasicHttpRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
-            new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request),
+            new AuditableHttpRequest(auditTrailService.get(), failureHandler, threadContext, request),
             null,
             allowAnonymous,
             realms
@@ -364,16 +364,16 @@ public class AuthenticationService {
 
     }
 
-    static class AuditableRestRequest extends AuditableRequest {
+    static class AuditableHttpRequest extends AuditableRequest {
 
-        private final RestRequest request;
+        private final BasicHttpRequest request;
         private final String requestId;
 
-        AuditableRestRequest(
+        AuditableHttpRequest(
             AuditTrail auditTrail,
             AuthenticationFailureHandler failureHandler,
             ThreadContext threadContext,
-            RestRequest request
+            BasicHttpRequest request
         ) {
             super(auditTrail, failureHandler, threadContext);
             this.request = request;

@@ -105,21 +105,6 @@ public final class EmptyDoubleHdrHistogram extends DoubleHistogram {
     }
 
     @Override
-    public long getTotalCount() {
-        throw new UnsupportedOperationException("Immutable Empty HdrHistogram");
-    }
-
-    @Override
-    public double getIntegerToDoubleValueConversionRatio() {
-        throw new UnsupportedOperationException("Immutable Empty HdrHistogram");
-    }
-
-    @Override
-    public long getHighestToLowestValueRatio() {
-        throw new UnsupportedOperationException("Immutable Empty HdrHistogram");
-    }
-
-    @Override
     public boolean valuesAreEquivalent(double value1, double value2) {
         throw new UnsupportedOperationException("Immutable Empty HdrHistogram");
     }

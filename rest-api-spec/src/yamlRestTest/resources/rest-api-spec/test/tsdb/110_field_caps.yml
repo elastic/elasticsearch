@@ -151,7 +151,7 @@ field caps on time_series indices:
 ---
 field caps on standard indices:
   - skip:
-      version: " - 8.6.99"
+      version: " - 8.7.99"
       reason: field caps api was changed to include time series attributes in non tsdb indices
 
   - do:
@@ -194,7 +194,7 @@ field caps on standard indices:
 ---
 field caps on mixed indices:
   - skip:
-      version: " - 8.6.99"
+      version: " - 8.7.99"
       reason: field caps api was changed to include time series attributes in non tsdb indices
 
   - do:

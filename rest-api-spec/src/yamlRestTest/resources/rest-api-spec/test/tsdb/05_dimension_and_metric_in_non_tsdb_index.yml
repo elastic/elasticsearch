@@ -180,7 +180,7 @@ can't shadow metrics:
 # Test that _tsid field is not added if an index is not a time-series index
 no _tsid in standard indices:
   - skip:
-      version: " - 8.6.99"
+      version: " - 8.7.99"
       reason: field caps api was changed to include time series attributes in non tsdb indices
 
   - do:

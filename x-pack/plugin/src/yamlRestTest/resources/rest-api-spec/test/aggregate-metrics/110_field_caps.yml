@@ -183,8 +183,8 @@ field caps on time series indices:
 # Test field_caps on mixed standard and time-series (mix of raw and rollup) indices
 field caps on all indices:
   - skip:
-      version: " - 8.4.99"
-      reason: metric params only on time series indices introduced in 8.5.0
+      version: " - 8.7.99"
+      reason: field caps api was changed to include time series attributes in non tsdb indices
 
   - do:
       field_caps:

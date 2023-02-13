@@ -10,3 +10,5 @@ esplugin {
   description 'A test module that tracks seeks in lucene Directories'
   classname 'org.elasticsearch.test.seektracker.SeekTrackerPlugin'
 }
+
+apply plugin: 'elasticsearch.internal-cluster-test'

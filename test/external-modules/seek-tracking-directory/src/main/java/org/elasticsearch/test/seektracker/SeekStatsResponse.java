@@ -18,11 +18,14 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class SeekStatsResponse extends BaseNodesResponse<SeekStats> implements ToXContentObject {
+public class SeekStatsResponse extends BaseNodesResponse<NodeSeekStats> implements ToXContentObject {
 
-    public SeekStatsResponse(ClusterName clusterName, List<SeekStats> seekStats, List<FailedNodeException> failures) {
+    public SeekStatsResponse(ClusterName clusterName, List<NodeSeekStats> seekStats, List<FailedNodeException> failures) {
         super(clusterName, seekStats, failures);
     }
 
@@ -31,24 +34,34 @@ public class SeekStatsResponse extends BaseNodesResponse<SeekStats> implements T
     }
 
     @Override
-    protected List<SeekStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(SeekStats::new);
+    protected List<NodeSeekStats> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeSeekStats::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<SeekStats> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<NodeSeekStats> nodes) throws IOException {
         out.writeList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        for (SeekStats seekStats : getNodes()) {
+        for (NodeSeekStats seekStats : getNodes()) {
             builder.startObject(seekStats.getNode().getId());
             seekStats.toXContent(builder, params);
             builder.endObject();
         }
         builder.endObject();
         return builder;
+    }
+
+    public Map<String, List<ShardSeekStats>> getSeekStats() {
+        Map<String, List<ShardSeekStats>> combined = new HashMap<>();
+        for (NodeSeekStats nodeSeekStats : getNodes()) {
+            nodeSeekStats.getSeekStats().forEach((index, shardSeekStats) -> {
+                combined.computeIfAbsent(index, k -> new ArrayList<>()).addAll(shardSeekStats);
+            });
+        }
+        return combined;
     }
 }

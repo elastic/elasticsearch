@@ -17,31 +17,36 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
-public class SeekStats extends BaseNodeResponse implements ToXContentFragment {
+public class NodeSeekStats extends BaseNodeResponse implements ToXContentFragment {
 
-    private final Map<String, Long> seeks;
+    private final Map<String, List<ShardSeekStats>> seeks;
 
-    public SeekStats(DiscoveryNode node, Map<String, Long> seeks) {
+    public NodeSeekStats(DiscoveryNode node, Map<String, List<ShardSeekStats>> seeks) {
         super(node);
         this.seeks = seeks;
     }
 
-    public SeekStats(StreamInput in) throws IOException {
+    public NodeSeekStats(StreamInput in) throws IOException {
         super(in);
-        this.seeks = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.seeks = in.readMap(StreamInput::readString, (s -> s.readList(ShardSeekStats::new)));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(seeks, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(seeks, StreamOutput::writeString, StreamOutput::writeList);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.mapContents(seeks);
         return builder;
+    }
+
+    public Map<String, List<ShardSeekStats>> getSeekStats() {
+        return seeks;
     }
 }

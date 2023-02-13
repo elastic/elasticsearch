@@ -10,10 +10,23 @@ package org.elasticsearch.test.seektracker;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.LongAdder;
 
 public class SeekStatsService {
 
-    final Map<String, LongAdder> seeks = new HashMap<>();
+    private final Map<String, IndexSeekTracker> seeks = new HashMap<>();
+
+    public IndexSeekTracker registerIndex(String index) {
+        IndexSeekTracker tracker = new IndexSeekTracker();
+        seeks.put(index, tracker);
+        return tracker;
+    }
+
+    public Map<String, IndexSeekTracker> getSeekStats() {
+        return seeks;
+    }
+
+    public IndexSeekTracker getSeekStats(String index) {
+        return seeks.get(index);
+    }
 
 }

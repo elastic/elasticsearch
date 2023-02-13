@@ -9,7 +9,6 @@
 package org.elasticsearch.test.seektracker;
 
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
-public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequest, SeekStatsResponse, SeekStatsRequest, SeekStats> {
+public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequest, SeekStatsResponse, SeekStatsRequest, NodeSeekStats> {
 
     private final SeekStatsService seekStatsService;
 
@@ -47,13 +46,13 @@ public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequ
             SeekStatsRequest::new,
             SeekStatsRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            SeekStats.class
+            NodeSeekStats.class
         );
         this.seekStatsService = seekStatsService;
     }
 
     @Override
-    protected SeekStatsResponse newResponse(SeekStatsRequest request, List<SeekStats> seekStats, List<FailedNodeException> failures) {
+    protected SeekStatsResponse newResponse(SeekStatsRequest request, List<NodeSeekStats> seekStats, List<FailedNodeException> failures) {
         return new SeekStatsResponse(clusterService.getClusterName(), seekStats, failures);
     }
 
@@ -63,23 +62,25 @@ public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequ
     }
 
     @Override
-    protected SeekStats newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-        return new SeekStats(in);
+    protected NodeSeekStats newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        return new NodeSeekStats(in);
     }
 
     @Override
-    protected SeekStats nodeOperation(SeekStatsRequest request, Task task) {
-        Map<String, Long> seeks = new HashMap<>();
+    protected NodeSeekStats nodeOperation(SeekStatsRequest request, Task task) {
+        Map<String, List<ShardSeekStats>> seeks = new HashMap<>();
         if (request.getIndices().length == 0) {
-            for (Map.Entry<String, LongAdder> entry : seekStatsService.seeks.entrySet()) {
-                seeks.put(entry.getKey(), entry.getValue().longValue());
+            for (Map.Entry<String, IndexSeekTracker> entry : seekStatsService.getSeekStats().entrySet()) {
+                seeks.put(entry.getKey(), entry.getValue().getSeeks());
             }
         } else {
             for (String index : request.getIndices()) {
-                LongAdder longAdder = seekStatsService.seeks.get(index);
-                seeks.put(index, longAdder.longValue());
+                IndexSeekTracker indexSeekTracker = seekStatsService.getSeekStats(index);
+                if (indexSeekTracker != null) {
+                    seeks.put(index, indexSeekTracker.getSeeks());
+                }
             }
         }
-        return new SeekStats(clusterService.localNode(), seeks);
+        return new NodeSeekStats(clusterService.localNode(), seeks);
     }
 }

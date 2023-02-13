@@ -37,7 +37,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Supplier;
 
 public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
@@ -60,16 +59,16 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         Tracer tracer,
         AllocationService allocationService
     ) {
-
         return Collections.singletonList(seekStatsService);
     }
 
 
+    // seeks per index/shard/file
+
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        LongAdder adder = new LongAdder();
-        seekStatsService.seeks.put(indexModule.getIndex().getName(), adder);
-        indexModule.setDirectoryWrapper(new SeekTrackingDirectoryWrapper(adder));
+        IndexSeekTracker seekTracker = seekStatsService.registerIndex(indexModule.getIndex().getName());
+        indexModule.setDirectoryWrapper(new SeekTrackingDirectoryWrapper(seekTracker));
     }
 
     @Override

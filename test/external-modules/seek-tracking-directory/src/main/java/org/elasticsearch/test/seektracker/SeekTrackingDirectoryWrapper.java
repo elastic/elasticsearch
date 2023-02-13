@@ -16,27 +16,27 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.IndexModule;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.LongAdder;
 
 public class SeekTrackingDirectoryWrapper implements IndexModule.DirectoryWrapper {
 
-    private final LongAdder adder;
+    private final IndexSeekTracker seekTracker;
 
-    public SeekTrackingDirectoryWrapper(LongAdder adder) {
-        this.adder = adder;
+    public SeekTrackingDirectoryWrapper(IndexSeekTracker seekTracker) {
+        this.seekTracker = seekTracker;
     }
 
     @Override
     public Directory wrap(Directory directory, ShardRouting shardRouting) {
+        seekTracker.track(shardRouting.shardId().toString());
         return new FilterDirectory(directory) {
             @Override
             public IndexInput openInput(String name, IOContext context) throws IOException {
-                return wrapIndexInput(super.openInput(name, context));
+                return wrapIndexInput(shardRouting.shardId().toString(), name, super.openInput(name, context));
             }
         };
     }
 
-    private IndexInput wrapIndexInput(IndexInput in) {
+    private IndexInput wrapIndexInput(String directory, String name, IndexInput in) {
         return new IndexInput(in.toString()) {
             @Override
             public void close() throws IOException {
@@ -51,7 +51,7 @@ public class SeekTrackingDirectoryWrapper implements IndexModule.DirectoryWrappe
             @Override
             public void seek(long pos) throws IOException {
                 in.seek(pos);
-                adder.increment();
+                seekTracker.increment(directory, name);
             }
 
             @Override
@@ -61,7 +61,7 @@ public class SeekTrackingDirectoryWrapper implements IndexModule.DirectoryWrappe
 
             @Override
             public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-                return wrapIndexInput(in.slice(sliceDescription, offset, length));
+                return wrapIndexInput(directory, name, in.slice(sliceDescription, offset, length));
             }
 
             @Override

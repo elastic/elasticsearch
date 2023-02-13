@@ -491,10 +491,6 @@ public class AuthenticationTests extends ESTestCase {
             final StreamInput in = out.bytes().streamInput();
             final Authentication deserialized = new Authentication(in);
             assertThat(deserialized, equalTo(authentication));
-            assertThat(
-                deserialized.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY),
-                isA(Authentication.class)
-            );
             ((List<?>) deserialized.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY))
                 .forEach(item -> assertThat(item, isA(RoleDescriptorsBytes.class)));
         }

@@ -38,6 +38,8 @@ import static org.elasticsearch.xpack.security.transport.SecurityServerTransport
 
 public class RemoteAccessAuthenticationService {
 
+    public static final TransportVersion VERSION_REMOTE_ACCESS_AUTHENTICATION = TransportVersion.V_8_8_0;
+
     public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
         "_cross_cluster_internal",
         new String[] { ClusterStateAction.NAME },
@@ -70,12 +72,12 @@ public class RemoteAccessAuthenticationService {
         final ThreadContext threadContext = authcContext.getThreadContext();
 
         // TODO revisit this once Node's Version is refactored
-        if (getMinNodeTransportVersion().before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
+        if (getMinNodeTransportVersion().before(VERSION_REMOTE_ACCESS_AUTHENTICATION)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + Authentication.VERSION_REMOTE_ACCESS_REALM
+                        + VERSION_REMOTE_ACCESS_AUTHENTICATION
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener

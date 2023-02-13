@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -41,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -476,12 +479,25 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication().encode())
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication())
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
             hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthentication.getRoleDescriptorsBytesList())
         );
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            authentication.writeTo(out);
+            final StreamInput in = out.bytes().streamInput();
+            final Authentication deserialized = new Authentication(in);
+            assertThat(deserialized, equalTo(authentication));
+            assertThat(
+                deserialized.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY),
+                isA(Authentication.class)
+            );
+            ((List<?>) deserialized.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY))
+                .forEach(item -> assertThat(item, isA(RoleDescriptorsBytes.class)));
+        }
     }
 
     public void testSupportsRunAs() {
@@ -650,9 +666,9 @@ public class AuthenticationTests extends ESTestCase {
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
-        final Authentication innerActualAuthentication = AuthenticationContextSerializer.decode(
-            (String) actual.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-        );
+        final Authentication innerActualAuthentication = (Authentication) actual.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
         assertThat(innerActualAuthentication, equalTo(innerAuthentication.maybeRewriteForOlderVersion(maybeOldVersion)));
     }
 
@@ -672,9 +688,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication
         );
 
-        final Authentication innerRewritten = AuthenticationContextSerializer.decode(
-            (String) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-        );
+        final Authentication innerRewritten = (Authentication) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
         assertThat(innerRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(olderVersion)));
     }
 

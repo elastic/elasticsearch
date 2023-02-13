@@ -139,11 +139,7 @@ public final class RemoteAccessAuthentication {
         assert false == getAuthentication().isRemoteAccess()
             : "authentication included in remote access header cannot itself be remote access";
         final Map<String, Object> copy = new HashMap<>(authenticationMetadata);
-        try {
-            copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, getAuthentication().encode());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, getAuthentication());
         copy.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
         return Collections.unmodifiableMap(copy);
     }
@@ -159,6 +155,10 @@ public final class RemoteAccessAuthentication {
 
         public RoleDescriptorsBytes(StreamInput streamInput) throws IOException {
             this(streamInput.readBytesReference());
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesReference(rawBytes);
         }
 
         public static RoleDescriptorsBytes fromRoleDescriptors(final Set<RoleDescriptor> roleDescriptors) throws IOException {

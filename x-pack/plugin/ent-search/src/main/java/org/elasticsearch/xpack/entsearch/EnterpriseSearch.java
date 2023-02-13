@@ -25,7 +25,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin {
 
     public EnterpriseSearch(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
+        this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {

@@ -157,8 +157,13 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         @Nullable
         private final Double writeLoadForecast;
 
-        public DataStreamStats(String dataStream, int backingIndices, ByteSizeValue storeSize, long maximumTimestamp,
-                               @Nullable Double writeLoadForecast) {
+        public DataStreamStats(
+            String dataStream,
+            int backingIndices,
+            ByteSizeValue storeSize,
+            long maximumTimestamp,
+            @Nullable Double writeLoadForecast
+        ) {
             this.dataStream = dataStream;
             this.backingIndices = backingIndices;
             this.storeSize = storeSize;
@@ -258,7 +263,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final ShardRouting shardRouting;
         private final StoreStats storeStats;
         private final long maxTimestamp;
-        
+
         public DataStreamShardStats(ShardRouting shardRouting, StoreStats storeStats, long maxTimestamp) {
             this.shardRouting = shardRouting;
             this.storeStats = storeStats;

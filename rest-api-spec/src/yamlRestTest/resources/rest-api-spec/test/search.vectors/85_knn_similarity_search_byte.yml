@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: ' - 8.6.99'
-      reason: 'vector similarity search added in 8.7'
+      version: ' - 8.7.99'
+      reason: 'vector similarity search added in 8.8'
   - do:
       indices.create:
         index: test

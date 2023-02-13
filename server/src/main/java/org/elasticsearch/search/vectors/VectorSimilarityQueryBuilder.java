@@ -125,7 +125,7 @@ public class VectorSimilarityQueryBuilder extends AbstractQueryBuilder<VectorSim
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT;
+        return TransportVersion.V_8_8_0;
     }
 
     public VectorSimilarityQueryBuilder addFilterQuery(QueryBuilder filterQuery) {

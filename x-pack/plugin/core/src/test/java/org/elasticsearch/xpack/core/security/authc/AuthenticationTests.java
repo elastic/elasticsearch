@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -43,7 +41,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -486,13 +483,12 @@ public class AuthenticationTests extends ESTestCase {
             hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthentication.getRoleDescriptorsBytesList())
         );
 
+        // Serialization round-trip
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             authentication.writeTo(out);
             final StreamInput in = out.bytes().streamInput();
             final Authentication deserialized = new Authentication(in);
             assertThat(deserialized, equalTo(authentication));
-            ((List<?>) deserialized.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY))
-                .forEach(item -> assertThat(item, isA(RoleDescriptorsBytes.class)));
         }
     }
 

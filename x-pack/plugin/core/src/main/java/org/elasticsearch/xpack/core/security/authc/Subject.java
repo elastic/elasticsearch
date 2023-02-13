@@ -15,14 +15,11 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -120,61 +117,77 @@ public class Subject {
     }
 
     public boolean canAccessResourcesOf(Subject resourceCreatorSubject) {
-        if (API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType())) {
-            final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-                .equals(resourceCreatorSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-            assert false == sameKeyId || getUser().principal().equals(resourceCreatorSubject.getUser().principal())
-                : "The same API key ID cannot be attributed to two different usernames";
-            return sameKeyId;
-        } else if ((API_KEY.equals(getType()) && false == API_KEY.equals(resourceCreatorSubject.getType()))
-            || (false == API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType()))) {
+        if (eitherIsAnApiKey(resourceCreatorSubject)) {
+            if (bothAreApiKeys(resourceCreatorSubject)) {
+                final boolean sameKeyId = isTheSameApiKey(resourceCreatorSubject);
+                assert false == sameKeyId || getUser().principal().equals(resourceCreatorSubject.getUser().principal())
+                    : "The same API key ID cannot be attributed to two different usernames";
+                return sameKeyId;
+            } else {
                 // an API Key cannot access resources created by non-API Keys or vice-versa
                 return false;
-            } else if (REMOTE_ACCESS.equals(getType()) || REMOTE_ACCESS.equals(resourceCreatorSubject.getType())) {
-                final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-                    .equals(resourceCreatorSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-                if (false == sameKeyId) {
+            }
+        } else if (eitherIsRemoteAccess(resourceCreatorSubject)) {
+            if (bothAreRemoteAccess(resourceCreatorSubject)) {
+                if (false == isTheSameApiKey(resourceCreatorSubject)) {
                     return false;
                 }
-                try {
-                    return AuthenticationContextSerializer.decode((String) getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY))
-                        .canAccessResourcesOf(
-                            AuthenticationContextSerializer.decode(
-                                (String) resourceCreatorSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY)
-                            )
-                        );
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-
+                return ((Authentication) getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY)).canAccessResourcesOf(
+                    (Authentication) resourceCreatorSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY)
+                );
             } else {
-                if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
-                    return false;
-                }
-                final Authentication.RealmRef myAuthRealm = getRealm();
-                final Authentication.RealmRef creatorAuthRealm = resourceCreatorSubject.getRealm();
-                if (null == myAuthRealm.getDomain()) {
-                    // the authentication accessing the resource is for a user from a realm not part of any domain
-                    return Authentication.equivalentRealms(
-                        myAuthRealm.getName(),
-                        myAuthRealm.getType(),
+                // A remote access never share resources with non-remote access
+                return false;
+            }
+        } else {
+            if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
+                return false;
+            }
+            final Authentication.RealmRef myAuthRealm = getRealm();
+            final Authentication.RealmRef creatorAuthRealm = resourceCreatorSubject.getRealm();
+            if (null == myAuthRealm.getDomain()) {
+                // the authentication accessing the resource is for a user from a realm not part of any domain
+                return Authentication.equivalentRealms(
+                    myAuthRealm.getName(),
+                    myAuthRealm.getType(),
+                    creatorAuthRealm.getName(),
+                    creatorAuthRealm.getType()
+                );
+            } else {
+                for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
+                    if (Authentication.equivalentRealms(
+                        domainRealm.getName(),
+                        domainRealm.getType(),
                         creatorAuthRealm.getName(),
                         creatorAuthRealm.getType()
-                    );
-                } else {
-                    for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
-                        if (Authentication.equivalentRealms(
-                            domainRealm.getName(),
-                            domainRealm.getType(),
-                            creatorAuthRealm.getName(),
-                            creatorAuthRealm.getType()
-                        )) {
-                            return true;
-                        }
+                    )) {
+                        return true;
                     }
-                    return false;
                 }
+                return false;
             }
+        }
+    }
+
+    private boolean isTheSameApiKey(Subject resourceCreatorSubject) {
+        return getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+            .equals(resourceCreatorSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+    }
+
+    private boolean eitherIsAnApiKey(Subject resourceCreatorSubject) {
+        return API_KEY.equals(getType()) || API_KEY.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreApiKeys(Subject resourceCreatorSubject) {
+        return API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean eitherIsRemoteAccess(Subject resourceCreatorSubject) {
+        return REMOTE_ACCESS.equals(getType()) || REMOTE_ACCESS.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreRemoteAccess(Subject resourceCreatorSubject) {
+        return REMOTE_ACCESS.equals(getType()) && REMOTE_ACCESS.equals(resourceCreatorSubject.getType());
     }
 
     @Override
@@ -254,10 +267,9 @@ public class Subject {
     private RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
         final List<RoleReference> roleReferences = new ArrayList<>(4);
         @SuppressWarnings("unchecked")
-        final List<RoleDescriptorsBytes> remoteAccessRoleDescriptorsBytes = ((List<BytesReference>) metadata.get(
+        final var remoteAccessRoleDescriptorsBytes = (List<RoleDescriptorsBytes>) metadata.get(
             AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY
-        )).stream().map(b -> b instanceof RoleDescriptorsBytes ? (RoleDescriptorsBytes) b : new RoleDescriptorsBytes(b)).toList();
-
+        );
         if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
             // If the remote access role descriptors are empty, the remote user has no privileges. We need to add an empty role to restrict
             // access of the overall intersection accordingly

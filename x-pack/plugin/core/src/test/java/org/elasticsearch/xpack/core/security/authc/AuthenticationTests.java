@@ -130,14 +130,45 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
             randomApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
         );
+    }
 
-        // No resource sharing for remote access authentication for now
-        final RemoteAccessAuthentication randomRemoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
-        final Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder()
-            .remoteAccess(apiKeyId1, randomRemoteAccessAuthentication)
+    public void testRemoteAccessCanAccessResourceOf() {
+        final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
+        final RemoteAccessAuthentication remoteAccessAuthentication1 = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(apiKeyId1, remoteAccessAuthentication1)
             .build(false);
-        assertCannotAccessResources(remoteAccessAuthentication, remoteAccessAuthentication);
-        assertCannotAccessResources(remoteAccessAuthentication, randomRemoteAccessAuthentication.getAuthentication());
+
+        // 1. Same remote access authentication, allow access (this is only scenario resource share is allowed)
+        assertCanAccessResources(authentication, authentication);
+
+        // 2. The remote access authentication is not the same as its nested QC user authentication
+        // This also covers the case where FC happens to have a user that looks the same as the QC user
+        assertCannotAccessResources(authentication, remoteAccessAuthentication1.getAuthentication());
+        assertThat(
+            remoteAccessAuthentication1.getAuthentication(),
+            is(authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY))
+        );
+
+        // 3. The same API key can be used with the REST interface
+        assertCannotAccessResources(authentication, AuthenticationTestHelper.builder().apiKey(apiKeyId1).build());
+
+        // 4. The same QC user can use a different remote access API key
+        final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
+        assertCannotAccessResources(
+            authentication,
+            AuthenticationTestHelper.builder().remoteAccess(apiKeyId2, remoteAccessAuthentication1).build(false)
+        );
+
+        // 5. The same API key but for a different QC user
+        final RemoteAccessAuthentication remoteAccessAuthentication2 = randomValueOtherThan(
+            remoteAccessAuthentication1,
+            AuthenticationTestHelper::randomRemoteAccessAuthentication
+        );
+        assertCannotAccessResources(
+            authentication,
+            AuthenticationTestHelper.builder().remoteAccess(apiKeyId1, remoteAccessAuthentication2).build(false)
+        );
     }
 
     public void testTokenAccessResourceOf() {

@@ -36,12 +36,8 @@ public final class RemoteAccessHeaders {
             throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required");
         }
         // Invoke parsing logic to validate that the header decodes to a valid API key credential
-        try (var ignored = parseClusterCredentialsHeader(clusterCredentialsHeader)) {} catch (Exception ex) {
-            throw new IllegalArgumentException(
-                "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential",
-                ex
-            );
-        }
+        // Call `close` since the returned value is an auto-closable
+        parseClusterCredentialsHeader(clusterCredentialsHeader).close();
         return new RemoteAccessHeaders(clusterCredentialsHeader, RemoteAccessAuthentication.readFromContext(ctx));
     }
 
@@ -50,7 +46,14 @@ public final class RemoteAccessHeaders {
     }
 
     private static ApiKeyService.ApiKeyCredentials parseClusterCredentialsHeader(final String header) {
-        return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header));
+        try {
+            return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header));
+        } catch (Exception ex) {
+            throw new IllegalArgumentException(
+                "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential",
+                ex
+            );
+        }
     }
 
     public RemoteAccessAuthentication remoteAccessAuthentication() {

@@ -112,7 +112,10 @@ public class TransportVersionUtils {
 
     /** returns the first future compatible version */
     public static TransportVersion compatibleFutureVersion(TransportVersion version) {
-        final Optional<TransportVersion> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> isCompatible(v, version)).findAny();
+        final Optional<TransportVersion> opt = ALL_VERSIONS.stream()
+            .filter(version::before)
+            .filter(v -> isCompatible(v, version))
+            .findAny();
         assert opt.isPresent() : "no future compatible version for " + version;
         return opt.get();
     }

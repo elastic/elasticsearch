@@ -9,6 +9,7 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -406,10 +407,10 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     private static RemoteConnectionInfo assertSerialization(RemoteConnectionInfo info) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(Version.CURRENT);
+            out.setTransportVersion(TransportVersion.CURRENT);
             info.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            in.setVersion(Version.CURRENT);
+            in.setTransportVersion(TransportVersion.CURRENT);
             RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(in);
             assertEquals(info, remoteConnectionInfo);
             assertEquals(info.hashCode(), remoteConnectionInfo.hashCode());

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -81,8 +82,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
-import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,6 +95,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -580,7 +582,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             : AuthenticationTestHelper.builder().user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
-        final String remoteClusterCredential = randomAlphaOfLengthBetween(10, 42);
+        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
         when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(remoteClusterCredential);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final AuthorizationService authzService = mock(AuthorizationService.class);
@@ -663,7 +665,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
         }
         assertTrue(calledWrappedSender.get());
-        assertThat(sentCredential.get(), equalTo("ApiKey " + remoteClusterCredential));
+        assertThat(sentCredential.get(), equalTo(remoteClusterCredential));
         assertThat(
             sentRemoteAccessAuthentication.get(),
             equalTo(new RemoteAccessAuthentication(authentication, expectedRoleDescriptorsIntersection))
@@ -692,7 +694,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         }
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
         when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(
-            noCredential ? null : randomAlphaOfLengthBetween(10, 42)
+            noCredential ? null : ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42))
         );
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
         final Authentication authentication;
@@ -772,7 +774,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .build();
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
-        final String remoteClusterCredential = randomAlphaOfLengthBetween(10, 42);
+        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
         when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(remoteClusterCredential);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
 
@@ -859,8 +861,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder()
             .put(this.settings)
             .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
-            .put("remote_cluster.enabled", true)
-            .put("xpack.security.remote_cluster.ssl.enabled", remoteClusterSslEnabled);
+            .put("remote_cluster_server.enabled", true)
+            .put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);
+        if (randomBoolean()) {
+            builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
+        }
         final SSLService sslService = mock(SSLService.class);
 
         when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
@@ -876,9 +881,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             )
         );
 
-        when(sslService.getSSLConfiguration("xpack.security.remote_cluster.ssl.")).thenReturn(
+        when(sslService.getSSLConfiguration("xpack.security.remote_cluster_server.ssl.")).thenReturn(
             new SslConfiguration(
-                "xpack.security.remote_cluster.ssl",
+                "xpack.security.remote_cluster_server.ssl",
                 randomBoolean(),
                 mock(SslTrustConfig.class),
                 mock(SslKeyConfig.class),
@@ -888,6 +893,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 List.of("TLSv1.2")
             )
         );
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
+            .getSSLConfiguration("xpack.security.remote_cluster_client.ssl.");
 
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
@@ -917,8 +924,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder()
             .put(this.settings)
             .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
-            .put("remote_cluster.enabled", false)
-            .put("xpack.security.remote_cluster.ssl.enabled", randomBoolean());
+            .put("remote_cluster_server.enabled", false)
+            .put("xpack.security.remote_cluster_server.ssl.enabled", randomBoolean());
+        if (randomBoolean()) {
+            builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
+        }
         final SSLService sslService = mock(SSLService.class);
 
         when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
@@ -933,6 +943,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 List.of("TLSv1.3")
             )
         );
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster server when the port is disabled")).when(
+            sslService
+        ).getSSLConfiguration("xpack.security.remote_cluster_server.ssl.");
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
+            .getSSLConfiguration("xpack.security.remote_cluster_client.ssl.");
 
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
@@ -967,4 +982,5 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     private static Consumer<ThreadContext.StoredContext> anyConsumer() {
         return any(Consumer.class);
     }
+
 }

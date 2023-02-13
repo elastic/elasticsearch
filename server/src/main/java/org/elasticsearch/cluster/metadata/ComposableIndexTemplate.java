@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -175,7 +174,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.ignoreMissingComponentTemplates = in.readOptionalStringList();
         } else {
             this.ignoreMissingComponentTemplates = null;
@@ -250,7 +249,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         }
     }

@@ -13,7 +13,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,7 +29,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -197,9 +197,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             query.queryName()
         ).boost(query.boost()).addFilterQueries(query.filterQueries());
 
-        Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_7_0, Version.CURRENT);
-        Version beforeByteQueryVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_2_0, Version.V_8_6_0);
-        Version beforeFilterVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.V_8_1_0);
+        TransportVersion newVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_8_7_0,
+            TransportVersion.CURRENT
+        );
+        TransportVersion beforeByteQueryVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_8_2_0,
+            TransportVersion.V_8_6_0
+        );
+        TransportVersion beforeFilterVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_8_0_0,
+            TransportVersion.V_8_1_0
+        );
 
         assertSerialization(query, newVersion);
         assertSerialization(queryNoByteQuery, beforeByteQueryVersion);
@@ -210,10 +222,10 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             Tuple.tuple(beforeFilterVersion, queryWithNoFilters)
         )) {
             try (BytesStreamOutput output = new BytesStreamOutput()) {
-                output.setVersion(tuple.v1());
+                output.setTransportVersion(tuple.v1());
                 output.writeNamedWriteable(query);
                 try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
-                    in.setVersion(tuple.v1());
+                    in.setTransportVersion(tuple.v1());
                     KnnVectorQueryBuilder deserializedQuery = (KnnVectorQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
                     assertEquals(tuple.v2(), deserializedQuery);
                     assertEquals(tuple.v2().hashCode(), deserializedQuery.hashCode());

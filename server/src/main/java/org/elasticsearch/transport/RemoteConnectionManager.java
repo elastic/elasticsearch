@@ -370,4 +370,8 @@ public class RemoteConnectionManager implements ConnectionManager {
             return connection.hasReferences();
         }
     }
+
+    static InternalRemoteConnection wrapConnectionWithClusterAlias(Transport.Connection connection, String clusterAlias) {
+        return new InternalRemoteConnection(connection, clusterAlias);
+    }
 }

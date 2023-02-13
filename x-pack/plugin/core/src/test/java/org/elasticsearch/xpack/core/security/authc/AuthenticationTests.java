@@ -636,17 +636,7 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithRemoteAccessRewritesAuthenticationInMetadata() throws IOException {
-        // This is a hack for 8.7, to enable testing a scenario where a remote access authentication is rewritten for a node on an older
-        // version. There are two factors why we need this hack:
-        // We introduced a new rewrite mechanism for remote access authentication in 8.7, to stay future-proof.
-        // Rewriting a remote access authentication is only valid if it's towards a node on version 8.7 or later (it's prevented by an
-        // internal validation check).
-        // To test the new rewrite mechanism in 8.7, we call authentication.maybeRewriteForOlderVersion(version, remoteAccessRealmVersion)
-        // with a version that precedes 8.7, thus circumventing the internal validation error
-        // TODO in 8.8, simply set remoteAccessRealmVersion to Authentication.VERSION_REMOTE_ACCESS_REALM
-        final TransportVersion remoteAccessRealmVersion = TransportVersion.CURRENT.equals(Authentication.VERSION_REMOTE_ACCESS_REALM)
-            ? TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REMOTE_ACCESS_REALM)
-            : Authentication.VERSION_REMOTE_ACCESS_REALM;
+        final TransportVersion remoteAccessRealmVersion = Authentication.VERSION_REMOTE_ACCESS_REALM;
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             remoteAccessRealmVersion,
@@ -658,7 +648,7 @@ public class AuthenticationTests extends ESTestCase {
             .build();
         final TransportVersion maybeOldVersion = TransportVersionUtils.randomVersionBetween(random(), remoteAccessRealmVersion, version);
 
-        final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion, remoteAccessRealmVersion);
+        final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
         final Authentication innerActualAuthentication = AuthenticationContextSerializer.decode(
             (String) actual.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)

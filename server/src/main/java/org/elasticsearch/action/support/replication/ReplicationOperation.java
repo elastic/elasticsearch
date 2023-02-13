@@ -611,7 +611,7 @@ public class ReplicationOperation<
         void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, ActionListener<Void> listener);
 
         /**
-         * Optional custom logic to execute when the primary operation is complete.
+         * Optional custom logic to execute when the primary operation is complete, before sending the replica requests.
          *
          * @param replicaRequest             the operation that will be performed on replicas
          * @param indexShardRoutingTable     the replication's group index shard routing table

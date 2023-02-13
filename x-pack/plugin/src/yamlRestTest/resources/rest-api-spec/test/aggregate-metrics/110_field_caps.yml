@@ -195,10 +195,10 @@ field caps on all indices:
   - match: { fields.metric.double.searchable: true }
   - match: { fields.metric.double.aggregatable: true }
   - match: { fields.metric.double.indices: [ "test_non_time_series", "test_time_series" ] }
-  - match: { fields.metric.double.metric_conflicts_indices: [ "test_non_time_series", "test_time_series" ] }
+  - is_false: fields.metric.double.metric_conflicts_indices
   - is_false: fields.metric.double.non_searchable_indices
   - is_false: fields.metric.double.non_aggregatable_indices
-  - is_false: fields.metric.double.time_series_metric
+  - match: { fields.metric.double.time_series_metric: gauge }
 
   - match: { fields.metric.aggregate_metric_double.type: aggregate_metric_double }
   - match: { fields.metric.aggregate_metric_double.searchable: true }

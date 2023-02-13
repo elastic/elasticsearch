@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -23,12 +24,20 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Holds the Data Lifecycle Management metadata that are configuring how a data stream is managed.
  */
 public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentFragment {
+
+    public static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.dlm_feature_flag_enabled"));
+
+    public static boolean isEnabled() {
+        return FEATURE_FLAG_ENABLED;
+    }
 
     public static final DataLifecycle EMPTY = new DataLifecycle();
 

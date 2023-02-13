@@ -7,12 +7,19 @@
 
 package org.elasticsearch.xpack.ml.queries;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -20,7 +27,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.SlimResults;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -28,12 +34,19 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.hasSize;
+
 public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextExpansionQueryBuilder> {
+
+    private static final String RANK_FEATURES_FIELD = "rank";
+    private static int NUM_TOKENS = 10;
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
         var builder = new TextExpansionQueryBuilder(
-            randomAlphaOfLength(4),
+            RANK_FEATURES_FIELD,
             randomAlphaOfLength(4),
             randomBoolean() ? null : randomAlphaOfLength(4)
         );
@@ -48,7 +61,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MachineLearning.class);
+        return List.of(MachineLearning.class, MapperExtrasPlugin.class);
     }
 
     @Override
@@ -69,10 +82,11 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     protected Object simulateMethod(Method method, Object[] args) {
         InferModelAction.Request request = (InferModelAction.Request) args[1];
 
+        // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
+        // asserts that 2 rewritten queries are the same
         var tokens = new ArrayList<SlimResults.WeightedToken>();
-        int numTokens = randomIntBetween(1, 20);
-        for (int i = 0; i < numTokens; i++) {
-            tokens.add(new SlimResults.WeightedToken(i, randomFloat()));
+        for (int i = 0; i < NUM_TOKENS; i++) {
+            tokens.add(new SlimResults.WeightedToken(i, (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()
@@ -86,22 +100,29 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        mapperService.merge(
+            "_doc",
+            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(RANK_FEATURES_FIELD, "type=rank_features"))),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+    }
+
+    @Override
     protected void doAssertLuceneQuery(TextExpansionQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
+        assertThat(query, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertEquals(booleanQuery.getMinimumNumberShouldMatch(), 1);
+        assertThat(booleanQuery.clauses(), hasSize(NUM_TOKENS));
 
-        assertThat(query, Matchers.instanceOf(MatchNoDocsQuery.class));
+        Class<?> featureQueryClass = FeatureField.newLinearQuery("", "", 0.5f).getClass();
+        // if the weight is 1.0f a BoostQuery is returned
+        Class<?> boostQueryClass = FeatureField.newLinearQuery("", "", 1.0f).getClass();
 
-        // assertThat(query, instanceOf(BooleanQuery.class));
-        // BooleanQuery booleanQuery = (BooleanQuery) query;
-        // assertEquals(booleanQuery.getMinimumNumberShouldMatch(), 1);
-        //
-        // for (var clause : booleanQuery.clauses()) {
-        // assertEquals(BooleanClause.Occur.SHOULD, clause.getOccur());
-        // if (clause.getQuery()instanceof TermQuery termQuery) {
-        // assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName(queryBuilder.getFieldName())));
-        // } else {
-        // assertThat(clause.getQuery(), instanceOf(MatchNoDocsQuery.class));
-        // }
-        // }
+        for (var clause : booleanQuery.clauses()) {
+            assertEquals(BooleanClause.Occur.SHOULD, clause.getOccur());
+            assertThat(clause.getQuery(), either(instanceOf(featureQueryClass)).or(instanceOf(boostQueryClass)));
+        }
     }
 
     public void testIllegalValues() {

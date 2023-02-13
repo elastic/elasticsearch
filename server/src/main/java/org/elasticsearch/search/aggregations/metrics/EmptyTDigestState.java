@@ -59,11 +59,6 @@ public final class EmptyTDigestState extends TDigestState {
     }
 
     @Override
-    protected Object clone() throws CloneNotSupportedException {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
     public boolean isRecording() {
         return false;
     }

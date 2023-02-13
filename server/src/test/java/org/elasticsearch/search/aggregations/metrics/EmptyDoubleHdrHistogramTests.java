@@ -93,14 +93,6 @@ public class EmptyDoubleHdrHistogramTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> singleton.nextNonEquivalentValue(1.0D));
     }
 
-    public void testGetIntegerToDoubleValueConversionRatio() {
-        expectThrows(UnsupportedOperationException.class, singleton::getIntegerToDoubleValueConversionRatio);
-    }
-
-    public void testGetHighestToLowestValueRatio() {
-        expectThrows(UnsupportedOperationException.class, singleton::getHighestToLowestValueRatio);
-    }
-
     public void testValuesAreEquivalent() {
         expectThrows(UnsupportedOperationException.class, () -> singleton.valuesAreEquivalent(1.0D, 1.0D));
     }

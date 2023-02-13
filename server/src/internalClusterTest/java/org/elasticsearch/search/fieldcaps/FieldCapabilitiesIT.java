@@ -58,6 +58,7 @@ import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -674,13 +675,15 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(resp.getField("extra_field").get("integer").isAggregatable());
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction:TRACE",
+        reason = "verify the log output on cancelled"
+    )
     public void testCancel() throws Exception {
         MockLogAppender logAppender = new MockLogAppender();
         logAppender.start();
         Logger fieldCapsLogger = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
         Loggers.addAppender(fieldCapsLogger, logAppender);
-        Level previousLogLevel = fieldCapsLogger.getLevel();
-        Loggers.setLevel(fieldCapsLogger, Level.TRACE);
         try {
             logAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
@@ -735,7 +738,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         } finally {
             Loggers.removeAppender(fieldCapsLogger, logAppender);
             logAppender.stop();
-            Loggers.setLevel(fieldCapsLogger, previousLogLevel);
         }
     }
 

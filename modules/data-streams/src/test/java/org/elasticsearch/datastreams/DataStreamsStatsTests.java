@@ -87,7 +87,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(0L, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
-        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecast()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerShard()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerIndex()));
     }
 
     public void testStatsExistingDataStream() throws Exception {
@@ -106,7 +107,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
-        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecast()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerShard()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerIndex()));
     }
 
     public void testStatsExistingHiddenDataStream() throws Exception {
@@ -125,7 +127,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
-        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecast()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerShard()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerIndex()));
     }
 
     public void testStatsClosedBackingIndexDataStream() throws Exception {
@@ -157,7 +160,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(0L, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
-        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecast()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerShard()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerIndex()));
 
         // Call stats again after writing a new event into the write index
         long timestamp = createDocument(dataStreamName);
@@ -174,7 +178,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
-        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecast()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerShard()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerIndex()));
     }
 
     public void testStatsRolledDataStream() throws Exception {
@@ -195,7 +200,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
-        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecast()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerShard()));
+        assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerIndex()));
     }
 
     public void testStatsMultipleDataStreams() throws Exception {
@@ -227,7 +233,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             assertEquals(1, dataStreamStats.getBackingIndices());
             assertEquals(expectedMaxTS.longValue(), dataStreamStats.getMaximumTimestamp());
             assertNotEquals(0L, dataStreamStats.getStoreSize().getBytes());
-            assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecast()));
+            assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerShard()));
+            assertThat(null, is(stats.getDataStreams()[0].getWriteLoadForecastPerIndex()));
         }
     }
 

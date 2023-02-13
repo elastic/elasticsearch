@@ -201,7 +201,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                     IndexMetadata writeIndexMetadata = clusterState.getMetadata().index(writeIndex);
                     OptionalDouble writeLoadForecast = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
                     if (writeLoadForecast.isPresent()) {
-                        stats.writeLoadForecast = writeLoadForecast.getAsDouble() * writeIndexMetadata.getNumberOfShards();
+                        stats.writeLoadForecastPerShard = writeLoadForecast.getAsDouble();
+                        stats.writeLoadForecastPerIndex = stats.writeLoadForecastPerShard * writeIndexMetadata.getNumberOfShards();
                     }
                 }
 
@@ -266,7 +267,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                         entry.getValue().backingIndices.size(),
                         ByteSizeValue.ofBytes(entry.getValue().storageBytes),
                         entry.getValue().maxTimestamp,
-                        entry.getValue().writeLoadForecast
+                        entry.getValue().writeLoadForecastPerShard,
+                        entry.getValue().writeLoadForecastPerIndex
                     )
                 )
                 .toArray(DataStreamsStatsAction.DataStreamStats[]::new);
@@ -289,6 +291,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         long storageBytes = 0L;
         long maxTimestamp = 0L;
         @Nullable
-        Double writeLoadForecast = null;
+        Double writeLoadForecastPerIndex = null;
+        @Nullable
+        Double writeLoadForecastPerShard = null;
     }
 }

@@ -111,11 +111,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     }
 
     // TODO: potentially remove this when all uses of the constructor have been evaluated and updated
-    public Template(
-        @Nullable Settings settings,
-        @Nullable CompressedXContent mappings,
-        @Nullable Map<String, AliasMetadata> aliases
-    ) {
+    public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
         this(settings, mappings, aliases, null);
     }
 

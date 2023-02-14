@@ -173,21 +173,22 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         }
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
-                if (shardRouting.isSearchable() == false) {
+                if (shardRouting.isSearchable()) {
+                    in.close();
+                    return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
+                } else {
                     return in;
                 }
-                in.close();
-                return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
             });
         }
         indexModule.addIndexEventListener(new IndexEventListener() {
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                if (indexShard.routingEntry().role().isPromotableToPrimary()) {
+                if (indexShard.routingEntry().isPromotableToPrimary()) {
                     listener.onResponse(null);
                     return;
                 }
-                assert indexShard.routingEntry().role().isSearchable();
+                assert indexShard.routingEntry().isSearchable();
                 final Store store = indexShard.store();
                 store.incRef();
                 try {

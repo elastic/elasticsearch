@@ -65,8 +65,8 @@ public class StatelessAllocationDecider extends AllocationDecider {
     }
 
     private boolean canAllocateShardToNode(ShardRouting shardRouting, Set<DiscoveryNodeRole> nodeRoles) {
-        return (shardRouting.role().isPromotableToPrimary() && nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE))
-            || (shardRouting.role().isSearchable() && nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE));
+        return (shardRouting.isPromotableToPrimary() && nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE))
+            || (shardRouting.isSearchable() && nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE));
     }
 
     private String statelessNodeRole(Set<DiscoveryNodeRole> roles) {

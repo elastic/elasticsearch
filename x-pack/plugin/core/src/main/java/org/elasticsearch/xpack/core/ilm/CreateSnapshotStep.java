@@ -80,6 +80,8 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                             ((InvalidSnapshotNameException) e).getSnapshotName(),
                             indexMetadata.getIndex().getName()
                         );
+                        // note we're going thorugh the success branch here (ie. this is not listener.onComplete)
+                        // to mark the step as onResponseResult=false (this way our next step key will be nextKeyOnIncomplete)
                         onResponse(false);
                     } else {
                         listener.onFailure(e);

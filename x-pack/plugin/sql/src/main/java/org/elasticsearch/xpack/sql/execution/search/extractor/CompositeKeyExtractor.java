@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -55,7 +54,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         property = in.readEnum(Property.class);
-        if (in.getVersion().onOrAfter(Version.fromId(INTRODUCING_UNSIGNED_LONG.id))) {
+        if (in.getTransportVersion().onOrAfter(INTRODUCING_UNSIGNED_LONG.transportVersion)) {
             dataType = SqlDataTypes.fromTypeName(in.readString());
         } else {
             // for pre-UNSIGNED_LONG versions, the only relevant fact about the dataType was if this isDateBased() or not.
@@ -69,7 +68,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(key);
         out.writeEnum(property);
-        if (out.getVersion().onOrAfter(Version.fromId(INTRODUCING_UNSIGNED_LONG.id))) {
+        if (out.getTransportVersion().onOrAfter((INTRODUCING_UNSIGNED_LONG.transportVersion))) {
             out.writeString(dataType.typeName());
         } else {
             out.writeBoolean(isDateBased(dataType));

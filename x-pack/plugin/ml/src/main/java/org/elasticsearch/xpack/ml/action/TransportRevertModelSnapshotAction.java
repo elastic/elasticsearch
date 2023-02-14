@@ -334,7 +334,6 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         ModelSnapshot modelSnapshot,
         String jobId
     ) {
-
         return ActionListener.wrap(response -> jobResultsProvider.dataCounts(jobId, counts -> {
             counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
             jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.delegateFailure((l, r) -> l.onResponse(response)));

@@ -18,7 +18,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -78,26 +77,19 @@ public abstract class StreamOutput extends OutputStream {
 
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
-    private Version version = Version.CURRENT;
-
-    /**
-     * The version of the node on the other side of this stream.
-     */
-    public Version getVersion() {
-        return this.version;
-    }
+    private TransportVersion version = TransportVersion.CURRENT;
 
     /**
      * The transport version to serialize the data as.
      */
     public TransportVersion getTransportVersion() {
-        return this.version.transportVersion;
+        return this.version;
     }
 
     /**
-     * Set the version of the node on the other side of this stream.
+     * Set the transport version of the data in this stream.
      */
-    public void setVersion(Version version) {
+    public void setTransportVersion(TransportVersion version) {
         this.version = version;
     }
 
@@ -155,7 +147,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
-        tmp.setVersion(version);
+        tmp.setTransportVersion(version);
         writeable.writeTo(tmp);
         writeBytesReference(tmp.bytes());
     }
@@ -545,6 +537,19 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes a byte array, for null arrays it writes false.
+     * @param array an array or null
+     */
+    public void writeOptionalByteArray(@Nullable byte[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeByteArray(array);
+        }
+    }
+
     public void writeGenericMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
@@ -569,7 +574,7 @@ public abstract class StreamOutput extends OutputStream {
             .iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (this.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 this.writeGenericValue(next.getKey());
             } else {
                 this.writeString(next.getKey());
@@ -700,7 +705,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            if (o.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (o.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 final Map<?, ?> map = (Map<?, ?>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
             } else {

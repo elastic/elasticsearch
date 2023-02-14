@@ -693,6 +693,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     migratedComposableTemplateBuilder.metadata(composableTemplate.metadata());
                     migratedComposableTemplateBuilder.dataStreamTemplate(composableTemplate.getDataStreamTemplate());
                     migratedComposableTemplateBuilder.allowAutoCreate(composableTemplate.getAllowAutoCreate());
+                    migratedComposableTemplateBuilder.ignoreMissingComponentTemplates(
+                        composableTemplate.getIgnoreMissingComponentTemplates()
+                    );
 
                     mb.put(templateEntry.getKey(), migratedComposableTemplateBuilder.build());
                     migratedComposableTemplates.add(templateEntry.getKey());

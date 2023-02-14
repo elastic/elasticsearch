@@ -123,13 +123,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        try {
-                            if (cancellableTask.notifyIfCancelled(listener) == false) {
-                                listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                        ActionListener.run(listener, l -> {
+                            if (cancellableTask.notifyIfCancelled(l) == false) {
+                                l.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
                             }
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
+                        });
                     }
                 }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }

@@ -26,8 +26,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.TreeMap;
 
+@SuppressWarnings("checkstyle:linelength")
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
@@ -106,6 +110,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_17_7 = new Version(7_17_07_99, TransportVersion.V_7_17_7, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_7_17_8 = new Version(7_17_08_99, TransportVersion.V_7_17_8, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_7_17_9 = new Version(7_17_09_99, TransportVersion.V_7_17_9, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_10 = new Version(7_17_10_99, TransportVersion.V_7_17_10, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_8_0_0 = new Version(8_00_00_99, TransportVersion.V_8_0_0, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_0_1 = new Version(8_00_01_99, TransportVersion.V_8_0_1, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_1_0 = new Version(8_01_00_99, TransportVersion.V_8_1_0, org.apache.lucene.util.Version.LUCENE_9_0_0);
@@ -130,15 +135,17 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_5_3 = new Version(8_05_03_99, TransportVersion.V_8_5_3, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_8_6_0 = new Version(8_06_00_99, TransportVersion.V_8_6_0, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_8_6_1 = new Version(8_06_01_99, TransportVersion.V_8_6_1, org.apache.lucene.util.Version.LUCENE_9_4_2);
+    public static final Version V_8_6_2 = new Version(8_06_02_99, TransportVersion.V_8_6_2, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_8_7_0 = new Version(8_07_00_99, TransportVersion.V_8_7_0, org.apache.lucene.util.Version.LUCENE_9_5_0);
 
-    public static final Version CURRENT = V_8_7_0;
+    public static final Version V_8_8_0 = new Version(8_08_00_99, TransportVersion.V_8_8_0, org.apache.lucene.util.Version.LUCENE_9_5_0);
+    public static final Version CURRENT = V_8_8_0;
 
-    private static final Map<Integer, Version> VERSION_IDS;
+    private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
 
     static {
-        final Map<Integer, Version> builder = new HashMap<>();
+        final NavigableMap<Integer, Version> builder = new TreeMap<>();
         final Map<String, Version> builderByString = new HashMap<>();
 
         for (final Field declaredField : Version.class.getFields()) {
@@ -180,12 +187,26 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
-        VERSION_IDS = Map.copyOf(builder);
+
+        VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
         VERSION_STRINGS = Map.copyOf(builderByString);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
+    }
+
+    /**
+     * Returns the highest Version that has this or a lesser TransportVersion.
+     */
+    @Deprecated
+    static Version findVersion(TransportVersion transportVersion) {
+        return VERSION_IDS.descendingMap()
+            .values()
+            .stream()
+            .filter(v -> v.transportVersion.compareTo(transportVersion) <= 0)
+            .findFirst()
+            .orElseThrow(() -> new NoSuchElementException("No valid Version found")); // only if transportVersion < 0 ?????
     }
 
     public static Version fromId(int id) {

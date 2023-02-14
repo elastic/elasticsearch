@@ -93,7 +93,7 @@ public class AnalyzeResponseTests extends AbstractWireSerializingTestCase<Analyz
      * Either add a token to the token list or change the details token list name
      */
     @Override
-    protected AnalyzeAction.Response mutateInstance(AnalyzeAction.Response instance) throws IOException {
+    protected AnalyzeAction.Response mutateInstance(AnalyzeAction.Response instance) {
         if (instance.getTokens() != null) {
             return new AnalyzeAction.Response(
                 CollectionUtils.appendToCopy(instance.getTokens(), RandomObjects.randomToken(random())),

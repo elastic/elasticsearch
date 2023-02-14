@@ -305,6 +305,10 @@
                     }
                   }
                 },
+                "roles": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
                 "version": {
                   "ignore_above": 1024,
                   "type": "keyword"
@@ -1850,6 +1854,74 @@
                               }
                             },
                             "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "ingest_pipeline": {
+              "properties": {
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "wildcard"
+                },
+                "processor": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "failed": {
+                      "type": "long"
+                    },
+                    "order_index": {
+                      "type": "long"
+                    },
+                    "time": {
+                      "properties": {
+                        "total": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "type": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "type_tag": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "total": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "failed": {
+                      "type": "long"
+                    },
+                    "time": {
+                      "properties": {
+                        "total": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "self": {
+                          "properties": {
+                            "ms": {
                               "type": "long"
                             }
                           }

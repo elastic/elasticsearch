@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -82,8 +83,8 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
@@ -132,7 +133,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
     protected final boolean rstOnClose;
-    private final Version version;
+    private final TransportVersion version;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -156,7 +157,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public TcpTransport(
         Settings settings,
-        Version version,
+        TransportVersion version,
         ThreadPool threadPool,
         PageCacheRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
@@ -216,7 +217,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         );
     }
 
-    public Version getVersion() {
+    public TransportVersion getVersion() {
         return version;
     }
 
@@ -255,12 +256,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
-        private final Version version;
+        private final TransportVersion version;
         private final Compression.Enabled compress;
         private final Compression.Scheme compressionScheme;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-        NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
+        NodeChannels(
+            DiscoveryNode node,
+            List<TcpChannel> channels,
+            ConnectionProfile connectionProfile,
+            TransportVersion handshakeVersion
+        ) {
             this.node = node;
             this.channels = Collections.unmodifiableList(channels);
             assert channels.size() == connectionProfile.getNumConnections()
@@ -277,6 +283,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public Version getVersion() {
+            // TODO: this should be the below, but in some cases the node version does not match the passed-in version.
+            // return node.getVersion();
+            return Version.fromId(version.id);
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
             return version;
         }
 
@@ -327,7 +340,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
 
             final Compression.Scheme schemeToUse = getCompressionScheme(wrapped);
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getTransportVersion(), schemeToUse, false);
         }
 
         private Compression.Scheme getCompressionScheme(TransportRequest request) {
@@ -390,7 +403,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                final TcpChannel channel = initiateChannel(node);
+                final TcpChannel channel = initiateChannel(node, connectionProfile);
                 if (logger.isTraceEnabled()) {
                     channel.addConnectListener(new ChannelOpenTraceLogger(channel));
                 }
@@ -410,7 +423,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             node,
             connectionProfile,
             channels,
-            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener, false)
+            new ThreadedActionListener<>(threadPool.generic(), listener)
         );
 
         for (TcpChannel channel : channels) {
@@ -794,10 +807,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * Initiate a single tcp socket channel.
      *
      * @param node for the initiated connection
+     * @param connectionProfile the connection profile to use when connecting to the node
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 
     /**
      * Called to tear down internal resources
@@ -940,7 +954,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile, ActionListener<Version> listener) {
+    public void executeHandshake(
+        DiscoveryNode node,
+        TcpChannel channel,
+        ConnectionProfile profile,
+        ActionListener<TransportVersion> listener
+    ) {
         long requestId = responseHandlers.newRequestId();
         handshaker.sendHandshake(requestId, node, channel, profile.getHandshakeTimeout(), listener);
     }
@@ -1000,6 +1019,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public static Set<ProfileSettings> getProfileSettings(Settings settings) {
         HashSet<ProfileSettings> profiles = new HashSet<>();
+        // Process remote cluster port first so that errors are consistently reported if there
+        // is direct usage of the _remote_cluster profile
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
+            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
+        }
         boolean isDefaultSet = false;
         for (String profile : settings.getGroups("transport.profiles.", true).keySet()) {
             profiles.add(new ProfileSettings(settings, profile));
@@ -1009,9 +1033,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         if (isDefaultSet == false) {
             profiles.add(new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE));
-        }
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
-            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
         }
         // Add the remote access profile
         return Collections.unmodifiableSet(profiles);

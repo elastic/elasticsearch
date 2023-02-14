@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -142,7 +141,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             w.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 1),
-                    new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(KEYWORD_FIELD_VALUE)),
                     new KeywordFieldMapper.KeywordField(
                         KEYWORD_FIELD_NAME,
                         new BytesRef(KEYWORD_FIELD_VALUE),
@@ -155,7 +153,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             w.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 2),
-                    new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(KEYWORD_FIELD_VALUE)),
                     new KeywordFieldMapper.KeywordField(
                         KEYWORD_FIELD_NAME,
                         new BytesRef(KEYWORD_FIELD_VALUE),

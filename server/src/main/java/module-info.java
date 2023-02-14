@@ -15,6 +15,7 @@ module org.elasticsearch.server {
     requires java.sql;
     requires java.management;
     requires jdk.unsupported;
+    requires java.net.http; // required by ingest-geoip's dependency maxmind.geoip2 https://github.com/elastic/elasticsearch/issues/93553
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
@@ -371,6 +372,9 @@ module org.elasticsearch.server {
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 
-    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+    provides org.apache.lucene.codecs.PostingsFormat
+        with
+            org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
+            org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
 }

@@ -55,7 +55,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
@@ -709,17 +708,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
-            final Set<ShardRouting> shardRoutings = Sets.newHashSetWithExpectedSize(routingTable.size());
+            boolean allShardsUseRetentionLeases = true;
             for (int copy = 0; copy < routingTable.size(); copy++) {
-                shardRoutings.add(routingTable.shard(copy));
+                ShardRouting shardRouting = routingTable.shard(copy);
+                if (shardRouting.isPromotableToPrimary()) {
+                    if (shardRouting.assignedToNode() == false
+                        || retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting)) == false) {
+                        allShardsUseRetentionLeases = false;
+                        break;
+                    }
+                    if (this.shardRouting.relocating()) {
+                        ShardRouting shardRoutingReloc = this.shardRouting.getTargetRelocatingShard();
+                        if (shardRoutingReloc.assignedToNode() == false
+                            || retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRoutingReloc)) == false) {
+                            allShardsUseRetentionLeases = false;
+                            break;
+                        }
+                    }
+                }
             }
-            shardRoutings.addAll(routingTable.assignedShards()); // include relocation targets
-            if (shardRoutings.stream()
-                .allMatch(
-                    shr -> shr.assignedToNode() && retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shr))
-                )) {
-                useRetentionLeasesInPeerRecovery = true;
-            }
+            useRetentionLeasesInPeerRecovery = allShardsUseRetentionLeases;
         }
     }
 
@@ -3261,14 +3269,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
-        final boolean isTimeseriesIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
+        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
         return new EngineConfig(
             shardId,
             threadPool,
             indexSettings,
             warmer,
             store,
-            indexSettings.getMergePolicy(),
+            indexSettings.getMergePolicy(isTimeBasedIndex),
             buildIndexAnalyzer(mapperService),
             similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
             codecService,
@@ -3285,10 +3293,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             this::getOperationPrimaryTerm,
             snapshotCommitSupplier,
-            isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
+            isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
-            recoveryState != null && recoveryState.getPrimary()
+            routingEntry().isPromotableToPrimary()
         );
     }
 
@@ -4134,6 +4142,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
-        getEngine().addSegmentGenerationListener(segmentGeneration, listener::onResponse);
+        getEngine().addSegmentGenerationListener(segmentGeneration, listener);
     }
 }

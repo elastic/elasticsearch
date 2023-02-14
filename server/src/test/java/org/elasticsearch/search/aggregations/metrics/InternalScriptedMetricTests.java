@@ -247,7 +247,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     }
 
     @Override
-    protected InternalScriptedMetric mutateInstance(InternalScriptedMetric instance) throws IOException {
+    protected InternalScriptedMetric mutateInstance(InternalScriptedMetric instance) {
         String name = instance.getName();
         List<Object> aggregationsList = instance.aggregationsList();
         Script reduceScript = instance.reduceScript;

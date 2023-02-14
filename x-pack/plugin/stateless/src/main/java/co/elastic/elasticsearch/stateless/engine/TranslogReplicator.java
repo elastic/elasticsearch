@@ -17,8 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
+
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -34,6 +35,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -64,20 +66,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     );
 
     private volatile BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    private final TriConsumer<String, BytesReference, ActionListener<Void>> client;
+    private final ObjectStoreService objectStoreService;
     private final ThreadPool threadPool;
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStateByShardId = new ConcurrentHashMap<>();
     private final Object generateFlushLock = new Object();
     private final AtomicLong fileName = new AtomicLong(0);
     private final TimeValue flushInterval;
 
-    public TranslogReplicator(
-        final ThreadPool threadPool,
-        final Settings settings,
-        final TriConsumer<String, BytesReference, ActionListener<Void>> client
-    ) {
+    public TranslogReplicator(final ThreadPool threadPool, final Settings settings, final ObjectStoreService objectStoreService) {
         this.threadPool = threadPool;
-        this.client = client;
+        this.objectStoreService = objectStoreService;
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
     }
 
@@ -179,8 +177,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 }
 
                 try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-                    streamOutput.writeMap(checkpoints);
-                    client.apply(
+                    var bufferedChecksumStreamOutput = new BufferedChecksumStreamOutput(streamOutput);
+                    bufferedChecksumStreamOutput.writeMap(checkpoints);
+                    streamOutput.writeLong(bufferedChecksumStreamOutput.getChecksum());
+                    objectStoreService.uploadTranslogFile(
                         String.valueOf(fileName.getAndIncrement()),
                         CompositeBytesReference.of(streamOutput.bytes(), compoundTranslog.bytes()),
                         new ActionListener<>() {

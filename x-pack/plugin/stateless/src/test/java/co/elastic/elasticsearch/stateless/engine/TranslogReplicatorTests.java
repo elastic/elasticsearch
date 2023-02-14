@@ -17,14 +17,16 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
+
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -39,15 +41,20 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.CRC32;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class TranslogReplicatorTests extends ESTestCase {
 
@@ -70,17 +77,14 @@ public class TranslogReplicatorTests extends ESTestCase {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
         ArrayList<BytesReference> references = new ArrayList<>();
-        TriConsumer<String, BytesReference, ActionListener<Void>> client = (fileName, bytesReference, listener) -> {
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-            try {
-                bytesReference.writeTo(bytesStreamOutput);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            references.add(bytesStreamOutput.bytes());
-            listener.onResponse(null);
-        };
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, client);
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        doAnswer(invocation -> {
+            references.add(getBytes(invocation.getArgument(1)));
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
@@ -96,18 +100,21 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(references.size(), equalTo(1));
         StreamInput streamInput = references.get(0).streamInput();
-        Map<ShardId, TranslogMetadata> metadata = streamInput.readMap(ShardId::new, TranslogMetadata::new);
-        assertThat(metadata.get(shardId).getMinSeqNo(), equalTo(0L));
-        assertThat(metadata.get(shardId).getMaxSeqNo(), equalTo(3L));
+        var expected = Map.of(shardId, new TranslogMetadata(0, 64, 0, 3, 4));
+        assertThat("Unexpected metadata", streamInput.readMap(ShardId::new, TranslogMetadata::new), equalTo(expected));
+        assertThat("Unexpected checksum", streamInput.readLong(), equalTo(calculateCrcChecksum(expected)));
     }
 
-    public void testTranslogBytesAreSyncedEdgeCondition() throws IOException {
+    public void testTranslogBytesAreSyncedEdgeCondition() {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
-        TriConsumer<String, BytesReference, ActionListener<Void>> client = (fileName, bytesReference, listener) -> {
-            listener.onResponse(null);
-        };
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, client);
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
@@ -128,7 +135,6 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location incompleteLocation = new Translog.Location(location.generation, location.translogLocation + location.size, 1);
         translogReplicator.sync(shardId, incompleteLocation, synchronouslyIncompleteFuture);
         assertFalse(synchronouslyIncompleteFuture.isDone());
-
     }
 
     public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws InterruptedException {
@@ -137,13 +143,15 @@ public class TranslogReplicatorTests extends ESTestCase {
         CountDownLatch intermediateStartedLatch = new CountDownLatch(1);
         CountDownLatch finalSyncStartedLatch = new CountDownLatch(1);
         AtomicReference<ActionListener<Void>> firstSyncCompleter = new AtomicReference<>();
-        TriConsumer<String, BytesReference, ActionListener<Void>> client = (fileName, bytesReference, listener) -> {
+
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        doAnswer(invocation -> {
             try {
-                Map<ShardId, TranslogMetadata> metadata = bytesReference.streamInput().readMap(ShardId::new, TranslogMetadata::new);
+                var metadata = invocation.<BytesReference>getArgument(1).streamInput().readMap(ShardId::new, TranslogMetadata::new);
                 if (metadata.get(shardId).getMaxSeqNo() == 1L) {
-                    firstSyncCompleter.set(listener);
+                    firstSyncCompleter.set(invocation.getArgument(2));
                     intermediateStartedLatch.countDown();
-                    return;
+                    return null;
                 }
                 if (metadata.get(shardId).getMaxSeqNo() == 3L) {
                     finalSyncStartedLatch.countDown();
@@ -151,9 +159,11 @@ public class TranslogReplicatorTests extends ESTestCase {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            listener.onResponse(null);
-        };
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, client);
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
@@ -182,21 +192,17 @@ public class TranslogReplicatorTests extends ESTestCase {
     }
 
     public void testCompoudTranslogFile() throws IOException {
-        ShardId shardId1 = new ShardId(new Index("name", "uuid"), 0);
+        ShardId shardId1 = new ShardId(new Index("name1", "uuid"), 0);
         ShardId shardId2 = new ShardId(new Index("name2", "uuid"), 0);
 
         ArrayList<BytesReference> references = new ArrayList<>();
-        TriConsumer<String, BytesReference, ActionListener<Void>> client = (fileName, bytesReference, listener) -> {
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-            try {
-                bytesReference.writeTo(bytesStreamOutput);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            references.add(bytesStreamOutput.bytes());
-            listener.onResponse(null);
-        };
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, client);
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        doAnswer(invocation -> {
+            references.add(getBytes(invocation.getArgument(1)));
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
@@ -214,11 +220,12 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(references.size(), equalTo(1));
         StreamInput streamInput = references.get(0).streamInput();
-        Map<ShardId, TranslogMetadata> metadata = streamInput.readMap(ShardId::new, TranslogMetadata::new);
-        assertThat(metadata.get(shardId1).getMinSeqNo(), equalTo(0L));
-        assertThat(metadata.get(shardId1).getMaxSeqNo(), equalTo(1L));
-        assertThat(metadata.get(shardId2).getMinSeqNo(), equalTo(0L));
-        assertThat(metadata.get(shardId2).getMaxSeqNo(), equalTo(3L));
+
+        var expected1 = new LinkedHashMap<ShardId, TranslogMetadata>();// iteration order sensitive
+        expected1.put(shardId1, new TranslogMetadata(48, 32, 0, 1, 2));
+        expected1.put(shardId2, new TranslogMetadata(0, 48, 0, 3, 3));
+        assertThat("Unexpected metadata", streamInput.readMap(ShardId::new, TranslogMetadata::new), equalTo(expected1));
+        assertThat("Unexpected checksum", streamInput.readLong(), equalTo(calculateCrcChecksum(expected1)));
 
         PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId2, intermediateLocationShard2, future2);
@@ -235,19 +242,18 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(references.size(), equalTo(2));
         streamInput = references.get(1).streamInput();
-        metadata = streamInput.readMap(ShardId::new, TranslogMetadata::new);
-        assertNull(metadata.get(shardId1));
-        assertThat(metadata.get(shardId2).getMinSeqNo(), equalTo(2L));
-        assertThat(metadata.get(shardId2).getMaxSeqNo(), equalTo(2L));
+        var expected2 = Map.of(shardId2, new TranslogMetadata(0, 16, 2, 2, 1));
+        assertThat("Unexpected metadata", streamInput.readMap(ShardId::new, TranslogMetadata::new), equalTo(expected2));
+        assertThat("Unexpected checksum", streamInput.readLong(), equalTo(calculateCrcChecksum(expected2)));
     }
 
     public void testDefaultFlushInterval() {
         var threadPool = Mockito.mock(ThreadPool.class);
         var scheduler = Mockito.mock(ScheduledExecutorService.class);
         Mockito.when(threadPool.scheduler()).thenReturn(scheduler);
-        try (var translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, (f, b, s) -> {})) {
+        try (var translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, mock(ObjectStoreService.class))) {
             translogReplicator.doStart();
-            Mockito.verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(200L), eq(200L), eq(TimeUnit.MILLISECONDS));
+            verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(200L), eq(200L), eq(TimeUnit.MILLISECONDS));
         }
     }
 
@@ -259,11 +265,11 @@ public class TranslogReplicatorTests extends ESTestCase {
             var translogReplicator = new TranslogReplicator(
                 threadPool,
                 Settings.builder().put("stateless.translog.flush_interval", new TimeValue(1, TimeUnit.SECONDS)).build(),
-                (f, b, s) -> {}
+                mock(ObjectStoreService.class)
             )
         ) {
             translogReplicator.doStart();
-            Mockito.verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(1L), eq(1L), eq(TimeUnit.SECONDS));
+            verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(1L), eq(1L), eq(TimeUnit.SECONDS));
         }
     }
 
@@ -273,12 +279,43 @@ public class TranslogReplicatorTests extends ESTestCase {
             () -> new TranslogReplicator(
                 threadPool,
                 Settings.builder().put("stateless.translog.flush_interval", new TimeValue(5, TimeUnit.MILLISECONDS)).build(),
-                (f, b, s) -> {}
+                mock(ObjectStoreService.class)
             )
         );
         assertEquals(
             "failed to parse value [5ms] for setting [stateless.translog.flush_interval], must be >= [10ms]",
             exception.getMessage()
         );
+    }
+
+    private static BytesReference getBytes(BytesReference reference) {
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();) {
+            reference.writeTo(bytesStreamOutput);
+            return bytesStreamOutput.bytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static long calculateCrcChecksum(Map<ShardId, TranslogMetadata> metadata) throws IOException {
+        var crc32 = new CRC32();
+        new StreamOutput() {
+            @Override
+            public void writeByte(byte b) {
+                crc32.update(b);
+            }
+
+            @Override
+            public void writeBytes(byte[] b, int offset, int length) {
+                crc32.update(b, offset, length);
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+        }.writeMap(metadata);
+        return crc32.getValue();
     }
 }

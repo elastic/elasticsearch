@@ -296,7 +296,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    void pushTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
+    public void uploadTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
         logger.debug("starting translog file upload [{}]", fileName);
         ensureRunning();
         if (permits.tryAcquire()) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,7 +21,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -513,11 +514,11 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        out.setVersion(version);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        out.setTransportVersion(version);
         instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        in.setVersion(version);
+        in.setTransportVersion(version);
         MappingStats deserialized = new MappingStats(in);
         assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());

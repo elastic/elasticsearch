@@ -52,7 +52,10 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -724,48 +727,29 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             indexRandom(false, INDEX_NAME, randomIntBetween(1, 10));
 
-            Set<String> side1 = new HashSet<>();
-            Set<String> side2 = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
-            side1.add(nodeWithUnpromotableOnly);
-            side2.remove(nodeWithUnpromotableOnly);
-            NetworkDisruption networkDisruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(side1, side2),
-                NetworkDisruption.DISCONNECT
-            );
-
-            AtomicBoolean disrupting = new AtomicBoolean(false);
-            CountDownLatch finishedDisrupting = new CountDownLatch(1);
-            MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                nodeWithUnpromotableOnly
-            );
-            mockTransportService.addRequestHandlingBehavior(
-                TransportUnpromotableShardRefreshAction.NAME + "[u]",
-                (handler, request, channel, task) -> {
-                    if (disrupting.compareAndSet(false, true)) {
-                        logger.info("will ignore refresh unpromotable messages on unpromotables-only node [{}]", nodeWithUnpromotableOnly);
-                        setDisruptionScheme(networkDisruption);
-                        networkDisruption.startDisrupting();
+            for (var transportService : internalCluster().getInstances(TransportService.class)) {
+                MockTransportService mockTransportService = (MockTransportService) transportService;
+                mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                    if (action.equals(TransportUnpromotableShardRefreshAction.NAME + "[u]")
+                        && nodeWithUnpromotableOnly.equals(connection.getNode().getName())) {
+                        logger.info("--> preventing {} request by throwing ConnectTransportException", action);
+                        throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
                     }
-                    finishedDisrupting.await();
-                    handler.messageReceived(request, channel, task);
-                }
-            );
+                    connection.sendRequest(requestId, action, request, options);
+                });
+            }
 
-            List<String> clientNodes = Arrays.stream(internalCluster().getNodeNames())
-                .filter(s -> s.contains(nodeWithUnpromotableOnly) == false)
-                .toList();
-
-            RefreshResponse response = client(randomFrom(clientNodes)).admin().indices().prepareRefresh(INDEX_NAME).execute().actionGet();
+            RefreshResponse response = client().admin().indices().prepareRefresh(INDEX_NAME).execute().actionGet();
             assertThat(
+                "each unpromotable replica shard should be added to the shard failures",
                 response.getFailedShards(),
-                greaterThanOrEqualTo(
-                    (routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1)) * routingTableWatcher.numShards
-                )
+                equalTo((routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1)) * routingTableWatcher.numShards)
             );
-
-            finishedDisrupting.countDown();
-            networkDisruption.removeAndEnsureHealthy(internalCluster());
+            assertThat(
+                "the total shards is incremented with the unpromotable shard failures",
+                response.getTotalShards(),
+                equalTo(response.getSuccessfulShards() + response.getFailedShards())
+            );
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }

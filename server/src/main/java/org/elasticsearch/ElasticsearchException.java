@@ -1580,12 +1580,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
             Version.V_8_5_0
-        ),
-        ON_PRIMARY_OPERATION_COMPLETE_EXCEPTION(
-            org.elasticsearch.action.support.replication.ReplicationOperation.OnPrimaryOperationCompleteException.class,
-            org.elasticsearch.action.support.replication.ReplicationOperation.OnPrimaryOperationCompleteException::new,
-            168,
-            Version.V_8_8_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

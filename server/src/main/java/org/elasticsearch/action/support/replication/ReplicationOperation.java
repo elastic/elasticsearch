@@ -141,7 +141,19 @@ public class ReplicationOperation<
                 replicationGroup.getRoutingTable(),
                 ActionListener.wrap(
                     ignored -> decPendingAndFinishIfNeeded(),
-                    exception -> this.finishAsFailed(new OnPrimaryOperationCompleteException(primary.routingEntry().shardId(), exception))
+                    exception -> {
+                        totalShards.incrementAndGet();
+                        shardReplicaFailures.add(
+                            new ReplicationResponse.ShardInfo.Failure(
+                                primary.routingEntry().shardId(),
+                                null,
+                                exception,
+                                ExceptionsHelper.status(exception),
+                                false
+                            )
+                        );
+                        decPendingAndFinishIfNeeded();
+                    }
                 )
             );
 
@@ -682,22 +694,6 @@ public class ReplicationOperation<
          * @param listener calllback that is invoked after post replication actions have completed
          * */
         void runPostReplicationActions(ActionListener<Void> listener);
-    }
-
-    /**
-     * An exception indicating that a failure occurred during
-     * {@link Replicas#onPrimaryOperationComplete(ReplicationRequest, IndexShardRoutingTable, ActionListener)}.
-     */
-    public static class OnPrimaryOperationCompleteException extends ElasticsearchException implements ElasticsearchWrapperException {
-
-        public OnPrimaryOperationCompleteException(ShardId shardId, Throwable cause) {
-            super(cause);
-            setShard(shardId);
-        }
-
-        public OnPrimaryOperationCompleteException(StreamInput in) throws IOException {
-            super(in);
-        }
     }
 
 }

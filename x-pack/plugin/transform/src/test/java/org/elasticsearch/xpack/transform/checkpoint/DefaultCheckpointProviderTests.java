@@ -301,7 +301,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
         // local and remote share the same index name
-        when(remoteClusterResolver.resolve(any())).thenReturn(
+        when(remoteClusterResolver.resolve(any(String[].class))).thenReturn(
             new RemoteClusterResolver.ResolvedIndices(Map.of("remote-1", List.of("index-1")), List.of("index-1"))
         );
 

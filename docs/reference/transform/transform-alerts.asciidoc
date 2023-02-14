@@ -44,12 +44,14 @@ _{transform-cap} is not started_::
   any data. The notification message recommends the necessary actions to solve 
   the error.
 
+_Errors in {transform} messages_:: 
+  Notifies if {transform} messages contain errors.
+
 [role="screenshot"]
 image::images/transform-check-config.png["Selecting health check"]
 // NOTE: This is screenshot is automatically generated. Do not edit it directly.
 
-As the last step in the rule creation process, 
-<<defining-actions,define the actions>> that occur when the conditions are met.
+As the last step in the rule creation process, define the actions that occur when the conditions are met.
   
 
 [[defining-actions]]

@@ -2035,11 +2035,6 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
             randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean()))
         );
-        final List<RoleDescriptor> requestedRoleDescriptors = randomList(
-            0,
-            1,
-            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean())
-        );
 
         // Selecting random unsupported version.
         final TransportVersion minNodeVersion = randomFrom(
@@ -2050,12 +2045,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 .toList()
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
-            userRoleDescriptors,
-            requestedRoleDescriptors,
-            minNodeVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, minNodeVersion, apiKeyId);
         assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
         assertThat(result.size(), equalTo(userRoleDescriptors.size()));
 
@@ -2065,13 +2055,19 @@ public class ApiKeyServiceTests extends ESTestCase {
             .map(RoleDescriptor::getName)
             .toArray(String[]::new);
 
-        assertRoleWarnings(userRoleNamesWithRemoteIndicesPrivileges);
+        if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
+            assertWarnings(
+                "Removed API key's remote indices privileges from role(s) "
+                    + Arrays.stream(userRoleNamesWithRemoteIndicesPrivileges).collect(Collectors.toSet())
+                    + ". Remote indices are not supported by all nodes in the cluster. "
+                    + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
+            );
+        }
     }
 
     public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(randomList(1, 3, () -> randomRoleDescriptorWithRemoteIndexPrivileges()));
-        final List<RoleDescriptor> requestedRoleDescriptors = randomList(0, 1, () -> randomRoleDescriptorWithRemoteIndexPrivileges());
 
         // Selecting random supported version.
         final TransportVersion minNodeVersion = randomFrom(
@@ -2082,15 +2078,31 @@ public class ApiKeyServiceTests extends ESTestCase {
                 .toList()
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
-            userRoleDescriptors,
-            requestedRoleDescriptors,
-            minNodeVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, minNodeVersion, apiKeyId);
 
         // User roles should be unchanged.
         assertThat(result, equalTo(userRoleDescriptors));
+    }
+
+    public void testBuildDelimitedStringWithLimit() {
+        int limit = 2;
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, randomFrom("", null)), equalTo(""));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1"), equalTo("id-1"));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2"), equalTo("id-1, id-2"));
+        assertThat(
+            ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2", "id-3"),
+            equalTo("id-1, id-2... (3 in total, 1 omitted)")
+        );
+        assertThat(
+            ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2", "id-3", "id-4"),
+            equalTo("id-1, id-2... (4 in total, 2 omitted)")
+        );
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyService.buildDelimitedStringWithLimit(randomIntBetween(-5, 0), "not-relevant-for-this-test")
+        );
+        assertThat(e.getMessage(), equalTo("limit must be positive number"));
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
@@ -2105,49 +2117,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             Map.of(),
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3)
         );
-    }
-
-    public void testMaybeRemoveRemoteIndicesPrivilegesWithRequestedRoleDescriptorsWithoutRemoteIndices() {
-        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
-        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean()))
-        );
-
-        // Requested role descriptors do not include remote indices privileges,
-        // hence we should always remove remote indices privileges (if any) from user's role descriptors.
-        final List<RoleDescriptor> requestedRoleDescriptors = randomList(
-            1,
-            2,
-            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false)
-        );
-
-        // Selecting random supported version.
-        final TransportVersion minNodeVersion = randomFrom(
-            Version.getDeclaredVersions(Version.class)
-                .stream()
-                .filter(v -> v.transportVersion.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES))
-                .map(v -> v.transportVersion)
-                .toList()
-        );
-
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivilegesFromUserRoleDescriptors(
-            userRoleDescriptors,
-            requestedRoleDescriptors,
-            minNodeVersion,
-            apiKeyId
-        );
-        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
-        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
-    }
-
-    private void assertRoleWarnings(String... roleNames) {
-        String[] warnings = new String[roleNames.length];
-        for (int i = 0; i < roleNames.length; ++i) {
-            warnings[i] = "Removed API key's remote indices privileges from role ["
-                + roleNames[i]
-                + "]. Remote indices are not supported by all nodes in the cluster.";
-        }
-        assertWarnings(warnings);
     }
 
     public static class Utils {

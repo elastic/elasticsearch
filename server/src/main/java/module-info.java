@@ -15,6 +15,7 @@ module org.elasticsearch.server {
     requires java.sql;
     requires java.management;
     requires jdk.unsupported;
+    requires java.net.http; // required by ingest-geoip's dependency maxmind.geoip2 https://github.com/elastic/elasticsearch/issues/93553
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;

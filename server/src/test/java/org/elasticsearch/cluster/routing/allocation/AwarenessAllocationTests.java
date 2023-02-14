@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -950,8 +952,10 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1)); // Unassigned shard is expected.
 
         AllocationCommands commands = new AllocationCommands();
+        final var unusedNodes = clusterState.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         // Cancel all initializing shards
         for (ShardRouting routing : clusterState.routingTable().allShards()) {
+            unusedNodes.remove(routing.currentNodeId());
             if (routing.initializing()) {
                 commands.add(new CancelAllocationCommand(routing.shardId().getIndexName(), routing.id(), routing.currentNodeId(), false));
             }
@@ -960,8 +964,10 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         for (ShardRouting routing : clusterState.routingTable().allShards()) {
             if (routing.primary()) {
                 var currentNodeId = routing.currentNodeId();
-                var otherNodeId = randomValueOtherThan(currentNodeId, clusterState.nodes().getNodes().keySet().iterator()::next);
+                unusedNodes.remove(currentNodeId);
+                var otherNodeId = randomFrom(unusedNodes);
                 commands.add(new MoveAllocationCommand("test", 0, currentNodeId, otherNodeId));
+                break;
             }
         }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +52,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
     public static final Setting<Integer> PROFILING_MAX_DETAIL_QUERY_SLICES = Setting.intSetting(
         "xpack.profiling.query.details.max_slices",
-        1,
+        16,
         1,
         Setting.Property.NodeScope
     );
@@ -183,7 +182,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     ) {
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
         List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
-        StackTraceHandler handler = new StackTraceHandler(client, responseBuilder, submitListener, slicedEventIds.size());
+        StackTraceHandler handler = new StackTraceHandler(client, responseBuilder, submitListener, eventIds.size(), slicedEventIds.size());
         for (List<String> slice : slicedEventIds) {
             client.prepareMultiGet().setRealtime(realtime).addIds("profiling-stacktraces", slice).execute(new ActionListener<>() {
                 @Override
@@ -221,7 +220,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final Client client;
         private final GetProfilingResponseBuilder responseBuilder;
         private final ActionListener<GetProfilingResponse> submitListener;
-        private final Map<String, StackTrace> stackTracePerId = new ConcurrentHashMap<>();
+        private final Map<String, StackTrace> stackTracePerId;
         // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
         // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
         // needed to load it.
@@ -234,8 +233,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             Client client,
             GetProfilingResponseBuilder responseBuilder,
             ActionListener<GetProfilingResponse> submitListener,
+            int stackTraceCount,
             int slices
         ) {
+            this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
             this.remainingSlices = new AtomicInteger(slices);
             this.client = client;
             this.responseBuilder = responseBuilder;
@@ -248,16 +249,22 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     String id = trace.getId();
                     StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
                     stackTracePerId.put(id, stacktrace);
-                    totalFrames.addAndGet(stacktrace.frameIds.length);
-                    stackFrameIds.addAll(Arrays.asList(stacktrace.frameIds));
-                    executableIds.addAll(Arrays.asList(stacktrace.fileIds));
+                    totalFrames.addAndGet(stacktrace.frameIds.size());
+                    stackFrameIds.addAll(stacktrace.frameIds);
+                    executableIds.addAll(stacktrace.fileIds);
                 }
             }
             if (this.remainingSlices.decrementAndGet() == 0) {
                 responseBuilder.setStackTraces(stackTracePerId);
                 responseBuilder.setTotalFrames(totalFrames.get());
                 log.debug("retrieveStackTraces took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
-                retrieveStackTraceDetails(client, responseBuilder, stackFrameIds, executableIds, submitListener);
+                retrieveStackTraceDetails(
+                    client,
+                    responseBuilder,
+                    new ArrayList<>(stackFrameIds),
+                    new ArrayList<>(executableIds),
+                    submitListener
+                );
             }
         }
     }
@@ -265,15 +272,17 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     private void retrieveStackTraceDetails(
         Client client,
         GetProfilingResponseBuilder responseBuilder,
-        Set<String> stackFrameIds,
-        Set<String> executableIds,
+        List<String> stackFrameIds,
+        List<String> executableIds,
         ActionListener<GetProfilingResponse> submitListener
     ) {
-        List<List<String>> slicedStackFrameIds = sliced(new ArrayList<>(stackFrameIds), desiredDetailSlices);
-        List<List<String>> slicedExecutableIds = sliced(new ArrayList<>(executableIds), desiredDetailSlices);
+        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, desiredDetailSlices);
+        List<List<String>> slicedExecutableIds = sliced(executableIds, desiredDetailSlices);
         DetailsHandler handler = new DetailsHandler(
             responseBuilder,
             submitListener,
+            executableIds.size(),
+            stackFrameIds.size(),
             slicedExecutableIds.size(),
             slicedStackFrameIds.size()
         );
@@ -370,22 +379,24 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final ActionListener<GetProfilingResponse> submitListener;
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
-        private final AtomicInteger expectedExecutableSlices;
-        private final AtomicInteger expectedStackFrameSlices;
+        private final AtomicInteger expectedSlices;
         private final long start = System.nanoTime();
 
         private DetailsHandler(
             GetProfilingResponseBuilder builder,
             ActionListener<GetProfilingResponse> submitListener,
+            int executableCount,
+            int stackFrameCount,
             int expectedExecutableSlices,
             int expectedStackFrameSlices
         ) {
             this.builder = builder;
             this.submitListener = submitListener;
-            this.executables = new ConcurrentHashMap<>();
-            this.stackFrames = new ConcurrentHashMap<>();
-            this.expectedExecutableSlices = new AtomicInteger(expectedExecutableSlices);
-            this.expectedStackFrameSlices = new AtomicInteger(expectedStackFrameSlices);
+            this.executables = new ConcurrentHashMap<>(executableCount);
+            this.stackFrames = new ConcurrentHashMap<>(stackFrameCount);
+            // for deciding when we're finished it is irrelevant where a slice originated so we can
+            // simplify state handling by treating them equally.
+            this.expectedSlices = new AtomicInteger(expectedExecutableSlices + expectedStackFrameSlices);
         }
 
         public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
@@ -394,7 +405,6 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     stackFrames.put(frame.getId(), StackFrame.fromSource(frame.getResponse().getSource()));
                 }
             }
-            expectedStackFrameSlices.decrementAndGet();
             mayFinish();
         }
 
@@ -404,12 +414,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));
                 }
             }
-            expectedExecutableSlices.decrementAndGet();
             mayFinish();
         }
 
         public void mayFinish() {
-            if (expectedStackFrameSlices.get() == 0 && expectedExecutableSlices.get() == 0) {
+            if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
                 log.debug("retrieveStackTraceDetails took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");

@@ -31,9 +31,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
     }
 
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
-            .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
+        return Settings.builder().put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)));
     }
 
     @Override

@@ -30,7 +30,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
@@ -151,7 +150,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        Environment env,
         XPackLicenseState licenseState
     ) {
         this.settings = settings;

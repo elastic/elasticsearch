@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.After;
 import org.junit.Before;
 
-import java.nio.file.Path;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
@@ -62,11 +61,9 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     }
 
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
-        Path tempDir = createTempDir();
-        when(environment.configFile()).thenReturn(tempDir);
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
-        licenseService = new LicenseService(settings, threadPool, clusterService, clock, environment, licenseState);
+        licenseService = new LicenseService(settings, threadPool, clusterService, clock, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);

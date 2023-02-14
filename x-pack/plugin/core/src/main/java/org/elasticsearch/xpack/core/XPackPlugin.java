@@ -312,7 +312,7 @@ public class XPackPlugin extends XPackClientPlugin
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        setLicenseService(new LicenseService(settings, threadPool, clusterService, getClock(), environment, getLicenseState()));
+        setLicenseService(new LicenseService(settings, threadPool, clusterService, getClock(), getLicenseState()));
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 

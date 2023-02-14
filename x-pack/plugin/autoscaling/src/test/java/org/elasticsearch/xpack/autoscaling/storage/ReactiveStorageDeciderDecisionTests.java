@@ -437,7 +437,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertEquals(hotNodes - 1, canAllocateDecisions.size());
             if (canAllocateDecisions.size() > 0) {
                 assertDebugNoDecision(canAllocateDecisions.get(0).decision());
-            };
+            }
 
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),

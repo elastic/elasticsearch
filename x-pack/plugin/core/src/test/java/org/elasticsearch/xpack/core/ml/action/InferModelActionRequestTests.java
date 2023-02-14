@@ -49,7 +49,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
     @Override
     protected Request createTestInstance() {
         return randomBoolean()
-            ? Request.forDocs(
+            ? Request.forIngestDocs(
                 randomAlphaOfLength(10),
                 Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfigUpdate(),

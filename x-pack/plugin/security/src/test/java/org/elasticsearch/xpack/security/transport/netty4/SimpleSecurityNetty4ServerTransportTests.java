@@ -505,7 +505,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         );
 
         final Settings fcSettings = Settings.builder()
-            .put("remote_cluster.enabled", "true")
+            .put("remote_cluster_server.enabled", "true")
             .put("remote_cluster.port", "9999")
             .put("xpack.security.remote_cluster_server.ssl.key", testnodeKey)
             .put("xpack.security.remote_cluster_server.ssl.certificate", testnodeCert)
@@ -600,7 +600,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         );
 
         final Settings fcSettings = Settings.builder()
-            .put("remote_cluster.enabled", "true")
+            .put("remote_cluster_server.enabled", "true")
             .put("remote_cluster.port", "9999")
             .put("xpack.security.remote_cluster_server.ssl.enabled", "false")
             .build();

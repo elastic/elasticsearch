@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
@@ -66,12 +67,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
     private static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
@@ -204,7 +204,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             private void assertNoRemoteAccessHeadersInContext() {
-                assert securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) == null
+                assert securityContext.getThreadContext().getHeader(RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) == null
                     : "remote access headers should not be in security context";
                 assert securityContext.getThreadContext()
                     .getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null
@@ -375,11 +375,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                        remoteAccessCredentials.writeToContext(threadContext);
-                        // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
-                        // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
-                        // authentication instance
-                        new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY).writeToContext(threadContext);
+                        new RemoteAccessHeaders(
+                            remoteAccessCredentials.credentials(),
+                            // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
+                            // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
+                            // authentication instance
+                            new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY)
+                        ).writeToContext(threadContext);
                         sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                     } catch (IOException e) {
                         contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
@@ -394,8 +396,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                                remoteAccessCredentials.writeToContext(threadContext);
-                                new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
+                                new RemoteAccessHeaders(
+                                    remoteAccessCredentials.credentials(),
+                                    new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection)
+                                ).writeToContext(threadContext);
                                 sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                             }
                         }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
@@ -403,15 +407,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
             }
 
-            record RemoteAccessCredentials(String clusterAlias, String credentials) {
-                void writeToContext(final ThreadContext ctx) {
-                    ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, withApiKeyPrefix(credentials));
-                }
-
-                private String withApiKeyPrefix(final String clusterCredential) {
-                    return "ApiKey " + clusterCredential;
-                }
-            }
+            // TODO move this to `RemoteClusterAuthorizationResolver` and have `resolveAuthorization` return it
+            record RemoteAccessCredentials(String clusterAlias, String credentials) {}
         };
     }
 
@@ -461,7 +458,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);
+        final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
 
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {

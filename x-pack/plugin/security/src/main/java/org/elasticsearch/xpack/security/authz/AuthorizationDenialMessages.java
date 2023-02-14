@@ -92,6 +92,30 @@ class AuthorizationDenialMessages {
         return message;
     }
 
+    static String remoteActionDenied(
+        Authentication authentication,
+        @Nullable AuthorizationInfo authorizationInfo,
+        String action,
+        TransportRequest request,
+        String clusterAlias
+    ) {
+        assert isIndexAction(action);
+        String userText = authenticatedUserDescription(authentication);
+
+        if (authentication.isRunAs()) {
+            userText = userText + " run as [" + authentication.getEffectiveSubject().getUser().principal() + "]";
+        }
+
+        userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
+
+        return Strings.format(
+            "action [%s] towards remote cluster [%s] is unauthorized for %s because it has no remote indices privilege",
+            action,
+            clusterAlias,
+            userText
+        );
+    }
+
     private static String authenticatedUserDescription(Authentication authentication) {
         String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
             + " ["

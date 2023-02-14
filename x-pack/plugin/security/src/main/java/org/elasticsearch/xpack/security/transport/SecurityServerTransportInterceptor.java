@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -386,6 +387,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
+                            if (roleDescriptorsIntersection.isEmpty()) {
+                                contextRestoreHandler.handleException(
+                                    new SendRequestTransportException(
+                                        connection.getNode(),
+                                        action,
+                                        authzService.remoteActionDenied(authentication, action, request, remoteClusterAlias)
+                                    )
+                                );
+                                return;
+                            }
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                                 new RemoteAccessHeaders(
                                     remoteAccessCredentials.credentials(),

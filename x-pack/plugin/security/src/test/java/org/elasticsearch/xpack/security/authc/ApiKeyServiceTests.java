@@ -2086,7 +2086,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testBuildDelimitedStringWithLimit() {
         int limit = 2;
-        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, randomFrom("", null)), equalTo(""));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit), equalTo(""));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, new String[] {}), equalTo(""));
         assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1"), equalTo("id-1"));
         assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2"), equalTo("id-1, id-2"));
         assertThat(

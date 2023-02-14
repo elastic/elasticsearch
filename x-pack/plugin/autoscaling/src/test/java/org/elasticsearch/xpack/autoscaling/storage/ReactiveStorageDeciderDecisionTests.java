@@ -435,7 +435,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
             List<NodeDecision> canAllocateDecisions = shardNodeDecisions.get(shardIds.first()).canAllocateDecisions();
             assertEquals(hotNodes - 1, canAllocateDecisions.size());
-            assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+            if (canAllocateDecisions.size() > 0) {
+                assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+            };
 
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
@@ -459,7 +461,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
             List<NodeDecision> canAllocateDecisions = shardNodeDecisions.get(shardIds.first()).canAllocateDecisions();
             assertEquals(hotNodes - 1, canAllocateDecisions.size());
-            assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+            if (canAllocateDecisions.size() > 0) {
+                assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+            }
 
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
@@ -472,7 +476,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
             List<NodeDecision> canAllocateDecisions = shardNodeDecisions.get(shardIds.first()).canAllocateDecisions();
             assertEquals(hotNodes - 1, canAllocateDecisions.size());
-            assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+            if (canAllocateDecisions.size() > 0) {
+                assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+            }
 
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),

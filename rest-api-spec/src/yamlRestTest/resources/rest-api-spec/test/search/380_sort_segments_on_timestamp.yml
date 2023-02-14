@@ -131,8 +131,6 @@
       search:
         index: test_index3
         body:
-          # TODO: What is the default order for null
-          sort: '@timestamp'
           fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
   - match: { hits.hits.0.fields.@timestamp: ["2021-08-02"] }
   - is_false: hits.hits.1.fields.@timestamp

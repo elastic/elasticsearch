@@ -72,6 +72,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("analysis-common")
         .module("vector-tile")
         .module("x-pack-analytics")
+        .module("x-pack-eql")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.transport.ssl.enabled", "false")

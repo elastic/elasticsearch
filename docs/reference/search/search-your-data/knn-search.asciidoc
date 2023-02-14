@@ -459,6 +459,8 @@ and provide the search query as `model_text`:
 }
 (...)
 ----
+// NOTCONSOLE
+
 <1> The {nlp} task to perform. It must be `text_embedding`.
 <2> The ID of the text embedding model to use to generate the dense vectors from 
 the query string. Use the same model that generated the embeddings from the 

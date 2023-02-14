@@ -10,7 +10,6 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -139,22 +138,19 @@ public class ReplicationOperation<
             replicasProxy.onPrimaryOperationComplete(
                 replicaRequest,
                 replicationGroup.getRoutingTable(),
-                ActionListener.wrap(
-                    ignored -> decPendingAndFinishIfNeeded(),
-                    exception -> {
-                        totalShards.incrementAndGet();
-                        shardReplicaFailures.add(
-                            new ReplicationResponse.ShardInfo.Failure(
-                                primary.routingEntry().shardId(),
-                                null,
-                                exception,
-                                ExceptionsHelper.status(exception),
-                                false
-                            )
-                        );
-                        decPendingAndFinishIfNeeded();
-                    }
-                )
+                ActionListener.wrap(ignored -> decPendingAndFinishIfNeeded(), exception -> {
+                    totalShards.incrementAndGet();
+                    shardReplicaFailures.add(
+                        new ReplicationResponse.ShardInfo.Failure(
+                            primary.routingEntry().shardId(),
+                            null,
+                            exception,
+                            ExceptionsHelper.status(exception),
+                            false
+                        )
+                    );
+                    decPendingAndFinishIfNeeded();
+                })
             );
 
             // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.

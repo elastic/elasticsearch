@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -281,7 +282,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         logger.debug("--> executing for wrong shard routing table: {}", wrongRoutingTable);
         assertThat(
             expectThrows(
-                NullPointerException.class,
+                NodeNotConnectedException.class,
                 () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
                     f -> ActionTestUtils.execute(
                         broadcastUnpromotableAction,

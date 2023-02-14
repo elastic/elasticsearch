@@ -725,6 +725,7 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         } catch (Exception exception) {
             // shouldn't happen in practice, but handle it anyway to be sure
+            assert false : exception;
             handleSendRequestException(handler, new SendRequestTransportException(node, action, exception));
             return;
         }
@@ -1539,7 +1540,10 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private boolean isLocalNode(DiscoveryNode discoveryNode) {
-        return Objects.requireNonNull(discoveryNode, "discovery node must not be null").equals(localNode);
+        if (discoveryNode == null) {
+            throw new NodeNotConnectedException(discoveryNode, "discovery node must not be null");
+        }
+        return discoveryNode.equals(localNode);
     }
 
     private static final class DelegatingTransportMessageListener implements TransportMessageListener {

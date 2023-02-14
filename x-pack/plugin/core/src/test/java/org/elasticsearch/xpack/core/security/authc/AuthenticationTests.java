@@ -161,8 +161,8 @@ public class AuthenticationTests extends ESTestCase {
         );
 
         // 5. The same API key but for a different QC user
-        final RemoteAccessAuthentication remoteAccessAuthentication2 = randomValueOtherThan(
-            remoteAccessAuthentication1,
+        final RemoteAccessAuthentication remoteAccessAuthentication2 = randomValueOtherThanMany(
+            ra -> remoteAccessAuthentication1.getAuthentication().canAccessResourcesOf(ra.getAuthentication()),
             AuthenticationTestHelper::randomRemoteAccessAuthentication
         );
         assertCannotAccessResources(

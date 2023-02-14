@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,6 +52,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -61,6 +64,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -68,10 +72,14 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
@@ -537,6 +545,97 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             IndicesRequestCacheUtils.cleanCache(indicesRequestCache);
             assertThat(Iterables.size(IndicesRequestCacheUtils.cachedKeys(indicesRequestCache)), equalTo(0L));
         }
+    }
+
+    public void testIndexSort() {
+        startMasterOnlyNode();
+        final int numberOfShards = 1;
+        startIndexNodes(numberOfShards);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                    .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "rank")
+            ).setMapping("rank", "type=integer").get()
+        );
+        ensureGreen(indexName);
+
+        index(indexName, "1", Map.of("rank", 4));
+        index(indexName, "2", Map.of("rank", 1));
+        index(indexName, "3", Map.of("rank", 3));
+        index(indexName, "4", Map.of("rank", 2));
+
+        refresh(indexName);
+
+        index(indexName, "5", Map.of("rank", 8));
+        index(indexName, "6", Map.of("rank", 6));
+        index(indexName, "7", Map.of("rank", 5));
+        index(indexName, "8", Map.of("rank", 7));
+
+        refresh(indexName);
+
+        startSearchNodes(1);
+        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        ensureGreen(indexName);
+
+        SearchResponse searchResponse = client().prepareSearch(indexName)
+            .setSource(new SearchSourceBuilder().sort("rank"))
+            .setSize(1)
+            .get();
+        assertHitCount(searchResponse, 8L);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+
+        searchResponse = client().prepareSearch(indexName)
+            .setSource(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("rank").from(0)).sort("rank"))
+            .setTrackTotalHits(false)
+            .setSize(1)
+            .get();
+        assertThat(searchResponse.getHits().getTotalHits(), nullValue());
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+
+        assertNoFailures(client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get());
+        refresh(indexName);
+
+        searchResponse = client().prepareSearch(indexName).setSource(new SearchSourceBuilder().sort("_doc")).get();
+        assertHitCount(searchResponse, 8L);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(8));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("4"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(3).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(4).getId(), equalTo("7"));
+        assertThat(searchResponse.getHits().getAt(5).getId(), equalTo("6"));
+        assertThat(searchResponse.getHits().getAt(6).getId(), equalTo("8"));
+        assertThat(searchResponse.getHits().getAt(7).getId(), equalTo("5"));
+
+        searchResponse = client().prepareSearch(indexName)
+            .setSource(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("rank").from(0)).sort("rank"))
+            .setTrackTotalHits(false)
+            .setSize(3)
+            .get();
+
+        assertThat(searchResponse.getHits().getTotalHits(), nullValue());
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("4"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        var exception = expectThrows(
+            ActionRequestValidationException.class,
+            () -> client().prepareSearch(indexName)
+                .setSource(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("rank").from(0)).sort("rank"))
+                .setTrackTotalHits(false)
+                .setScroll(TimeValue.timeValueMinutes(1))
+                .setSize(3)
+                .get()
+        );
+        assertThat(exception.getMessage(), containsString("disabling [track_total_hits] is not allowed in a scroll context"));
     }
 
     private static SearchResponse countDocsInRange(Client client, String index, int min, int max) {

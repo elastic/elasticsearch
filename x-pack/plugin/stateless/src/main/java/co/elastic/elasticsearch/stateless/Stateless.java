@@ -141,7 +141,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         this.objectStoreService.set(objectStoreService);
         var sharedBlobCache = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, settings, threadPool);
         this.sharedBlobCacheService.set(sharedBlobCache);
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService::pushTranslogFile);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService);
         this.translogReplicator.set(translogReplicator);
         return List.of(objectStoreService, translogReplicator, sharedBlobCache);
     }

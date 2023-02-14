@@ -157,8 +157,8 @@ public class CsvTests extends ESTestCase {
         try {
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
             doTest();
-        } catch (Exception e) {
-            throw reworkException(e);
+        } catch (Throwable th) {
+            throw reworkException(th);
         }
     }
 

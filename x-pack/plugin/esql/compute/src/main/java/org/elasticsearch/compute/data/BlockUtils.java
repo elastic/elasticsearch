@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 
 import java.util.Arrays;
 import java.util.List;
@@ -83,7 +84,7 @@ public final class BlockUtils {
         var types = list.get(0);
 
         for (int i = 0, tSize = types.size(); i < tSize; i++) {
-            wrappers[i] = from(types.get(i).getClass(), size);
+            wrappers[i] = wrapperFor(types.get(i).getClass(), size);
         }
         for (List<Object> values : list) {
             for (int j = 0, vSize = values.size(); j < vSize; j++) {
@@ -93,7 +94,7 @@ public final class BlockUtils {
         return Arrays.stream(wrappers).map(b -> b.builder.build()).toArray(Block[]::new);
     }
 
-    private static BuilderWrapper from(Class<?> type, int size) {
+    public static BuilderWrapper wrapperFor(Class<?> type, int size) {
         BuilderWrapper builder;
         if (type == Integer.class) {
             var b = IntBlock.newBlockBuilder(size);
@@ -106,7 +107,7 @@ public final class BlockUtils {
             builder = new BuilderWrapper(b, o -> b.appendDouble((double) o));
         } else if (type == BytesRef.class) {
             var b = BytesRefBlock.newBlockBuilder(size);
-            builder = new BuilderWrapper(b, o -> b.appendBytesRef((BytesRef) o));
+            builder = new BuilderWrapper(b, o -> b.appendBytesRef(BytesRefs.toBytesRef(o)));
         } else if (type == Boolean.class) {
             var b = BooleanBlock.newBlockBuilder(size);
             builder = new BuilderWrapper(b, o -> b.appendBoolean((boolean) o));
@@ -134,7 +135,7 @@ public final class BlockUtils {
             };
             builder = new BuilderWrapper(b, o -> {});
         } else {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Unrecognized type " + type);
         }
         return builder;
     }

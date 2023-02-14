@@ -12,12 +12,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
@@ -32,6 +29,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -55,30 +53,10 @@ public final class CsvTestUtils {
 
     public static Tuple<Page, List<String>> loadPage(URL source) throws Exception {
 
-        class CsvColumn {
-            String name;
-            Type typeConverter;
-            List<Object> values;
-            Class<?> typeClass = null;
-            boolean hasNulls = false;
-
-            CsvColumn(String name, Type typeConverter, List<Object> values) {
-                this.name = name;
-                this.typeConverter = typeConverter;
-                this.values = values;
-            }
-
-            void addValue(String value) {
-                Object actualValue = typeConverter.convert(value);
-                values.add(actualValue);
-                if (typeClass == null) {
-                    typeClass = actualValue.getClass();
-                }
-            }
-
-            void addNull() {
-                values.add(null);
-                this.hasNulls = true;
+        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) {
+            void append(String stringValue) {
+                var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
+                builderWrapper().append().accept(converted);
             }
         }
 
@@ -123,7 +101,7 @@ public final class CsvTestUtils {
                             if (type == Type.NULL) {
                                 throw new IllegalArgumentException("Null type is not allowed in the test data; found " + entries[i]);
                             }
-                            columns[i] = new CsvColumn(name, type, new ArrayList<>());
+                            columns[i] = new CsvColumn(name, type, BlockUtils.wrapperFor(type.clazz(), 8));
                         }
                     }
                     // data rows
@@ -140,15 +118,12 @@ public final class CsvTestUtils {
                             );
                         }
                         for (int i = 0; i < entries.length; i++) {
+                            var entry = entries[i];
                             try {
-                                if ("".equals(entries[i])) {
-                                    columns[i].addNull();
-                                } else {
-                                    columns[i].addValue(entries[i]);
-                                }
+                                columns[i].append(entry);
                             } catch (Exception e) {
                                 throw new IllegalArgumentException(
-                                    format(null, "Error line [{}]: Cannot parse entry [{}] with value [{}]", lineNumber, i + 1, entries[i]),
+                                    format(null, "Error line [{}]: Cannot parse entry [{}] with value [{}]", lineNumber, i + 1, entry),
                                     e
                                 );
                             }
@@ -158,74 +133,12 @@ public final class CsvTestUtils {
                 lineNumber++;
             }
         }
-        var blocks = new Block[columns.length];
         var columnNames = new ArrayList<String>(columns.length);
-        int i = 0;
-        for (CsvColumn c : columns) {
-            blocks[i++] = buildBlock(c.values, c.typeClass);
-            columnNames.add(c.name);
-        }
+        var blocks = Arrays.stream(columns)
+            .peek(b -> columnNames.add(b.name))
+            .map(b -> b.builderWrapper.builder().build())
+            .toArray(Block[]::new);
         return new Tuple<>(new Page(blocks), columnNames);
-    }
-
-    static Block buildBlock(List<Object> values, Class<?> type) {
-        if (type == Integer.class) {
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    builder.appendInt((Integer) v);
-                }
-            }
-            return builder.build();
-        }
-        if (type == Long.class) {
-            LongBlock.Builder builder = LongBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    builder.appendLong((Long) v);
-                }
-            }
-            return builder.build();
-        }
-        if (type == Float.class || type == Double.class) {
-            // promoting float to double until we have native float support. https://github.com/elastic/elasticsearch-internal/issues/724
-            DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    builder.appendDouble((Double) v);
-                }
-            }
-            return builder.build();
-        }
-        if (type == String.class) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    builder.appendBytesRef(new BytesRef(v.toString()));
-                }
-            }
-            return builder.build();
-        }
-        if (type == Boolean.class) {
-            BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    builder.appendBoolean((Boolean) v);
-                }
-            }
-            return builder.build();
-        }
-        throw new IllegalArgumentException("unsupported type " + type);
     }
 
     public record ExpectedResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
@@ -278,21 +191,22 @@ public final class CsvTestUtils {
     }
 
     public enum Type {
-        INTEGER(Integer::parseInt),
-        LONG(Long::parseLong),
-        SHORT(Integer::parseInt),
-        BYTE(Integer::parseInt),
-        DOUBLE(Double::parseDouble),
+        INTEGER(Integer::parseInt, Integer.class),
+        LONG(Long::parseLong, Long.class),
+        DOUBLE(Double::parseDouble, Double.class),
         FLOAT(
             // Simulate writing the index as `float` precision by parsing as a float and rounding back to double
-            s -> (double) Float.parseFloat(s)
+            s -> (double) Float.parseFloat(s),
+            Double.class
         ),
-        HALF_FLOAT(s -> (double) HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(Float.parseFloat(s)))),
-        SCALED_FLOAT(Double::parseDouble),
-        KEYWORD(Object::toString),
-        NULL(s -> null),
-        DATETIME(x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli()),
-        BOOLEAN(Booleans::parseBoolean);
+        HALF_FLOAT(
+            s -> (double) HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(Float.parseFloat(s))),
+            Double.class
+        ),
+        KEYWORD(Object::toString, BytesRef.class),
+        NULL(s -> null, Void.class),
+        DATETIME(x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(), Long.class),
+        BOOLEAN(Booleans::parseBoolean, Boolean.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -300,6 +214,11 @@ public final class CsvTestUtils {
             for (Type value : Type.values()) {
                 LOOKUP.put(value.name(), value);
             }
+            // widen smaller types
+            LOOKUP.put("SHORT", INTEGER);
+            LOOKUP.put("BYTE", INTEGER);
+            LOOKUP.put("SCALED_FLOAT", DOUBLE);
+
             // add also the types with short names
             LOOKUP.put("I", INTEGER);
             LOOKUP.put("L", LONG);
@@ -313,9 +232,11 @@ public final class CsvTestUtils {
         }
 
         private final Function<String, Object> converter;
+        private final Class<?> clazz;
 
-        Type(Function<String, Object> converter) {
+        Type(Function<String, Object> converter, Class<?> clazz) {
             this.converter = converter;
+            this.clazz = clazz;
         }
 
         public static Type asType(String name) {
@@ -339,6 +260,10 @@ public final class CsvTestUtils {
                 return null;
             }
             return converter.apply(value);
+        }
+
+        Class<?> clazz() {
+            return clazz;
         }
     }
 

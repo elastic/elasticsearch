@@ -202,7 +202,8 @@ public class QueryPhase {
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext);
         if (searchContext.rankContext() != null) {
-            query = searchContext.rankContext().updateQuery(query);
+            // we need to use the original query or we may lose no match clauses as part of rewrite
+            query = searchContext.rankContext().updateQuery(searchContext.query());
             // add in the rank collector just before top docs
             rankCollectorContext = searchContext.rankContext().createQueryCollectorContext(query, searchContext);
             collectors.add(createMultiCollectorContext(List.of(topDocsFactory.create(null), rankCollectorContext.create(null))));

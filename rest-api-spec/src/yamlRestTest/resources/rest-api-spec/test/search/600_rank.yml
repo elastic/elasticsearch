@@ -70,13 +70,13 @@ setup:
           size: 10
 
   - match: { hits.hits.0._id: "1" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.001 } }
+  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term term" }
 
   - match: { hits.hits.1._id: "3" }
-  - close_to: { hits.hits.1._score: { value: 0.58333, error: 0.001 } }
+  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term" }
 
   - match: { hits.hits.2._id: "2" }
-  - close_to: { hits.hits.2._score: { value: 0.33333, error: 0.001 } }
+  - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }

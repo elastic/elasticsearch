@@ -8,16 +8,26 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.channel.Channel;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.BasicHttpRequest;
 
 public class HttpHeadersAuthenticator {
 
-    public static final HttpHeadersAuthenticator NOOP = new HttpHeadersAuthenticator() {
+    private final TriConsumer<BasicHttpRequest, Channel, ThreadContext> populateThreadContext;
+
+    public HttpHeadersAuthenticator(TriConsumer<BasicHttpRequest, Channel, ThreadContext> populateThreadContext) {
+        this.populateThreadContext = populateThreadContext;
+    }
+
+    public static final HttpHeadersAuthenticator NOOP = new HttpHeadersAuthenticator(null) {
         @Override
         public DefaultHttpRequest wrapNewMessage(DefaultHttpRequest decodedNewMessage) {
             return decodedNewMessage;

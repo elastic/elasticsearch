@@ -29,45 +29,48 @@ public class SSLEngineUtils {
 
     private SSLEngineUtils() {}
 
-    public static void extractClientCertificates(Logger logger, ThreadContext threadContext, HttpChannel httpChannel) {
-        SSLEngine sslEngine = getSSLEngine(httpChannel);
-        extract(logger, threadContext, sslEngine, httpChannel);
-    }
-
     public static void extractClientCertificates(Logger logger, ThreadContext threadContext, TcpChannel tcpChannel) {
-        SSLEngine sslEngine = getSSLEngine(tcpChannel);
-        extract(logger, threadContext, sslEngine, tcpChannel);
+        extractClientCertificates(logger, threadContext, getNettyChannel(tcpChannel));
     }
 
-    public static SSLEngine getSSLEngine(HttpChannel httpChannel) {
+    public static void extractClientCertificates(Logger logger, ThreadContext threadContext, Channel channel) {
+        SSLEngine sslEngine = getSSLEngine(channel);
+        extract(logger, threadContext, sslEngine, channel);
+    }
+
+    public static Channel getNettyChannel(HttpChannel httpChannel) {
         if (httpChannel instanceof Netty4HttpChannel) {
-            Channel nettyChannel = ((Netty4HttpChannel) httpChannel).getNettyChannel();
-            SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
-            assert handler != null : "Must have SslHandler";
-            return handler.engine();
+            return ((Netty4HttpChannel) httpChannel).getNettyChannel();
         } else {
             throw new AssertionError("Unknown channel class type: " + httpChannel.getClass());
         }
     }
 
-    public static SSLEngine getSSLEngine(TcpChannel tcpChannel) {
+    public static Channel getNettyChannel(TcpChannel tcpChannel) {
         if (tcpChannel instanceof Netty4TcpChannel) {
-            Channel nettyChannel = ((Netty4TcpChannel) tcpChannel).getNettyChannel();
-            SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
-            if (handler == null) {
-                if (nettyChannel.isOpen()) {
-                    assert false : "Must have SslHandler";
-                } else {
-                    throw new ChannelException("Channel is closed.");
-                }
-            }
-            return handler.engine();
+            return ((Netty4TcpChannel) tcpChannel).getNettyChannel();
         } else {
             throw new AssertionError("Unknown channel class type: " + tcpChannel.getClass());
         }
     }
 
-    private static void extract(Logger logger, ThreadContext threadContext, SSLEngine sslEngine, Object channel) {
+    public static SSLEngine getSSLEngine(TcpChannel tcpChannel) {
+        return getSSLEngine(getNettyChannel(tcpChannel));
+    }
+
+    private static SSLEngine getSSLEngine(Channel nettyChannel) {
+        SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
+        if (handler == null) {
+            if (nettyChannel.isOpen()) {
+                assert false : "Must have SslHandler";
+            } else {
+                throw new ChannelException("Channel is closed.");
+            }
+        }
+        return handler.engine();
+    }
+
+    private static void extract(Logger logger, ThreadContext threadContext, SSLEngine sslEngine, Channel channel) {
         try {
             Certificate[] certs = sslEngine.getSession().getPeerCertificates();
             if (certs instanceof X509Certificate[]) {

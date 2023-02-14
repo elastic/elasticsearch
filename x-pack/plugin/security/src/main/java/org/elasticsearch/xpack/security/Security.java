@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security;
 
+import io.netty.channel.Channel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -26,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -379,6 +382,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
     implements
@@ -1590,7 +1594,7 @@ public class Security extends Plugin
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
             final SSLService sslService = getSslService();
             final SslConfiguration sslConfiguration;
-            final BiConsumer<RestRequest, ThreadContext> populateClientCertificate;
+            final BiConsumer<Channel, ThreadContext> populateClientCertificate;
             if (ssl) {
                 sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
@@ -1600,16 +1604,19 @@ public class Security extends Plugin
                     );
                 }
                 if (SSLService.isSSLClientAuthEnabled(sslConfiguration)) {
-                    populateClientCertificate = (restRequest, threadContext) -> {
-                        SSLEngineUtils.extractClientCertificates(logger, threadContext, restRequest.getHttpChannel());
-                    };
+                    populateClientCertificate = (channel, threadContext) -> extractClientCertificates(logger, threadContext, channel);
                 } else {
-                    populateClientCertificate = (restRequest, threadContext) -> {};
+                    populateClientCertificate = (channel, threadContext) -> {};
                 }
             } else {
                 sslConfiguration = null;
-                populateClientCertificate = (restRequest, threadContext) -> {};
+                populateClientCertificate = (channel, threadContext) -> {};
             }
+            final TriConsumer<BasicHttpRequest, Channel, ThreadContext> populateThreadContext = (httpRequest, channel, threadContext) -> {
+                dispatcherContext.accept(httpRequest, threadContext);
+                populateClientCertificate.accept(channel, threadContext);
+                RemoteHostHeader.process(channel, threadContext);
+            };
             return new Netty4HttpServerTransport(
                 settings,
                 networkService,
@@ -1621,13 +1628,13 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                new HttpHeadersAuthenticator()
+                new HttpHeadersAuthenticator(populateThreadContext)
             ) {
                 @Override
                 protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    dispatcherContext.accept(restRequest.getHttpRequest(), threadContext);
-                    populateClientCertificate.accept(restRequest, threadContext);
-                    RemoteHostHeader.process(restRequest, threadContext);
+                    Channel channel = SSLEngineUtils.getNettyChannel(restRequest.getHttpChannel());
+                    BasicHttpRequest httpRequest = restRequest.getHttpRequest();
+                    populateThreadContext.apply(httpRequest, channel, threadContext);
                 }
             };
         });

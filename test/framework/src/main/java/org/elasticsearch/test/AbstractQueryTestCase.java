@@ -13,7 +13,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -607,18 +607,18 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
-        return assertSerialization(testQuery, Version.CURRENT);
+        return assertSerialization(testQuery, TransportVersion.CURRENT);
     }
 
     /**
      * Serialize the given query builder and asserts that both are equal
      */
-    protected QueryBuilder assertSerialization(QueryBuilder testQuery, Version version) throws IOException {
+    protected QueryBuilder assertSerialization(QueryBuilder testQuery, TransportVersion version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
+            output.setTransportVersion(version);
             output.writeNamedWriteable(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
                 assertEquals(testQuery, deserializedQuery);
                 assertEquals(testQuery.hashCode(), deserializedQuery.hashCode());

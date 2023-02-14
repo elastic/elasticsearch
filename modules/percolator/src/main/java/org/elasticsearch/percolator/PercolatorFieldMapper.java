@@ -432,7 +432,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     ) throws IOException {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(stream)) {
-                out.setVersion(indexVersion);
+                out.setTransportVersion(indexVersion.transportVersion);
                 out.writeNamedWriteable(queryBuilder);
                 qbField.indexValue(context, stream.toByteArray());
             }

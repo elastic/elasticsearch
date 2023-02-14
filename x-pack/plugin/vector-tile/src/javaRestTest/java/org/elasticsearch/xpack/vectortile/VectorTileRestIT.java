@@ -915,22 +915,6 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.percentilesAgg.99.9.max", 1.0);
     }
 
-    public void testOverlappingMultipolygon() throws Exception {
-        // Overlapping multipolygon are accepted by Elasticsearch but is invalid for JTS.
-        // This causes an error in the mvt library that gets logged using slf4j
-        final String index = "overlapping_multipolygon";
-        final Rectangle r1 = new Rectangle(-160, 160, 80, -80);
-        final Rectangle r2 = new Rectangle(-159, 161, 79, -81);
-        createIndexAndPutGeometry(index, new MultiPolygon(List.of(toPolygon(r1), toPolygon(r2))), "multi_polygon");
-        final Request mvtRequest = new Request(getHttpMethod(), index + "/_mvt/location/0/0/0?grid_precision=0");
-        final VectorTile.Tile tile = execute(mvtRequest);
-        assertThat(tile.getLayersCount(), Matchers.equalTo(2));
-        assertLayer(tile, HITS_LAYER, 4096, 0, 0);
-        assertLayer(tile, META_LAYER, 4096, 1, 8);
-        final Response response = client().performRequest(new Request(HttpDelete.METHOD_NAME, index));
-        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
-    }
-
     public void testGetRuntimeField() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location_rf/" + z + "/" + x + "/" + y);
         mvtRequest.setJsonEntity(

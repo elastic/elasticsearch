@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -95,7 +96,7 @@ public class JoinValidationService {
     private final Supplier<ClusterState> clusterStateSupplier;
     private final AtomicInteger queueSize = new AtomicInteger();
     private final Queue<AbstractRunnable> queue = new ConcurrentLinkedQueue<>();
-    private final Map<Version, ReleasableBytesReference> statesByVersion = new HashMap<>();
+    private final Map<TransportVersion, ReleasableBytesReference> statesByVersion = new HashMap<>();
     private final RefCounted executeRefs;
 
     public JoinValidationService(
@@ -301,7 +302,7 @@ public class JoinValidationService {
             assert discoveryNode.getVersion().onOrAfter(Version.V_8_3_0) : discoveryNode.getVersion();
             // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
             // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
-            final var cachedBytes = statesByVersion.get(discoveryNode.getVersion());
+            final var cachedBytes = statesByVersion.get(discoveryNode.getVersion().transportVersion);
             final var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode));
             assert bytes.hasReferences() : "already closed";
             bytes.incRef();
@@ -343,20 +344,20 @@ public class JoinValidationService {
         var success = false;
         try {
             final var clusterState = clusterStateSupplier.get();
-            final var version = discoveryNode.getVersion();
+            final var version = discoveryNode.getVersion().transportVersion;
             try (
                 var stream = new OutputStreamStreamOutput(
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
                 )
             ) {
-                stream.setVersion(version);
+                stream.setTransportVersion(version);
                 clusterState.writeTo(stream);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, discoveryNode);
             }
             final var newBytes = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             logger.trace(
-                "serialized join validation cluster state version [{}] for node version [{}] with size [{}]",
+                "serialized join validation cluster state version [{}] for transport version [{}] with size [{}]",
                 clusterState.version(),
                 version,
                 newBytes.length()

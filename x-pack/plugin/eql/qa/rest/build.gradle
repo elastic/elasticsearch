@@ -1,27 +1,14 @@
 apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 import org.elasticsearch.gradle.internal.info.BuildParams
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'indices', 'eql'
-  }
-}
 
 dependencies {
   javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
 }
 
-artifacts {
-  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
-}
-
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("javaRestTest").configure{enabled = false }
-  tasks.named("yamlRestTest").configure{enabled = false }
 }
 testClusters.configureEach {
   testDistribution = 'DEFAULT'

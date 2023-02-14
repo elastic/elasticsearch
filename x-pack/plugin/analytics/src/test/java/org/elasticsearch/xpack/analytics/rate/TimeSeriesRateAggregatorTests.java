@@ -15,6 +15,7 @@ import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -137,7 +138,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             null,
             false,
             TimeSeriesParams.MetricType.COUNTER,
-            null
+            IndexMode.TIME_SERIES
         );
     }
 

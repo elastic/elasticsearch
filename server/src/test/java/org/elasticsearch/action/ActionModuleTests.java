@@ -121,8 +121,7 @@ public class ActionModuleTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
-            List.of(),
-            false
+            List.of()
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -181,8 +180,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
-                List.of(),
-                false
+                List.of()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
@@ -234,8 +232,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
-                List.of(),
-                false
+                List.of()
             );
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -282,8 +279,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     null,
                     mock(ClusterService.class),
-                    List.of(),
-                    false
+                    List.of()
                 )
             );
             assertThat(

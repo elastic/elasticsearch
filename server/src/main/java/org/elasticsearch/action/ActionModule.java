@@ -255,6 +255,7 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -480,8 +481,7 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
-        boolean serverlessEnabled
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -490,7 +490,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.serverlessEnabled = serverlessEnabled;
+        this.serverlessEnabled = DiscoveryNode.isStateless(settings);
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);

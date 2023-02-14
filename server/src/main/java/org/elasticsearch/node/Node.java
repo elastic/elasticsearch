@@ -289,12 +289,6 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> SERVERLESS_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.enabled",
-        false,
-        Setting.Property.NodeScope
-    );
-
     private static final String CLIENT_TYPE = "node";
 
     private final Lifecycle lifecycle = new Lifecycle();
@@ -320,7 +314,6 @@ public class Node implements Closeable {
     // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
-    final boolean serverlessEnabled;
 
     /**
      * Constructs a node
@@ -423,7 +416,6 @@ public class Node implements Closeable {
 
             this.pluginsService = pluginServiceCtor.apply(tmpSettings);
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
-            this.serverlessEnabled = SERVERLESS_ENABLED_SETTING.get(settings);
 
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
@@ -781,8 +773,7 @@ public class Node implements Closeable {
                 systemIndices,
                 tracer,
                 clusterService,
-                reservedStateHandlers,
-                serverlessEnabled
+                reservedStateHandlers
             );
             modules.add(actionModule);
 

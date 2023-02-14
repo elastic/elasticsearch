@@ -143,7 +143,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
-        if (in.getVersion().before(Version.V_8_7_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_8_0)) {
             in.readOptionalBoolean();   // force_source, now deprecated
         }
         boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
@@ -183,7 +183,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
-        if (out.getVersion().before(Version.V_8_7_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_8_0)) {
             out.writeOptionalBoolean(false);
         }
         out.writeOptionalWriteable(boundaryScannerType);

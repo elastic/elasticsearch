@@ -56,7 +56,11 @@ public final class RemoteAccessAuthentication {
     }
 
     public static RemoteAccessAuthentication readFromContext(final ThreadContext ctx) throws IOException {
-        return decode(ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY));
+        final String header = ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
+        if (header == null) {
+            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
+        }
+        return decode(header);
     }
 
     public Authentication getAuthentication() {

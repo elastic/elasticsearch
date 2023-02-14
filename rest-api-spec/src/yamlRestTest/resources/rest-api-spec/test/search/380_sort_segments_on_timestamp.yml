@@ -15,6 +15,7 @@
                 type: date
           settings:
             number_of_shards: 1
+            number_of_replicas: 0
 
   # 1st segment
   - do:
@@ -43,8 +44,8 @@
 ---
 "Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/93572"
+      version: " - 7.99.99"
+      reason: "sorting segments was added in 7.16"
       features: allowed_warnings
 
   - do:
@@ -53,6 +54,7 @@
         body:
           settings:
             number_of_shards: 1
+            number_of_replicas: 0
 
   # 1st segment
   - do:
@@ -112,6 +114,7 @@
                 type: date
           settings:
             number_of_shards: 1
+            number_of_replicas: 0
 
   # 1st segment missing @timestamp field
   - do:

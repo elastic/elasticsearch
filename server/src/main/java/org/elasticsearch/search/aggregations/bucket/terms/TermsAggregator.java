@@ -35,37 +35,9 @@ import java.util.Set;
 public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     /**
-     * This class provides bucket thresholds configuration, but can be used ensure default value immutability
-     */
-    public static final class ConstantBucketCountThresholds {
-        private final long minDocCount;
-        private final long shardMinDocCount;
-        private final int requiredSize;
-        private final int shardSize;
-
-        public ConstantBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
-            this.minDocCount = minDocCount;
-            this.shardMinDocCount = shardMinDocCount;
-            this.requiredSize = requiredSize;
-            this.shardSize = shardSize;
-        }
-
-        public long getMinDocCount() {
-            return minDocCount;
-        }
-
-        public long getShardMinDocCount() {
-            return shardMinDocCount;
-        }
-
-        public int getRequiredSize() {
-            return requiredSize;
-        }
-
-        public int getShardSize() {
-            return shardSize;
-        }
-    }
+         * This class provides bucket thresholds configuration, but can be used ensure default value immutability
+         */
+    public record ConstantBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {}
 
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;

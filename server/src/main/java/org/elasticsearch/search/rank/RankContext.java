@@ -9,6 +9,9 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryCollectorContext;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -21,5 +24,7 @@ public interface RankContext {
 
     QueryCollectorContext createQueryCollectorContext(Query query, SearchContext searchContext);
 
-    RankResults rank(List<QuerySearchResult> querySearchResults);
+    SortedTopDocs rank(List<QuerySearchResult> querySearchResults);
+
+    void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit);
 }

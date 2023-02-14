@@ -26,14 +26,15 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryCollectorContext;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankResults.RankResult;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -154,7 +155,7 @@ public class RRFRankContext implements RankContext {
     }
 
     @Override
-    public RankResults rank(List<QuerySearchResult> querySearchResults) {
+    public SortedTopDocs rank(List<QuerySearchResult> querySearchResults) {
         List<List<TopDocs>> unmergedTopDocs = new ArrayList<>();
         int size = -1;
 
@@ -184,7 +185,9 @@ public class RRFRankContext implements RankContext {
             mergedTopDocs.add(SearchPhaseController.sortDocs(false, utd, 0, windowSize, List.of()));
         }
 
-        Map<String, RankResult> rankResults = new HashMap<>();
+        Map<String, RRFRankResult> docsToRankResults = new HashMap<>();
+
+        // TODO: ensure sorted top docs have the same sort values
 
         int index = 0;
         for (SortedTopDocs mtd : mergedTopDocs) {
@@ -193,9 +196,9 @@ public class RRFRankContext implements RankContext {
                 ++rank;
                 final int findex = index;
                 final int frank = rank;
-                rankResults.compute(scoreDoc.doc + ":" + scoreDoc.shardIndex, (key, value) -> {
+                docsToRankResults.compute(scoreDoc.doc + ":" + scoreDoc.shardIndex, (key, value) -> {
                     if (value == null) {
-                        value = new RankResult(scoreDoc.doc, scoreDoc.shardIndex, mergedTopDocs.size());
+                        value = new RRFRankResult(scoreDoc.doc, scoreDoc.shardIndex, mergedTopDocs.size());
                     }
 
                     value.score += 1.0f / (rankConstant + frank);
@@ -208,13 +211,20 @@ public class RRFRankContext implements RankContext {
             ++index;
         }
 
-        List<RankResult> sorted = new ArrayList<>(rankResults.values());
-        sorted.sort(Comparator.comparingDouble(sd -> -sd.rank));
-        int rank = 1;
-        for (RankResult rankResult : sorted) {
-            rankResult.rank = rank++;
+        RRFRankResult[] rankResults = docsToRankResults.values().toArray(RRFRankResult[]::new);
+        Arrays.sort(rankResults, Comparator.comparingDouble(rr -> -rr.score));
+        for (int rank = 0; rank < rankResults.length; ++rank) {
+            rankResults[rank].rank = rank + 1;
         }
 
-        return new RankResults(sorted);
+        SortedTopDocs copy = mergedTopDocs.get(1);
+        return new SortedTopDocs(rankResults, copy.isSortedByField(), copy.sortFields(), copy.collapseField(), copy.collapseValues(), copy.numberOfCompletionsSuggestions());
+    }
+
+    public void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit) {
+        assert scoreDoc instanceof RRFRankResult;
+        RRFRankResult rankResult = (RRFRankResult) scoreDoc;
+        searchHit.setRank(rankResult.rank);
+        searchHit.setRankResult(rankResult);
     }
 }

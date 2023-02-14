@@ -11,8 +11,10 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.rank.RRFRankBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,13 +55,13 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 100, 300);
         SearchResponse response = client().prepareSearch("index")
             .setRank(new RankBuilder().toRankContext(new RRFRankBuilder().windowSize(100).rankConstant(1)))
-            // .setTrackTotalHits(false)
+            .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(10))
-            // .addSort("int", SortOrder.ASC)
-            // .addFetchField("*")
+            .addSort("int", SortOrder.DESC)
+            .addFetchField("*")
             .setSize(10)
-            // .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
+            .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
             .get();
 
         assertEquals(10, response.getHits().getHits().length);

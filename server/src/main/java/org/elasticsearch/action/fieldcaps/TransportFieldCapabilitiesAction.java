@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -139,6 +140,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 LOGGER.trace("clear index responses on cancelled");
                 indexResponses.clear();
+                indexFailures.clear();
             } else {
                 mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
             }
@@ -155,8 +157,24 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 nowInMillis,
                 concreteIndices,
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-                handleIndexResponse,
-                indexFailures::collect,
+                indexResponse -> {
+                    try (Releasable ref = refs.tryAcquire()) {
+                        if (ref != null) {
+                            handleIndexResponse.accept(indexResponse);
+                        } else {
+                            assert fieldCapTask.isCancelled();
+                        }
+                    }
+                },
+                (index, error) -> {
+                    try (Releasable ref = refs.tryAcquire()) {
+                        if (ref != null) {
+                            indexFailures.collect(index, error);
+                        } else {
+                            assert fieldCapTask.isCancelled();
+                        }
+                    }
+                },
                 localRef::close
             );
             requestDispatcher.execute();
@@ -384,6 +402,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         void collect(String index, Exception e) {
             failuresByIndex.putIfAbsent(index, e);
+        }
+
+        void clear() {
+            failuresByIndex.clear();
         }
 
         void collectRemoteException(Exception ex, String clusterAlias, String[] remoteIndices) {

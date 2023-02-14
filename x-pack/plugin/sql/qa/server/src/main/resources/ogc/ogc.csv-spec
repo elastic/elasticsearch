@@ -7,8 +7,8 @@
 showTables
 SHOW TABLES "ogc";
 
- catalog:s | name:s        | type:s| kind:s
-integTest  |ogc            |TABLE  |INDEX
+ catalog:s    | name:s        | type:s| kind:s
+javaRestTest  |ogc            |TABLE  |INDEX
 ;
 
 // DESCRIBE

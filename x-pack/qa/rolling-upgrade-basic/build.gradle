@@ -80,7 +80,3 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 tasks.withType(Test).configureEach {
   enabled = BuildParams.inFipsJvm == false
 }
-
-tasks.named("testingConventions").configure {
-  enabled = BuildParams.inFipsJvm == false
-}

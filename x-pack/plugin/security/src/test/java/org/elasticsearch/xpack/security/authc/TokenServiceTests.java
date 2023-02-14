@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -73,8 +74,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
-import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -232,18 +233,25 @@ public class TokenServiceTests extends ESTestCase {
             settings,
             new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool", false)
         );
-        new Authentication(new User("foo"), new RealmRef("realm", "type", "node"), null).writeToContext(threadPool.getThreadContext());
+        AuthenticationTestHelper.builder()
+            .user(new User("foo"))
+            .realmRef(new RealmRef("realm", "type", "node"))
+            .build(false)
+            .writeToContext(threadPool.getThreadContext());
     }
 
     @AfterClass
-    public static void shutdownThreadpool() throws InterruptedException {
+    public static void shutdownThreadpool() {
         terminate(threadPool);
         threadPool = null;
     }
 
     public void testAttachAndGetToken() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
@@ -255,7 +263,7 @@ public class TokenServiceTests extends ESTestCase {
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", randomFrom("Bearer ", "BEARER ", "bearer ") + accessToken);
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
@@ -263,7 +271,7 @@ public class TokenServiceTests extends ESTestCase {
             assertAuthentication(authentication, serialized.getAuthentication());
         }
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             // verify a second separate token service with its own salt can also verify
             TokenService anotherService = createTokenService(tokenServiceEnabledSettings, systemUTC());
             anotherService.refreshMetadata(tokenService.getTokenMetadata());
@@ -282,7 +290,7 @@ public class TokenServiceTests extends ESTestCase {
         String authScheme = randomFrom("Bearer ", "BEARER ", "bearer ", "Basic ");
         requestContext.putHeader("Authorization", authScheme + token);
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
@@ -291,207 +299,16 @@ public class TokenServiceTests extends ESTestCase {
         }
     }
 
-    public void testRotateKey() throws Exception {
-        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        // This test only makes sense in mixed clusters with pre v7.2.0 nodes where the Key is actually used
-        if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
-        }
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
-        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, Collections.emptyMap(), tokenFuture);
-        final String accessToken = tokenFuture.get().getAccessToken();
-        assertNotNull(accessToken);
-        mockGetTokenFromId(tokenService, userTokenId, authentication, false);
-
-        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, accessToken);
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            tokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(authentication, serialized.getAuthentication());
-        }
-        rotateKeys(tokenService);
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            tokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(authentication, serialized.getAuthentication());
-        }
-
-        PlainActionFuture<TokenService.CreateTokenResult> newTokenFuture = new PlainActionFuture<>();
-        final String newUserTokenId = UUIDs.randomBase64UUID();
-        final String newRefreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(
-            newUserTokenId,
-            newRefreshToken,
-            authentication,
-            authentication,
-            Collections.emptyMap(),
-            newTokenFuture
-        );
-        final String newAccessToken = newTokenFuture.get().getAccessToken();
-        assertNotNull(newAccessToken);
-        assertNotEquals(newAccessToken, accessToken);
-
-        requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, newAccessToken);
-        mockGetTokenFromId(tokenService, newUserTokenId, authentication, false);
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            tokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(authentication, serialized.getAuthentication());
-        }
-    }
-
-    private void rotateKeys(TokenService tokenService) {
-        TokenMetadata tokenMetadata = tokenService.generateSpareKey();
-        tokenService.refreshMetadata(tokenMetadata);
-        tokenMetadata = tokenService.rotateToSpareKey();
-        tokenService.refreshMetadata(tokenMetadata);
-    }
-
-    public void testKeyExchange() throws Exception {
-        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        // This test only makes sense in mixed clusters with pre v7.2.0 nodes where the Key is actually used
-        if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
-        }
-        int numRotations = randomIntBetween(1, 5);
-        for (int i = 0; i < numRotations; i++) {
-            rotateKeys(tokenService);
-        }
-        TokenService otherTokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        otherTokenService.refreshMetadata(tokenService.getTokenMetadata());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
-        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, Collections.emptyMap(), tokenFuture);
-        final String accessToken = tokenFuture.get().getAccessToken();
-        assertNotNull(accessToken);
-        mockGetTokenFromId(tokenService, userTokenId, authentication, false);
-
-        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, accessToken);
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            otherTokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(serialized.getAuthentication(), authentication);
-        }
-
-        rotateKeys(tokenService);
-
-        otherTokenService.refreshMetadata(tokenService.getTokenMetadata());
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            otherTokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(serialized.getAuthentication(), authentication);
-        }
-    }
-
-    public void testPruneKeys() throws Exception {
-        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        // This test only makes sense in mixed clusters with pre v7.2.0 nodes where the Key is actually used
-        if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
-        }
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
-        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, Collections.emptyMap(), tokenFuture);
-        final String accessToken = tokenFuture.get().getAccessToken();
-        assertNotNull(accessToken);
-        mockGetTokenFromId(tokenService, userTokenId, authentication, false);
-
-        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, accessToken);
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            tokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(authentication, serialized.getAuthentication());
-        }
-        TokenMetadata metadata = tokenService.pruneKeys(randomIntBetween(0, 100));
-        tokenService.refreshMetadata(metadata);
-
-        int numIterations = scaledRandomIntBetween(1, 5);
-        for (int i = 0; i < numIterations; i++) {
-            rotateKeys(tokenService);
-        }
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            tokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(authentication, serialized.getAuthentication());
-        }
-
-        PlainActionFuture<TokenService.CreateTokenResult> newTokenFuture = new PlainActionFuture<>();
-        final String newUserTokenId = UUIDs.randomBase64UUID();
-        final String newRefreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(
-            newUserTokenId,
-            newRefreshToken,
-            authentication,
-            authentication,
-            Collections.emptyMap(),
-            newTokenFuture
-        );
-        final String newAccessToken = newTokenFuture.get().getAccessToken();
-        assertNotNull(newAccessToken);
-        assertNotEquals(newAccessToken, accessToken);
-
-        metadata = tokenService.pruneKeys(1);
-        tokenService.refreshMetadata(metadata);
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            tokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertNull(serialized);
-        }
-
-        requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, newAccessToken);
-        mockGetTokenFromId(tokenService, newUserTokenId, authentication, false);
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            tokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(authentication, serialized.getAuthentication());
-        }
-
-    }
-
     public void testPassphraseWorks() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
         if (null == oldNode) {
             oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
         }
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
@@ -503,7 +320,7 @@ public class TokenServiceTests extends ESTestCase {
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, accessToken);
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
@@ -511,7 +328,7 @@ public class TokenServiceTests extends ESTestCase {
             assertAuthentication(authentication, serialized.getAuthentication());
         }
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             // verify a second separate token service with its own passphrase cannot verify
             TokenService anotherService = createTokenService(tokenServiceEnabledSettings, systemUTC());
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -527,7 +344,10 @@ public class TokenServiceTests extends ESTestCase {
         if (null == oldNode) {
             oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
         }
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
 
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
@@ -546,7 +366,10 @@ public class TokenServiceTests extends ESTestCase {
     public void testInvalidatedToken() throws Exception {
         when(securityMainIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
@@ -558,7 +381,7 @@ public class TokenServiceTests extends ESTestCase {
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, accessToken);
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
@@ -572,7 +395,10 @@ public class TokenServiceTests extends ESTestCase {
     public void testInvalidateRefreshToken() throws Exception {
         when(securityMainIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String rawRefreshToken = UUIDs.randomBase64UUID();
@@ -585,7 +411,7 @@ public class TokenServiceTests extends ESTestCase {
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, accessToken);
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<TokensInvalidationResult> future = new PlainActionFuture<>();
             tokenService.invalidateRefreshToken(clientRefreshToken, future);
             final TokensInvalidationResult result = future.get();
@@ -615,7 +441,7 @@ public class TokenServiceTests extends ESTestCase {
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, accessToken);
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<TokensInvalidationResult> future = new PlainActionFuture<>();
             tokenService.invalidateRefreshToken(clientRefreshToken, future);
             final TokensInvalidationResult result = future.get();
@@ -634,13 +460,13 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        if (authentication.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+        if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
             return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
         } else {
             return new RefreshTokenStatus(
                 invalidated,
-                authentication.getUser().principal(),
-                authentication.getAuthenticatedBy().getName(),
+                authentication.getEffectiveSubject().getUser().principal(),
+                authentication.getAuthenticatingSubject().getRealm().getName(),
                 refreshed,
                 refreshInstant,
                 supersedingTokens,
@@ -650,7 +476,7 @@ public class TokenServiceTests extends ESTestCase {
         }
     }
 
-    private void storeTokenHeader(ThreadContext requestContext, String tokenString) throws IOException, GeneralSecurityException {
+    private void storeTokenHeader(ThreadContext requestContext, String tokenString) {
         requestContext.putHeader("Authorization", "Bearer " + tokenString);
     }
 
@@ -702,7 +528,10 @@ public class TokenServiceTests extends ESTestCase {
     public void testTokenExpiry() throws Exception {
         ClockMock clock = ClockMock.frozen();
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, clock);
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         final String userTokenId = UUIDs.randomBase64UUID();
         UserToken userToken = new UserToken(
             userTokenId,
@@ -720,7 +549,7 @@ public class TokenServiceTests extends ESTestCase {
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, accessToken);
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             // the clock is still frozen, so the cookie should be valid
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
@@ -730,7 +559,7 @@ public class TokenServiceTests extends ESTestCase {
 
         final TimeValue defaultExpiration = TokenService.TOKEN_EXPIRATION.get(Settings.EMPTY);
         final int fastForwardAmount = randomIntBetween(1, Math.toIntExact(defaultExpiration.getSeconds()) - 5);
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             // move the clock forward but don't go to expiry
             clock.fastForwardSeconds(fastForwardAmount);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -739,7 +568,7 @@ public class TokenServiceTests extends ESTestCase {
             assertAuthentication(authentication, future.get().getAuthentication());
         }
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             // move to expiry, stripping nanoseconds, as we don't store them in the security-tokens index
             clock.setTime(userToken.getExpirationTime().truncatedTo(ChronoUnit.MILLIS).atZone(clock.getZone()));
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -748,7 +577,7 @@ public class TokenServiceTests extends ESTestCase {
             assertAuthentication(authentication, future.get().getAuthentication());
         }
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             // move one second past expiry
             clock.fastForwardSeconds(1);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -821,12 +650,15 @@ public class TokenServiceTests extends ESTestCase {
         random().nextBytes(randomBytes);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // mock another random token so that we don't find a token in TokenService#getUserTokenFromId
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, Base64.getEncoder().encodeToString(randomBytes));
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
@@ -837,12 +669,15 @@ public class TokenServiceTests extends ESTestCase {
     public void testNotValidPre72Tokens() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // mock another random token so that we don't find a token in TokenService#getUserTokenFromId
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, generateAccessToken(tokenService, Version.V_7_1_0));
+        storeTokenHeader(requestContext, generateAccessToken(tokenService, TransportVersion.V_7_1_0));
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
@@ -853,12 +688,15 @@ public class TokenServiceTests extends ESTestCase {
     public void testNotValidAfter72Tokens() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // mock another random token so that we don't find a token in TokenService#getUserTokenFromId
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, generateAccessToken(tokenService, randomFrom(Version.V_7_2_0, Version.V_7_3_2)));
+        storeTokenHeader(requestContext, generateAccessToken(tokenService, randomFrom(TransportVersion.V_7_2_0, TransportVersion.V_7_3_2)));
 
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
@@ -868,7 +706,10 @@ public class TokenServiceTests extends ESTestCase {
 
     public void testIndexNotAvailable() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
@@ -898,7 +739,7 @@ public class TokenServiceTests extends ESTestCase {
             when(securityMainIndex.indexExists()).thenReturn(false);
             when(securityMainIndex.freeze()).thenReturn(securityMainIndex);
         }
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken3 = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken3, future);
@@ -930,7 +771,10 @@ public class TokenServiceTests extends ESTestCase {
 
     public void testGetAuthenticationWorksWithExpiredUserToken() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         final String userTokenId = UUIDs.randomBase64UUID();
         UserToken expired = new UserToken(
             userTokenId,
@@ -959,7 +803,7 @@ public class TokenServiceTests extends ESTestCase {
         final String newRefreshToken = UUIDs.randomBase64UUID();
         final byte[] iv = tokenService.getRandomBytes(TokenService.IV_BYTES);
         final byte[] salt = tokenService.getRandomBytes(TokenService.SALT_BYTES);
-        final Version version = tokenService.getTokenVersionCompatibility();
+        final TransportVersion version = tokenService.getTokenVersionCompatibility();
         String encryptedTokens = tokenService.encryptSupersedingTokens(newAccessToken, newRefreshToken, refrehToken, iv, salt);
         RefreshTokenStatus refreshTokenStatus = newRefreshTokenStatus(
             false,
@@ -970,7 +814,7 @@ public class TokenServiceTests extends ESTestCase {
             Base64.getEncoder().encodeToString(iv),
             Base64.getEncoder().encodeToString(salt)
         );
-        refreshTokenStatus.setVersion(version);
+        refreshTokenStatus.setTransportVersion(version);
         mockGetTokenAsyncForDecryptedToken(newAccessToken);
         tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, securityTokensIndex, authentication, tokenFuture);
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
@@ -989,7 +833,10 @@ public class TokenServiceTests extends ESTestCase {
     public void testCannotValidateTokenIfLicenseDoesNotAllowTokens() throws Exception {
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
-        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .build(false);
         final String userTokenId = UUIDs.randomBase64UUID();
         UserToken token = new UserToken(
             userTokenId,
@@ -1004,7 +851,7 @@ public class TokenServiceTests extends ESTestCase {
             userTokenId
         );
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getVersion(), accessToken));
+        storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getTransportVersion(), accessToken));
 
         PlainActionFuture<UserToken> authFuture = new PlainActionFuture<>();
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(false);
@@ -1049,7 +896,7 @@ public class TokenServiceTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
-            Version tokenVersion = tokenService.getTokenVersionCompatibility();
+            TransportVersion tokenVersion = tokenService.getTokenVersionCompatibility();
             final String possiblyHashedUserTokenId;
             if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 possiblyHashedUserTokenId = TokenService.hashTokenString(userTokenId);
@@ -1083,7 +930,7 @@ public class TokenServiceTests extends ESTestCase {
         Authentication authentication,
         Map<String, Object> metadata
     ) {
-        final Version tokenVersion = tokenService.getTokenVersionCompatibility();
+        final TransportVersion tokenVersion = tokenService.getTokenVersionCompatibility();
         final String possiblyHashedUserTokenId;
         if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             possiblyHashedUserTokenId = TokenService.hashTokenString(userTokenId);
@@ -1092,14 +939,7 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
-        final UserToken userToken = new UserToken(
-            possiblyHashedUserTokenId,
-            tokenVersion,
-            tokenAuth,
-            tokenService.getExpirationTime(),
-            metadata
-        );
-        return userToken;
+        return new UserToken(possiblyHashedUserTokenId, tokenVersion, tokenAuth, tokenService.getExpirationTime(), metadata);
     }
 
     private void mockGetTokenFromId(UserToken userToken, boolean isExpired) {
@@ -1109,7 +949,7 @@ public class TokenServiceTests extends ESTestCase {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             final String possiblyHashedUserTokenId;
-            if (userToken.getVersion().onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            if (userToken.getTransportVersion().onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 possiblyHashedUserTokenId = TokenService.hashTokenString(userToken.getId());
             } else {
                 possiblyHashedUserTokenId = userToken.getId();
@@ -1139,7 +979,7 @@ public class TokenServiceTests extends ESTestCase {
 
     private void mockFindTokenFromRefreshToken(String refreshToken, UserToken userToken, @Nullable RefreshTokenStatus refreshTokenStatus) {
         String storedRefreshToken;
-        if (userToken.getVersion().onOrAfter(TokenService.VERSION_HASHED_TOKENS)) {
+        if (userToken.getTransportVersion().onOrAfter(TokenService.VERSION_HASHED_TOKENS)) {
             storedRefreshToken = TokenService.hashTokenString(refreshToken);
         } else {
             storedRefreshToken = refreshToken;
@@ -1169,13 +1009,12 @@ public class TokenServiceTests extends ESTestCase {
                 "test",
                 randomAlphaOfLength(12)
             );
-            final Authentication clientAuthentication = new Authentication(
-                new User(refreshTokenStatus == null ? randomAlphaOfLength(8) : refreshTokenStatus.getAssociatedUser()),
-                realmRef,
-                realmRef
-            );
+            final Authentication clientAuthentication = AuthenticationTestHelper.builder()
+                .user(new User(refreshTokenStatus == null ? randomAlphaOfLength(8) : refreshTokenStatus.getAssociatedUser()))
+                .realmRef(realmRef)
+                .build(false);
 
-            final SearchHit hit = new SearchHit(randomInt(), "token_" + TokenService.hashTokenString(userToken.getId()), null, null);
+            final SearchHit hit = new SearchHit(randomInt(), "token_" + TokenService.hashTokenString(userToken.getId()));
             BytesReference source = TokenService.createTokenDocument(userToken, storedRefreshToken, clientAuthentication, Instant.now());
             if (refreshTokenStatus != null) {
                 var sourceAsMap = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
@@ -1209,10 +1048,11 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public static void assertAuthentication(Authentication result, Authentication expected) {
-        assertEquals(expected.getUser(), result.getUser());
-        assertEquals(expected.getAuthenticatedBy(), result.getAuthenticatedBy());
-        assertEquals(expected.getLookedUpBy(), result.getLookedUpBy());
-        assertEquals(expected.getMetadata(), result.getMetadata());
+        assertEquals(expected.getEffectiveSubject().getUser(), result.getEffectiveSubject().getUser());
+        assertEquals(expected.getAuthenticatingSubject().getRealm(), result.getAuthenticatingSubject().getRealm());
+        assertEquals(expected.isRunAs(), result.isRunAs());
+        assertEquals(expected.getEffectiveSubject().getRealm(), result.getEffectiveSubject().getRealm());
+        assertEquals(expected.getAuthenticatingSubject().getMetadata(), result.getAuthenticatingSubject().getMetadata());
     }
 
     private DiscoveryNode addAnotherDataNodeWithVersion(ClusterService clusterService, Version version) {
@@ -1232,7 +1072,7 @@ public class TokenServiceTests extends ESTestCase {
         return anotherDataNode;
     }
 
-    private String generateAccessToken(TokenService tokenService, Version version) throws Exception {
+    private String generateAccessToken(TokenService tokenService, TransportVersion version) throws Exception {
         String accessTokenString = UUIDs.randomBase64UUID();
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             accessTokenString = TokenService.hashTokenString(accessTokenString);

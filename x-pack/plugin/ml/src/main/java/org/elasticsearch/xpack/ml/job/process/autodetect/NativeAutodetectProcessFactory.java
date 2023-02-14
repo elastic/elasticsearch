@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -96,8 +96,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             true
         );
         createNativeProcess(job, params, processPipes, filesToDelete);
-        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-            && job.getAnalysisConfig().getCategorizationFieldName() != null;
+        boolean includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 

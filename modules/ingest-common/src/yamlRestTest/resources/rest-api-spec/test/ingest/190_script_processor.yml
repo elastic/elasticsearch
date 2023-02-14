@@ -277,3 +277,284 @@ teardown:
   - match: { _source.target_field.scheme: "http" }
   - match: { _source.target_field.domain: "www.example.com" }
   - match: { _source.target_field.path: "/index.html" }
+
+---
+"Test adding circular references fails pipeline":
+  - skip:
+      version: " - 8.2.99"
+      reason: "Test causes fatal error prior to 8.3.0"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+            {
+              "description": "_description",
+              "processors": [
+                {
+                  "script" : {
+                    "ignore_failure": true,
+                    "source": "ctx.foo = ctx"
+                  }
+                }
+              ]
+            }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "1"
+        pipeline: my_pipeline
+        body: >
+          {
+            "_source": {
+              "foo": "bar"
+            }
+          }
+  - match: { error.root_cause.0.reason: "Failed to generate the source document for ingest pipeline [my_pipeline] for document [test/1]" }
+
+---
+"Test metadata":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "metadata",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "Metadata m = metadata(); m.index += '2'; m.id += 'extra'; m.routing = 'myRouting'; m.versionType = 'external'; m.version = 5"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test2
+        id: "1extra"
+        version: 4
+        version_type: "external"
+        body: {source_field: "foobar"}
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {source_field: "bazqux"}
+
+  - do:
+      get:
+        index: test2
+        id: "1extra"
+        routing: "myRouting"
+  - match: { _source.source_field: "bazqux" }
+  - match: { _version: 5 }
+  - match: { _routing: "myRouting" }
+
+---
+"Write Fields API":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "fields api",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "field('create.depth').set('works');"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "field('append').append('another')"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "def a = field('append'); int i = 0; for (def value : a) { i += value.length(); } field('size').set(100 * a.size() + i);"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "Collections.sort(field('duplicate').deduplicate().get(new ArrayList()));"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "field('numbers').removeValuesIf(x -> x == null).transform(x -> x instanceof String ? Integer.parseInt(x) : x);"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "field('src.key1').move('dst.key5'); field('src.key2').overwrite('dst.key3'); field('dst.key4').remove()"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              append:
+                type: keyword
+              duplicate:
+                type: keyword
+              numbers:
+                type: integer
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body:
+          append: ["one", "again", "another", "again"]
+          duplicate: ["aa", "aa", "bb"]
+          numbers: [1, null, "2"]
+          src:
+            key1: value1
+            key2: value2
+          dst:
+            key3: value3
+            key4: value4
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match:
+      _source:
+        create:
+          depth: "works"
+        append: ["one", "again", "another", "again", "another"]
+        size: 527
+        duplicate: ["aa", "bb"]
+        numbers: [1, 2]
+        src: {}
+        dst:
+          key3: value2
+          key5: value1
+
+---
+"Write Field Nested Document":
+  - do:
+      ingest.put_pipeline:
+        id: nested_documents
+        body:
+          description: "clean up records field as nested documents"
+          processors:
+            - script:
+                lang: painless
+                source: |
+                  // first record has the region
+                  def records = field('records');
+                  def regionDoc = records.doc(0);
+                  regionDoc.field('region').move(field('region'));
+                  regionDoc.remove();
+
+                  // normalize the key usage
+                  // combine split values (missing usage then missing name)
+                  def missingUsage = null;
+                  for (def doc : records.docs()) {
+                    def name = doc.field('name');
+                    def usage = doc.field('usage');
+                    if (name.exists()) {
+                      if (!usage.exists()) {
+                        def usageValue = doc.field('usage-value');
+                        if (usageValue.exists()) {
+                          // normalize name
+                          usageValue.move('usage');
+                        } else {
+                          missingUsage = usage;
+                        }
+                      }
+                    } else if (usage.exists()) {
+                      // combine split records
+                      if (missingUsage != null) {
+                        usage.move(missingUsage);
+                        missingUsage = null;
+                        doc.remove();
+                      }
+                    }
+                  }
+
+                  // remove end-of-records doc
+                  def end = records.doc(records.size() - 1);
+                  if (end.field('name').get('') == 'end-of-records') {
+                    end.remove();
+                  }
+
+  - do:
+      indices.create:
+        index: resources
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            default_pipeline: nested_documents
+          mappings:
+            properties:
+              region:
+                type: keyword
+              resource:
+                type: nested
+                properties:
+                  name:
+                    type: keyword
+                  usage:
+                    type: integer
+
+  - do:
+      index:
+        index: resources
+        id: "1"
+        body:
+          records:
+            - region: us-east-1
+            - name: id-123
+              usage: 123
+            - name: id-456
+              usage-value: 456
+            - name: id-789
+            - usage: 789
+            - name: end-of-records
+        refresh: true
+
+  - do:
+      get:
+        index: resources
+        id: "1"
+
+  - match:
+      _source:
+        region: us-east-1
+        records:
+          - name: id-123
+            usage: 123
+          - name: id-456
+            usage: 456
+          - name: id-789
+            usage: 789

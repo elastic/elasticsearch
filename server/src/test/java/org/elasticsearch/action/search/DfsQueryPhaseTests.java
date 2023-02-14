@@ -23,7 +23,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
@@ -39,6 +41,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
     private static DfsSearchResult newSearchResult(int shardIndex, ShardSearchContextId contextId, SearchShardTarget target) {
         DfsSearchResult result = new DfsSearchResult(contextId, target, null);
         result.setShardIndex(shardIndex);
+        result.setShardSearchRequest(new ShardSearchRequest(target.getShardId(), System.currentTimeMillis(), AliasFilter.EMPTY));
         return result;
     }
 
@@ -111,7 +114,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
                 responseRef.set(response.results);
@@ -189,7 +192,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
                 responseRef.set(response.results);
@@ -269,7 +272,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
                 responseRef.set(response.results);

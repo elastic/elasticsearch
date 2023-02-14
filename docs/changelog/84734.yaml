@@ -1,9 +1,0 @@
-pr: 84734
-summary: Integrate filtering support for ANN
-area: Search
-type: enhancement
-issues:
- - 81788
-highlight:
-  title: Integrate filtering support for approximate nearest neighbor search
-  body: _knn_search endpoint now has a "filter" option that allows to return only the nearest documents that satisfy the provided filter

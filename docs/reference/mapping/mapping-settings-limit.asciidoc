@@ -4,7 +4,8 @@ Use the following settings to limit the number of field mappings (created manual
 
 `index.mapping.total_fields.limit`::
     The maximum number of fields in an index. Field and object mappings, as well as
-    field aliases count towards this limit. The default value is `1000`.
+    field aliases count towards this limit. Mapped runtime fields count towards this
+    limit as well. The default value is `1000`.
 +
 [IMPORTANT]
 ====
@@ -48,18 +49,4 @@ If your field mappings contain a large, arbitrary set of keys, consider using th
     unless a user starts to add a huge number of fields with really long names. Default is
     `Long.MAX_VALUE` (no limit).
 
-[[index-mapping-dimension-fields-limit]]
-`index.mapping.dimension_fields.limit`::
-+
---
-experimental:[] (<<dynamic-index-settings,Dynamic>>, integer)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
-Maximum number of time series dimensions for the index. Defaults to `16`.
-
-You can mark a field as a dimension using the `time_series_dimension` mapping
-parameter.
-====
---
+include::{es-repo-dir}/data-streams/tsds-index-settings.asciidoc[tag=dimensions-limit]

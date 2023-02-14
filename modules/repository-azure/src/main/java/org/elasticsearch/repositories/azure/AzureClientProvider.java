@@ -180,7 +180,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
 
         final String connectionString = settings.getConnectString();
-
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
             .httpClient(httpClient)
             .retryOptions(retryOptions);

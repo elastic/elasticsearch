@@ -216,3 +216,32 @@
             /^ foo \s+ 0\n
                bar \s+ 1\n
             $/
+
+
+---
+"Test cat shards with hidden indices":
+  - skip:
+      version: " - 8.2.99"
+      reason:  hidden indices were misreported in versions before 8.3.0
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            hidden: "true"
+
+  - do:
+      index:
+        index: foo
+        body: { test: foo }
+        refresh: true
+
+  - do:
+      cat.shards:
+        h: [index, docs]
+
+  - match:
+      $body: /foo \s+ 1\n/

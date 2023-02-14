@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -483,7 +484,7 @@ public class LinearizabilityChecker {
             } else {
                 Set<Object> oldStates = states;
                 if (oldStates.contains(state)) return false;
-                states = new HashSet<>(oldStates.size() + 1);
+                states = Sets.newHashSetWithExpectedSize(oldStates.size() + 1);
                 states.addAll(oldStates);
                 states.add(state);
             }

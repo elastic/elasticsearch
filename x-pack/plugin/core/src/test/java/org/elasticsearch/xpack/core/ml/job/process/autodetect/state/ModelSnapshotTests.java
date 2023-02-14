@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapshot> {
+public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<ModelSnapshot> {
     private static final Date DEFAULT_TIMESTAMP = new Date();
     private static final String DEFAULT_DESCRIPTION = "a snapshot";
     private static final String DEFAULT_ID = "my_id";
@@ -149,6 +149,11 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     @Override
     protected ModelSnapshot createTestInstance() {
         return createRandomized();
+    }
+
+    @Override
+    protected ModelSnapshot mutateInstance(ModelSnapshot instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static ModelSnapshot createRandomized() {

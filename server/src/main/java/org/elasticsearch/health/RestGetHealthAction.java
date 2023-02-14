@@ -11,7 +11,8 @@ package org.elasticsearch.health;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -19,6 +20,10 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetHealthAction extends BaseRestHandler {
+
+    private static final String VERBOSE_PARAM = "verbose";
+
+    private static final String SIZE_PARAM = "size";
 
     @Override
     public String getName() {
@@ -28,20 +33,19 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_internal/_health"),
-            new Route(GET, "/_internal/_health/{component}"),
-            new Route(GET, "/_internal/_health/{component}/{indicator}")
-        );
+        return List.of(new Route(GET, "/_health_report"), new Route(GET, "/_health_report/{indicator}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String componentName = request.param("component");
         String indicatorName = request.param("indicator");
-        GetHealthAction.Request getHealthRequest = componentName == null
-            ? new GetHealthAction.Request()
-            : new GetHealthAction.Request(componentName, indicatorName);
-        return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
+        boolean verbose = request.paramAsBoolean(VERBOSE_PARAM, true);
+        int size = request.paramAsInt(SIZE_PARAM, 1000);
+        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, verbose, size);
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetHealthAction.INSTANCE,
+            getHealthRequest,
+            new RestChunkedToXContentListener<>(channel)
+        );
     }
 }

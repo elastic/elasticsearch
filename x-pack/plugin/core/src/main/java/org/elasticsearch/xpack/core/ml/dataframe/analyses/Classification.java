@@ -68,7 +68,7 @@ public class Classification implements DataFrameAnalysis {
     /**
      * The max number of classes classification supports
      */
-    public static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 30;
+    public static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 100;
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
@@ -329,6 +329,7 @@ public class Classification implements DataFrameAnalysis {
             );
         }
         params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
+        params.put(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         return params;
     }
 

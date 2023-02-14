@@ -811,7 +811,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.array("something.myfield", "value2", "value3");
         }));
 
-        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(1));
         for (IndexableField field : doc.rootDoc().getFields("myfield")) {
             assertThat(field.binaryValue(), equalTo(new BytesRef("value1")));
         }
@@ -831,7 +831,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.array("myarray", "array1", "array2");
         }));
 
-        assertThat(doc.rootDoc().getFields("myarray"), arrayWithSize(4));
+        assertThat(doc.rootDoc().getFields("myarray"), arrayWithSize(2));
         assertThat(doc.rootDoc().getFields("unmapped"), arrayWithSize(0));
         assertNull(doc.dynamicMappingsUpdate());
     }
@@ -859,7 +859,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.endArray();
         }));
 
-        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(1));
         assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
         assertThat(doc.rootDoc().getFields("unmapped.subfield"), arrayWithSize(0));
         assertNull(doc.dynamicMappingsUpdate());
@@ -887,8 +887,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.field("myfield", 2);
         }));
 
-        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(2));
-        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(1));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(1));
         assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
         assertEquals(XContentHelper.stripWhitespace("""
             {
@@ -901,5 +901,44 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                 }
               }
             }"""), Strings.toString(doc.dynamicMappingsUpdate()));
+    }
+
+    public void testSubobjectsFalseRootDynamicUpdate() throws Exception {
+        MapperService mapperService = createMapperService(
+            mappingNoSubobjects(b -> b.startObject("host.name").field("type", "keyword").endObject())
+        );
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            {
+              "time" : 10,
+              "time.max" : 500,
+              "time.min" : 1,
+              "host.name" : "localhost",
+              "host.id" : 111
+            }
+            """));
+
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.max"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.min"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("host.id"));
+        assertNull(mappingsUpdate.getRoot().getMapper("host.name"));
+
+        assertNotNull(doc.rootDoc().getFields("time"));
+        assertNotNull(doc.rootDoc().getFields("time.max"));
+        assertNotNull(doc.rootDoc().getFields("time.min"));
+        assertNotNull(doc.rootDoc().getFields("host.name"));
+        assertNotNull(doc.rootDoc().getFields("host.id"));
+
+        merge(mapperService, dynamicMapping(mappingsUpdate));
+
+        assertNotNull(mapperService.fieldType("time"));
+        assertNotNull(mapperService.fieldType("time.max"));
+        assertNotNull(mapperService.fieldType("time.min"));
+        assertNotNull(mapperService.fieldType("host.id"));
+        assertNotNull(mapperService.fieldType("host.name"));
+
+        assertEquals(0, mapperService.mappingLookup().objectMappers().size());
     }
 }

@@ -130,13 +130,13 @@ public final class InternalRealms {
      */
     public static Map<String, Realm.Factory> getFactories(
         ThreadPool threadPool,
+        Settings settings,
         ResourceWatcherService resourceWatcherService,
         SSLService sslService,
         NativeUsersStore nativeUsersStore,
         NativeRoleMappingStore nativeRoleMappingStore,
         SecurityIndexManager securityIndex
     ) {
-
         return Map.of(
             // file realm
             FileRealmSettings.TYPE,

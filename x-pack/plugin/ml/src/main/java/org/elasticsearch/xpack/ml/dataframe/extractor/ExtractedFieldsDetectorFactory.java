@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -23,7 +22,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -45,6 +43,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -86,7 +85,7 @@ public class ExtractedFieldsDetectorFactory {
 
         // Step 3. Get cardinalities for fields with constraints
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(fieldCapabilitiesResponse -> {
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] Field capabilities response: {}", config.getId(), fieldCapabilitiesResponse));
+            LOGGER.debug(() -> format("[%s] Field capabilities response: %s", config.getId(), fieldCapabilitiesResponse));
             fieldCapsResponseHolder.set(fieldCapabilitiesResponse);
             getCardinalitiesForFieldsWithConstraints(index, config, fieldCapabilitiesResponse, fieldCardinalitiesHandler);
         }, listener::onFailure);
@@ -174,7 +173,7 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         fieldCapabilitiesRequest.fields("*");
         fieldCapabilitiesRequest.runtimeFields(config.getSource().getRuntimeMappings());
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
+        LOGGER.debug(() -> format("[%s] Requesting field caps for index %s", config.getId(), Arrays.toString(index)));
         ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, listener);
             // This response gets discarded - the listener handles the real response
@@ -186,7 +185,7 @@ public class ExtractedFieldsDetectorFactory {
         ActionListener<GetSettingsResponse> settingsListener = ActionListener.wrap(getSettingsResponse -> {
             Integer minDocValueFieldsLimit = Integer.MAX_VALUE;
 
-            ImmutableOpenMap<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
+            Map<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
             for (var indexSettings : indexToSettings.values()) {
                 Integer indexMaxDocValueFields = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(indexSettings);
                 if (indexMaxDocValueFields < minDocValueFieldsLimit) {

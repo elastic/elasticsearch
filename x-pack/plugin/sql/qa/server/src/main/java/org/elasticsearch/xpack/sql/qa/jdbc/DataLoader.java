@@ -65,6 +65,7 @@ public class DataLoader {
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
+        loadAppsDatasetIntoEs(client, "apps", "apps");
         loadLogsDatasetIntoEs(client, "logs", "logs");
         loadLogNanosDatasetIntoEs(client, "logs_nanos", "logs_nanos");
         loadLogUnsignedLongIntoEs(client, "logs_unsigned_long", "logs_unsigned_long");
@@ -272,6 +273,41 @@ public class DataLoader {
         });
         request.setJsonEntity(bulk.toString());
         client.performRequest(request);
+    }
+
+    protected static void loadAppsDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "integer").endObject();
+                createIndex.startObject("version");
+                {
+                    createIndex.field("type", "version");
+                    createIndex.startObject("fields");
+                    {
+                        createIndex.startObject("raw").field("type", "keyword").endObject();
+                    }
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
+                createIndex.startObject("name");
+                {
+                    createIndex.field("type", "text");
+                    createIndex.startObject("fields");
+                    {
+                        createIndex.startObject("raw").field("type", "keyword").endObject();
+                    }
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject();
+
+        loadDatasetIntoEs(client, index, filename, createIndex);
     }
 
     protected static void loadLogsDatasetIntoEs(RestClient client, String index, String filename) throws Exception {

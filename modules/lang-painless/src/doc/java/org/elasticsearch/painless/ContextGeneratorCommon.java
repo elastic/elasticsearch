@@ -15,6 +15,7 @@ import org.elasticsearch.painless.action.PainlessContextInfo;
 import org.elasticsearch.painless.action.PainlessContextInstanceBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextMethodInfo;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class ContextGeneratorCommon {
     public static List<PainlessContextInfo> getContextInfos() throws IOException {
         URLConnection getContextNames = new URL("http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context")
             .openConnection();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, getContextNames.getInputStream());
+        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, getContextNames.getInputStream());
         parser.nextToken();
         parser.nextToken();
         @SuppressWarnings("unchecked")
@@ -50,7 +51,7 @@ public class ContextGeneratorCommon {
             URLConnection getContextInfo = new URL(
                 "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName
             ).openConnection();
-            parser = JsonXContent.jsonXContent.createParser(null, null, getContextInfo.getInputStream());
+            parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, getContextInfo.getInputStream());
             contextInfos.add(PainlessContextInfo.fromXContent(parser));
             ((HttpURLConnection) getContextInfo).disconnect();
         }

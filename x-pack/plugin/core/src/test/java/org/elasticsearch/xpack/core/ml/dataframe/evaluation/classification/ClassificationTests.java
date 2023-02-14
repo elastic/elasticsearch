@@ -22,7 +22,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ClassificationTests extends AbstractSerializingTestCase<Classification> {
+public class ClassificationTests extends AbstractXContentSerializingTestCase<Classification> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
@@ -90,6 +90,11 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     @Override
     protected Classification createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Classification mutateInstance(Classification instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

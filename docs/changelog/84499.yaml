@@ -1,5 +1,0 @@
-pr: 84499
-summary: Forward warning headers to JDBC driver
-area: SQL
-type: enhancement
-issues: []

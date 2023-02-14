@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
@@ -20,7 +20,7 @@ import java.util.Collections;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public class HuberTests extends AbstractSerializingTestCase<Huber> {
+public class HuberTests extends AbstractXContentSerializingTestCase<Huber> {
 
     @Override
     protected Huber doParseInstance(XContentParser parser) throws IOException {
@@ -30,6 +30,11 @@ public class HuberTests extends AbstractSerializingTestCase<Huber> {
     @Override
     protected Huber createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Huber mutateInstance(Huber instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

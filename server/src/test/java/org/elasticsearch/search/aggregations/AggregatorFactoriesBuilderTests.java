@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
@@ -28,7 +28,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase<AggregatorFactories.Builder> {
+public class AggregatorFactoriesBuilderTests extends AbstractXContentSerializingTestCase<Builder> {
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
@@ -82,6 +82,11 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
         }
 
         return builder;
+    }
+
+    @Override
+    protected Builder mutateInstance(Builder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

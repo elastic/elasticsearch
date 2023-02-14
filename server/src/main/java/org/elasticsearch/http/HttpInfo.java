@@ -55,10 +55,10 @@ public class HttpInfo implements ReportingService.Info {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
-            publishAddressString = hostString + '/' + publishAddress.toString();
+            publishAddressString = hostString + '/' + publishAddress;
         }
         builder.field(Fields.PUBLISH_ADDRESS, publishAddressString);
-        builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength());
+        builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, ByteSizeValue.ofBytes(maxContentLength));
         builder.endObject();
         return builder;
     }
@@ -71,11 +71,4 @@ public class HttpInfo implements ReportingService.Info {
         return address();
     }
 
-    public ByteSizeValue maxContentLength() {
-        return new ByteSizeValue(maxContentLength);
-    }
-
-    public ByteSizeValue getMaxContentLength() {
-        return maxContentLength();
-    }
 }

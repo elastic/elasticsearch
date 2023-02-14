@@ -2,9 +2,6 @@
 [[watcher-troubleshooting]]
 == Troubleshooting {watcher}
 [subs="attributes"]
-++++
-<titleabbrev>Troubleshooting</titleabbrev>
-++++
 
 [discrete]
 === Dynamic mapping error when trying to add a watch

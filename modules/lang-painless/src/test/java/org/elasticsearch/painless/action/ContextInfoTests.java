@@ -9,13 +9,13 @@
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContextInfo> {
+public class ContextInfoTests extends AbstractXContentSerializingTestCase<PainlessContextInfo> {
 
     @Override
     protected PainlessContextInfo doParseInstance(XContentParser parser) {
@@ -170,6 +170,11 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
         }
 
         return new PainlessContextInfo(randomAlphaOfLength(20), classes, importedMethods, classBindings, instanceBindings);
+    }
+
+    @Override
+    protected PainlessContextInfo mutateInstance(PainlessContextInfo instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -165,7 +164,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
         if (isWatchDocument(shardId.getIndexName())) {
-            logger.debug(() -> new ParameterizedMessage("failed to add watch [{}] to trigger service", index.id()), ex);
+            logger.debug(() -> "failed to add watch [" + index.id() + "] to trigger service", ex);
         }
     }
 
@@ -235,7 +234,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         RoutingNode routingNode = state.getRoutingNodes().node(localNodeId);
 
         // no local shards, exit early
-        List<ShardRouting> localShardRouting = routingNode.shardsWithState(watchIndex, STARTED, RELOCATING);
+        List<ShardRouting> localShardRouting = routingNode.shardsWithState(watchIndex, STARTED, RELOCATING).toList();
         if (localShardRouting.isEmpty()) {
             configuration = INACTIVE;
         } else {
@@ -282,7 +281,6 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         Set<ShardId> clusterStateLocalShardIds = state.getRoutingNodes()
             .node(localNodeId)
             .shardsWithState(watchIndex, STARTED, RELOCATING)
-            .stream()
             .map(ShardRouting::shardId)
             .collect(Collectors.toSet());
         Set<ShardId> configuredLocalShardIds = new HashSet<>(configuration.localShards.keySet());

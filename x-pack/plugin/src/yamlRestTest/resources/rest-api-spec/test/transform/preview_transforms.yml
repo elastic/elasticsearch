@@ -11,8 +11,14 @@ setup:
                 type: keyword
               responsetime:
                 type: float
+              agg_metric:
+                type: aggregate_metric_double
+                metrics: [ "min", "max" ]
+                default_metric: "max"
               event_rate:
                 type: integer
+              _isDeleted:
+                type: boolean
   - do:
       index:
         index: airline-data
@@ -22,7 +28,8 @@ setup:
             "time": "2017-02-18T00:00:00Z",
             "airline": "foo",
             "responsetime": 1.0,
-            "event_rate": 5
+            "event_rate": 5,
+            "_isDeleted": false
           }
 
   - do:
@@ -34,7 +41,8 @@ setup:
             "time": "2017-02-18T00:30:00Z",
             "airline": "foo",
             "responsetime": 1.0,
-            "event_rate": 6
+            "event_rate": 6,
+            "_isDeleted": true
           }
 
   - do:
@@ -46,7 +54,8 @@ setup:
             "time": "2017-02-18T01:00:00Z",
             "airline": "bar",
             "responsetime": 42.0,
-            "event_rate": 8
+            "event_rate": 8,
+            "_isDeleted": false
           }
 
   - do:
@@ -58,7 +67,8 @@ setup:
             "time": "2017-02-18T01:01:00Z",
             "airline": "foo",
             "responsetime": 42.0,
-            "event_rate": 7
+            "event_rate": 7,
+            "_isDeleted": true
           }
 
   - do:
@@ -151,6 +161,65 @@ setup:
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
 
 ---
+"Test preview transform with offset":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "offset": "-15m"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.max": {"max": {"field": "time"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+  - match: { preview.0.airline: foo }
+  - match: { preview.0.by-hour: "2017-02-17T23:45:00.000Z" }
+  - match: { preview.0.avg_response: 1.0 }
+  - match: { preview.0.time.max: "2017-02-18T00:30:00.000Z" }
+  - match: { preview.0.time.min: "2017-02-18T00:00:00.000Z" }
+  - match: { preview.1.airline: bar }
+  - match: { preview.1.by-hour: "2017-02-18T00:45:00.000Z" }
+  - match: { preview.1.avg_response: 42.0 }
+  - match: { preview.1.time.max: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.1.time.min: "2017-02-18T01:00:00.000Z" }
+  - match: { preview.2.airline: foo }
+  - match: { preview.2.by-hour: "2017-02-18T00:45:00.000Z" }
+  - match: { preview.2.avg_response: 42.0 }
+  - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
+  - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
+  - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
+  - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
+  - match: { generated_dest_index.mappings.properties.time\.max.type: "date" }
+  - match: { generated_dest_index.mappings.properties.time\.min.type: "date" }
+
+---
+"Test preview transform with timeout":
+  - do:
+      transform.preview_transform:
+        timeout: "10s"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.max": {"max": {"field": "time"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+
+---
 "Test preview transform with disabled mapping deduction":
   - do:
       transform.preview_transform:
@@ -234,9 +303,11 @@ setup:
   - length: { $body: 2 }
   - match: { preview.0.airline: bar }
   - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - is_false: preview.0._isDeleted
   - match: { preview.1.airline: foo }
   - match: { preview.1.time: "2017-02-18T01:01:00Z" }
   - match: { generated_dest_index.mappings.properties: {} }
+  - is_false: preview.1._isDeleted
 
   - do:
       ingest.put_pipeline:
@@ -268,9 +339,11 @@ setup:
   - match: { preview.0.airline: bar }
   - match: { preview.0.time: "2017-02-18T01:00:00Z" }
   - match: { preview.0.my_field: 42 }
+  - is_false: preview.0._isDeleted
   - match: { preview.1.airline: foo }
   - match: { preview.1.time: "2017-02-18T01:01:00Z" }
   - match: { preview.1.my_field: 42 }
+  - is_false: preview.1._isDeleted
   - match: { generated_dest_index.mappings.properties: {} }
 
 ---
@@ -515,8 +588,12 @@ setup:
   - length: { $body: 2 }
   - match: { preview.0.airline: bar }
   - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - is_false: preview.0._isDeleted  # field with leading underscore character '_' is treated as internal and filtered out
+  - is_false: preview.0.time-5m  # runtime field is not available in the resulting document, only source fields are
   - match: { preview.1.airline: foo }
   - match: { preview.1.time: "2017-02-18T01:01:00Z" }
+  - is_false: preview.1._isDeleted  # field with leading underscore character '_' is treated as internal and filtered out
+  - is_false: preview.1.time-5m  # runtime field is not available in the resulting document, only source fields are
 
 ---
 "Test preview continuous transform with no warnings":
@@ -585,5 +662,38 @@ setup:
               "time": {
                 "field": "time-10m"
               }
+            }
+          }
+
+---
+"Test preview of unattended transform":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "dest-airline-data-by-airline-unattended" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "unattended": true
+            }
+          }
+
+---
+"Test preview transform latest with unique key field of aggregate_metric_double type":
+  - do:
+      catch: /Field \[agg_metric\] of type \[aggregate_metric_double\] is not supported for aggregation \[terms\]/
+      transform.preview_transform:
+        body:  >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "latest": {
+              "unique_key": ["agg_metric"],
+              "sort": "time"
             }
           }

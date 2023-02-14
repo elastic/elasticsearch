@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.sandbox.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -24,8 +23,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.util.set.Sets;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -35,8 +34,8 @@ import java.util.Set;
  * such as highlighting, not security. For example terms in a Boolean {@code MUST_NOT} clause
  * are not included, TermsQuery doesn't implement the method as it could be terribly slow, etc.
  *
- * TODO reimplement this using QueryVisitors
  */
+// TODO this should be rewritten using the Lucene QueryVisitor API
 class FieldExtractor {
 
     /**
@@ -74,14 +73,12 @@ class FieldExtractor {
             fields.add(pointRangeQuery.getField());
         } else if (query instanceof PointInSetQuery pointInSetQuery) {
             fields.add(pointInSetQuery.getField());
-        } else if (query instanceof DocValuesFieldExistsQuery docValuesFieldExistsQuery) {
-            fields.add(docValuesFieldExistsQuery.getField());
-        } else if (query instanceof DocValuesNumbersQuery docValuesNumbersQuery) {
-            fields.add(docValuesNumbersQuery.getField());
+        } else if (query instanceof FieldExistsQuery fieldExistsQuery) {
+            fields.add(fieldExistsQuery.getField());
         } else if (query instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
             // Both queries are supposed to be equivalent, so if any of them can be extracted, we are good
             try {
-                Set<String> dvQueryFields = new HashSet<>(1);
+                Set<String> dvQueryFields = Sets.newHashSetWithExpectedSize(1);
                 extractFields(indexOrDocValuesQuery.getRandomAccessQuery(), dvQueryFields);
                 fields.addAll(dvQueryFields);
             } catch (UnsupportedOperationException e) {

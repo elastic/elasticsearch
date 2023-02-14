@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class HistogramGroupSourceTests extends AbstractSerializingTestCase<HistogramGroupSource> {
+public class HistogramGroupSourceTests extends AbstractXContentSerializingTestCase<HistogramGroupSource> {
 
     public static HistogramGroupSource randomHistogramGroupSource() {
         return randomHistogramGroupSource(Version.CURRENT);
@@ -61,6 +61,11 @@ public class HistogramGroupSourceTests extends AbstractSerializingTestCase<Histo
     @Override
     protected HistogramGroupSource createTestInstance() {
         return randomHistogramGroupSource();
+    }
+
+    @Override
+    protected HistogramGroupSource mutateInstance(HistogramGroupSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

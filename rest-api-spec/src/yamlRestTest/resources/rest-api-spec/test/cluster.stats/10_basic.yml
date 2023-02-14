@@ -166,3 +166,65 @@
   - match: { indices.mappings.runtime_field_types.1.doc_max: 0 }
   - match: { indices.mappings.runtime_field_types.1.doc_total: 0 }
 
+---
+"mappings sizes reported in get cluster stats":
+  - skip:
+      version: " - 8.3.99"
+      reason:  "mapping sizes reported from 8.4 onwards"
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          mappings:
+            "properties":
+              "field":
+                "type": "keyword"
+
+  - do: {cluster.stats: {}}
+  - gt: { indices.mappings.total_field_count: 0 }
+  - gt: { indices.mappings.total_deduplicated_field_count: 0 }
+  - gt: { indices.mappings.total_deduplicated_mapping_size_in_bytes: 0 }
+
+
+---
+"snapshot stats reported in get cluster stats":
+  - skip:
+      version: " - 8.7.99"
+      reason:  "snapshot stats reported from 8.8 onwards"
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_for_stats
+        body:
+          type: fs
+          settings:
+            location: "test_repo_for_stats_loc"
+
+  - do:
+      cluster.stats:
+        human: true
+
+  - gte: { snapshots.current_counts.snapshots: 0 }
+  - gte: { snapshots.current_counts.shard_snapshots: 0 }
+  - gte: { snapshots.current_counts.snapshot_deletions: 0 }
+  - gte: { snapshots.current_counts.concurrent_operations: 0 }
+  - gte: { snapshots.current_counts.cleanups: 0 }
+  - is_true: snapshots.repositories.test_repo_for_stats.type
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.snapshots: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.clones: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.finalizations: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.snapshot_deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.active_deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.total: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.complete: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.incomplete: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.INIT: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.SUCCESS: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.FAILED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.ABORTED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.MISSING: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.WAITING: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.QUEUED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.oldest_start_time_millis: 0 }
+  - is_true: snapshots.repositories.test_repo_for_stats.oldest_start_time

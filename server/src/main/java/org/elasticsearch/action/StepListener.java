@@ -14,6 +14,7 @@ import org.elasticsearch.core.CheckedConsumer;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -40,7 +41,9 @@ import java.util.function.Consumer;
  * }</pre>
  */
 
-public final class StepListener<Response> extends NotifyOnceListener<Response> {
+public final class StepListener<Response> implements ActionListener<Response> {
+
+    private final AtomicBoolean hasBeenCalled = new AtomicBoolean(false);
     private final ListenableFuture<Response> delegate;
 
     public StepListener() {
@@ -48,13 +51,17 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
     }
 
     @Override
-    protected void innerOnResponse(Response response) {
-        delegate.onResponse(response);
+    public void onResponse(Response response) {
+        if (hasBeenCalled.compareAndSet(false, true)) {
+            delegate.onResponse(response);
+        }
     }
 
     @Override
-    protected void innerOnFailure(Exception e) {
-        delegate.onFailure(e);
+    public void onFailure(Exception e) {
+        if (hasBeenCalled.compareAndSet(false, true)) {
+            delegate.onFailure(e);
+        }
     }
 
     /**

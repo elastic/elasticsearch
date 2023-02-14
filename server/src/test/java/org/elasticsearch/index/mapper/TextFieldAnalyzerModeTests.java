@@ -50,7 +50,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
     private static final IndexSettings indexSettings = new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY);
 
     private Analyzer createAnalyzerWithMode(AnalysisMode mode) {
-        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory(indexSettings, "my_analyzer", Settings.EMPTY) {
+        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory("my_analyzer", Settings.EMPTY) {
             @Override
             public AnalysisMode getAnalysisMode() {
                 return mode;
@@ -69,6 +69,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
         Map<String, Object> fieldNode = new HashMap<>();
         fieldNode.put("analyzer", "my_analyzer");
         MappingParserContext parserContext = mock(MappingParserContext.class);
+        when(parserContext.indexVersionCreated()).thenReturn(Version.CURRENT);
 
         // check AnalysisMode.ALL works
         Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
@@ -103,6 +104,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
                 fieldNode.put("search_analyzer", "standard");
             }
             MappingParserContext parserContext = mock(MappingParserContext.class);
+            when(parserContext.indexVersionCreated()).thenReturn(Version.CURRENT);
 
             // check AnalysisMode.ALL and AnalysisMode.SEARCH_TIME works
             Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
@@ -143,6 +145,7 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
         Map<String, Object> fieldNode = new HashMap<>();
         fieldNode.put("analyzer", "my_analyzer");
         MappingParserContext parserContext = mock(MappingParserContext.class);
+        when(parserContext.indexVersionCreated()).thenReturn(Version.CURRENT);
 
         // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked if there is no search analyzer
         AnalysisMode mode = AnalysisMode.INDEX_TIME;

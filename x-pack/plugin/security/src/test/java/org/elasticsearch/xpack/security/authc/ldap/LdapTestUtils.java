@@ -15,15 +15,20 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 
 import java.nio.file.Path;
 
 public class LdapTestUtils {
+
+    /**
+     * Timeout is set to 10 seconds in order to avoid timeouts of some test cases that use the Samba fixture.
+     */
+    private static final TimeValue DEFAULT_LDAP_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     private LdapTestUtils() {
         // Utility class
@@ -48,8 +53,8 @@ public class LdapTestUtils {
         LDAPConnectionOptions options = new LDAPConnectionOptions();
         options.setFollowReferrals(true);
         options.setAllowConcurrentSocketFactoryUse(true);
-        options.setConnectTimeoutMillis(Math.toIntExact(SessionFactorySettings.TIMEOUT_DEFAULT.millis()));
-        options.setResponseTimeoutMillis(SessionFactorySettings.TIMEOUT_DEFAULT.millis());
+        options.setConnectTimeoutMillis(Math.toIntExact(DEFAULT_LDAP_TIMEOUT.millis()));
+        options.setResponseTimeoutMillis(DEFAULT_LDAP_TIMEOUT.millis());
 
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.ldap.foo.ssl");
         return LdapUtils.privilegedConnect(

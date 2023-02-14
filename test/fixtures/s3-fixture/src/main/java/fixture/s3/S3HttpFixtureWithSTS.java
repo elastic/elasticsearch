@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -58,28 +59,30 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
                     exchange.close();
                     return;
                 }
-                final byte[] response = """
-                    <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
-                      <AssumeRoleWithWebIdentityResult>
-                        <SubjectFromWebIdentityToken>amzn1.account.AF6RHO7KZU5XRVQJGXK6HB56KR2A</SubjectFromWebIdentityToken>
-                        <Audience>client.5498841531868486423.1548@apps.example.com</Audience>
-                        <AssumedRoleUser>
-                          <Arn>%s</Arn>
-                          <AssumedRoleId>AROACLKWSDQRAOEXAMPLE:%s</AssumedRoleId>
-                        </AssumedRoleUser>
-                        <Credentials>
-                          <SessionToken>%s</SessionToken>
-                          <SecretAccessKey>secret_access_key</SecretAccessKey>
-                          <Expiration>%s</Expiration>
-                          <AccessKeyId>%s</AccessKeyId>
-                        </Credentials>
-                        <SourceIdentity>SourceIdentityValue</SourceIdentity>
-                        <Provider>www.amazon.com</Provider>
-                      </AssumeRoleWithWebIdentityResult>
-                      <ResponseMetadata>
-                        <RequestId>ad4156e9-bce1-11e2-82e6-6b6efEXAMPLE</RequestId>
-                      </ResponseMetadata>
-                    </AssumeRoleWithWebIdentityResponse>""".formatted(
+                final byte[] response = String.format(
+                    Locale.ROOT,
+                    """
+                        <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+                          <AssumeRoleWithWebIdentityResult>
+                            <SubjectFromWebIdentityToken>amzn1.account.AF6RHO7KZU5XRVQJGXK6HB56KR2A</SubjectFromWebIdentityToken>
+                            <Audience>client.5498841531868486423.1548@apps.example.com</Audience>
+                            <AssumedRoleUser>
+                              <Arn>%s</Arn>
+                              <AssumedRoleId>AROACLKWSDQRAOEXAMPLE:%s</AssumedRoleId>
+                            </AssumedRoleUser>
+                            <Credentials>
+                              <SessionToken>%s</SessionToken>
+                              <SecretAccessKey>secret_access_key</SecretAccessKey>
+                              <Expiration>%s</Expiration>
+                              <AccessKeyId>%s</AccessKeyId>
+                            </Credentials>
+                            <SourceIdentity>SourceIdentityValue</SourceIdentity>
+                            <Provider>www.amazon.com</Provider>
+                          </AssumeRoleWithWebIdentityResult>
+                          <ResponseMetadata>
+                            <RequestId>ad4156e9-bce1-11e2-82e6-6b6efEXAMPLE</RequestId>
+                          </ResponseMetadata>
+                        </AssumeRoleWithWebIdentityResponse>""",
                     ROLE_ARN,
                     ROLE_NAME,
                     sessionToken,

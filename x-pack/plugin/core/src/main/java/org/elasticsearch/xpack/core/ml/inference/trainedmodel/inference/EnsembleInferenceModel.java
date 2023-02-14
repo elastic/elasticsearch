@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -40,6 +39,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
@@ -145,9 +145,7 @@ public class EnsembleInferenceModel implements InferenceModel {
         if (preparedForInference == false) {
             throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
-        LOGGER.debug(
-            () -> new ParameterizedMessage("Inference called with feature names [{}]", Strings.arrayToCommaDelimitedString(featureNames))
-        );
+        LOGGER.debug(() -> "Inference called with feature names [" + Strings.arrayToCommaDelimitedString(featureNames) + "]");
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];
         int i = 0;
@@ -256,7 +254,7 @@ public class EnsembleInferenceModel implements InferenceModel {
 
     @Override
     public void rewriteFeatureIndices(final Map<String, Integer> newFeatureIndexMapping) {
-        LOGGER.debug(() -> new ParameterizedMessage("rewriting features {}", newFeatureIndexMapping));
+        LOGGER.debug(() -> format("rewriting features %s", newFeatureIndexMapping));
         if (preparedForInference) {
             return;
         }
@@ -264,7 +262,7 @@ public class EnsembleInferenceModel implements InferenceModel {
         Map<String, Integer> featureIndexMapping = new HashMap<>();
         if (newFeatureIndexMapping == null || newFeatureIndexMapping.isEmpty()) {
             Set<String> referencedFeatures = subModelFeatures();
-            LOGGER.debug(() -> new ParameterizedMessage("detected submodel feature names {}", referencedFeatures));
+            LOGGER.debug(() -> format("detected submodel feature names %s", referencedFeatures));
             int newFeatureIndex = 0;
             featureIndexMapping = new HashMap<>();
             this.featureNames = new String[referencedFeatures.size()];

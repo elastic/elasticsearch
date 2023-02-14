@@ -52,6 +52,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 (Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 
+[role="child_attributes"]
 [[ml-get-job-results]]
 == {api-response-body-title}
 
@@ -86,6 +87,38 @@ property is informational; you cannot change its value.
 .Properties of `datafeed_config`
 [%collapsible%open]
 ====
+`authorization`:::
+(Optional, object)
+The security privileges that the {dfeed} uses to run its queries. If
+{stack-security-features} were disabled at the time of the most recent update to
+the {dfeed}, this property is omitted.
++
+.Properties of `authorization`
+[%collapsible%open]
+=====
+`api_key`:::
+(object) If an API key was used for the most recent update to the {dfeed}, its
+name and identifier are listed in the response.
++
+.Properties of `api_key`
+[%collapsible%open]
+======
+`id`::::
+(string) The identifier for the API key.
+
+`name`::::
+(string) The name of the API key.
+======
+
+`roles`:::
+(array of strings) If a user ID was used for the most recent update to the
+{dfeed}, its roles at the time of the update are listed in the response.
+
+`service_account`:::
+(string) If a service account was used for the most recent update to the {dfeed},
+the account name is listed in the response.
+=====
+
 `datafeed_id`:::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
@@ -208,14 +241,58 @@ The API returns the following results:
     {
       "job_id" : "high_sum_total_sales",
       "job_type" : "anomaly_detector",
-      "job_version" : "8.0.0",
+      "job_version" : "8.4.0",
+      "create_time" : 1655852735889,
+      "finished_time" : 1655852745980,
+      "model_snapshot_id" : "1575402237",
+      "custom_settings" : {
+        "created_by" : "ml-module-sample",
+        ...
+      },
+      "datafeed_config" : {
+        "datafeed_id" : "datafeed-high_sum_total_sales",
+        "job_id" : "high_sum_total_sales",
+        "authorization" : {
+          "roles" : [
+            "superuser"
+          ]
+        },
+        "query_delay" : "93169ms",
+        "chunking_config" : {
+          "mode" : "auto"
+        },
+        "indices_options" : {
+          "expand_wildcards" : [
+            "open"
+          ],
+          "ignore_unavailable" : false,
+          "allow_no_indices" : true,
+          "ignore_throttled" : true
+        },
+        "query" : {
+          "bool" : {
+            "filter" : [
+              {
+                "term" : {
+                  "event.dataset" : "sample_ecommerce"
+                }
+              }
+            ]
+          }
+        },
+        "indices" : [
+          "kibana_sample_data_ecommerce"
+        ],
+        "scroll_size" : 1000,
+        "delayed_data_check_config" : {
+          "enabled" : true
+        }
+      },
       "groups" : [
         "kibana_sample_data",
         "kibana_sample_ecommerce"
       ],
       "description" : "Find customers spending an unusually high amount in an hour",
-      "create_time" : 1575402224732,
-      "finished_time" : 1575402238311,
       "analysis_config" : {
         "bucket_span" : "1h",
         "detectors" : [
@@ -230,10 +307,11 @@ The API returns the following results:
         "influencers" : [
           "customer_full_name.keyword",
           "category.keyword"
-        ]
+        ],
+        "model_prune_window": "30d"
       },
       "analysis_limits" : {
-        "model_memory_limit" : "10mb",
+        "model_memory_limit" : "13mb",
         "categorization_examples_limit" : 4
       },
       "data_description" : {
@@ -241,15 +319,11 @@ The API returns the following results:
         "time_format" : "epoch_ms"
       },
       "model_plot_config" : {
-        "enabled" : true
+        "enabled" : true,
+        "annotations_enabled" : true
       },
       "model_snapshot_retention_days" : 10,
       "daily_model_snapshot_retention_after_days" : 1,
-      "custom_settings" : {
-        "created_by" : "ml-module-sample",
-        ...
-      },
-      "model_snapshot_id" : "1575402237",
       "results_index_name" : "shared",
       "allow_lazy_open" : false
     }

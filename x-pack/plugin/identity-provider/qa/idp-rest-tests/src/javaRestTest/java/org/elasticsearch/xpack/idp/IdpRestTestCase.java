@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.idp;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,16 +32,12 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@SuppressWarnings("removal")
 public abstract class IdpRestTestCase extends ESRestTestCase {
-
-    private RestHighLevelClient highLevelAdminClient;
 
     @Override
     protected Settings restAdminSettings() {
@@ -56,14 +51,6 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    private RestHighLevelClient getHighLevelAdminClient() {
-        if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
-            };
-        }
-        return highLevelAdminClient;
-    }
-
     protected User createUser(String username, SecureString password, String role) throws IOException {
         final User user = new User(
             username,
@@ -75,7 +62,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         );
         final String endpoint = "/_security/user/" + username;
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        final String body = """
+        final String body = Strings.format("""
             {
                 "username": "%s",
                 "full_name": "%s",
@@ -83,7 +70,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
                 "password": "%s",
                 "roles": [ "%s" ]
             }
-            """.formatted(user.principal(), user.fullName(), user.email(), password.toString(), role);
+            """, user.principal(), user.fullName(), user.email(), password.toString(), role);
         request.setJsonEntity(body);
         request.addParameters(Map.of("refresh", "true"));
         request.setOptions(RequestOptions.DEFAULT);
@@ -151,11 +138,11 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     protected void setUserPassword(String username, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + username + "/_password";
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        final String body = """
+        final String body = Strings.format("""
             {
                 "password": "%s"
             }
-            """.formatted(password.toString());
+            """, password.toString());
         request.setJsonEntity(body);
         request.setOptions(RequestOptions.DEFAULT);
         adminClient().performRequest(request);

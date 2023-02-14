@@ -35,7 +35,6 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -43,6 +42,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.shard.IndexShardState.CLOSED;
@@ -113,7 +113,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
      * Tests that if an *index* structure creation fails on relocation to a new node, the shard
      * is not stuck but properly failed.
      */
-    public void testIndexShardFailedOnRelocation() throws Throwable {
+    public void testIndexShardFailedOnRelocation() {
         String node1 = internalCluster().startNode();
         client().admin()
             .indices()
@@ -135,6 +135,32 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         List<ShardRouting> shard = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         assertThat(shard, hasSize(1));
         assertThat(state.nodes().resolveNode(shard.get(0).currentNodeId()).getName(), Matchers.equalTo(node1));
+    }
+
+    public void testRelocationFailureNotRetriedForever() {
+        String node1 = internalCluster().startNode();
+        client().admin()
+            .indices()
+            .prepareCreate("index1")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+            .get();
+        ensureGreen("index1");
+        for (int i = 0; i < 2; i++) {
+            internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, internalCluster().startNode())
+                .setNewDelegate(new IndexShardStateChangeListener() {
+                    @Override
+                    public void beforeIndexCreated(Index index, Settings indexSettings) {
+                        throw new RuntimeException("FAIL");
+                    }
+                });
+        }
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("index1")
+                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1))
+        );
+        ensureGreen("index1");
     }
 
     public void testIndexStateShardChanged() throws Throwable {
@@ -245,7 +271,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         try {
             assertBusy(waitPredicate, 1, TimeUnit.MINUTES);
         } catch (AssertionError ae) {
-            fail(String.format(Locale.ROOT, """
+            fail(Strings.format("""
                 failed to observe expect shard states
                 expected: [%d] shards with states: %s
                 observed:

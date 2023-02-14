@@ -10,9 +10,10 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedSupplier;
 
-import java.io.IOException;
+import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * Used to preserve contextual information during aggregation execution. It can be used by search executors and parent
@@ -22,19 +23,36 @@ import java.io.IOException;
  */
 public class AggregationExecutionContext {
 
-    private final CheckedSupplier<BytesRef, IOException> tsidProvider;
+    private final Supplier<BytesRef> tsidProvider;  // TODO remove this entirely?
+    private final LongSupplier timestampProvider;
+    private final IntSupplier tsidOrdProvider;
     private final LeafReaderContext leafReaderContext;
 
-    public AggregationExecutionContext(LeafReaderContext leafReaderContext, CheckedSupplier<BytesRef, IOException> tsidProvider) {
+    public AggregationExecutionContext(
+        LeafReaderContext leafReaderContext,
+        Supplier<BytesRef> tsidProvider,
+        LongSupplier timestampProvider,
+        IntSupplier tsidOrdProvider
+    ) {
         this.leafReaderContext = leafReaderContext;
         this.tsidProvider = tsidProvider;
+        this.timestampProvider = timestampProvider;
+        this.tsidOrdProvider = tsidOrdProvider;
     }
 
     public LeafReaderContext getLeafReaderContext() {
         return leafReaderContext;
     }
 
-    public BytesRef getTsid() throws IOException {
+    public BytesRef getTsid() {
         return tsidProvider != null ? tsidProvider.get() : null;
+    }
+
+    public long getTimestamp() {
+        return timestampProvider.getAsLong();
+    }
+
+    public int getTsidOrd() {
+        return tsidOrdProvider.getAsInt();
     }
 }

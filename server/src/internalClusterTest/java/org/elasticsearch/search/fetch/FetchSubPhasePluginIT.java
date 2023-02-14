@@ -118,6 +118,11 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 }
 
                 @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                }
+
+                @Override
                 public void process(HitContext hitContext) throws IOException {
                     hitExecute(searchContext, hitContext);
                 }

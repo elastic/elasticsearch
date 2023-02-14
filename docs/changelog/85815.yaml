@@ -1,9 +1,0 @@
-pr: 85815
-summary: '`FastVectorHighlighter` should use `ValueFetchers` to load source data'
-area: Highlighting
-type: bug
-issues:
- - 75011
- - 84690
- - 82458
- - 80895

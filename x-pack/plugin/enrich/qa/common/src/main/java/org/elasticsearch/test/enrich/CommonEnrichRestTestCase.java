@@ -137,6 +137,14 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         assertOK(client().performRequest(putPipelineRequest));
         cleanupPipelineAfterTest("my_pipeline");
 
+        // Create index before indexing, so that we avoid a warning from being emitted that can fail this test.
+        // (If during auto index creation, the creation of my-index index happens together with monitoring index then
+        // a 'starts with a dot '.', in the next major version' warning from creating monitor index is also returned
+        // in the index response, because both indices were created in the same cluster state update.)
+        // (This workaround, specifically using create index api to pre-create the my-index index ensures that this
+        // index is created in isolation and warnings of other indices that may be created will not be returned)
+        // (Go to elastic/elasticsearch#85506 for more details)
+        createIndex("my-index");
         // Index document using pipeline with enrich processor:
         indexRequest = new Request("PUT", "/my-index/_doc/1");
         indexRequest.addParameter("pipeline", "my_pipeline");

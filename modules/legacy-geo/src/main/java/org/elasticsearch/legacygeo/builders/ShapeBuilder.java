@@ -107,10 +107,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(coordinates.size());
-        for (Coordinate point : coordinates) {
-            writeCoordinateTo(point, out);
-        }
+        out.writeCollection(coordinates, (o, p) -> writeCoordinateTo(p, o));
     }
 
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {

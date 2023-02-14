@@ -15,13 +15,14 @@ import com.sun.jna.Structure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.OptionalLong;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * {@link FileSystemNatives.Provider} implementation for Linux x86-64bits
@@ -95,8 +96,8 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
             return OptionalLong.of(stats.st_blocks * ST_BLOCKS_UNIT);
         } catch (LastErrorException e) {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "error when executing native method __xstat(int vers, const char *name, struct stat *buf) for file [{}]",
+                () -> format(
+                    "error when executing native method __xstat(int vers, const char *name, struct stat *buf) for file [%s]",
                     path
                 ),
                 e

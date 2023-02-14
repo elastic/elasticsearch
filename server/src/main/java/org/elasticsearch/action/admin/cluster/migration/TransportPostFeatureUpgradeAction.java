@@ -81,7 +81,6 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR
         );
         List<PostFeatureUpgradeResponse.Feature> featuresToMigrate = systemIndices.getFeatures()
-            .values()
             .stream()
             .map(feature -> getFeatureUpgradeStatus(state, feature))
             .filter(status -> upgradableStatuses.contains(status.getUpgradeStatus()))

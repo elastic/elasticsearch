@@ -21,17 +21,17 @@ PUT /museums
 
 POST /museums/_bulk?refresh
 {"index":{"_id":1}}
-{"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
+{"location": "POINT (4.912350 52.374081)", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
-{"location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis"}
+{"location": "POINT (4.901618 52.369219)", "name": "Museum Het Rembrandthuis"}
 {"index":{"_id":3}}
-{"location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum"}
+{"location": "POINT (4.914722 52.371667)", "name": "Nederlands Scheepvaartmuseum"}
 {"index":{"_id":4}}
-{"location": "51.222900,4.405200", "name": "Letterenhuis"}
+{"location": "POINT (4.405200 51.222900)", "name": "Letterenhuis"}
 {"index":{"_id":5}}
-{"location": "48.861111,2.336389", "name": "Musée du Louvre"}
+{"location": "POINT (2.336389 48.861111)", "name": "Musée du Louvre"}
 {"index":{"_id":6}}
-{"location": "48.860000,2.327000", "name": "Musée d'Orsay"}
+{"location": "POINT (2.327000 48.860000)", "name": "Musée d'Orsay"}
 
 POST /museums/_search?size=0
 {
@@ -39,7 +39,7 @@ POST /museums/_search?size=0
     "rings_around_amsterdam": {
       "geo_distance": {
         "field": "location",
-        "origin": "52.3760, 4.894",
+        "origin": "POINT (4.894 52.3760)",
         "ranges": [
           { "to": 100000 },
           { "from": 100000, "to": 300000 },
@@ -100,7 +100,7 @@ POST /museums/_search?size=0
     "rings": {
       "geo_distance": {
         "field": "location",
-        "origin": "52.3760, 4.894",
+        "origin": "POINT (4.894 52.3760)",
         "unit": "km", <1>
         "ranges": [
           { "to": 100 },
@@ -126,7 +126,7 @@ POST /museums/_search?size=0
     "rings": {
       "geo_distance": {
         "field": "location",
-        "origin": "52.3760, 4.894",
+        "origin": "POINT (4.894 52.3760)",
         "unit": "km",
         "distance_type": "plane",
         "ranges": [
@@ -153,7 +153,7 @@ POST /museums/_search?size=0
     "rings_around_amsterdam": {
       "geo_distance": {
         "field": "location",
-        "origin": "52.3760, 4.894",
+        "origin": "POINT (4.894 52.3760)",
         "ranges": [
           { "to": 100000 },
           { "from": 100000, "to": 300000 },
@@ -207,7 +207,7 @@ POST /museums/_search?size=0
     "rings_around_amsterdam": {
       "geo_distance": {
         "field": "location",
-        "origin": "52.3760, 4.894",
+        "origin": "POINT (4.894 52.3760)",
         "ranges": [
           { "to": 100000, "key": "first_ring" },
           { "from": 100000, "to": 300000, "key": "second_ring" },

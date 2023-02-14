@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
@@ -15,7 +15,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.stream.Stream;
 
-public class LangNetLayerTests extends AbstractSerializingTestCase<LangNetLayer> {
+public class LangNetLayerTests extends AbstractXContentSerializingTestCase<LangNetLayer> {
 
     private boolean lenient;
 
@@ -37,6 +37,11 @@ public class LangNetLayerTests extends AbstractSerializingTestCase<LangNetLayer>
     @Override
     protected LangNetLayer createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected LangNetLayer mutateInstance(LangNetLayer instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static LangNetLayer createRandom() {

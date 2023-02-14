@@ -11,7 +11,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -46,7 +48,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.hamcrest.core.CombinableMatcher;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,6 +93,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
         checker.registerConflictCheck("preserve_separators", b -> b.field("preserve_separators", false));
@@ -109,7 +116,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         checker.registerUpdateCheck(
             b -> b.field("search_analyzer", "standard"),
-            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name())
+            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
         checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
             CompletionFieldMapper cfm = (CompletionFieldMapper) m;
@@ -135,7 +142,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
     public void testPostingsFormat() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        CodecService codecService = new CodecService(mapperService);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         PerFieldMapperCodec perFieldCodec = (PerFieldMapperCodec) codec;
@@ -156,7 +163,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -184,7 +191,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -270,14 +277,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         assertThat(
             indexableFields.getFields("field"),
-            arrayContainingInAnyOrder(
-                keywordField("key1"),
-                sortedSetDocValuesField("key1"),
-                keywordField("key2"),
-                sortedSetDocValuesField("key2"),
-                keywordField("key3"),
-                sortedSetDocValuesField("key3")
-            )
+            arrayContainingInAnyOrder(keywordField("key1"), keywordField("key2"), keywordField("key3"))
         );
         assertThat(
             indexableFields.getFields("field.subsuggest"),
@@ -409,14 +409,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(suggestField("suggestion")));
         assertThat(indexableFields.getFields("field.subsuggest1"), arrayContainingInAnyOrder(suggestField("suggestion")));
         assertThat(indexableFields.getFields("field.subsuggest2"), arrayContainingInAnyOrder(suggestField("suggestion")));
-        assertThat(
-            indexableFields.getFields("field.analyzed1"),
-            arrayContainingInAnyOrder(keywordField("suggestion"), sortedSetDocValuesField("suggestion"))
-        );
-        assertThat(
-            indexableFields.getFields("field.analyzed2"),
-            arrayContainingInAnyOrder(keywordField("suggestion"), sortedSetDocValuesField("suggestion"))
-        );
+        assertThat(indexableFields.getFields("field.analyzed1"), arrayContainingInAnyOrder(keywordField("suggestion")));
+        assertThat(indexableFields.getFields("field.analyzed2"), arrayContainingInAnyOrder(keywordField("suggestion")));
     }
 
     public void testCompletionTypeWithSubfieldsAndArrayInsert() throws Exception {
@@ -448,24 +442,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             indexableFields.getFields("field.subcompletion2"),
             arrayContainingInAnyOrder(suggestField("New York"), suggestField("NY"))
         );
-        assertThat(
-            indexableFields.getFields("field.analyzed1"),
-            arrayContainingInAnyOrder(
-                keywordField("New York"),
-                sortedSetDocValuesField("New York"),
-                keywordField("NY"),
-                sortedSetDocValuesField("NY")
-            )
-        );
-        assertThat(
-            indexableFields.getFields("field.analyzed2"),
-            arrayContainingInAnyOrder(
-                keywordField("New York"),
-                sortedSetDocValuesField("New York"),
-                keywordField("NY"),
-                sortedSetDocValuesField("NY")
-            )
-        );
+        assertThat(indexableFields.getFields("field.analyzed1"), arrayContainingInAnyOrder(keywordField("New York"), keywordField("NY")));
+        assertThat(indexableFields.getFields("field.analyzed2"), arrayContainingInAnyOrder(keywordField("New York"), keywordField("NY")));
     }
 
     public void testCompletionTypeWithSubfieldsAndObjectInsert() throws Exception {
@@ -504,24 +482,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             indexableFields.getFields("field.subcompletion2"),
             arrayContainingInAnyOrder(suggestField("New York"), suggestField("NY"))
         );
-        assertThat(
-            indexableFields.getFields("field.analyzed1"),
-            arrayContainingInAnyOrder(
-                keywordField("New York"),
-                sortedSetDocValuesField("New York"),
-                keywordField("NY"),
-                sortedSetDocValuesField("NY")
-            )
-        );
-        assertThat(
-            indexableFields.getFields("field.analyzed2"),
-            arrayContainingInAnyOrder(
-                keywordField("New York"),
-                sortedSetDocValuesField("New York"),
-                keywordField("NY"),
-                sortedSetDocValuesField("NY")
-            )
-        );
+        assertThat(indexableFields.getFields("field.analyzed1"), arrayContainingInAnyOrder(keywordField("New York"), keywordField("NY")));
+        assertThat(indexableFields.getFields("field.analyzed2"), arrayContainingInAnyOrder(keywordField("New York"), keywordField("NY")));
         // unable to assert about weight, covered in a REST test
     }
 
@@ -920,13 +882,12 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         return Matchers.allOf(hasProperty(IndexableField::stringValue, equalTo(value)), Matchers.instanceOf(ContextSuggestField.class));
     }
 
-    private CombinableMatcher<IndexableField> sortedSetDocValuesField(String value) {
-        return Matchers.both(hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))))
-            .and(Matchers.instanceOf(SortedSetDocValuesField.class));
-    }
-
     private Matcher<IndexableField> keywordField(String value) {
-        return hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value)));
+        return Matchers.allOf(
+            hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))),
+            hasProperty(ft -> ft.fieldType().indexOptions(), equalTo(IndexOptions.DOCS)),
+            hasProperty(ft -> ft.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_SET))
+        );
     }
 
     private <T, V> Matcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {
@@ -942,5 +903,15 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("We don't have doc values or fielddata", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

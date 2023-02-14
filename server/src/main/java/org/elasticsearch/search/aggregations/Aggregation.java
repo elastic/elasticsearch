@@ -61,5 +61,6 @@ public interface Aggregation extends ToXContentFragment {
         public static final ParseField MIN_AS_STRING = new ParseField("min_as_string");
         public static final ParseField MAX = new ParseField("max");
         public static final ParseField MAX_AS_STRING = new ParseField("max_as_string");
+        public static final ParseField SIZE = new ParseField("size");
     }
 }

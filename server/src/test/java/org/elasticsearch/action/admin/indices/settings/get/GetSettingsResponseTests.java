@@ -8,12 +8,11 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -22,7 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSettingsResponse> {
+public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase<GetSettingsResponse> {
 
     @Override
     protected GetSettingsResponse createTestInstance() {
@@ -48,9 +47,6 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             builder.put("index.refresh_interval", "1s");
             indexToSettings.put(indexName, builder.build());
         }
-        ImmutableOpenMap<String, Settings> immutableIndexToSettings = ImmutableOpenMap.<String, Settings>builder()
-            .putAllFromMap(indexToSettings)
-            .build();
 
         if (randomBoolean()) {
             for (String indexName : indexToSettings.keySet()) {
@@ -59,11 +55,12 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             }
         }
 
-        ImmutableOpenMap<String, Settings> immutableIndexToDefaultSettings = ImmutableOpenMap.<String, Settings>builder()
-            .putAllFromMap(indexToDefaultSettings)
-            .build();
+        return new GetSettingsResponse(indexToSettings, indexToDefaultSettings);
+    }
 
-        return new GetSettingsResponse(immutableIndexToSettings, immutableIndexToDefaultSettings);
+    @Override
+    protected GetSettingsResponse mutateInstance(GetSettingsResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -80,6 +77,10 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // we do not want to add new fields at the root (index-level), or inside settings blocks
         return f -> f.equals("") || f.contains(".settings") || f.contains(".defaults");
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> 2 + response.getIndexToSettings().size());
     }
 
 }

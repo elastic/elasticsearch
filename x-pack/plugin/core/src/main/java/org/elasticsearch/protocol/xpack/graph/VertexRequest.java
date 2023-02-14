@@ -9,6 +9,7 @@ package org.elasticsearch.protocol.xpack.graph;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,7 +28,7 @@ import java.util.TreeSet;
  * inclusion list to filter which terms are considered.
  *
  */
-public class VertexRequest implements ToXContentObject {
+public class VertexRequest implements ToXContentObject, Writeable {
     public static final int DEFAULT_SIZE = 5;
     public static final int DEFAULT_MIN_DOC_COUNT = 3;
     public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 2;
@@ -69,26 +70,21 @@ public class VertexRequest implements ToXContentObject {
 
     }
 
-    void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeVInt(size);
         out.writeVInt(minDocCount);
         out.writeVInt(shardMinDocCount);
 
         if (includes != null) {
-            out.writeVInt(includes.size());
-            for (TermBoost tb : includes.values()) {
-                tb.writeTo(out);
-            }
+            out.writeCollection(includes.values());
         } else {
             out.writeVInt(0);
         }
 
         if (excludes != null) {
-            out.writeVInt(excludes.size());
-            for (String term : excludes) {
-                out.writeString(term);
-            }
+            out.writeStringCollection(excludes);
         } else {
             out.writeVInt(0);
         }

@@ -17,7 +17,7 @@ import java.util.List;
 public class VersionStringFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new VersionStringFieldMapper.Builder("field").build(MapperBuilderContext.ROOT).fieldType();
+        MappedFieldType mapper = new VersionStringFieldMapper.Builder("field").build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(mapper, true));

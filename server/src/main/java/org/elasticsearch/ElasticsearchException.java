@@ -17,11 +17,13 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -273,7 +275,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
-            if (id == 127 && input.getVersion().before(Version.V_7_5_0)) {
+            if (id == 127 && input.getTransportVersion().before(TransportVersion.V_7_5_0)) {
                 // was SearchContextException
                 return new SearchException(input);
             }
@@ -285,10 +287,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Returns <code>true</code> iff the given class is a registered for an exception to be read.
      */
-    public static boolean isRegistered(Class<? extends Throwable> exception, Version version) {
+    public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded);
+            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded.transportVersion);
         }
         return false;
     }
@@ -721,7 +723,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * This is the list of Exceptions Elasticsearch can throw over the wire or save into a corruption marker. Each value in the enum is a
      * single exception tying the Class to an id for use of the encode side and the id back to a constructor for use on the decode side. As
-     * such its ok if the exceptions to change names so long as their constructor can still read the exception. Each exception is listed
+     * such it's ok if the exceptions to change names so long as their constructor can still read the exception. Each exception is listed
      * in id order below. If you want to remove an exception leave a tombstone comment and mark the id as null in
      * ExceptionSerializationTests.testIds.ids.
      */
@@ -1088,12 +1090,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             71,
             UNKNOWN_VERSION_ADDED
         ),
-        SEARCH_PARSE_EXCEPTION(
-            org.elasticsearch.search.SearchParseException.class,
-            org.elasticsearch.search.SearchParseException::new,
-            72,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 72 was SearchParseException, only used in tests after 7.11
         CONCURRENT_SNAPSHOT_EXECUTION_EXCEPTION(
             org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class,
             org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException::new,
@@ -1571,6 +1568,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException::new,
             165,
             Version.V_8_2_0
+        ),
+        HEALTH_NODE_NOT_DISCOVERED_EXCEPTION(
+            HealthNodeNotDiscoveredException.class,
+            HealthNodeNotDiscoveredException::new,
+            166,
+            Version.V_8_5_0
+        ),
+        UNSUPPORTED_AGGREGATION_ON_DOWNSAMPLED_INDEX_EXCEPTION(
+            UnsupportedAggregationOnDownsampledIndex.class,
+            UnsupportedAggregationOnDownsampledIndex::new,
+            167,
+            Version.V_8_5_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

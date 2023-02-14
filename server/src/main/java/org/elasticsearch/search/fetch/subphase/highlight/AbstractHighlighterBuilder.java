@@ -10,7 +10,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xcontent.ObjectParser.fromList;
 
 /**
@@ -161,7 +161,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             options(in.readMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             maxAnalyzedOffset(in.readOptionalInt());
         }
     }
@@ -205,7 +205,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeGenericMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             out.writeOptionalInt(maxAnalyzedOffset);
         }
         doWriteTo(out);
@@ -660,7 +660,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }, OPTIONS_FIELD);
         parser.declareObject(HB::highlightQuery, (XContentParser p, Void c) -> {
             try {
-                return parseInnerQueryBuilder(p);
+                return parseTopLevelQuery(p);
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing query", e);
             }

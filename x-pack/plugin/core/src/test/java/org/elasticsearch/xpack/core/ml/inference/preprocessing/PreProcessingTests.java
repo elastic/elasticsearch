@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.hamcrest.Matcher;
@@ -24,7 +24,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class PreProcessingTests<T extends PreProcessor> extends AbstractSerializingTestCase<T> {
+public abstract class PreProcessingTests<T extends PreProcessor> extends AbstractXContentSerializingTestCase<T> {
 
     protected boolean lenient;
 
@@ -36,6 +36,11 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
     @Override
     protected boolean supportsUnknownFields() {
         return lenient;
+    }
+
+    @Override
+    protected T mutateInstance(T instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

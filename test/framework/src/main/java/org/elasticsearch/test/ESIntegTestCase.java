@@ -8,6 +8,9 @@
 
 package org.elasticsearch.test;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
+
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -88,11 +91,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -111,6 +115,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -448,7 +453,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 RandomNumbers.randomIntBetween(random, 1, 15) + "ms"
             );
         }
-
+        if (randomBoolean()) {
+            builder.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), randomBoolean());
+        }
         return builder;
     }
 
@@ -836,7 +843,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
                 assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                 PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
-                assertThat("client " + client + " still has pending tasks " + pendingTasks, pendingTasks, Matchers.emptyIterable());
+                assertThat(
+                    "client " + client + " still has pending tasks " + pendingTasks,
+                    pendingTasks.pendingTasks(),
+                    Matchers.emptyIterable()
+                );
                 clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
                 assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
             }
@@ -1048,6 +1059,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Retrieves the persistent tasks with the requested task name from the given cluster state.
+     */
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
+        return findTasks(clusterState, Set.of(taskName));
+    }
+
+    /**
+     * Retrieves the persistent tasks with the requested task names from the given cluster state.
+     */
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
+        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasks == null) {
+            return List.of();
+        }
+        return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
+    }
+
+    /**
      * Prints the current cluster state as debug logging.
      */
     public void logClusterState() {
@@ -1133,13 +1162,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                 XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
-                metadataWithoutIndices.toXContent(builder, serializationFormatParams);
+                ChunkedToXContent.wrapAsToXContent(metadataWithoutIndices).toXContent(builder, serializationFormatParams);
                 builder.endObject();
                 final BytesReference originalBytes = BytesReference.bytes(builder);
 
                 XContentBuilder compareBuilder = SmileXContent.contentBuilder();
                 compareBuilder.startObject();
-                metadataWithoutIndices.toXContent(compareBuilder, compareFormatParams);
+                ChunkedToXContent.wrapAsToXContent(metadataWithoutIndices).toXContent(compareBuilder, compareFormatParams);
                 compareBuilder.endObject();
                 final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
@@ -1155,7 +1184,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
                 builder = SmileXContent.contentBuilder();
                 builder.startObject();
-                loadedMetadata.toXContent(builder, compareFormatParams);
+                ChunkedToXContent.wrapAsToXContent(loadedMetadata).toXContent(builder, compareFormatParams);
                 builder.endObject();
                 final BytesReference parsedBytes = BytesReference.bytes(builder);
 
@@ -1355,7 +1384,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final RefreshResponse refresh(String... indices) {
         waitForRelocation();
-        // TODO RANDOMIZE with flush?
         RefreshResponse actionGet = client().admin()
             .indices()
             .prepareRefresh(indices)
@@ -1451,6 +1479,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected static ClusterAdminClient clusterAdmin() {
         return admin().cluster();
+    }
+
+    public void indexRandom(boolean forceRefresh, String index, int numDocs) throws InterruptedException {
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(index).setSource("field", "value");
+        }
+        indexRandom(forceRefresh, Arrays.asList(builders));
     }
 
     /**
@@ -2019,8 +2055,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
-    /** Returns {@code true} iff this test cluster should use a dummy geo_shape field mapper */
-    protected boolean addMockGeoShapeFieldMapper() {
+    /**
+     * Returns {@code true} if this test cluster can use the {@link MockFSIndexStore} test plugin. Defaults to true.
+     */
+    protected boolean addMockFSIndexStore() {
         return true;
     }
 
@@ -2040,7 +2078,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }
-            if (randomBoolean()) {
+            if (addMockFSIndexStore() && randomBoolean()) {
                 mocks.add(MockFSIndexStore.TestPlugin.class);
             }
             if (randomBoolean()) {
@@ -2065,9 +2103,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (addMockGeoShapeFieldMapper()) {
-            mocks.add(TestGeoShapeFieldMapperPlugin.class);
-        }
         return Collections.unmodifiableList(mocks);
     }
 
@@ -2229,6 +2264,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
             SUITE_SEED = null;
             currentCluster = null;
             INSTANCE = null;
+        }
+        awaitGlobalNettyThreadsFinish();
+    }
+
+    /**
+     *  After the cluster is stopped, there are a few netty threads that can linger, so we wait for them to finish otherwise these
+     *  lingering threads can intermittently trigger the thread leak detector.
+     */
+    static void awaitGlobalNettyThreadsFinish() {
+        try {
+            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IllegalStateException e) {
+            if (e.getMessage().equals("thread was not started") == false) {
+                throw e;
+            }
+            // ignore since the thread was never started
+        }
+
+        try {
+            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

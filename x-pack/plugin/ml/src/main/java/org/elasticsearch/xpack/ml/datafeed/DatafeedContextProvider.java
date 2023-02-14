@@ -56,9 +56,9 @@ public class DatafeedContextProvider {
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedConfigBuilder -> {
             DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
             context.setDatafeedConfig(datafeedConfig);
-            jobConfigProvider.getJob(datafeedConfig.getJobId(), jobConfigListener);
+            jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobConfigListener);
         }, listener::onFailure);
 
-        datafeedConfigProvider.getDatafeedConfig(datafeedId, datafeedListener);
+        datafeedConfigProvider.getDatafeedConfig(datafeedId, null, datafeedListener);
     }
 }

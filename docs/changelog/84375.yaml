@@ -1,6 +1,0 @@
-pr: 84375
-summary: Introduce an unauthenticated endpoint for readiness checks
-area: Infra/Core
-type: feature
-issues:
- - 81168

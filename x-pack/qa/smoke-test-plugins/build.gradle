@@ -1,32 +1,25 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(':x-pack:qa')
+  yamlRestTestImplementation project(':x-pack:qa')
 }
 
-def pluginPaths = project(':plugins').getChildProjects().findAll { pluginName, pluginProject ->
-  // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-  def ignoreIngestAttachment = BuildParams.inFipsJvm && pluginName == "ingest-attachment"
-
-  return ignoreIngestAttachment == false
-}.collect {pluginName, pluginProject -> pluginProject.path }
+def pluginPaths = project(':plugins').getChildProjects().collect {pluginName, pluginProject -> pluginProject.path }
 
 ext.expansions = [
   'expected.plugins.count': pluginPaths.size()
 ]
 
-tasks.named("processTestResources").configure {
+tasks.named("processYamlRestTestResources").configure {
   inputs.properties(project.expansions)
   filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

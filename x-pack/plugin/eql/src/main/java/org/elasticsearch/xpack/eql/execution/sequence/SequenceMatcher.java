@@ -82,7 +82,10 @@ public class SequenceMatcher {
     private final Stats stats = new Stats();
 
     private boolean headLimit = false;
-    private long totalRamBytesUsed = 0;
+
+    // circuit breaker accounting
+    private long prevRamBytesUsedInFlight = 0;
+    private long prevRamBytesUsedCompleted = 0;
 
     @SuppressWarnings("rawtypes")
     public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
@@ -114,9 +117,6 @@ public class SequenceMatcher {
      * Returns false if the process needs to be stopped.
      */
     boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
-        long ramBytesUsedInFlight = ramBytesUsedInFlight();
-        long ramBytesUsedCompleted = ramBytesUsedCompleted();
-
         for (Tuple<KeyAndOrdinal, HitReference> tuple : hits) {
             KeyAndOrdinal ko = tuple.v1();
             HitReference hit = tuple.v2();
@@ -145,7 +145,7 @@ public class SequenceMatcher {
             log.trace("{}", stats);
             matched = true;
         }
-        trackMemory(ramBytesUsedInFlight, ramBytesUsedCompleted);
+        trackMemory();
         return matched;
     }
 
@@ -305,22 +305,20 @@ public class SequenceMatcher {
         clearCircuitBreaker();
     }
 
-    private long ramBytesUsedInFlight() {
+    // protected for testing purposes
+    protected long ramBytesUsedInFlight() {
         return RamUsageEstimator.sizeOf(keyToSequences) + RamUsageEstimator.sizeOf(stageToKeys);
     }
 
-    private long ramBytesUsedCompleted() {
+    // protected for testing purposes
+    protected long ramBytesUsedCompleted() {
         return RamUsageEstimator.sizeOfCollection(completed);
     }
 
-    private void addMemory(long bytes, String label) {
-        totalRamBytesUsed += bytes;
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
-    }
-
     private void clearCircuitBreaker() {
-        circuitBreaker.addWithoutBreaking(-totalRamBytesUsed);
-        totalRamBytesUsed = 0;
+        circuitBreaker.addWithoutBreaking(-prevRamBytesUsedInFlight - prevRamBytesUsedCompleted);
+        prevRamBytesUsedInFlight = 0;
+        prevRamBytesUsedCompleted = 0;
     }
 
     // The method is called at the end of match() which is called for every sub query in the sequence query
@@ -328,11 +326,14 @@ public class SequenceMatcher {
     // expensive, so we just calculate the difference in bytes of the total memory that the matcher's
     // structure occupy for the in-flight tracking of sequences, as well as for the list of completed
     // sequences.
-    private void trackMemory(long prevRamBytesUsedInflight, long prevRamBytesUsedCompleted) {
-        long bytesDiff = ramBytesUsedInFlight() - prevRamBytesUsedInflight;
-        addMemory(bytesDiff, CB_INFLIGHT_LABEL);
-        bytesDiff = ramBytesUsedCompleted() - prevRamBytesUsedCompleted;
-        addMemory(bytesDiff, CB_COMPLETED_LABEL);
+    private void trackMemory() {
+        long newRamBytesUsedInFlight = ramBytesUsedInFlight();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
+        prevRamBytesUsedInFlight = newRamBytesUsedInFlight;
+
+        long newRamBytesUsedCompleted = ramBytesUsedCompleted();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
+        prevRamBytesUsedCompleted = newRamBytesUsedCompleted;
     }
 
     @Override

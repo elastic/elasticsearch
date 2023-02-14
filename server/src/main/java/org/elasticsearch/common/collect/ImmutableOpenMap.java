@@ -12,8 +12,12 @@ import com.carrotsearch.hppc.ObjectCollection;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
+
+import org.elasticsearch.common.util.Maps;
 
 import java.util.AbstractCollection;
+import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -22,17 +26,17 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * An immutable map implementation based on open hash map.
  * <p>
- * Can be constructed using a {@link #builder()}, or using {@link #builder(ImmutableOpenMap)} (which is an optimized
+ * Can be constructed using a {@link #builder()}, or using {@link #builder(Map)} (which is an optimized
  * option to copy over existing content and modify it).
  */
-public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
+public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VType> {
 
     private final ObjectObjectHashMap<KType, VType> map;
 
@@ -125,43 +129,21 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         return (es = entrySet) == null ? (entrySet = new EntrySet<>(map)) : es;
     }
 
-    private static final class ImmutableEntry<KType, VType> implements Map.Entry<KType, VType> {
-        private final KType key;
-        private final VType value;
-
-        ImmutableEntry(KType key, VType value) {
-            this.key = key;
-            this.value = value;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
         }
-
-        @Override
-        public KType getKey() {
-            return key;
+        if (o instanceof ImmutableOpenMap<?, ?> immutableOpenMap) {
+            return map.equals(immutableOpenMap.map);
         }
+        return super.equals(o);
+    }
 
-        @Override
-        public VType getValue() {
-            return value;
-        }
-
-        @Override
-        public VType setValue(VType value) {
-            throw new UnsupportedOperationException("collection is immutable");
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Map.Entry) == false) return false;
-            Map.Entry that = (Map.Entry) o;
-            return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(key, value);
-        }
+    @Override
+    public int hashCode() {
+        // noop override to make checkstyle happy since we override equals
+        return super.hashCode();
     }
 
     private static final class ConversionIterator<KType, VType> implements Iterator<Map.Entry<KType, VType>> {
@@ -183,7 +165,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             if (obj == null) {
                 return null;
             }
-            return new ImmutableEntry<>(obj.key, obj.value);
+            return new Maps.ImmutableEntry<>(obj.key, obj.value);
         }
 
         @Override
@@ -242,7 +224,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         @Override
         public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {
             map.forEach((Consumer<? super ObjectObjectCursor<KType, VType>>) ooCursor -> {
-                ImmutableEntry<KType, VType> entry = new ImmutableEntry<>(ooCursor.key, ooCursor.value);
+                Maps.ImmutableEntry<KType, VType> entry = new Maps.ImmutableEntry<>(ooCursor.key, ooCursor.value);
                 action.accept(entry);
             });
         }
@@ -309,6 +291,11 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         };
     }
 
+    @Override
+    public void forEach(BiConsumer<? super KType, ? super VType> action) {
+        map.forEach((ObjectObjectProcedure<KType, VType>) action::accept);
+    }
+
     static <T> Iterator<T> iterator(ObjectCollection<T> collection) {
         final Iterator<ObjectCursor<T>> iterator = collection.iterator();
         return new Iterator<>() {
@@ -334,24 +321,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         return map.toString();
     }
 
-    @Override
-    @SuppressWarnings("rawtypes")
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ImmutableOpenMap that = (ImmutableOpenMap) o;
-
-        if (map.equals(that.map) == false) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return map.hashCode();
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
 
@@ -368,8 +337,13 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
         return new Builder<>(size);
     }
 
-    public static <KType, VType> Builder<KType, VType> builder(ImmutableOpenMap<KType, VType> map) {
-        return new Builder<>(map);
+    public static <KType, VType> Builder<KType, VType> builder(Map<KType, VType> map) {
+        if (map instanceof ImmutableOpenMap<KType, VType> iom) {
+            return new Builder<>(iom);
+        }
+        Builder<KType, VType> builder = new Builder<>(map.size());
+        builder.putAllFromMap(map);
+        return builder;
     }
 
     public static class Builder<KType, VType> {
@@ -463,22 +437,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             return mutableMap.getOrDefault(kType, vType);
         }
 
-        public void putAll(Builder<KType, VType> builder) {
-            maybeCloneMap();
-            for (var entry : builder.mutableMap) {
-                mutableMap.put(entry.key, entry.value);
-            }
-        }
-
-        /**
-         * Remove that can be used in the fluent pattern.
-         */
-        public Builder<KType, VType> fRemove(KType key) {
-            maybeCloneMap();
-            mutableMap.remove(key);
-            return this;
-        }
-
         public VType remove(KType key) {
             maybeCloneMap();
             return mutableMap.remove(key);
@@ -494,23 +452,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             return mutableMap.size();
         }
 
-        public boolean isEmpty() {
-            maybeCloneMap();
-            return mutableMap.isEmpty();
-        }
-
-        public int removeAll(Predicate<? super KType> predicate) {
-            maybeCloneMap();
-            return mutableMap.removeAll(predicate::test);
-        }
-
-        public void removeAllFromCollection(Collection<KType> collection) {
-            maybeCloneMap();
-            for (var k : collection) {
-                mutableMap.remove(k);
-            }
-        }
-
         public void clear() {
             maybeCloneMap();
             mutableMap.clear();
@@ -521,49 +462,10 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType> {
             return new KeySet<>(mutableMap.keys());
         }
 
-        @SuppressWarnings("unchecked")
-        public <K, V> Builder<K, V> cast() {
-            return (Builder) this;
-        }
-
         public int removeAll(BiPredicate<? super KType, ? super VType> predicate) {
             maybeCloneMap();
             return mutableMap.removeAll(predicate::test);
         }
 
-        public int indexOf(KType key) {
-            maybeCloneMap();
-            return mutableMap.indexOf(key);
-        }
-
-        public boolean indexExists(int index) {
-            maybeCloneMap();
-            return mutableMap.indexExists(index);
-        }
-
-        public VType indexGet(int index) {
-            maybeCloneMap();
-            return mutableMap.indexGet(index);
-        }
-
-        public VType indexReplace(int index, VType newValue) {
-            maybeCloneMap();
-            return mutableMap.indexReplace(index, newValue);
-        }
-
-        public void indexInsert(int index, KType key, VType value) {
-            maybeCloneMap();
-            mutableMap.indexInsert(index, key, value);
-        }
-
-        public void release() {
-            maybeCloneMap();
-            mutableMap.release();
-        }
-
-        public String visualizeKeyDistribution(int characters) {
-            maybeCloneMap();
-            return mutableMap.visualizeKeyDistribution(characters);
-        }
     }
 }

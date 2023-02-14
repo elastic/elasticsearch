@@ -144,8 +144,7 @@ public final class Elements {
             elements.add(new Message(getSource(), Errors.format(message, arguments)));
         }
 
-        @Override
-        public void addError(Throwable t) {
+        private void addError(Throwable t) {
             String message = "An exception was caught and reported. Message: " + t.getMessage();
             elements.add(new Message(Collections.singletonList(getSource()), message, t));
         }

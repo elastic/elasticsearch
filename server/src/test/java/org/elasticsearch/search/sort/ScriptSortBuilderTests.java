@@ -130,9 +130,11 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         // we rely on these ordinals in serialization, so changing them breaks bwc.
         assertEquals(0, ScriptSortType.STRING.ordinal());
         assertEquals(1, ScriptSortType.NUMBER.ordinal());
+        assertEquals(2, ScriptSortType.VERSION.ordinal());
 
         assertEquals("string", ScriptSortType.STRING.toString());
         assertEquals("number", ScriptSortType.NUMBER.toString());
+        assertEquals("version", ScriptSortType.VERSION.toString());
 
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("string"));
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("String"));
@@ -140,6 +142,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("Number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("NUMBER"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("version"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("Version"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("VERSION"));
     }
 
     public void testScriptSortTypeNull() {
@@ -301,6 +306,10 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
         sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
         assertThat(sortField.getComparatorSource(), instanceOf(DoubleValuesComparatorSource.class));
+
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.VERSION);
+        sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
+        assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
     }
 
     /**

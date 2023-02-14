@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -22,9 +21,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -39,13 +37,13 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -93,6 +91,7 @@ import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -123,7 +122,7 @@ public class RecoverySourceHandler {
     private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
-    private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
+    private final ListenableActionFuture<RecoveryResponse> future = new ListenableActionFuture<>();
 
     public RecoverySourceHandler(
         IndexShard shard,
@@ -287,13 +286,7 @@ public class RecoverySourceHandler {
                             // new one later on in the recovery.
                             shard.removePeerRecoveryRetentionLease(
                                 request.targetNode().getId(),
-                                new ThreadedActionListener<>(
-                                    logger,
-                                    shard.getThreadPool(),
-                                    ThreadPool.Names.GENERIC,
-                                    deleteRetentionLeaseStep,
-                                    false
-                                )
+                                new ThreadedActionListener<>(shard.getThreadPool().generic(), deleteRetentionLeaseStep)
                             );
                         } catch (RetentionLeaseNotFoundException e) {
                             logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
@@ -417,6 +410,8 @@ public class RecoverySourceHandler {
     ) {
         cancellableThreads.execute(() -> {
             CompletableFuture<Releasable> permit = new CompletableFuture<>();
+
+            // this wrapping looks unnecessary necessary, see #93290; TODO remove it
             final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -458,7 +453,7 @@ public class RecoverySourceHandler {
      */
     private Releasable acquireStore(Store store) {
         store.incRef();
-        return Releasables.releaseOnce(() -> runWithGenericThreadPool(store::decRef));
+        return Releasables.releaseOnce(() -> closeOnGenericThreadPool(store::decRef));
     }
 
     /**
@@ -468,17 +463,19 @@ public class RecoverySourceHandler {
      */
     private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
         final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
-        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> runWithGenericThreadPool(commitRef::close));
+        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> closeOnGenericThreadPool(commitRef));
     }
 
-    private void runWithGenericThreadPool(CheckedRunnable<Exception> task) {
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+    private void closeOnGenericThreadPool(Closeable closeable) {
         assert threadPool.generic().isShutdown() == false;
-        // TODO: We shouldn't use the generic thread pool here as we already execute this from the generic pool.
-        // While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
-        // below and thus make it impossible for the store release to execute which in turn would block the futures forever
-        threadPool.generic().execute(ActionRunnable.run(future, task));
-        FutureUtils.get(future);
+        threadPool.generic().execute(() -> {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                assert false : e;
+                logger.warn(() -> format("Exception while closing [%s]", closeable), e);
+            }
+        });
     }
 
     static final class SendFileResult {
@@ -556,9 +553,15 @@ public class RecoverySourceHandler {
                     );
                 }
             }
-            if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+            // When sync ids were used we could use them to check if two shard copies were equivalent,
+            // if that's the case we can skip sending files from the source shard to the target shard.
+            // If the shard uses the current replication mechanism, we have to compute the recovery plan,
+            // and it is still possible to skip the sending files from the source shard to the target shard
+            // using a different mechanism to determine it.
+            // TODO: is this still relevant today?
+            if (hasSameLegacySyncId(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
-                final boolean canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
+                final boolean canUseSnapshots = canUseSnapshots();
                 recoveryPlannerService.computeRecoveryPlan(
                     shard.shardId(),
                     shardStateIdentifier,
@@ -568,6 +571,7 @@ public class RecoverySourceHandler {
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
                     canUseSnapshots,
+                    request.isPrimaryRelocation(),
                     ActionListener.wrap(plan -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );
             } else {
@@ -594,8 +598,14 @@ public class RecoverySourceHandler {
 
             }
         } catch (Exception e) {
-            throw new RecoverFilesRecoveryException(request.shardId(), 0, new ByteSizeValue(0L), e);
+            throw new RecoverFilesRecoveryException(request.shardId(), 0, ByteSizeValue.ZERO, e);
         }
+    }
+
+    private boolean canUseSnapshots() {
+        return useSnapshots && request.canDownloadSnapshotFiles()
+        // Avoid using snapshots for searchable snapshots as these are implicitly recovered from a snapshot
+            && shard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
     }
 
     void recoverFilesFromSourceAndSnapshot(
@@ -626,13 +636,13 @@ public class RecoverySourceHandler {
             for (StoreFileMetadata md : shardRecoveryPlan.getSourceFilesToRecover()) {
                 if (request.metadataSnapshot().fileMetadataMap().containsKey(md.name())) {
                     logger.trace(
-                        "recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        "recovery [phase1]: recovering [{}] from peer, exists in local store but is different: remote [{}], local [{}]",
                         md.name(),
                         request.metadataSnapshot().fileMetadataMap().get(md.name()),
                         md
                     );
                 } else {
-                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                    logger.trace("recovery [phase1]: recovering [{}] from peer, does not exist in remote", md.name());
                 }
             }
 
@@ -640,22 +650,35 @@ public class RecoverySourceHandler {
                 final StoreFileMetadata md = fileInfo.metadata();
                 if (request.metadataSnapshot().fileMetadataMap().containsKey(md.name())) {
                     logger.trace(
-                        "recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        "recovery [phase1]: recovering [{}] from snapshot, exists in local store but is different: remote [{}], local [{}]",
                         md.name(),
                         request.metadataSnapshot().fileMetadataMap().get(md.name()),
                         md
                     );
                 } else {
-                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                    logger.trace("recovery [phase1]: recovering [{}] from snapshot, does not exist in remote", md.name());
                 }
             }
 
             logger.trace(
-                "recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
-                filesToRecoverNames.size(),
-                new ByteSizeValue(totalSize),
+                """
+                    recovery [phase1]: total_size[{}], \
+                    recovering_files [{}] with total_size [{}] from peer, \
+                    recovering_files [{}] with total_size [{}] from snapshot, \
+                    reusing_files [{}] with total_size [{}]""",
+                ByteSizeValue.ofBytes(totalSize),
+                shardRecoveryPlan.getSourceFilesToRecover().size(),
+                ByteSizeValue.ofBytes(shardRecoveryPlan.getSourceFilesToRecover().stream().mapToLong(StoreFileMetadata::length).sum()),
+                shardRecoveryPlan.getSnapshotFilesToRecover().size(),
+                ByteSizeValue.ofBytes(
+                    shardRecoveryPlan.getSnapshotFilesToRecover()
+                        .getSnapshotFiles()
+                        .stream()
+                        .mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length)
+                        .sum()
+                ),
                 phase1ExistingFileNames.size(),
-                new ByteSizeValue(existingTotalSize)
+                ByteSizeValue.ofBytes(existingTotalSize)
             );
         }
 
@@ -790,7 +813,7 @@ public class RecoverySourceHandler {
         private final CountDown countDown;
         private final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
         private final AtomicBoolean cancelled = new AtomicBoolean();
-        private final Set<ListenableFuture<Void>> outstandingRequests = new HashSet<>(maxConcurrentSnapshotFileDownloads);
+        private final Set<ListenableFuture<Void>> outstandingRequests = Sets.newHashSetWithExpectedSize(maxConcurrentSnapshotFileDownloads);
         private List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
 
         SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
@@ -829,16 +852,13 @@ public class RecoverySourceHandler {
                     public void onFailure(Exception e) {
                         if (cancelled.get() || e instanceof CancellableThreads.ExecutionCancelledException) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "cancelled while recovering file [{}] from snapshot",
-                                    snapshotFileToRecover.metadata()
-                                ),
+                                () -> format("cancelled while recovering file [%s] from snapshot", snapshotFileToRecover.metadata()),
                                 e
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
-                                    "failed to recover file [{}] from snapshot{}",
+                                () -> format(
+                                    "failed to recover file [%s] from snapshot%s",
                                     snapshotFileToRecover.metadata(),
                                     shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() ? ", will recover from primary instead" : ""
                                 ),
@@ -970,7 +990,7 @@ public class RecoverySourceHandler {
                 final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
                 final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
-                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
+                    new ThreadedActionListener<>(shard.getThreadPool().generic(), cloneRetentionLeaseStep)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
                 cloneRetentionLeaseStep.addListener(listener.map(rr -> clonedLease));
@@ -985,7 +1005,7 @@ public class RecoverySourceHandler {
                 final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
                     estimatedGlobalCheckpoint,
-                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
+                    new ThreadedActionListener<>(shard.getThreadPool().generic(), addRetentionLeaseStep)
                 );
                 addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
@@ -993,7 +1013,7 @@ public class RecoverySourceHandler {
         }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
     }
 
-    boolean canSkipPhase1(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
+    boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
         if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
             return false;
         }
@@ -1197,7 +1217,7 @@ public class RecoverySourceHandler {
                 retentionLeases,
                 mappingVersion,
                 listener.delegateFailure((l, newCheckpoint) -> {
-                    targetLocalCheckpoint.updateAndGet(curr -> SequenceNumbers.max(curr, newCheckpoint));
+                    targetLocalCheckpoint.accumulateAndGet(newCheckpoint, SequenceNumbers::max);
                     l.onResponse(null);
                 })
             );
@@ -1476,8 +1496,8 @@ public class RecoverySourceHandler {
                 );
                 remoteException.addSuppressed(e);
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                    () -> format(
+                        "%s Remote file corruption on node %s, recovering %s. local checksum OK",
                         shardId,
                         request.targetNode(),
                         mds

@@ -15,10 +15,11 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:data-streams')
+  testImplementation project(path: xpackModule('blob-cache'))
   testImplementation project(path: xpackModule('searchable-snapshots'))
   testImplementation project(path: xpackModule('ilm'))
 
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

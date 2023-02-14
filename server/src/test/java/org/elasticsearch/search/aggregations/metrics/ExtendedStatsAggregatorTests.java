@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
@@ -266,7 +265,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg").field("field")
             .sigma(randomDoubleBetween(0, 10, true));
 
-        testCase(aggBuilder, new MatchAllDocsQuery(), buildIndex, verify, ft);
+        testCase(buildIndex, verify, new AggTestConfig(aggBuilder, ft));
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

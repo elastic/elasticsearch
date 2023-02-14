@@ -62,7 +62,7 @@ request. So,
 
 `"sort": {"s": "desc"}`:: gets metrics from the document with the highest `s`
 `"sort": {"s": "asc"}`:: gets the metrics from the document with the lowest `s`
-`"sort": {"_geo_distance": {"location": "35.7796, -78.6382"}}`::
+`"sort": {"_geo_distance": {"location": "POINT (-78.6382 35.7796)"}}`::
   gets metrics from the documents with `location` *closest* to `35.7796, -78.6382`
 `"sort": "_score"`:: gets metrics from the document with the highest score
 

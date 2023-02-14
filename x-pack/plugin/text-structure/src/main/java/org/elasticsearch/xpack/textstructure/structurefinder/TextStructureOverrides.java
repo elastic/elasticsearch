@@ -35,6 +35,8 @@ public class TextStructureOverrides {
     private final String timestampFormat;
     private final String timestampField;
 
+    private final String ecsCompatibility;
+
     public TextStructureOverrides(FindStructureAction.Request request) {
 
         this(
@@ -47,7 +49,8 @@ public class TextStructureOverrides {
             request.getShouldTrimFields(),
             request.getGrokPattern(),
             request.getTimestampFormat(),
-            request.getTimestampField()
+            request.getTimestampField(),
+            request.getEcsCompatibility()
         );
     }
 
@@ -61,7 +64,8 @@ public class TextStructureOverrides {
         Boolean shouldTrimFields,
         String grokPattern,
         String timestampFormat,
-        String timestampField
+        String timestampField,
+        String ecsCompatibility
     ) {
         this.charset = charset;
         this.format = format;
@@ -73,6 +77,7 @@ public class TextStructureOverrides {
         this.grokPattern = grokPattern;
         this.timestampFormat = timestampFormat;
         this.timestampField = timestampField;
+        this.ecsCompatibility = ecsCompatibility;
     }
 
     public static Builder builder() {
@@ -119,6 +124,10 @@ public class TextStructureOverrides {
         return timestampField;
     }
 
+    public String getEcsCompatibility() {
+        return ecsCompatibility;
+    }
+
     @Override
     public int hashCode() {
 
@@ -132,7 +141,8 @@ public class TextStructureOverrides {
             shouldTrimFields,
             grokPattern,
             timestampFormat,
-            timestampField
+            timestampField,
+            ecsCompatibility
         );
     }
 
@@ -157,7 +167,8 @@ public class TextStructureOverrides {
             && Objects.equals(this.shouldTrimFields, that.shouldTrimFields)
             && Objects.equals(this.grokPattern, that.grokPattern)
             && Objects.equals(this.timestampFormat, that.timestampFormat)
-            && Objects.equals(this.timestampField, that.timestampField);
+            && Objects.equals(this.timestampField, that.timestampField)
+            && Objects.equals(this.ecsCompatibility, that.ecsCompatibility);
     }
 
     public static class Builder {
@@ -172,6 +183,8 @@ public class TextStructureOverrides {
         private String grokPattern;
         private String timestampFormat;
         private String timestampField;
+
+        private String ecsCompatibility;
 
         public Builder setCharset(String charset) {
             this.charset = charset;
@@ -223,6 +236,11 @@ public class TextStructureOverrides {
             return this;
         }
 
+        public Builder setEcsCompatibility(String ecsCompatibility) {
+            this.ecsCompatibility = ecsCompatibility;
+            return this;
+        }
+
         public TextStructureOverrides build() {
 
             return new TextStructureOverrides(
@@ -235,7 +253,8 @@ public class TextStructureOverrides {
                 shouldTrimFields,
                 grokPattern,
                 timestampFormat,
-                timestampField
+                timestampField,
+                ecsCompatibility
             );
         }
     }

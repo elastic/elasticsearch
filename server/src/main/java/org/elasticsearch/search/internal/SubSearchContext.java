@@ -41,7 +41,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private final QuerySearchResult querySearchResult;
 
     private int[] docIdsToLoad;
-    private int docsIdsToLoadSize;
 
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
@@ -91,7 +90,7 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public boolean hasScriptFields() {
-        return scriptFields != null;
+        return scriptFields != null && scriptFields.fields().isEmpty() == false;
     }
 
     @Override
@@ -285,14 +284,8 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public int docIdsToLoadSize() {
-        return docsIdsToLoadSize;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         this.docIdsToLoad = docIdsToLoad;
-        this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }
 

@@ -6,15 +6,20 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -27,7 +32,14 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
+
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams.parseDateOrThrow;
+import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.END_TIME;
+import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.START_TIME;
 
 public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Response> {
 
@@ -49,38 +61,61 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         static {
             PARSER.declareObject(Builder::setDatafeedBuilder, DatafeedConfig.STRICT_PARSER, DATAFEED_CONFIG);
             PARSER.declareObject(Builder::setJobBuilder, Job.STRICT_PARSER, JOB_CONFIG);
+            PARSER.declareString(Builder::setStart, START_TIME);
+            PARSER.declareString(Builder::setEnd, END_TIME);
         }
 
-        public static Request fromXContent(XContentParser parser, @Nullable String datafeedId) {
+        public static Request.Builder fromXContent(XContentParser parser, @Nullable String datafeedId) {
             Builder builder = PARSER.apply(parser, null);
             // We don't need to check for "inconsistent ids" as we don't parse an ID from the body
             if (datafeedId != null) {
                 builder.setDatafeedId(datafeedId);
             }
-            return builder.build();
+            return builder;
         }
 
         private final String datafeedId;
         private final DatafeedConfig datafeedConfig;
         private final Job.Builder jobConfig;
+        private final Long startTime;
+        private final Long endTime;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();
             datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
             jobConfig = in.readOptionalWriteable(Job.Builder::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+                this.startTime = in.readOptionalLong();
+                this.endTime = in.readOptionalLong();
+            } else {
+                this.startTime = null;
+                this.endTime = null;
+            }
         }
 
-        public Request(String datafeedId) {
+        public Request(String datafeedId, String start, String end) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID);
             this.datafeedConfig = null;
             this.jobConfig = null;
+            this.startTime = start == null ? null : parseDateOrThrow(start, START_TIME, System::currentTimeMillis);
+            this.endTime = end == null ? null : parseDateOrThrow(end, END_TIME, System::currentTimeMillis);
         }
 
-        public Request(DatafeedConfig datafeedConfig, Job.Builder jobConfig) {
+        Request(String datafeedId, Long start, Long end) {
+            this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID);
+            this.datafeedConfig = null;
+            this.jobConfig = null;
+            this.startTime = start;
+            this.endTime = end;
+        }
+
+        public Request(DatafeedConfig datafeedConfig, Job.Builder jobConfig, Long start, Long end) {
             this.datafeedId = BLANK_ID;
             this.datafeedConfig = ExceptionsHelper.requireNonNull(datafeedConfig, DATAFEED_CONFIG.getPreferredName());
             this.jobConfig = jobConfig;
+            this.startTime = start;
+            this.endTime = end;
         }
 
         public String getDatafeedId() {
@@ -95,9 +130,31 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             return jobConfig;
         }
 
+        public OptionalLong getStartTime() {
+            return startTime == null ? OptionalLong.empty() : OptionalLong.of(startTime);
+        }
+
+        public OptionalLong getEndTime() {
+            return endTime == null ? OptionalLong.empty() : OptionalLong.of(endTime);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException e = null;
+            if (endTime != null && startTime != null && endTime <= startTime) {
+                e = ValidateActions.addValidationError(
+                    START_TIME.getPreferredName()
+                        + " ["
+                        + startTime
+                        + "] must be earlier than "
+                        + END_TIME.getPreferredName()
+                        + " ["
+                        + endTime
+                        + "]",
+                    e
+                );
+            }
+            return e;
         }
 
         @Override
@@ -106,6 +163,10 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             out.writeString(datafeedId);
             out.writeOptionalWriteable(datafeedConfig);
             out.writeOptionalWriteable(jobConfig);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+                out.writeOptionalLong(startTime);
+                out.writeOptionalLong(endTime);
+            }
         }
 
         @Override
@@ -143,10 +204,17 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                 && Objects.equals(jobConfig, other.jobConfig);
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("preview_datafeed[%s]", datafeedId), parentTaskId, headers);
+        }
+
         public static class Builder {
             private String datafeedId;
             private DatafeedConfig.Builder datafeedBuilder;
             private Job.Builder jobBuilder;
+            private Long startTime;
+            private Long endTime;
 
             public Builder setDatafeedId(String datafeedId) {
                 this.datafeedId = datafeedId;
@@ -160,6 +228,30 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
 
             public Builder setJobBuilder(Job.Builder jobBuilder) {
                 this.jobBuilder = jobBuilder;
+                return this;
+            }
+
+            public Builder setStart(String startTime) {
+                if (startTime == null) {
+                    return this;
+                }
+                return setStart(parseDateOrThrow(startTime, START_TIME, System::currentTimeMillis));
+            }
+
+            public Builder setStart(long start) {
+                this.startTime = start;
+                return this;
+            }
+
+            public Builder setEnd(String endTime) {
+                if (endTime == null) {
+                    return this;
+                }
+                return setEnd(parseDateOrThrow(endTime, END_TIME, System::currentTimeMillis));
+            }
+
+            public Builder setEnd(long end) {
+                this.endTime = end;
                 return this;
             }
 
@@ -196,8 +288,8 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                     );
                 }
                 return datafeedId != null
-                    ? new Request(datafeedId)
-                    : new Request(datafeedBuilder == null ? null : datafeedBuilder.build(), jobBuilder);
+                    ? new Request(datafeedId, startTime, endTime)
+                    : new Request(datafeedBuilder == null ? null : datafeedBuilder.build(), jobBuilder, startTime, endTime);
             }
         }
     }

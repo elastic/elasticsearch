@@ -64,7 +64,7 @@ public class MapperTestUtils {
             similarityService,
             mapperRegistry,
             () -> null,
-            indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE
         );
     }

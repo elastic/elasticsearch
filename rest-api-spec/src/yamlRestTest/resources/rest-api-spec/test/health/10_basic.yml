@@ -1,14 +1,15 @@
 ---
 "cluster health basic test":
   - skip:
-      version: "- 8.1.99"
-      reason: "health was only added in 8.2.0"
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/90183"
+      # version: "- 8.3.99"
+      # reason: "health was only added in 8.2.0, and master_is_stable in 8.4.0"
 
   - do:
-      _internal.health: {}
+      health_report: { }
 
   - is_true: cluster_name
   - match:   { status: "green" }
-  - match:   { components.cluster_coordination.status: "green" }
-  - match:   { components.cluster_coordination.indicators.instance_has_master.status: "green" }
-  - match:   { components.cluster_coordination.indicators.instance_has_master.summary: "Health coordinating instance has a master node." }
+  - match:   { indicators.master_is_stable.status: "green" }
+  - match:   { indicators.master_is_stable.symptom: "The cluster has a stable master node" }

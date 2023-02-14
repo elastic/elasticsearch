@@ -1,0 +1,76 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
+      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum'
+  }
+}
+
+// randomise between sniff and proxy modes
+boolean proxyMode = BuildParams.random.nextBoolean()
+
+def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
+  module ':modules:analysis-common'
+  module ':modules:lang-painless'
+  module ':modules:data-streams'
+  module ':x-pack:plugin:mapper-constant-keyword'
+  module ':x-pack:plugin:async-search'
+  user username: "test_user", password: "x-pack-test-password"
+}
+
+def queryingCluster = testClusters.register('querying-cluster') {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
+  module ':modules:analysis-common'
+  module ':modules:lang-painless'
+  module ':modules:data-streams'
+  module ':x-pack:plugin:mapper-constant-keyword'
+  module ':x-pack:plugin:async-search'
+  setting 'cluster.remote.connections_per_cluster', "1"
+  user username: "test_user", password: "x-pack-test-password"
+
+  if (proxyMode) {
+    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+    setting 'cluster.remote.my_remote_cluster.proxy_address', {
+      "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
+    }
+  } else {
+    setting 'cluster.remote.my_remote_cluster.seeds', {
+      fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
+    }
+  }
+}
+
+tasks.register('fulfilling-cluster', RestIntegTestTask) {
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
+}
+
+tasks.register('querying-cluster', RestIntegTestTask) {
+  dependsOn 'fulfilling-cluster'
+  useCluster fulfillingCluster
+  useCluster queryingCluster
+  systemProperty 'tests.rest.suite', 'querying_cluster'
+  if (proxyMode) {
+    systemProperty 'tests.rest.blacklist', [
+      'querying_cluster/10_basic/Add persistent remote cluster based on the preset cluster',
+      'querying_cluster/20_info/Add persistent remote cluster based on the preset cluster and check remote info',
+      'querying_cluster/20_info/Fetch remote cluster info for existing cluster',
+      'querying_cluster/70_connection_mode_configuration/*',
+    ].join(",")
+  }
+}
+
+// runs the fulfilling-cluster cluster tests then the querying-cluster tests
+tasks.register("integTest") {
+  dependsOn 'querying-cluster'
+}
+
+tasks.named("check").configure { dependsOn("integTest") }

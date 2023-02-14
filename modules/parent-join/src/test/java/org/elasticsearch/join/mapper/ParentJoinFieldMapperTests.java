@@ -24,6 +24,7 @@ import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -348,7 +349,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             })));
             assertThat(
                 exc.getMessage(),
-                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]")
+                Matchers.either(equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"))
+                    .or(equalTo("Only one [parent-join] field can be defined per index, got [another_join_field, join_field]"))
             );
         }
 
@@ -366,7 +368,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             );
             assertThat(
                 exc.getMessage(),
-                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]")
+                Matchers.either(equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"))
+                    .or(equalTo("Only one [parent-join] field can be defined per index, got [another_join_field, join_field]"))
             );
         }
     }

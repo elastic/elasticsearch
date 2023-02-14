@@ -23,13 +23,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
-    @Override
-    protected Writeable.Reader<NerResults> instanceReader() {
-        return NerResults::new;
-    }
 
-    @Override
-    protected NerResults createTestInstance() {
+    public static NerResults createRandomResults() {
         int numEntities = randomIntBetween(0, 3);
 
         return new NerResults(
@@ -46,6 +41,21 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
             ).limit(numEntities).collect(Collectors.toList()),
             randomBoolean()
         );
+    }
+
+    @Override
+    protected Writeable.Reader<NerResults> instanceReader() {
+        return NerResults::new;
+    }
+
+    @Override
+    protected NerResults createTestInstance() {
+        return createRandomResults();
+    }
+
+    @Override
+    protected NerResults mutateInstance(NerResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @SuppressWarnings("unchecked")

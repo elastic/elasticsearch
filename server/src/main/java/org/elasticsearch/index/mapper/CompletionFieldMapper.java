@@ -182,8 +182,8 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta };
         }
 
         NamedAnalyzer buildAnalyzer() {
@@ -277,7 +277,7 @@ public class CompletionFieldMapper extends FieldMapper {
          */
         public CompletionQuery prefixQuery(Object value) {
             return new PrefixCompletionQuery(
-                getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                getTextSearchInfo().searchAnalyzer().analyzer(),
                 new Term(name(), indexedValueForSearch(value))
             );
         }
@@ -302,7 +302,7 @@ public class CompletionFieldMapper extends FieldMapper {
             boolean unicodeAware
         ) {
             return new FuzzyCompletionQuery(
-                getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                getTextSearchInfo().searchAnalyzer().analyzer(),
                 new Term(name(), indexedValueForSearch(value)),
                 null,
                 fuzziness.asDistance(),
@@ -342,6 +342,8 @@ public class CompletionFieldMapper extends FieldMapper {
     private final int maxInputLength;
     private final Builder builder;
 
+    private final NamedAnalyzer indexAnalyzer;
+
     public CompletionFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -349,9 +351,15 @@ public class CompletionFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, builder.buildAnalyzer(), multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
+        this.indexAnalyzer = builder.buildAnalyzer();
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override

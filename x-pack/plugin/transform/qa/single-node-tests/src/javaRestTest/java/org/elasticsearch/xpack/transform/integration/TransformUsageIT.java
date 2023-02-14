@@ -40,9 +40,9 @@ public class TransformUsageIT extends TransformRestTestCase {
         assertTrue((boolean) XContentMapValues.extractValue("transform.available", usageAsMap));
         assertTrue((boolean) XContentMapValues.extractValue("transform.enabled", usageAsMap));
         // no transforms, no stats
-        assertNull(XContentMapValues.extractValue("transform.transforms", usageAsMap));
-        assertNull(XContentMapValues.extractValue("transform.feature_counts", usageAsMap));
-        assertNull(XContentMapValues.extractValue("transform.stats", usageAsMap));
+        assertNull("full usage response: " + usageAsMap, XContentMapValues.extractValue("transform.transforms", usageAsMap));
+        assertNull("full usage response: " + usageAsMap, XContentMapValues.extractValue("transform.feature_counts", usageAsMap));
+        assertNull("full usage response: " + usageAsMap, XContentMapValues.extractValue("transform.stats", usageAsMap));
 
         // create transforms
         createPivotReviewsTransform("test_usage", "pivot_reviews", null);

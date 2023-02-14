@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -16,16 +16,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * Condition for maximum shard docs. Evaluates to <code>true</code>
+ * when a primary shard in the index has at least {@link #value} docs
+ */
 public class MaxPrimaryShardDocsCondition extends Condition<Long> {
     public static final String NAME = "max_primary_shard_docs";
 
     public MaxPrimaryShardDocsCondition(Long value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxPrimaryShardDocsCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = in.readLong();
     }
 
@@ -53,12 +57,12 @@ public class MaxPrimaryShardDocsCondition extends Condition<Long> {
         if (parser.nextToken() == XContentParser.Token.VALUE_NUMBER) {
             return new MaxPrimaryShardDocsCondition(parser.longValue());
         } else {
-            throw new IllegalArgumentException("invalid token: " + parser.currentToken());
+            throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
     }
 
     @Override
-    boolean includedInVersion(Version version) {
-        return version.onOrAfter(Version.V_8_2_0);
+    boolean includedInVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersion.V_8_2_0);
     }
 }

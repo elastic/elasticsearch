@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldTyp
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -72,7 +72,7 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
             0.7,
             0.7
         );
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", "test");
 
         List<?> list = document.getFieldValue("result_field.bar", List.class);
@@ -99,7 +99,7 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
             1.0,
             1.0
         );
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
@@ -130,6 +130,11 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
     @Override
     protected ClassificationInferenceResults createTestInstance() {
         return createRandomResults();
+    }
+
+    @Override
+    protected ClassificationInferenceResults mutateInstance(ClassificationInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

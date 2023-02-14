@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,7 +43,7 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
             .limit(5)
             .collect(Collectors.toList());
         RegressionInferenceResults result = new RegressionInferenceResults(0.3, new RegressionConfig("predicted_value", 3), importanceList);
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.3));
@@ -69,6 +69,11 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
     }
 
     @Override
+    protected RegressionInferenceResults mutateInstance(RegressionInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RegressionInferenceResults> instanceReader() {
         return RegressionInferenceResults::new;
     }
@@ -83,9 +88,9 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
         RegressionFeatureImportance fi = new RegressionFeatureImportance("foo", 1.0);
         result = new RegressionInferenceResults(1.0, resultsField, Collections.singletonList(fi));
         stringRep = Strings.toString(result);
-        expected = """
+        expected = Strings.format("""
             {"%s":1.0,"feature_importance":[{"feature_name":"foo","importance":1.0}]}\
-            """.formatted(resultsField);
+            """, resultsField);
         assertEquals(expected, stringRep);
     }
 

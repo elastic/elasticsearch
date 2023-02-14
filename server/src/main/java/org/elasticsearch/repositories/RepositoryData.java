@@ -624,7 +624,7 @@ public final class RepositoryData {
             }
             snapshotIndices.put(indexId.getName(), indexId);
         }
-        return Collections.unmodifiableMap(snapshotIndices);
+        return Map.copyOf(snapshotIndices);
     }
 
     private static final String SHARD_GENERATIONS = "shard_generations";
@@ -682,18 +682,32 @@ public final class RepositoryData {
 
         if (shouldWriteUUIDS) {
             if (uuid.equals(MISSING_UUID)) {
-                assert permitMissingUuid : "missing uuid";
+                if (permitMissingUuid == false) {
+                    assert false : "missing uuid";
+                    throw new IllegalStateException("missing uuid");
+                }
             } else {
                 builder.field(UUID, uuid);
             }
             if (clusterUUID.equals(MISSING_UUID)) {
-                assert permitMissingUuid : "missing clusterUUID";
+                if (permitMissingUuid == false) {
+                    assert false : "missing clusterUUID";
+                    throw new IllegalStateException("missing clusterUUID");
+                }
             } else {
                 builder.field(CLUSTER_UUID, clusterUUID);
             }
         } else {
-            assert uuid.equals(MISSING_UUID) : "lost uuid " + uuid;
-            assert clusterUUID.equals(MISSING_UUID) : "lost clusterUUID " + clusterUUID;
+            if (uuid.equals(MISSING_UUID) == false) {
+                final IllegalStateException e = new IllegalStateException("lost uuid + [" + uuid + "]");
+                assert false : e;
+                throw e;
+            }
+            if (clusterUUID.equals(MISSING_UUID) == false) {
+                final IllegalStateException e = new IllegalStateException("lost clusterUUID + [" + uuid + "]");
+                assert false : e;
+                throw e;
+            }
         }
 
         // write the snapshots list
@@ -787,8 +801,8 @@ public final class RepositoryData {
         Map<String, String> indexMetaIdentifiers = null;
         String uuid = MISSING_UUID;
         String clusterUUID = MISSING_UUID;
-        while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-            final String field = parser.currentName();
+        String field;
+        while ((field = parser.nextFieldName()) != null) {
             switch (field) {
                 case SNAPSHOTS -> parseSnapshots(parser, snapshots, snapshotsDetails, indexMetaLookup);
                 case INDICES -> parseIndices(parser, fixBrokenShardGens, snapshots, indexSnapshots, indexLookup, shardGenerations);
@@ -861,7 +875,7 @@ public final class RepositoryData {
             for (Map.Entry<String, String> generationEntry : val.entrySet()) {
                 forSnapshot.put(indexLookup.get(generationEntry.getKey()), generationEntry.getValue());
             }
-            indexGenerations.put(snapshotIdMapEntry.getKey(), forSnapshot);
+            indexGenerations.put(snapshotIdMapEntry.getKey(), Map.copyOf(forSnapshot));
         }
         return new IndexMetaDataGenerations(indexGenerations, indexMetaIdentifiers);
     }

@@ -47,8 +47,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -183,7 +183,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .putRolloverInfo(
                 new RolloverInfo(
                     rolloverAlias,
-                    Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
+                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
                     System.currentTimeMillis()
                 )
             )

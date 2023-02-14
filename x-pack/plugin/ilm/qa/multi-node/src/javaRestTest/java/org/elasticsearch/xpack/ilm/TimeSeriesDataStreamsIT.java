@@ -7,21 +7,18 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -30,7 +27,6 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
@@ -43,6 +39,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
@@ -71,7 +68,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testRolloverAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L, null));
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
 
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
 
@@ -94,7 +91,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testRolloverIsSkippedOnManualDataStreamRollover() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 2L, null));
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 2L, null, null, null, null, null, null));
 
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
 
@@ -102,7 +99,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
         assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex).getName(), equalTo(WaitForRolloverReadyStep.NAME)),
+            () -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex).name(), equalTo(WaitForRolloverReadyStep.NAME)),
             30,
             TimeUnit.SECONDS
         );
@@ -241,8 +238,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertNull(settings.get("index.frozen"));
     }
 
-    public void testForceMergeAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, null));
+    public void checkForceMergeAction(String codec) throws Exception {
+        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, codec));
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
@@ -260,11 +257,20 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        assertBusy(
-            () -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
+            assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
+            assertThat(settings.containsKey(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(false));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testForceMergeAction() throws Exception {
+        checkForceMergeAction(null);
+    }
+
+    public void testForceMergeActionWithCompressionCodec() throws Exception {
+        checkForceMergeAction("best_compression");
     }
 
     @SuppressWarnings("unchecked")
@@ -297,11 +303,4 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         });
     }
 
-    private static Template getTemplate(String policyName) throws IOException {
-        return new Template(getLifecycleSettings(policyName), null, null);
-    }
-
-    private static Settings getLifecycleSettings(String policyName) {
-        return Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build();
-    }
 }

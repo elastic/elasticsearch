@@ -19,6 +19,19 @@ public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<R
 
     private boolean lenient;
 
+    public static RobertaTokenization mutateForVersion(RobertaTokenization instance, Version version) {
+        if (version.before(Version.V_8_2_0)) {
+            return new RobertaTokenization(
+                instance.withSpecialTokens,
+                instance.isAddPrefixSpace(),
+                instance.maxSequenceLength,
+                instance.truncate,
+                null
+            );
+        }
+        return instance;
+    }
+
     @Before
     public void chooseStrictOrLenient() {
         lenient = randomBoolean();
@@ -40,8 +53,13 @@ public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<R
     }
 
     @Override
+    protected RobertaTokenization mutateInstance(RobertaTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected RobertaTokenization mutateInstanceForVersion(RobertaTokenization instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static RobertaTokenization createRandom() {

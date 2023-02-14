@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -47,6 +46,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETT
  * those indices can be automatically managed. Only some system indices are managed
  * internally to Elasticsearch - others are created and managed externally, e.g.
  * Kibana indices.
+ *
+ * Other metadata updates are handled by {@link org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}.
  */
 public class SystemIndexManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SystemIndexManager.class);
@@ -115,8 +116,8 @@ public class SystemIndexManager implements ClusterStateListener {
                 // Use a GroupedActionListener so that we only release the lock once all upgrade attempts have succeeded or failed.
                 // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
                 ActionListener<AcknowledgedResponse> listener = new GroupedActionListener<>(
-                    ActionListener.wrap(() -> isUpgradeInProgress.set(false)),
-                    descriptors.size()
+                    descriptors.size(),
+                    ActionListener.wrap(() -> isUpgradeInProgress.set(false))
                 );
 
                 descriptors.forEach(descriptor -> upgradeIndexMetadata(descriptor, listener));
@@ -311,7 +312,7 @@ public class SystemIndexManager implements ClusterStateListener {
             }
             return Version.fromString(versionString);
         } catch (ElasticsearchParseException | IllegalArgumentException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
             return Version.V_EMPTY;
         }
     }

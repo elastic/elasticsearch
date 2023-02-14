@@ -11,10 +11,11 @@ package org.elasticsearch.plugins.cli;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -36,7 +37,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         if (Files.exists(env.pluginsFile()) == false) {
             throw new IOException("Plugins directory missing: " + env.pluginsFile());
         }
@@ -58,7 +59,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
 
     private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
-        PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
+        PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
         if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
             terminal.errorPrintln(

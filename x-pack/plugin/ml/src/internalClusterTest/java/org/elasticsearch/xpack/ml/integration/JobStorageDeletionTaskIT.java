@@ -75,7 +75,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp, null);
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         jobResultsProvider = new JobResultsProvider(client(), settings, TestIndexNameExpressionResolver.newInstance());

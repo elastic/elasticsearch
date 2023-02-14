@@ -97,7 +97,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
                 .filter(shardStats -> shardStats.getStats().isEmpty() == false)
                 .map(SearchableSnapshotShardStats::getShardRouting)
                 .map(ShardRouting::index)
-                .sorted(Comparator.comparing(Index::getName))
+                .sorted(Index.COMPARE_BY_NAME)
                 .distinct()
                 .collect(toList());
 

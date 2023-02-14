@@ -16,8 +16,6 @@ public interface LifecycleComponent extends Releasable {
 
     void addLifecycleListener(LifecycleListener listener);
 
-    void removeLifecycleListener(LifecycleListener listener);
-
     void start();
 
     void stop();

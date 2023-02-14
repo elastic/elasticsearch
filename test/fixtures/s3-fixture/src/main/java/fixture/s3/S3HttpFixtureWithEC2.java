@@ -14,6 +14,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Objects;
 
 public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
@@ -65,14 +66,14 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
     }
 
     protected String buildCredentialResponse(final String ec2AccessKey, final String ec2SessionToken) {
-        return """
+        return String.format(Locale.ROOT, """
             {
               "AccessKeyId": "%s",
               "Expiration": "%s",
               "RoleArn": "arn",
               "SecretAccessKey": "secret_access_key",
               "Token": "%s"
-            }""".formatted(ec2AccessKey, ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME), ec2SessionToken);
+            }""", ec2AccessKey, ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME), ec2SessionToken);
     }
 
     public static void main(final String[] args) throws Exception {

@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -160,19 +160,19 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public void writeTo(StreamOutput out) throws IOException {
             // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
             // while it is optional for all subsequent versions.
-            if (out.getVersion().equals(Version.V_8_0_0)) {
+            if (out.getTransportVersion().equals(TransportVersion.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
-            } else if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
+            } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_1)) {
                 out.writeOptionalString(key);
             } else {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
             }
             out.writeDouble(from);
-            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
                 out.writeOptionalDouble(from);
             }
             out.writeDouble(to);
-            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
                 out.writeOptionalDouble(to);
             }
             out.writeVLong(docCount);
@@ -270,11 +270,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
             // while it is optional for all subsequent versions.
-            final String key = in.getVersion().equals(Version.V_8_0_0) ? in.readString()
-                : in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString()
+            final String key = in.getTransportVersion().equals(TransportVersion.V_8_0_0) ? in.readString()
+                : in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_1) ? in.readOptionalString()
                 : in.readString();
             double from = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
                 final Double originalFrom = in.readOptionalDouble();
                 if (originalFrom != null) {
                     from = originalFrom;
@@ -283,7 +283,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 }
             }
             double to = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
                 final Double originalTo = in.readOptionalDouble();
                 if (originalTo != null) {
                     to = originalTo;
@@ -302,10 +302,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeVInt(ranges.size());
-        for (B bucket : ranges) {
-            bucket.writeTo(out);
-        }
+        out.writeCollection(ranges);
     }
 
     @Override

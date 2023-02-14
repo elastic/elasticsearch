@@ -76,14 +76,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         super.writeTo(out);
         out.writeVInt(status.id());
         out.writeOptionalString(acknowledgeHeader);
-        out.writeVInt(acknowledgeMessages.size());
-        for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().length);
-            for (String message : entry.getValue()) {
-                out.writeString(message);
-            }
-        }
+        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
     }
 
     @Override

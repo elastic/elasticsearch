@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.open;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -27,6 +26,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Arrays;
 
 /**
  * Open index action
@@ -101,7 +102,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
             @Override
             public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to open indices [{}]", (Object) concreteIndices), t);
+                logger.debug(() -> "failed to open indices [" + Arrays.toString(concreteIndices) + "]", t);
                 listener.onFailure(t);
             }
         });

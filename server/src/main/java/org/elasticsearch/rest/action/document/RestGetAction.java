@@ -78,6 +78,9 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
+        if (request.paramAsBoolean("force_synthetic_source", false)) {
+            getRequest.setForceSyntheticSource(true);
+        }
 
         return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
             @Override

@@ -8,12 +8,9 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -61,6 +58,11 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
     @Override
     protected ZeroShotClassificationConfigUpdate createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected ZeroShotClassificationConfigUpdate mutateInstance(ZeroShotClassificationConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -125,7 +127,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 originalConfig.getTokenization(),
                 originalConfig.getHypothesisTemplate(),
                 true,
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 originalConfig.getResultsField()
             ),
             equalTo(new ZeroShotClassificationConfigUpdate.Builder().setMultiLabel(true).build().apply(originalConfig))
@@ -137,7 +139,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 originalConfig.getTokenization(),
                 originalConfig.getHypothesisTemplate(),
                 originalConfig.isMultiLabel(),
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 "updated-field"
             ),
             equalTo(new ZeroShotClassificationConfigUpdate.Builder().setResultsField("updated-field").build().apply(originalConfig))
@@ -152,7 +154,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 tokenization,
                 originalConfig.getHypothesisTemplate(),
                 originalConfig.isMultiLabel(),
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 originalConfig.getResultsField()
             ),
             equalTo(
@@ -211,15 +213,5 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
 
     public static ZeroShotClassificationConfigUpdate createRandom() {
         return randomUpdate();
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

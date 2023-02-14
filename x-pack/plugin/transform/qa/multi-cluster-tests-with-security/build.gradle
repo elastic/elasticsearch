@@ -1,4 +1,6 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -9,6 +11,8 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
+Version ccsCompatVersion = new Version(VersionProperties.getElasticsearchVersion().getMajor(), VersionProperties.getElasticsearchVersion().getMinor() - 1, 0)
+
 restResources {
   restApi {
     include '_common', 'bulk', 'indices', 'cluster', 'search', 'security', 'transform'
@@ -17,6 +21,7 @@ restResources {
 
 def remoteCluster = testClusters.register('remote-cluster') {
     testDistribution = 'DEFAULT'
+    versions = [ccsCompatVersion.toString(), project.version]
     numberOfNodes = 2
     setting 'node.roles', '[data,ingest,master]'
     setting 'xpack.security.enabled', 'true'

@@ -182,10 +182,16 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         if (descriptor.getAliasName() == null) {
             aliases = Set.of();
         } else {
-            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true));
+            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true).writeIndex(true));
         }
 
-        // Here, we override the user's requested index with the descriptor's primary index
+        // Throw an error if we are trying to directly create a system index other than the primary system index (or the alias)
+        if (request.index().equals(descriptor.getPrimaryIndex()) == false && request.index().equals(descriptor.getAliasName()) == false) {
+            throw new IllegalArgumentException(
+                "Cannot create system index with name " + request.index() + "; descriptor primary index is " + descriptor.getPrimaryIndex()
+            );
+        }
+
         final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
             cause,
             descriptor.getPrimaryIndex(),

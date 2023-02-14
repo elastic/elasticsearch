@@ -6,20 +6,21 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Build;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 
 import javax.crypto.SecretKeyFactory;
 
-import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class XPackSettingsTests extends ESTestCase {
 
@@ -103,15 +104,33 @@ public class XPackSettingsTests extends ESTestCase {
         assertThat(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(Settings.EMPTY), equalTo("PBKDF2_STRETCH"));
     }
 
-    // Whether the domain setting is registered by default depends on the build type
-    public void testRealmDomainSettingRegistrationDefault() {
-        assertThat(
-            XPackSettings.getAllSettings()
-                .stream()
-                .filter(setting -> setting.getKey().equals(DOMAIN_TO_REALM_ASSOC_SETTING.getKey()))
-                .toList(),
-            hasSize(Build.CURRENT.isSnapshot() ? 1 : 0)
-        );
+    public void testRemoteClusterSslSettings() {
+        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
+        final List<Setting<?>> allSettings = XPackSettings.getAllSettings();
+
+        final List<String> remoteClusterSslSettingKeys = allSettings.stream()
+            .map(Setting::getKey)
+            .filter(key -> key.startsWith("xpack.security.remote_cluster_"))
+            .toList();
+
+        // Ensure client_authentication is only available for server and verification_mode is only available for client
+        assertThat(remoteClusterSslSettingKeys, not(hasItem("xpack.security.remote_cluster_server.ssl.verification_mode")));
+        assertThat(remoteClusterSslSettingKeys, hasItem("xpack.security.remote_cluster_client.ssl.verification_mode"));
+
+        assertThat(remoteClusterSslSettingKeys, hasItem("xpack.security.remote_cluster_server.ssl.client_authentication"));
+        assertThat(remoteClusterSslSettingKeys, not(hasItem("xpack.security.remote_cluster_client.ssl.client_authentication")));
+
+        // None of them allow insecure password
+        List.of(
+            "xpack.security.remote_cluster_server.ssl.keystore.password",
+            "xpack.security.remote_cluster_server.ssl.keystore.key_password",
+            "xpack.security.remote_cluster_server.ssl.key_passphrase",
+            "xpack.security.remote_cluster_server.ssl.truststore.password",
+            "xpack.security.remote_cluster_client.ssl.keystore.password",
+            "xpack.security.remote_cluster_client.ssl.keystore.key_password",
+            "xpack.security.remote_cluster_client.ssl.key_passphrase",
+            "xpack.security.remote_cluster_client.ssl.truststore.password"
+        ).forEach(key -> assertThat(remoteClusterSslSettingKeys, not(hasItem(key))));
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {

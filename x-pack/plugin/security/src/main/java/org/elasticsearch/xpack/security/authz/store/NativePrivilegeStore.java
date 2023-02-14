@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
@@ -63,6 +63,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -130,6 +131,11 @@ public class NativePrivilegeStore {
         Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
+        if (false == isEmpty(names) && names.stream().noneMatch(ApplicationPrivilege::isValidPrivilegeName)) {
+            logger.debug("no concrete privilege, only action patterns [{}], returning no application privilege descriptors", names);
+            listener.onResponse(Collections.emptySet());
+            return;
+        }
 
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*"))
             ? Set.of("*")
@@ -197,13 +203,7 @@ public class NativePrivilegeStore {
                         .setSize(1000)
                         .setFetchSource(true)
                         .request();
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "Searching for [{}] privileges with query [{}]",
-                            applications,
-                            Strings.toString(query)
-                        )
-                    );
+                    logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
                     request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(
                         client,
@@ -270,7 +270,7 @@ public class NativePrivilegeStore {
                 return privilege;
             }
         } catch (IOException | XContentParseException e) {
-            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
+            logger.error(() -> "cannot parse application privilege [" + name + "]", e);
             return null;
         }
     }
@@ -334,6 +334,7 @@ public class NativePrivilegeStore {
     ) {
         securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
+                privileges.size(),
                 ActionListener.wrap((Collection<IndexResponse> responses) -> {
                     final Map<String, List<String>> createdNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
@@ -345,8 +346,7 @@ public class NativePrivilegeStore {
                         privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet()),
                         createdNames
                     );
-                }, listener::onFailure),
-                privileges.size()
+                }, listener::onFailure)
             );
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 innerPutPrivilege(privilege, refreshPolicy, groupListener);
@@ -392,14 +392,14 @@ public class NativePrivilegeStore {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(ActionListener.wrap(responses -> {
+                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(names.size(), ActionListener.wrap(responses -> {
                     final Map<String, List<String>> deletedNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
                         .map(r -> r.getId())
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
                     clearCaches(listener, Collections.singleton(application), deletedNames);
-                }, listener::onFailure), names.size());
+                }, listener::onFailure));
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),

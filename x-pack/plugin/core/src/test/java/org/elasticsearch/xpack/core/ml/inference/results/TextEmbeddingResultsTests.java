@@ -17,13 +17,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbeddingResults> {
-    @Override
-    protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
-        return TextEmbeddingResults::new;
-    }
 
-    @Override
-    protected TextEmbeddingResults createTestInstance() {
+    public static TextEmbeddingResults createRandomResults() {
         int columns = randomIntBetween(1, 10);
         double[] arr = new double[columns];
         for (int i = 0; i < columns; i++) {
@@ -31,6 +26,21 @@ public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbe
         }
 
         return new TextEmbeddingResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
+    }
+
+    @Override
+    protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
+        return TextEmbeddingResults::new;
+    }
+
+    @Override
+    protected TextEmbeddingResults createTestInstance() {
+        return createRandomResults();
+    }
+
+    @Override
+    protected TextEmbeddingResults mutateInstance(TextEmbeddingResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testAsMap() {

@@ -8,14 +8,11 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-ext {
-  antlrVersion = "4.9.2"
-}
-
 archivesBaseName = 'x-pack-ql'
 
 dependencies {
-  api "org.antlr:antlr4-runtime:${antlrVersion}"
+  api "org.antlr:antlr4-runtime:${versions.antlr4}"
+  api project(path: xpackModule('mapper-version'))
   compileOnly project(path: xpackModule('core'))
   testApi(project(xpackModule('ql:test-fixtures'))) {
     exclude group: 'org.elasticsearch.plugin', module: 'ql'

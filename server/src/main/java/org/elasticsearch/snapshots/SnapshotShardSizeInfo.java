@@ -10,15 +10,16 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+
+import java.util.Map;
 
 public class SnapshotShardSizeInfo {
 
-    public static final SnapshotShardSizeInfo EMPTY = new SnapshotShardSizeInfo(ImmutableOpenMap.of());
+    public static final SnapshotShardSizeInfo EMPTY = new SnapshotShardSizeInfo(Map.of());
 
-    private final ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes;
+    private final Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes;
 
-    public SnapshotShardSizeInfo(ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes) {
+    public SnapshotShardSizeInfo(Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes) {
         this.snapshotShardSizes = snapshotShardSizes;
     }
 

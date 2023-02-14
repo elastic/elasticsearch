@@ -10,6 +10,7 @@ package org.elasticsearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -76,6 +77,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
 
+    /**
+     * Maximal allowed length (in bytes) of the document ID.
+     */
+    public static final int MAX_DOCUMENT_ID_LENGTH_IN_BYTES = 512;
+
     private static final ShardId NO_SHARD_ID = null;
 
     private String id;
@@ -112,13 +118,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private Map<String, String> dynamicTemplates = Map.of();
 
+    /**
+     * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
+     */
+    private Object rawTimestamp;
+
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
     }
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String type = in.readOptionalString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
         }
@@ -129,10 +140,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         pipeline = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             finalPipeline = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             isPipelineResolved = in.readBoolean();
         }
         isRetry = in.readBoolean();
@@ -144,12 +155,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             dynamicTemplates = in.readMap(StreamInput::readString, StreamInput::readString);
         }
     }
@@ -213,9 +224,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
+        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
             validationException = addValidationError(
-                "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + id.getBytes(StandardCharsets.UTF_8).length,
+                "id ["
+                    + id
+                    + "] is too long, must be no longer than "
+                    + MAX_DOCUMENT_ID_LENGTH_IN_BYTES
+                    + " bytes but was: "
+                    + id.getBytes(StandardCharsets.UTF_8).length,
                 validationException
             );
         }
@@ -373,10 +389,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
     }
 
+    public IndexRequest source(Map<String, ?> source, XContentType contentType, boolean ensureNoSelfReferences)
+        throws ElasticsearchGenerationException {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.map(source, ensureNoSelfReferences);
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
+
     /**
      * Sets the document source to index.
      *
-     * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * Note, its preferable to either set it using {@link #source(org.elasticsearch.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
@@ -616,8 +643,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         id(uid);
     }
 
-    public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
-        if (id == null && opType == OpType.CREATE && version.before(Version.V_7_5_0)) {
+    /**
+     * Resets this <code>IndexRequest</code> class, so that in case this instance can be used by the bulk/index action
+     * if it was already used before. For example if retrying a retryable failure.
+     */
+    public void reset() {
+        autoGeneratedTimestamp = UNSET_AUTO_GENERATED_TIMESTAMP;
+    }
+
+    public void checkAutoIdWithOpTypeCreateSupportedByVersion(TransportVersion version) {
+        if (id == null && opType == OpType.CREATE && version.before(TransportVersion.V_7_5_0)) {
             throw new IllegalArgumentException(
                 "optype create not supported for indexing requests without explicit id until all nodes " + "are on version 7.5.0 or higher"
             );
@@ -626,20 +661,20 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
+        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getTransportVersion());
         super.writeTo(out);
         writeBody(out);
     }
 
     @Override
     public void writeThin(StreamOutput out) throws IOException {
-        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
+        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getTransportVersion());
         super.writeThin(out);
         writeBody(out);
     }
 
     private void writeBody(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeOptionalString(id);
@@ -649,10 +684,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             out.writeOptionalString(finalPipeline);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             out.writeBoolean(isPipelineResolved);
         }
         out.writeBoolean(isRetry);
@@ -665,10 +700,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeMap(dynamicTemplates, StreamOutput::writeString, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
@@ -683,9 +718,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         try {
             if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
                 sSource = "n/a, actual length: ["
-                    + new ByteSizeValue(source.length()).toString()
+                    + ByteSizeValue.ofBytes(source.length()).toString()
                     + "], max length: "
-                    + new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
+                    + ByteSizeValue.ofBytes(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
                 sSource = XContentHelper.convertToJson(source, false);
             }
@@ -760,5 +795,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public Map<String, String> getDynamicTemplates() {
         return dynamicTemplates;
+    }
+
+    public Object getRawTimestamp() {
+        return rawTimestamp;
+    }
+
+    public void setRawTimestamp(Object rawTimestamp) {
+        assert this.rawTimestamp == null : "rawTimestamp only set in ingest phase, it can't be set twice";
+        this.rawTimestamp = rawTimestamp;
     }
 }

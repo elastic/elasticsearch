@@ -7,7 +7,10 @@
  */
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 ext.bwcTaskName = { Version version ->
   return "v${version}#bwcTest"
@@ -28,9 +31,23 @@ tasks.register("bwcTest") {
   }
 }
 
-tasks.withType(Test).configureEach {
-  onlyIf { project.bwc_tests_enabled }
-  nonInputProperties.systemProperty 'tests.bwc', 'true'
+plugins.withType(ElasticsearchTestBasePlugin) {
+  tasks.withType(Test).configureEach {
+    onlyIf { project.bwc_tests_enabled }
+    nonInputProperties.systemProperty 'tests.bwc', 'true'
+  }
+}
+
+plugins.withType(InternalJavaRestTestPlugin) {
+  tasks.named("javaRestTest") {
+    enabled = false
+  }
+
+  tasks.withType(StandaloneRestIntegTestTask).configureEach {
+    testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+    classpath = sourceSets.javaRestTest.runtimeClasspath
+    usesDefaultDistribution()
+  }
 }
 
 tasks.matching { it.name.equals("check") }.configureEach {dependsOn(bwcTestSnapshots) }

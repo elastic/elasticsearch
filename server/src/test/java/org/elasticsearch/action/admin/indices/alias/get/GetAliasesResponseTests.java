@@ -11,14 +11,15 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
@@ -41,25 +42,23 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         );
     }
 
-    private static ImmutableOpenMap<String, List<AliasMetadata>> mutateAliases(ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
+    private static Map<String, List<AliasMetadata>> mutateAliases(Map<String, List<AliasMetadata>> aliases) {
         if (aliases.isEmpty()) {
-            return createIndicesAliasesMap(1, 3).build();
+            return Collections.unmodifiableMap(createIndicesAliasesMap(1, 3));
         }
 
         if (randomBoolean()) {
-            ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder(aliases);
-            ImmutableOpenMap<String, List<AliasMetadata>> list = createIndicesAliasesMap(1, 2).build();
-            list.entrySet().forEach(e -> builder.put(e.getKey(), e.getValue()));
-            return builder.build();
+            Map<String, List<AliasMetadata>> builder = new HashMap<>(aliases);
+            builder.putAll(createIndicesAliasesMap(1, 2));
+            return Collections.unmodifiableMap(builder);
         }
 
-        Set<String> indices = aliases.keySet();
-        List<String> indicesToBeModified = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
+        List<String> indicesToBeModified = randomSubsetOf(randomIntBetween(1, aliases.size()), aliases.keySet());
+        Map<String, List<AliasMetadata>> builder = new HashMap<>();
 
-        for (String index : indices) {
-            List<AliasMetadata> list = new ArrayList<>(aliases.get(index));
-            if (indicesToBeModified.contains(index)) {
+        for (var alias : aliases.entrySet()) {
+            List<AliasMetadata> list = new ArrayList<>(alias.getValue());
+            if (indicesToBeModified.contains(alias.getKey())) {
                 if (randomBoolean() || list.isEmpty()) {
                     list.add(createAliasMetadata());
                 } else {
@@ -68,20 +67,20 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
                     list.add(aliasIndex, mutateAliasMetadata(aliasMetadata));
                 }
             }
-            builder.put(index, list);
+            builder.put(alias.getKey(), Collections.unmodifiableList(list));
         }
-        return builder.build();
+        return Collections.unmodifiableMap(builder);
     }
 
     private static GetAliasesResponse createTestItem() {
         return new GetAliasesResponse(
-            mutateAliases(createIndicesAliasesMap(0, 5).build()),
+            mutateAliases(createIndicesAliasesMap(0, 5)),
             randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance)))
         );
     }
 
-    private static ImmutableOpenMap.Builder<String, List<AliasMetadata>> createIndicesAliasesMap(int min, int max) {
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
+    private static Map<String, List<AliasMetadata>> createIndicesAliasesMap(int min, int max) {
+        Map<String, List<AliasMetadata>> builder = new HashMap<>();
         int indicesNum = randomIntBetween(min, max);
         for (int i = 0; i < indicesNum; i++) {
             String index = randomAlphaOfLength(5);
@@ -90,7 +89,7 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
             for (int alias = 0; alias < aliasesNum; alias++) {
                 aliasMetadata.add(createAliasMetadata());
             }
-            builder.put(index, aliasMetadata);
+            builder.put(index, Collections.unmodifiableList(aliasMetadata));
         }
         return builder;
     }

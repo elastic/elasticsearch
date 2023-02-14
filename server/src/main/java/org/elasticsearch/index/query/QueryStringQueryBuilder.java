@@ -12,7 +12,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -192,11 +192,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.queryString);
         out.writeOptionalString(this.defaultField);
-        out.writeVInt(this.fieldsAndWeights.size());
-        for (Map.Entry<String, Float> fieldsEntry : this.fieldsAndWeights.entrySet()) {
-            out.writeString(fieldsEntry.getKey());
-            out.writeFloat(fieldsEntry.getValue());
-        }
+        out.writeMap(this.fieldsAndWeights, StreamOutput::writeString, StreamOutput::writeFloat);
         this.defaultOperator.writeTo(out);
         out.writeOptionalString(this.analyzer);
         out.writeOptionalString(this.quoteAnalyzer);
@@ -571,31 +567,45 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             builder.value(fieldEntry.getKey() + "^" + fieldEntry.getValue());
         }
         builder.endArray();
-        if (this.type != null) {
+        if (this.type != DEFAULT_TYPE) {
             builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
         }
         if (tieBreaker != null) {
             builder.field(TIE_BREAKER_FIELD.getPreferredName(), this.tieBreaker);
         }
-        builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), this.defaultOperator.name().toLowerCase(Locale.ROOT));
+        if (defaultOperator != DEFAULT_OPERATOR) {
+            builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), this.defaultOperator.name().toLowerCase(Locale.ROOT));
+        }
         if (this.analyzer != null) {
             builder.field(ANALYZER_FIELD.getPreferredName(), this.analyzer);
         }
         if (this.quoteAnalyzer != null) {
             builder.field(QUOTE_ANALYZER_FIELD.getPreferredName(), this.quoteAnalyzer);
         }
-        builder.field(MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), this.maxDeterminizedStates);
+        if (this.maxDeterminizedStates != DEFAULT_MAX_DETERMINED_STATES) {
+            builder.field(MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), this.maxDeterminizedStates);
+        }
         if (this.allowLeadingWildcard != null) {
             builder.field(ALLOW_LEADING_WILDCARD_FIELD.getPreferredName(), this.allowLeadingWildcard);
         }
-        builder.field(ENABLE_POSITION_INCREMENTS_FIELD.getPreferredName(), this.enablePositionIncrements);
-        this.fuzziness.toXContent(builder, params);
-        builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), this.fuzzyPrefixLength);
-        builder.field(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), this.fuzzyMaxExpansions);
+        if (this.enablePositionIncrements != DEFAULT_ENABLE_POSITION_INCREMENTS) {
+            builder.field(ENABLE_POSITION_INCREMENTS_FIELD.getPreferredName(), this.enablePositionIncrements);
+        }
+        if (this.fuzziness != DEFAULT_FUZZINESS) {
+            this.fuzziness.toXContent(builder, params);
+        }
+        if (this.fuzzyPrefixLength != DEFAULT_FUZZY_PREFIX_LENGTH) {
+            builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), this.fuzzyPrefixLength);
+        }
+        if (this.fuzzyMaxExpansions != DEFAULT_FUZZY_MAX_EXPANSIONS) {
+            builder.field(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), this.fuzzyMaxExpansions);
+        }
         if (this.fuzzyRewrite != null) {
             builder.field(FUZZY_REWRITE_FIELD.getPreferredName(), this.fuzzyRewrite);
         }
-        builder.field(PHRASE_SLOP_FIELD.getPreferredName(), this.phraseSlop);
+        if (this.phraseSlop != DEFAULT_PHRASE_SLOP) {
+            builder.field(PHRASE_SLOP_FIELD.getPreferredName(), this.phraseSlop);
+        }
         if (this.analyzeWildcard != null) {
             builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), this.analyzeWildcard);
         }
@@ -614,10 +624,16 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (this.timeZone != null) {
             builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getId());
         }
-        builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);
-        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
-        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
-        printBoostAndQueryName(builder);
+        if (this.escape != DEFAULT_ESCAPE) {
+            builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);
+        }
+        if (this.autoGenerateSynonymsPhraseQuery != true) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
+        }
+        if (this.fuzzyTranspositions != DEFAULT_FUZZY_TRANSPOSITIONS) {
+            builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -951,7 +967,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

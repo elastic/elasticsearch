@@ -1,0 +1,31 @@
+{
+  "ml.clear_trained_model_deployment_cache":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/clear-trained-model-deployment-cache.html",
+      "description":"Clear the cached results from a trained model deployment"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/deployment/cache/_clear",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The unique identifier of the trained model.",
+              "required":true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

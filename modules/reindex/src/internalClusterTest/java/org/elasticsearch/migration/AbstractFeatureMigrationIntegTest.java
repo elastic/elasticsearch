@@ -10,6 +10,7 @@ package org.elasticsearch.migration;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -41,7 +42,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -65,13 +65,12 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final String INTERNAL_MANAGED_INDEX_NAME = ".int-man-old";
     static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
     static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
-    public static final Version NEEDS_UPGRADE_VERSION = Version.V_7_0_0;
+    public static final Version NEEDS_UPGRADE_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.previousMajor();
 
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
@@ -80,7 +79,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setIndexPattern(".int-unman-*")
         .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
@@ -117,11 +115,28 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
     static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
+    public static final SystemIndexDescriptor KIBANA_MOCK_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".kibana_*")
+        .setDescription("Kibana saved objects system index")
+        .setAliasName(".kibana")
+        .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(Collections.emptyList())
+        .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
+        .setPriorSystemIndexDescriptors(Collections.emptyList())
+        .setAllowsTemplates()
+        .build();
+
     protected String masterAndDataNode;
     protected String masterName;
 
     @Before
     public void setup() {
+        assumeTrue(
+            "We can only create the test indices we need if they're in the previous major version",
+            NEEDS_UPGRADE_VERSION.onOrAfter(Version.CURRENT.previousMajor())
+        );
+
         internalCluster().setBootstrapMasterNodeIndex(0);
         masterName = internalCluster().startMasterOnlyNode();
         masterAndDataNode = internalCluster().startNode();
@@ -142,10 +157,12 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             descriptor.getIndexPattern(),
             endsWith("*")
         );
-        String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
+        String indexName = descriptor.isAutomaticallyManaged()
+            ? descriptor.getPrimaryIndex()
+            : descriptor.getIndexPattern().replace("*", "old");
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
+        if (descriptor.isAutomaticallyManaged() == false || SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
             // unmanaged
             createRequest.setSettings(
                 createSettings(
@@ -162,7 +179,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
                     .build()
             );
         }
-        if (descriptor.getMappings() == null) {
+        if (descriptor.isAutomaticallyManaged() == false) {
             createRequest.setMapping(createMapping(false, descriptor.isInternal()));
         }
         CreateIndexResponse response = createRequest.get();
@@ -263,7 +280,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED);
+            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED, KIBANA_MOCK_INDEX_DESCRIPTOR);
         }
 
         @Override

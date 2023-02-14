@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -23,143 +21,58 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_REF;
 
 public class InternalCategorizationAggregation extends InternalMultiBucketAggregation<
     InternalCategorizationAggregation,
     InternalCategorizationAggregation.Bucket> {
 
-    // Carries state allowing for delayed reduction of the bucket
-    // This allows us to keep from accidentally calling "reduce" on the sub-aggs more than once
-    private static class DelayedCategorizationBucket {
-        private final BucketKey key;
-        private long docCount;
-        private final List<Bucket> toReduce;
-
-        DelayedCategorizationBucket(BucketKey key, List<Bucket> toReduce, long docCount) {
-            this.key = key;
-            this.toReduce = new ArrayList<>(toReduce);
-            this.docCount = docCount;
-        }
-
-        public long getDocCount() {
-            return docCount;
-        }
-
-        public Bucket reduce(BucketKey bucketKey, AggregationReduceContext reduceContext) {
-            List<InternalAggregations> innerAggs = new ArrayList<>(toReduce.size());
-            long totalDocCount = 0;
-            for (Bucket bucket : toReduce) {
-                innerAggs.add(bucket.aggregations);
-                totalDocCount += bucket.docCount;
-            }
-            return new Bucket(bucketKey, totalDocCount, InternalAggregations.reduce(innerAggs, reduceContext));
-        }
-
-        public DelayedCategorizationBucket add(Bucket bucket) {
-            this.docCount += bucket.docCount;
-            this.toReduce.add(bucket);
-            return this;
-        }
-
-        public DelayedCategorizationBucket add(DelayedCategorizationBucket bucket) {
-            this.docCount += bucket.docCount;
-            this.toReduce.addAll(bucket.toReduce);
-            return this;
-        }
-    }
-
-    static class BucketCountPriorityQueue extends PriorityQueue<Bucket> {
-        BucketCountPriorityQueue(int size) {
-            super(size);
-        }
-
-        @Override
-        protected boolean lessThan(Bucket a, Bucket b) {
-            return a.docCount < b.docCount;
-        }
-    }
-
-    static class BucketKey implements ToXContentFragment, Writeable, Comparable<BucketKey> {
+    static class BucketKey implements ToXContentFragment, Comparable<BucketKey> {
 
         private final BytesRef[] key;
 
-        static BucketKey withCollapsedWildcards(BytesRef[] key) {
-            if (key.length <= 1) {
-                return new BucketKey(key);
-            }
-            List<BytesRef> collapsedWildCards = new ArrayList<>();
-            boolean previousTokenWildCard = false;
-            for (BytesRef token : key) {
-                if (token.equals(WILD_CARD_REF)) {
-                    if (previousTokenWildCard == false) {
-                        previousTokenWildCard = true;
-                        collapsedWildCards.add(WILD_CARD_REF);
-                    }
-                } else {
-                    previousTokenWildCard = false;
-                    collapsedWildCards.add(token);
-                }
-            }
-            if (collapsedWildCards.size() == key.length) {
-                return new BucketKey(key);
-            }
-            return new BucketKey(collapsedWildCards.toArray(BytesRef[]::new));
+        BucketKey(SerializableTokenListCategory serializableCategory) {
+            this.key = serializableCategory.getKeyTokens();
         }
 
         BucketKey(BytesRef[] key) {
             this.key = key;
         }
 
-        BucketKey(StreamInput in) throws IOException {
-            key = in.readArray(StreamInput::readBytesRef, BytesRef[]::new);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(asString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeArray(StreamOutput::writeBytesRef, key);
-        }
-
-        public String asString() {
-            StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < key.length - 1; i++) {
-                builder.append(key[i].utf8ToString()).append(" ");
-            }
-            builder.append(key[key.length - 1].utf8ToString());
-            return builder.toString();
+            return builder.value(toString());
         }
 
         @Override
         public String toString() {
-            return asString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            BucketKey bucketKey = (BucketKey) o;
-            return Arrays.equals(key, bucketKey.key);
+            return Arrays.stream(key).map(BytesRef::utf8ToString).collect(Collectors.joining(" "));
         }
 
         @Override
         public int hashCode() {
             return Arrays.hashCode(key);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == this) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            BucketKey that = (BucketKey) other;
+            return Arrays.equals(this.key, that.key);
         }
 
         public BytesRef[] keyAsTokens() {
@@ -170,45 +83,70 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         public int compareTo(BucketKey o) {
             return Arrays.compare(key, o.key);
         }
-
     }
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
         implements
             MultiBucketsAggregation.Bucket,
             Comparable<Bucket> {
-        // Used on the shard level to keep track of sub aggregations
-        long bucketOrd;
 
-        final BucketKey key;
-        final long docCount;
-        InternalAggregations aggregations;
+        private final SerializableTokenListCategory serializableCategory;
+        private final BucketKey key;
+        private long bucketOrd;
+        private InternalAggregations aggregations;
 
-        public Bucket(BucketKey key, long docCount, InternalAggregations aggregations) {
-            this.key = key;
-            this.docCount = docCount;
-            this.aggregations = aggregations;
+        public Bucket(SerializableTokenListCategory serializableCategory, long bucketOrd) {
+            this(serializableCategory, bucketOrd, InternalAggregations.EMPTY);
+        }
+
+        public Bucket(SerializableTokenListCategory serializableCategory, long bucketOrd, InternalAggregations aggregations) {
+            this.serializableCategory = serializableCategory;
+            this.key = new BucketKey(serializableCategory);
+            this.bucketOrd = bucketOrd;
+            this.aggregations = Objects.requireNonNull(aggregations);
         }
 
         public Bucket(StreamInput in) throws IOException {
-            key = new BucketKey(in);
-            docCount = in.readVLong();
+            // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+            if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+                throw new ElasticsearchException(
+                    "["
+                        + CategorizeTextAggregationBuilder.NAME
+                        + "] aggregation cannot be used in a cluster where some nodes have version ["
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                        + "] or higher and others have a version before this"
+                );
+            }
+            serializableCategory = new SerializableTokenListCategory(in);
+            key = new BucketKey(serializableCategory);
+            bucketOrd = -1;
             aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            key.writeTo(out);
-            out.writeVLong(getDocCount());
+            // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+            if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+                throw new ElasticsearchException(
+                    "["
+                        + CategorizeTextAggregationBuilder.NAME
+                        + "] aggregation cannot be used in a cluster where some nodes have version ["
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                        + "] or higher and others have a version before this"
+                );
+            }
+            serializableCategory.writeTo(out);
             aggregations.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), serializableCategory.getNumMatches());
             builder.field(CommonFields.KEY.getPreferredName());
             key.toXContent(builder, params);
+            builder.field(CategoryDefinition.REGEX.getPreferredName(), serializableCategory.getRegex());
+            builder.field(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(), serializableCategory.maxMatchingStringLen());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -225,12 +163,12 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         @Override
         public String getKeyAsString() {
-            return key.asString();
+            return key.toString();
         }
 
         @Override
         public long getDocCount() {
-            return docCount;
+            return serializableCategory.getNumMatches();
         }
 
         @Override
@@ -238,22 +176,37 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return aggregations;
         }
 
+        void setAggregations(InternalAggregations aggregations) {
+            this.aggregations = aggregations;
+        }
+
+        long getBucketOrd() {
+            return bucketOrd;
+        }
+
+        SerializableTokenListCategory getSerializableCategory() {
+            return serializableCategory;
+        }
+
         @Override
         public String toString() {
-            return "Bucket{" + "key=" + getKeyAsString() + ", docCount=" + docCount + ", aggregations=" + aggregations.asMap() + "}\n";
+            return "Bucket{key="
+                + getKeyAsString()
+                + ", docCount="
+                + serializableCategory.getNumMatches()
+                + ", aggregations="
+                + aggregations.asMap()
+                + "}\n";
         }
 
         @Override
-        public int compareTo(Bucket o) {
-            return key.compareTo(o.key);
+        public int compareTo(Bucket other) {
+            return Long.signum(this.serializableCategory.getNumMatches() - other.serializableCategory.getNumMatches());
         }
-
     }
 
     private final List<Bucket> buckets;
-    private final int maxUniqueTokens;
     private final int similarityThreshold;
-    private final int maxMatchTokens;
     private final int requiredSize;
     private final long minDocCount;
 
@@ -261,28 +214,22 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         String name,
         int requiredSize,
         long minDocCount,
-        int maxUniqueTokens,
-        int maxMatchTokens,
         int similarityThreshold,
         Map<String, Object> metadata
     ) {
-        this(name, requiredSize, minDocCount, maxUniqueTokens, maxMatchTokens, similarityThreshold, metadata, new ArrayList<>());
+        this(name, requiredSize, minDocCount, similarityThreshold, metadata, new ArrayList<>());
     }
 
     protected InternalCategorizationAggregation(
         String name,
         int requiredSize,
         long minDocCount,
-        int maxUniqueTokens,
-        int maxMatchTokens,
         int similarityThreshold,
         Map<String, Object> metadata,
         List<Bucket> buckets
     ) {
         super(name, metadata);
         this.buckets = buckets;
-        this.maxUniqueTokens = maxUniqueTokens;
-        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.minDocCount = minDocCount;
         this.requiredSize = requiredSize;
@@ -290,8 +237,16 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     public InternalCategorizationAggregation(StreamInput in) throws IOException {
         super(in);
-        this.maxUniqueTokens = in.readVInt();
-        this.maxMatchTokens = in.readVInt();
+        // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+        if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            throw new ElasticsearchException(
+                "["
+                    + CategorizeTextAggregationBuilder.NAME
+                    + "] aggregation cannot be used in a cluster where some nodes have version ["
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                    + "] or higher and others have a version before this"
+            );
+        }
         this.similarityThreshold = in.readVInt();
         this.buckets = in.readList(Bucket::new);
         this.requiredSize = readSize(in);
@@ -300,8 +255,16 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxUniqueTokens);
-        out.writeVInt(maxMatchTokens);
+        // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+        if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            throw new ElasticsearchException(
+                "["
+                    + CategorizeTextAggregationBuilder.NAME
+                    + "] aggregation cannot be used in a cluster where some nodes have version ["
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                    + "] or higher and others have a version before this"
+            );
+        }
         out.writeVInt(similarityThreshold);
         out.writeList(buckets);
         writeSize(requiredSize, out);
@@ -319,27 +282,18 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalCategorizationAggregation create(List<Bucket> bucketList) {
-        return new InternalCategorizationAggregation(
-            name,
-            requiredSize,
-            minDocCount,
-            maxUniqueTokens,
-            maxMatchTokens,
-            similarityThreshold,
-            super.metadata,
-            bucketList
-        );
+    public InternalCategorizationAggregation create(List<Bucket> buckets) {
+        return new InternalCategorizationAggregation(name, requiredSize, minDocCount, similarityThreshold, super.metadata, buckets);
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.key, prototype.docCount, aggregations);
+        return new Bucket(prototype.serializableCategory, prototype.bucketOrd, aggregations);
     }
 
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        throw new IllegalArgumentException("For optimization purposes, typical bucket path is not supported");
+        throw new UnsupportedOperationException("For optimization purposes, typical bucket path is not supported");
     }
 
     @Override
@@ -355,79 +309,38 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
-            CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(
-                maxUniqueTokens,
-                maxMatchTokens,
-                similarityThreshold
+            TokenListCategorizer categorizer = new TokenListCategorizer(
+                hash,
+                null, // part-of-speech dictionary is not needed for the reduce phase as weights are already decided
+                (float) similarityThreshold / 100.0f
             );
-            // TODO: Could we do a merge sort similar to terms?
-            // It would require us returning partial reductions sorted by key, not by doc_count
-            // First, make sure we have all the counts for equal categorizations
-            Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>();
+            // Merge all the categories into the newly created empty categorizer to combine them
             for (InternalAggregation aggregation : aggregations) {
                 InternalCategorizationAggregation categorizationAggregation = (InternalCategorizationAggregation) aggregation;
                 for (Bucket bucket : categorizationAggregation.buckets) {
-                    reduced.computeIfAbsent(bucket.key, key -> new DelayedCategorizationBucket(key, new ArrayList<>(1), 0L)).add(bucket);
-                }
-            }
-
-            reduced.values().stream().sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed()).forEach(bucket ->
-            // Parse tokens takes document count into account and merging on smallest groups
-            categorizationTokenTree.parseTokens(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount));
-            categorizationTokenTree.mergeSmallestChildren();
-            Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
-            for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
-                TextCategorization group = categorizationTokenTree.parseTokensConst(hash.getIds(delayedBucket.key.keyAsTokens()))
-                    .orElseThrow(
-                        () -> new AggregationExecutionException(
-                            "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"
-                        )
-                    );
-                BytesRef[] categoryTokens = hash.getDeeps(group.getCategorization());
-
-                BucketKey key = reduceContext.isFinalReduce()
-                    ? BucketKey.withCollapsedWildcards(categoryTokens)
-                    : new BucketKey(categoryTokens);
-                mergedBuckets.computeIfAbsent(
-                    key,
-                    k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
-                ).add(delayedBucket);
-            }
-
-            final int size = reduceContext.isFinalReduce() == false ? mergedBuckets.size() : Math.min(requiredSize, mergedBuckets.size());
-            final PriorityQueue<Bucket> pq = new BucketCountPriorityQueue(size);
-            for (Map.Entry<BucketKey, DelayedCategorizationBucket> keyAndBuckets : mergedBuckets.entrySet()) {
-                final BucketKey key = keyAndBuckets.getKey();
-                DelayedCategorizationBucket bucket = keyAndBuckets.getValue();
-                Bucket newBucket = bucket.reduce(key, reduceContext);
-                if ((newBucket.docCount >= minDocCount) || reduceContext.isFinalReduce() == false) {
-                    Bucket removed = pq.insertWithOverflow(newBucket);
-                    if (removed == null) {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
-                    } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                    categorizer.mergeWireCategory(bucket.serializableCategory).addSubAggs((InternalAggregations) bucket.getAggregations());
+                    if (reduceContext.isCanceled().get()) {
+                        break;
                     }
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(newBucket));
                 }
             }
-            Bucket[] bucketList = new Bucket[pq.size()];
-            for (int i = pq.size() - 1; i >= 0; i--) {
-                bucketList[i] = pq.pop();
-            }
+            final int size = reduceContext.isFinalReduce()
+                ? Math.min(requiredSize, categorizer.getCategoryCount())
+                : categorizer.getCategoryCount();
+            Bucket[] mergedBuckets = categorizer.toOrderedBuckets(size, reduceContext.isFinalReduce() ? minDocCount : 0, reduceContext);
+            // TODO: not sure if this next line is correct - if we discarded some categories due to size or minDocCount is this handled?
+            reduceContext.consumeBucketsAndMaybeBreak(mergedBuckets.length);
             // Keep the top categories top, but then sort by the key for those with duplicate counts
             if (reduceContext.isFinalReduce()) {
-                Arrays.sort(bucketList, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
+                Arrays.sort(mergedBuckets, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
             }
             return new InternalCategorizationAggregation(
                 name,
                 requiredSize,
                 minDocCount,
-                maxUniqueTokens,
-                maxMatchTokens,
                 similarityThreshold,
                 metadata,
-                Arrays.asList(bucketList)
+                Arrays.asList(mergedBuckets)
             );
         }
     }
@@ -438,15 +351,13 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             name,
             requiredSize,
             minDocCount,
-            maxUniqueTokens,
-            maxMatchTokens,
             similarityThreshold,
             metadata,
             buckets.stream()
                 .map(
                     b -> new Bucket(
-                        b.key,
-                        samplingContext.scaleUp(b.docCount),
+                        new SerializableTokenListCategory(b.getSerializableCategory(), samplingContext.scaleUp(b.getDocCount())),
+                        b.getBucketOrd(),
                         InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
                     )
                 )
@@ -454,16 +365,8 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         );
     }
 
-    public int getMaxUniqueTokens() {
-        return maxUniqueTokens;
-    }
-
     public int getSimilarityThreshold() {
         return similarityThreshold;
-    }
-
-    public int getMaxMatchTokens() {
-        return maxMatchTokens;
     }
 
     public int getRequiredSize() {

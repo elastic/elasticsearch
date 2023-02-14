@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -16,7 +15,10 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,6 +32,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
 
@@ -80,8 +85,18 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        return clusterService.operationRouting()
+        ShardIterator shards = clusterService.operationRouting()
             .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+        // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
+        // implemented for search shards.
+        if (DiscoveryNode.isStateless(clusterService.getSettings())) {
+            return new PlainShardIterator(
+                shards.shardId(),
+                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
+            );
+        } else {
+            return shards;
+        }
     }
 
     @Override
@@ -116,15 +131,26 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             MultiGetRequest.Item item = request.items.get(i);
             try {
                 GetResult getResult = indexShard.getService()
-                    .get(item.id(), item.storedFields(), request.realtime(), item.version(), item.versionType(), item.fetchSourceContext());
+                    .get(
+                        item.id(),
+                        item.storedFields(),
+                        request.realtime(),
+                        item.version(),
+                        item.versionType(),
+                        item.fetchSourceContext(),
+                        request.isForceSyntheticSource()
+                    );
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (RuntimeException e) {
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
+                    logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
                 }
+            } catch (IOException e) {
+                logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
+                response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
             }
         }
 

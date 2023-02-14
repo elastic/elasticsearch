@@ -15,11 +15,13 @@ import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,8 +50,8 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginType;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
@@ -74,6 +77,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -118,6 +122,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             .add(masterNode);
 
         when(clusterState.nodes()).thenReturn(builder.build());
+        when(clusterState.toXContentChunked(any())).thenReturn(Collections.emptyIterator());
     }
 
     @Override
@@ -275,7 +280,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             transportAddress,
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Version.CURRENT,
+            "_external_id"
         );
 
         final ClusterState testClusterState = ClusterState.builder(testClusterName)
@@ -324,20 +330,22 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
-        final PluginInfo pluginInfo = new PluginInfo(
+        final PluginDescriptor pluginDescriptor = new PluginDescriptor(
             "_plugin",
             "_plugin_desc",
             "_plugin_version",
             Version.CURRENT,
             "1.8",
             "_plugin_class",
+            null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
+            false,
+            false,
             false
         );
-        when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
+        final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);
+        when(mockPluginsAndModules.getPluginInfos()).thenReturn(List.of(pluginRuntimeInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
         when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
@@ -393,7 +401,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             shardId,
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            unassignedInfo
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);
@@ -405,6 +414,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeInfo()).thenReturn(mockNodeInfo);
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
+        when(mockNodeResponse.searchUsageStats()).thenReturn(new SearchUsageStats());
 
         final Metadata metadata = testClusterState.metadata();
         final ClusterStatsResponse clusterStatsResponse = new ClusterStatsResponse(
@@ -415,7 +425,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             emptyList(),
             MappingStats.of(metadata, () -> {}),
             AnalysisStats.of(metadata, () -> {}),
-            VersionStats.of(metadata, singletonList(mockNodeResponse))
+            VersionStats.of(metadata, singletonList(mockNodeResponse)),
+            ClusterSnapshotStats.EMPTY
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -437,7 +448,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         );
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
-        final String expectedJson = """
+        Object[] args = new Object[] {
+            needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
+            mockNodeVersion,
+            Version.CURRENT,
+            Version.CURRENT,
+            apmIndicesExist };
+        final String expectedJson = Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-07T12:03:22.133Z",
@@ -537,6 +554,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "file_sizes": {}
                   },
                   "mappings": {
+                    "total_field_count" : 0,
+                    "total_deduplicated_field_count" : 0,
+                    "total_deduplicated_mapping_size_in_bytes" : 0,
                     "field_types": [],
                     "runtime_field_types": []
                   },
@@ -550,7 +570,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_filters": [],
                     "built_in_analyzers": []
                   },
-                  "versions": []
+                  "versions": [],
+                  "search" : {
+                    "total" : 0,
+                    "queries" : {},
+                    "sections" : {}
+                  }
                 },
                 "nodes": {
                   "count": {
@@ -562,10 +587,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "data_frozen": 0,
                     "data_hot": 0,
                     "data_warm": 0,
+                    "index": 0,
                     "ingest": 0,
                     "master": 1,
                     "ml": 0,
                     "remote_cluster_client": 0,
+                    "search": 0,
                     "transform": 0,
                     "voting_only": 0
                   },
@@ -647,7 +674,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "extended_plugins": [],
                       "has_native_controller": false,
                       "licensed": false,
-                      "type": "isolated"
+                      "is_official": false
                     }
                   ],
                   "network_types": {
@@ -694,6 +721,16 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "limit_in_bytes": 0
                     }
                   }
+                },
+                "snapshots": {
+                  "current_counts": {
+                    "snapshots": 0,
+                    "shard_snapshots": 0,
+                    "snapshot_deletions": 0,
+                    "concurrent_operations": 0,
+                    "cleanups": 0
+                  },
+                  "repositories": {}
                 }
               },
               "cluster_state": {
@@ -708,12 +745,14 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "name": "_node_name",
                     "ephemeral_id": "_ephemeral_id",
                     "transport_address": "0.0.0.0:9300",
+                    "external_id": "_external_id",
                     "attributes": {
                       "attr": "value"
                     },
                     "roles": [
                       "master"
-                    ]
+                    ],
+                    "version": "%s"
                   }
                 }
               },
@@ -736,7 +775,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 }
               }
-            }""".formatted(needToEnableTLS ? ",\"cluster_needs_tls\": true" : "", mockNodeVersion, Version.CURRENT, apmIndicesExist);
+            }""", args);
         assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
     }
 

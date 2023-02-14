@@ -9,7 +9,9 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,7 +40,7 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.humanReadable(true);
             builder.startObject();
-            sdip.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(sdip).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             String json = Strings.toString(builder);
             assertThat(json, equalTo(XContentHelper.stripWhitespace("""
@@ -55,5 +57,23 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
                   ]
                 }""")));
         }
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            SnapshotDeletionsInProgress.of(
+                randomList(
+                    10,
+                    () -> new SnapshotDeletionsInProgress.Entry(
+                        Collections.emptyList(),
+                        randomAlphaOfLength(10),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomFrom(SnapshotDeletionsInProgress.State.values())
+                    )
+                )
+            ),
+            instance -> instance.getEntries().size() + 2
+        );
     }
 }

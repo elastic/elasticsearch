@@ -1,0 +1,94 @@
+setup:
+
+  - skip:
+      version: " - 8.2.99"
+      reason: "version script field sorting support was added in 8.3.0"
+
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          mappings:
+            properties:
+              ver:
+                type: version
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "ver": "1.0.0" }
+          { "index": {"_id" : "2"} }
+          { "ver": "1.2.3-abc+def" }
+          { "index": {"_id" : "3"} }
+          { "ver": "1.2.3.4.5" }
+          { "index": {"_id" : "4"} }
+          { "ver": ["6.7.8", "5.4.3"] }
+          { "index": {"_id" : "5"} }
+          { "ver": "1.12.3" }
+
+
+---
+"Sort by Version script value (doc api)":
+  - do:
+      search:
+        index: test1
+        body:
+          fields: [
+            {
+              field: ver
+            }
+          ]
+          sort: [
+            {
+              _script: {
+                script:{
+                  lang: "painless",
+                  source: "doc['ver'].value"
+                },
+                type: "version"
+              }
+            }
+
+          ]
+
+  - match: { hits.hits.0.fields.ver.0: "1.0.0" }
+  - match: { hits.hits.1.fields.ver.0: "1.2.3-abc+def" }
+  - match: { hits.hits.2.fields.ver.0: "1.2.3.4.5" }
+  - match: { hits.hits.3.fields.ver.0: "1.12.3" }
+  - match: { hits.hits.4.fields.ver.0: "6.7.8" }
+
+
+---
+"Sort by Version script value (field api)":
+  - do:
+      search:
+        index: test1
+        body:
+          fields: [
+            {
+              field: ver
+            }
+          ]
+          sort: [
+            {
+              _script: {
+                script:{
+                  lang: "painless",
+                  source: "field('ver').get(new Version('0'))"
+                },
+                type: "version",
+                order: "desc"
+              }
+            }
+
+          ]
+
+  - match: { hits.hits.0.fields.ver.0: "6.7.8" }
+  - match: { hits.hits.1.fields.ver.0: "1.12.3" }
+  - match: { hits.hits.2.fields.ver.0: "1.2.3.4.5" }
+  - match: { hits.hits.3.fields.ver.0: "1.2.3-abc+def" }
+  - match: { hits.hits.4.fields.ver.0: "1.0.0" }
+

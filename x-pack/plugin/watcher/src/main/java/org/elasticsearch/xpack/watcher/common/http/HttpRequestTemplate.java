@@ -20,6 +20,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
@@ -192,7 +194,12 @@ public class HttpRequestTemplate implements ToXContentObject {
         if (headers != null) {
             builder.startObject(HttpRequest.Field.HEADERS.getPreferredName());
             for (Map.Entry<String, TextTemplate> entry : headers.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue(), params);
+                String key = entry.getKey();
+                if (WatcherParams.hideSecrets(params) && "Authorization".equalsIgnoreCase(key)) {
+                    builder.field(key, WatcherXContentParser.REDACTED_PASSWORD);
+                } else {
+                    builder.field(key, entry.getValue(), params);
+                }
             }
             builder.endObject();
         }

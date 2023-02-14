@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -310,9 +311,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int[] docIdsToLoad();
 
-    public abstract int docIdsToLoadSize();
-
-    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize);
+    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad);
 
     public abstract DfsSearchResult dfsResult();
 
@@ -370,4 +369,9 @@ public abstract class SearchContext implements Releasable {
     }
 
     public abstract ReaderContext readerContext();
+
+    /**
+     * Build something to load source {@code _source}.
+     */
+    public abstract SourceLoader newSourceLoader();
 }

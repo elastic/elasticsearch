@@ -17,9 +17,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -49,13 +49,13 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + """
+        return super.configUsers() + Strings.format("""
             user1:%s
             user2:%s
             user3:%s
             user4:%s
             user5:%s
-            """.formatted(usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override
@@ -268,28 +268,28 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
             ).admin().indices().prepareGetMappings("test").get();
-            assertExpectedFields(getMappingsResponse.getMappings(), "field1");
+            assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
             ).admin().indices().prepareGetMappings("test").get();
-            assertExpectedFields(getMappingsResponse.getMappings(), "field2");
+            assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field2");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
             ).admin().indices().prepareGetMappings("test").get();
-            assertExpectedFields(getMappingsResponse.getMappings(), "field1");
+            assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD))
             ).admin().indices().prepareGetMappings("test").get();
-            assertExpectedFields(getMappingsResponse.getMappings(), "field1", "field2");
+            assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1", "field2");
         }
     }
 
@@ -302,25 +302,25 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
             ).admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field1");
+            assertExpectedMetadataFields(getIndexResponse.getMappings(), "field1");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
             ).admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field2");
+            assertExpectedMetadataFields(getIndexResponse.getMappings(), "field2");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
             ).admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field1");
+            assertExpectedMetadataFields(getIndexResponse.getMappings(), "field1");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD))
             ).admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field1", "field2");
+            assertExpectedMetadataFields(getIndexResponse.getMappings(), "field1", "field2");
         }
     }
 
@@ -403,7 +403,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertExpectedFields(ImmutableOpenMap<String, MappingMetadata> mappings, String... fields) {
+    private static void assertExpectedMetadataFields(Map<String, MappingMetadata> mappings, String... fields) {
         Map<String, Object> sourceAsMap = mappings.get("test").getSourceAsMap();
         assertEquals(1, sourceAsMap.size());
         Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");

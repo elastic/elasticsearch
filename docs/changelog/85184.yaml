@@ -1,5 +1,0 @@
-pr: 85184
-summary: Optimize `ImmutableOpenMap.Builder`
-area: Infra/Core
-type: enhancement
-issues: []

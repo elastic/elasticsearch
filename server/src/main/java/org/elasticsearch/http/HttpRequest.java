@@ -10,10 +10,10 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -56,14 +56,6 @@ public interface HttpRequest {
         return null;
     }
 
-    default List<String> allHeaders(String name) {
-        List<String> values = getHeaders().get(name);
-        if (values != null) {
-            return Collections.unmodifiableList(values);
-        }
-        return null;
-    }
-
     List<String> strictCookies();
 
     HttpVersion protocolVersion();
@@ -74,6 +66,8 @@ public interface HttpRequest {
      * Create an http response from this request and the supplied status and content.
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
+
+    HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content);
 
     @Nullable
     Exception getInboundException();

@@ -16,7 +16,7 @@ dependencies {
     testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 testClusters.configureEach {
   testDistribution = 'default'

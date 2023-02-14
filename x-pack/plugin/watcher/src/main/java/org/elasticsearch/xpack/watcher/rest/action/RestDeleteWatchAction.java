@@ -12,7 +12,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -52,7 +51,7 @@ public class RestDeleteWatchAction extends BaseRestHandler {
                     .field("found", response.isFound())
                     .endObject();
                 RestStatus status = response.isFound() ? OK : NOT_FOUND;
-                return new BytesRestResponse(status, builder);
+                return new RestResponse(status, builder);
             }
         });
     }

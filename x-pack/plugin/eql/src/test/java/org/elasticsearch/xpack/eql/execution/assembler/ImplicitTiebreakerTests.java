@@ -73,7 +73,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             }
 
             long sortValue = implicitTiebreakerValues.get(ordinal);
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(
                     new Long[] { (long) ordinal, sortValue },
@@ -92,7 +92,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                    hits.add(new SearchHit(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
@@ -102,14 +102,14 @@ public class ImplicitTiebreakerTests extends ESTestCase {
 
     public void testImplicitTiebreakerBeingSet() {
         QueryClient client = new TestQueryClient();
-        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
+        List<SequenceCriterion> criteria = new ArrayList<>(stages);
         boolean descending = randomBoolean();
         boolean criteriaDescending = descending;
 
         for (int i = 0; i < stages; i++) {
             final int j = i;
             criteria.add(
-                new Criterion<BoxedQueryRequest>(
+                new SequenceCriterion(
                     i,
                     new BoxedQueryRequest(
                         () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),

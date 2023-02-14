@@ -10,10 +10,10 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class CreateIndexResponseTests extends AbstractSerializingTestCase<CreateIndexResponse> {
+public class CreateIndexResponseTests extends AbstractXContentSerializingTestCase<CreateIndexResponse> {
 
     @Override
     protected CreateIndexResponse createTestInstance() {

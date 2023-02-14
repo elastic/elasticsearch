@@ -112,11 +112,6 @@ public class EWMATrackingEsThreadPoolExecutorTests extends ESTestCase {
         }
 
         @Override
-        public long getTotalNanos() {
-            return timeTaken;
-        }
-
-        @Override
         public long getTotalExecutionNanos() {
             return timeTaken;
         }

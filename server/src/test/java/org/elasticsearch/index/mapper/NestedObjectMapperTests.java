@@ -1429,4 +1429,89 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             assertThat(e.getMessage(), containsString("time_series_dimension can't be configured in nested field [nested.object.foo]"));
         }
     }
+
+    public void testNestedDoesNotSupportSubobjectsParameter() {
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                mapping(b -> b.startObject("nested1").field("type", "nested").field("subobjects", randomBoolean()).endObject())
+            )
+        );
+        assertEquals("Failed to parse mapping: Nested type [nested1] does not support [subobjects] parameter", exception.getMessage());
+    }
+
+    public void testIndexTemplatesMergeIncludes() throws IOException {
+        {
+            MapperService mapperService = createMapperService("""
+                { "_doc" : { "properties" : {
+                    "field" : {
+                        "type" : "nested",
+                        "include_in_root" : true,
+                        "properties" : {
+                            "text" : { "type" : "text" }
+                        }
+                    }
+                }}}
+                """);
+            merge(mapperService, MergeReason.INDEX_TEMPLATE, """
+                { "_doc" : { "properties" : {
+                    "field" : {
+                        "type" : "nested",
+                        "include_in_parent" : true,
+                        "properties" : {
+                            "text" : { "type" : "text" }
+                        }
+                    }
+                }}}
+                """);
+            assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+                {"type":"nested","include_in_parent":true,"properties":{"""));
+        }
+        {
+            MapperService mapperService = createMapperService("""
+                { "_doc" : { "properties" : {
+                    "field" : {
+                        "type" : "nested",
+                        "include_in_parent" : true,
+                        "properties" : {
+                            "text" : { "type" : "text" }
+                        }
+                    }
+                }}}
+                """);
+            merge(mapperService, MergeReason.INDEX_TEMPLATE, """
+                { "_doc" : { "properties" : {
+                    "field" : {
+                        "type" : "nested",
+                        "include_in_root" : true,
+                        "properties" : {
+                            "text" : { "type" : "text" }
+                        }
+                    }
+                }}}
+                """);
+            assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+                {"type":"nested","include_in_parent":true,"properties":{"""));
+        }
+    }
+
+    public void testMergeNested() {
+        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT).includeInParent(true)
+            .includeInRoot(true)
+            .build(MapperBuilderContext.root(false));
+        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT).includeInParent(false)
+            .includeInRoot(true)
+            .build(MapperBuilderContext.root(false));
+
+        MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper, MapperBuilderContext.root(false)));
+        assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
+
+        NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
+            secondMapper,
+            MapperService.MergeReason.INDEX_TEMPLATE,
+            MapperBuilderContext.root(false)
+        );
+        assertFalse(result.isIncludeInParent());
+        assertTrue(result.isIncludeInRoot());
+    }
 }

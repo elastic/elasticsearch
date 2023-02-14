@@ -1,14 +1,13 @@
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:s3-fixture')
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
 }
 
 restResources {
@@ -39,12 +38,12 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 's3-fixture-other')
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'test.s3.bucket', s3Bucket
   nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + BuildParams.testSeed : 'base_path'
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
 
   keystore 's3.client.searchable_snapshots.access_key', s3AccessKey
@@ -73,5 +72,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 tasks.register("s3ThirdPartyTest") {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }

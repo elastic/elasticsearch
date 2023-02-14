@@ -38,7 +38,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
-            .setting("remote_cluster.enabled", "true")
+            .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")

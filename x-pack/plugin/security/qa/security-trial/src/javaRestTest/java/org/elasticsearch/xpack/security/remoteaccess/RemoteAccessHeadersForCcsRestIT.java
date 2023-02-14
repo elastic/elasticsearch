@@ -408,7 +408,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         boolean success = false;
         final Settings settings = Settings.builder()
             .put("node.name", nodeName)
-            .put("remote_cluster.enabled", "true")
+            .put("remote_cluster_server.enabled", "true")
             .put("remote_cluster.port", "0")
             .put("xpack.security.remote_cluster_server.ssl.enabled", "false")
             .build();

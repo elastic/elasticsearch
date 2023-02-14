@@ -373,7 +373,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private void addKeystoreSettings() {
-            spec.getKeystoreSettings().forEach((key, value) -> {
+            spec.resolveKeystore().forEach((key, value) -> {
                 String input = spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()
                     ? value
                     : spec.getKeystorePassword() + "\n" + value;

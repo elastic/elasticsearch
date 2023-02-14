@@ -41,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
@@ -198,19 +197,10 @@ public class QueryPhase {
         LinkedList<QueryCollectorContext> collectors,
         boolean timeoutSet
     ) throws IOException {
-        QueryCollectorContext rankCollectorContext = null;
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext);
-        if (searchContext.rankContext() != null) {
-            // we need to use the original query or we may lose no match clauses as part of rewrite
-            query = searchContext.rankContext().updateQuery(searchContext.query());
-            // add in the rank collector just before top docs
-            rankCollectorContext = searchContext.rankContext().createQueryCollectorContext(query, searchContext);
-            collectors.add(createMultiCollectorContext(List.of(topDocsFactory.create(null), rankCollectorContext.create(null))));
-        } else {
-            // add the top docs collector, the first collector context in the chain
-            collectors.addFirst(topDocsFactory);
-        }
+        // add the top docs collector, the first collector context in the chain
+        collectors.addFirst(topDocsFactory);
 
         final Collector queryCollector;
         if (searchContext.getProfilers() != null) {
@@ -238,12 +228,6 @@ public class QueryPhase {
         }
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
-        }
-        if (rankCollectorContext != null) {
-            // we still need to process these when ranking because they
-            // were part of a MultiCollector which doesn't process its child collectors
-            rankCollectorContext.postProcess(queryResult);
-            topDocsFactory.postProcess(queryResult);
         }
         return topDocsFactory.shouldRescore();
     }

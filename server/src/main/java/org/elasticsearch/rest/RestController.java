@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
@@ -47,7 +48,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -551,11 +551,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    public void populateRequestThreadContext(Function<String, List<String>> requestHeaders, ThreadContext threadContext) {
+    public void populateRequestThreadContext(BasicHttpRequest request, ThreadContext threadContext) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
-            final List<String> headerValues = requestHeaders.apply(name);
+            final List<String> headerValues = request.getHeaders().get(name);
             if (headerValues != null && headerValues.isEmpty() == false) {
                 final List<String> distinctHeaderValues = headerValues.stream().distinct().toList();
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {

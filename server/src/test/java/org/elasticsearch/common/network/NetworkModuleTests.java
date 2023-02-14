@@ -16,6 +16,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
@@ -40,7 +41,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ESTestCase {
@@ -122,7 +122,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
+                BiConsumer<BasicHttpRequest, ThreadContext> dispatcherContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -169,7 +169,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
+                BiConsumer<BasicHttpRequest, ThreadContext> dispatcherContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -214,7 +214,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
+                BiConsumer<BasicHttpRequest, ThreadContext> dispatcherContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {

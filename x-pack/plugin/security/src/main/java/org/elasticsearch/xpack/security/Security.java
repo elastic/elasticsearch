@@ -49,6 +49,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.HttpHeadersAuthenticator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -1563,7 +1564,7 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        BiConsumer<Function<String, List<String>>, ThreadContext> dispatcherContext,
+        BiConsumer<BasicHttpRequest, ThreadContext> dispatcherContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -1624,7 +1625,7 @@ public class Security extends Plugin
             ) {
                 @Override
                 protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    dispatcherContext.accept(restRequest::getAllHeaderValues, threadContext);
+                    dispatcherContext.accept(restRequest.getHttpRequest(), threadContext);
                     populateClientCertificate.accept(restRequest, threadContext);
                     RemoteHostHeader.process(restRequest, threadContext);
                 }

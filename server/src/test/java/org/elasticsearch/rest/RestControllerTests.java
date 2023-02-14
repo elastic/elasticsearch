@@ -126,7 +126,7 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.2", Collections.singletonList("true"));
         restHeaders.put("header.3", Collections.singletonList("false"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
-        restController.populateRequestThreadContext(fakeRequest::getAllHeaderValues, threadContext);
+        restController.populateRequestThreadContext(fakeRequest.getHttpRequest(), threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
         assertEquals("true", threadContext.getHeader("header.1"));
@@ -197,7 +197,7 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
 
-        restController.populateRequestThreadContext(fakeRequest::getAllHeaderValues, threadContext);
+        restController.populateRequestThreadContext(fakeRequest.getHttpRequest(), threadContext);
 
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test

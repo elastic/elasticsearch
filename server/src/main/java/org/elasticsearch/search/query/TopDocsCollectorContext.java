@@ -98,13 +98,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        public Collector create(Collector in) {
+        Collector create(Collector in) {
             assert in == null;
             return collector;
         }
 
         @Override
-        protected void postProcess(QuerySearchResult result) {
+        void postProcess(QuerySearchResult result) {
             final TotalHits totalHitCount = hitCountSupplier.get();
             final TopDocs topDocs;
             if (sort != null) {
@@ -152,13 +152,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        public Collector create(Collector in) {
+        Collector create(Collector in) {
             assert in == null;
             return topDocsCollector;
         }
 
         @Override
-        protected void postProcess(QuerySearchResult result) throws IOException {
+        void postProcess(QuerySearchResult result) throws IOException {
             TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
             result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt);
         }
@@ -245,7 +245,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        public Collector create(Collector in) {
+        Collector create(Collector in) {
             assert in == null;
             return collector;
         }
@@ -263,7 +263,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        protected void postProcess(QuerySearchResult result) throws IOException {
+        void postProcess(QuerySearchResult result) {
             final TopDocsAndMaxScore topDocs = newTopDocs();
             result.topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats);
         }
@@ -288,7 +288,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        protected void postProcess(QuerySearchResult result) throws IOException {
+        void postProcess(QuerySearchResult result) {
             final TopDocsAndMaxScore topDocs = newTopDocs();
             if (scrollContext.totalHits == null) {
                 // first round

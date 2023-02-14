@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -126,12 +125,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
         final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
-        final Runnable releaseResourcesOnCancel = new RunOnce(() -> {
+        final Runnable releaseResourcesOnCancel = () -> {
             LOGGER.trace("clear index responses on cancelled");
             indexFailures.clear();
             indexResponses.clear();
             indexMappingHashToResponses.clear();
-        });
+        };
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();

@@ -36,20 +36,20 @@ public class BroadcastUnpromotableRequest extends ActionRequest implements Indic
      */
     final @Nullable IndexShardRoutingTable indexShardRoutingTable;
 
-    protected final String[] indices;
     protected final ShardId shardId;
+    protected final String[] indices;
 
     public BroadcastUnpromotableRequest(StreamInput in) throws IOException {
         super(in);
         indexShardRoutingTable = null;
-        indices = new String[] { in.readString() };
         shardId = new ShardId(in);
+        indices = new String[] { shardId.getIndex().getName() };
     }
 
     public BroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable) {
         this.indexShardRoutingTable = Objects.requireNonNull(indexShardRoutingTable, "index shard routing table is null");
-        this.indices = new String[] { indexShardRoutingTable.shardId().getIndex().getName() };
         this.shardId = indexShardRoutingTable.shardId();
+        this.indices = new String[] { this.shardId.getIndex().getName() };
     }
 
     public ShardId shardId() {
@@ -68,7 +68,6 @@ public class BroadcastUnpromotableRequest extends ActionRequest implements Indic
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(indices[0]);
         out.writeWriteable(shardId);
     }
 

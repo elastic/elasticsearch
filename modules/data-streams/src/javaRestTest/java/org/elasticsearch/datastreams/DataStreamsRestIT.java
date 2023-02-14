@@ -16,6 +16,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -425,4 +426,33 @@ public class DataStreamsRestIT extends ESRestTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    public void testDataStreamWithLifecycleFromTemplate() throws IOException {
+        // Create a template
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/lifecycle-template");
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "lifecycle-data-stream*" ],
+              "template": {
+                "aliases": {
+                  "logs": {}
+                },
+                "lifecycle": {
+                  "data_retention": "10d"
+                }
+              },
+              "data_stream": {}
+            }""");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/lifecycle-data-stream/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        Request getDataStreamRequest = new Request("GET", "_data_stream/lifecycle-data-stream");
+        Map<String, Object> getDataStreamResponse = entityAsMap(client().performRequest(getDataStreamRequest));
+        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) getDataStreamResponse.get("data_streams");
+        assertEquals(1, dataStreams.size());
+        assertEquals("10d", XContentMapValues.extractValue("lifecycle.data_retention", dataStreams.get(0)));
+    }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -116,13 +117,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        public static final ParseField DATASTREAMS_FIELD = new ParseField("data_streams");
+        public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
         public static class DataStreamInfo implements SimpleDiffable<DataStreamInfo>, ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
+            public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
             public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
             public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
@@ -140,6 +142,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final String ilmPolicyName;
             @Nullable
             private final TimeSeries timeSeries;
+            @Nullable
+            private final DataLifecycle lifecycle;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -148,11 +152,23 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 @Nullable String ilmPolicyName,
                 @Nullable TimeSeries timeSeries
             ) {
+                this(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries, null);
+            }
+
+            public DataStreamInfo(
+                DataStream dataStream,
+                ClusterHealthStatus dataStreamStatus,
+                @Nullable String indexTemplate,
+                @Nullable String ilmPolicyName,
+                @Nullable TimeSeries timeSeries,
+                @Nullable DataLifecycle lifecycle
+            ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
                 this.timeSeries = timeSeries;
+                this.lifecycle = lifecycle;
             }
 
             DataStreamInfo(StreamInput in) throws IOException {
@@ -161,7 +177,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
+                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
+                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
+                        ? in.readOptionalWriteable(DataLifecycle::new)
+                        : null
                 );
             }
 
@@ -188,6 +207,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return timeSeries;
             }
 
+            @Nullable
+            public DataLifecycle getLifecycle() {
+                return lifecycle;
+            }
+
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
@@ -196,6 +220,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalString(ilmPolicyName);
                 if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                    out.writeOptionalWriteable(lifecycle);
                 }
             }
 
@@ -212,6 +239,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(STATUS_FIELD.getPreferredName(), dataStreamStatus);
                 if (indexTemplate != null) {
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
+                }
+                if (lifecycle != null) {
+                    builder.startObject(LIFECYCLE_FIELD.getPreferredName());
+                    lifecycle.toXContent(builder, params);
+                    builder.endObject();
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -247,12 +279,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && dataStreamStatus == that.dataStreamStatus
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
-                    && Objects.equals(timeSeries, that.timeSeries);
+                    && Objects.equals(timeSeries, that.timeSeries)
+                    && Objects.equals(lifecycle, that.lifecycle);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries);
+                return Objects.hash(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries, lifecycle);
             }
         }
 
@@ -306,7 +339,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.startArray(DATASTREAMS_FIELD.getPreferredName());
+            builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
                 dataStream.toXContent(builder, params);
             }

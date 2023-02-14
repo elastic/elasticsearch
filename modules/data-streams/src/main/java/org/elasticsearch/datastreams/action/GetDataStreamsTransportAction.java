@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -114,6 +115,9 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                     );
                 }
             }
+            DataLifecycle lifecycle = indexTemplate != null
+                ? MetadataIndexTemplateService.resolveLifecycle(state.metadata(), indexTemplate)
+                : null;
 
             ClusterStateHealth streamHealth = new ClusterStateHealth(
                 state,
@@ -161,7 +165,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                     streamHealth.getStatus(),
                     indexTemplate,
                     ilmPolicyName,
-                    timeSeries
+                    timeSeries,
+                    lifecycle
                 )
             );
         }

@@ -23,11 +23,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
@@ -42,6 +44,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_HEADER_FILTERS;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
+import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -98,14 +101,19 @@ public class ServerTransportFilterTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
-        String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = allowlisted ? randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound(action, request, channel, future);
         // future.get(); // don't block it's not called really just mocked
-        verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
+        verify(authzService).authorize(
+            eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
+            eq(action),
+            eq(request),
+            anyActionListener()
+        );
         if (allowlisted) {
             verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
@@ -120,7 +128,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
-        String action = allowlisted ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = allowlisted ? randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
@@ -135,7 +143,12 @@ public class ServerTransportFilterTests extends ESTestCase {
         } else {
             // TODO update once we switch to failing non-allow-listed actions on remote access port
             verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
+            verify(authzService).authorize(
+                eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
+                eq(action),
+                eq(request),
+                anyActionListener()
+            );
         }
         verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
     }
@@ -187,7 +200,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         Exception authE = authenticationError("authc failed");
         boolean allowListed = randomBoolean();
-        String action = allowListed ? randomFrom(SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = allowListed ? randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(3));
@@ -327,5 +340,11 @@ public class ServerTransportFilterTests extends ESTestCase {
             destructiveOperations,
             new SecurityContext(settings, threadContext)
         );
+    }
+
+    private static Authentication replaceWithInternalUserAuthcForHandshake(String action, Authentication authentication) {
+        return action.equals(TransportService.HANDSHAKE_ACTION_NAME)
+            ? Authentication.newInternalAuthentication(SystemUser.INSTANCE, authentication.getEffectiveSubject().getTransportVersion(), "")
+            : authentication;
     }
 }

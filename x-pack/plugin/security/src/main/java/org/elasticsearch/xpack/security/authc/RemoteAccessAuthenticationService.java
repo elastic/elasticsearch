@@ -189,7 +189,8 @@ public class RemoteAccessAuthenticationService {
                 }
             }
         }
-        if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
+        if (false == effectiveSubject.getType().equals(Subject.Type.USER)
+            && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
             throw new IllegalArgumentException(
                 "subject ["
                     + effectiveSubject.getUser().principal()

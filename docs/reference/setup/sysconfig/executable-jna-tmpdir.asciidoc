@@ -34,6 +34,9 @@ instance:
 export ES_TMPDIR=/usr/share/elasticsearch/tmp
 --------------------------------------------
 
+* For installs done through RPM or DEB packages, the environment variable needs
+to be set through the <<sysconfig,system configuration file>>.
+
 * If you are using `systemd` to run {es} as a service, add the following
 line to the `[Service]` section in a <<systemd,service override file>>:
 +
@@ -41,10 +44,6 @@ line to the `[Service]` section in a <<systemd,service override file>>:
 --------------------------------------------
 Environment=ES_TMPDIR=/usr/share/elasticsearch/tmp
 --------------------------------------------
-
-[NOTE]
-For installs done through rpm or deb packages the environment variable needs
-to be set through the link:/guide/en/elasticsearch/reference/current/setting-system-settings.html#sysconfig[system configuration file].
 
 If you need finer control over the location of these temporary files, you can
 also configure the path that JNA uses with the <<set-jvm-options,JVM flag>>

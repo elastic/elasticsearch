@@ -83,8 +83,8 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
@@ -1021,7 +1021,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         HashSet<ProfileSettings> profiles = new HashSet<>();
         // Process remote cluster port first so that errors are consistently reported if there
         // is direct usage of the _remote_cluster profile
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
             profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
         }
         boolean isDefaultSet = false;

@@ -36,7 +36,7 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
             .apply(commonClusterConfig)
             // anonymous user has superuser role, but it won't be applied to remote access users
             .setting("xpack.security.authc.anonymous.roles", "superuser")
-            .setting("remote_cluster.enabled", "true")
+            .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")

@@ -26,12 +26,16 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -42,6 +46,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -1066,6 +1071,23 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
+
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)
+                && streamVersion.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+                metadata = new HashMap<>(metadata);
+                metadata.put(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteIndicesFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+                metadata.put(
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteIndicesFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+            }
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
@@ -1126,6 +1148,62 @@ public final class Authentication implements ToXContentObject {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.map(roleDescriptorsMap);
             return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
+        if (roleDescriptorsBytes == null) {
+            return null;
+        }
+
+        List<RoleDescriptor> roleDescriptorsList = convertRoleDescriptorsBytesToList(roleDescriptorsBytes).stream().map(roleDescriptor -> {
+            if (roleDescriptor.hasRemoteIndicesPrivileges()) {
+                return new RoleDescriptor(
+                    roleDescriptor.getName(),
+                    roleDescriptor.getClusterPrivileges(),
+                    roleDescriptor.getIndicesPrivileges(),
+                    roleDescriptor.getApplicationPrivileges(),
+                    roleDescriptor.getConditionalClusterPrivileges(),
+                    roleDescriptor.getRunAs(),
+                    roleDescriptor.getMetadata(),
+                    roleDescriptor.getTransientMetadata(),
+                    null
+                );
+            }
+            return roleDescriptor;
+        }).toList();
+
+        return convertRoleDescriptorsListToBytes(roleDescriptorsList);
+    }
+
+    private static BytesReference convertRoleDescriptorsListToBytes(final List<RoleDescriptor> roleDescriptors) {
+        try {
+            final XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            for (RoleDescriptor roleDescriptor : roleDescriptors) {
+                builder.field(roleDescriptor.getName(), roleDescriptor);
+            }
+            builder.endObject();
+            return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static List<RoleDescriptor> convertRoleDescriptorsBytesToList(BytesReference roleDescriptorBytes) {
+        try (
+            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, roleDescriptorBytes, XContentType.JSON)
+        ) {
+            final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
+            parser.nextToken();
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                parser.nextToken();
+                final String roleName = parser.currentName();
+                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+            }
+            return roleDescriptors;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

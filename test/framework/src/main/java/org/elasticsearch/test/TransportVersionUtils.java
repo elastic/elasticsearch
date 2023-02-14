@@ -103,7 +103,7 @@ public class TransportVersionUtils {
             place++;
         }
 
-        if (place <= 0) {
+        if (place <= 0 || place >= ALL_VERSIONS.size()) {
             throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
         }
         return ALL_VERSIONS.get(place);

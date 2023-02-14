@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -151,15 +152,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
             indexFailures.collect(index, error);
         };
-        final var onFinishOrCancel = new RunOnce(() -> {
-            if (fieldCapTask.isCancelled()) {
+        final var finishedOrCancelled = new AtomicBoolean();
+        fieldCapTask.addListener(() -> {
+            if (finishedOrCancelled.compareAndSet(false, true)) {
                 releaseResourcesOnCancel.run();
             }
         });
-        fieldCapTask.addListener(onFinishOrCancel::run);
         try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
-            onFinishOrCancel.run();
-            if (fieldCapTask.notifyIfCancelled(listener) == false) {
+            finishedOrCancelled.set(true);
+            if (fieldCapTask.notifyIfCancelled(listener)) {
+                releaseResourcesOnCancel.run();
+            } else {
                 mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
             }
         })) {

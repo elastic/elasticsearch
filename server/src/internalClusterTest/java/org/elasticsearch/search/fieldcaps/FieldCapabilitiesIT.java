@@ -685,7 +685,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     "clear resources",
                     TransportFieldCapabilitiesAction.class.getCanonicalName(),
                     Level.TRACE,
-                    "clear index responses on cancelled"
+                    "clear index responses on cancellation"
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();

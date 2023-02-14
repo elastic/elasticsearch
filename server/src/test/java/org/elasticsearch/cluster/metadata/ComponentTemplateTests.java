@@ -142,7 +142,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
                             ot.mappings(),
                             ot.aliases(),
-                            ot.getLifecycle()
+                            ot.lifecycle()
                         ),
                         orig.version(),
                         orig.metadata()
@@ -152,7 +152,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.settings(),
                             randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings),
                             ot.aliases(),
-                            ot.getLifecycle()
+                            ot.lifecycle()
                         ),
                         orig.version(),
                         orig.metadata()
@@ -162,7 +162,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.settings(),
                             ot.mappings(),
                             randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases),
-                            ot.getLifecycle()
+                            ot.lifecycle()
                         ),
                         orig.version(),
                         orig.metadata()
@@ -172,7 +172,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.settings(),
                             ot.mappings(),
                             ot.aliases(),
-                            randomValueOtherThan(ot.getLifecycle(), ComponentTemplateTests::randomLifecycle)
+                            randomValueOtherThan(ot.lifecycle(), ComponentTemplateTests::randomLifecycle)
                         ),
                         orig.version(),
                         orig.metadata()

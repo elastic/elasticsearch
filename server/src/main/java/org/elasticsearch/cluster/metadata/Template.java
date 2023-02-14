@@ -158,7 +158,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     }
 
     @Nullable
-    public DataLifecycle getLifecycle() {
+    public DataLifecycle lifecycle() {
         return lifecycle;
     }
 

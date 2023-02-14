@@ -93,7 +93,7 @@ public class License implements ToXContentObject {
                 case "basic" -> BASIC;
                 case "standard" -> STANDARD;
                 case "silver", "gold" -> GOLD;
-                case "platinum", "cloud_internal", "internal" -> // bwc for 1.x subscription_type field
+                case "platinum", "internal" -> // bwc for 1.x subscription_type field
                     PLATINUM;
                 case "enterprise" -> ENTERPRISE;
                 default -> throw new IllegalArgumentException("unknown license type [" + name + "]");
@@ -362,10 +362,6 @@ public class License implements ToXContentObject {
      */
     public OperationMode operationMode() {
         return operationMode;
-    }
-
-    private boolean canReadOperationModeFromFile() {
-        return type.equals("cloud_internal");
     }
 
     private void validate() {

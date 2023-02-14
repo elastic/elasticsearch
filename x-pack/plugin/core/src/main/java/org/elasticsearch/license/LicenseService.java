@@ -37,7 +37,6 @@ import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -153,7 +152,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         ClusterService clusterService,
         Clock clock,
         Environment env,
-        ResourceWatcherService resourceWatcherService,
         XPackLicenseState licenseState
     ) {
         this.settings = settings;

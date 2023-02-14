@@ -218,7 +218,14 @@ public class RRFRankContext implements RankContext {
         }
 
         SortedTopDocs copy = mergedTopDocs.get(1);
-        return new SortedTopDocs(rankResults, copy.isSortedByField(), copy.sortFields(), copy.collapseField(), copy.collapseValues(), copy.numberOfCompletionsSuggestions());
+        return new SortedTopDocs(
+            rankResults,
+            copy.isSortedByField(),
+            copy.sortFields(),
+            copy.collapseField(),
+            copy.collapseValues(),
+            copy.numberOfCompletionsSuggestions()
+        );
     }
 
     public void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit) {

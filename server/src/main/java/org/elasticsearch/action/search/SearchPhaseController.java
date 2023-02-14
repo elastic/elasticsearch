@@ -427,7 +427,7 @@ public final class SearchPhaseController {
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (reducedQueryPhase.rankContext != null) {
-                  reducedQueryPhase.rankContext.decorateSearchHit(shardDoc, searchHit);
+                    reducedQueryPhase.rankContext.decorateSearchHit(shardDoc, searchHit);
                 } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
@@ -593,9 +593,9 @@ public final class SearchPhaseController {
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
-        final SortedTopDocs sortedTopDocs = rankContext == null ?
-            sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions) :
-            rankContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList());
+        final SortedTopDocs sortedTopDocs = rankContext == null
+            ? sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions)
+            : rankContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList());
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
             totalHits,

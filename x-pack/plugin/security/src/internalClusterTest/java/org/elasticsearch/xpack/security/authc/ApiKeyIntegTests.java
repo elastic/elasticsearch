@@ -2653,7 +2653,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private List<RoleDescriptor> randomRoleDescriptors() {
-        boolean allowRemoteIndices = randomBoolean() && TcpTransport.isUntrustedRemoteClusterEnabled();
+        boolean allowRemoteIndices = TcpTransport.isUntrustedRemoteClusterEnabled();
         int caseNo = randomIntBetween(0, 3);
         return switch (caseNo) {
             case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));

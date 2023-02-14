@@ -52,10 +52,17 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
     @Override
     protected ComponentTemplate createTestInstance() {
-        return randomInstance();
+        return randomInstance(true);
     }
 
+    // In many cases the index template is used with indices
+    // Adding lifecycle would render it invalid that's why we
+    // do not always want to randomly add a lifecycle.
     public static ComponentTemplate randomInstance() {
+        return randomInstance(false);
+    }
+
+    public static ComponentTemplate randomInstance(boolean lifecycleAllowed) {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
@@ -69,7 +76,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && lifecycleAllowed) {
             lifecycle = randomLifecycle();
         }
         Template template = new Template(settings, mappings, aliases, lifecycle);

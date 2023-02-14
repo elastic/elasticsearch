@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -239,10 +241,10 @@ public class AuthenticationTestHelper {
 
     public static RemoteAccessAuthentication randomRemoteAccessAuthentication(RoleDescriptorsIntersection roleDescriptorsIntersection) {
         try {
-            // TODO add apikey() once we have querying-cluster-side API key support
             final Authentication authentication = ESTestCase.randomFrom(
                 AuthenticationTestHelper.builder().realm(),
-                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE)
+                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE),
+                AuthenticationTestHelper.builder().apiKey()
             ).build();
             return new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
@@ -251,30 +253,26 @@ public class AuthenticationTestHelper {
     }
 
     public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
-        return randomRemoteAccessAuthentication(
-            new RoleDescriptorsIntersection(
-                List.of(
-                    // TODO randomize to add a second set once we have querying-cluster-side API key support
-                    Set.of(
-                        new RoleDescriptor(
-                            "_remote_user",
-                            null,
-                            new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("index1")
-                                    .privileges("read", "read_cross_cluster")
-                                    .build() },
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null
-                        )
+        final int numberOfRoleDescriptors = ESTestCase.randomIntBetween(1, 2);
+        final List<Set<RoleDescriptor>> roleDescriptors = new ArrayList<>(numberOfRoleDescriptors);
+        for (int i = 0; i < numberOfRoleDescriptors; i++) {
+            roleDescriptors.add(
+                Set.of(
+                    new RoleDescriptor(
+                        "_remote_user",
+                        null,
+                        RoleDescriptorTests.randomIndicesPrivileges(1, 3),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 )
-            )
-        );
+            );
+        }
+        return randomRemoteAccessAuthentication(new RoleDescriptorsIntersection(roleDescriptors));
     }
 
     public static class AuthenticationTestBuilder {

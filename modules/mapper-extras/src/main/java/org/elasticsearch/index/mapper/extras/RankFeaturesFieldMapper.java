@@ -161,6 +161,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
             for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
                 if (token == Token.FIELD_NAME) {
                     feature = context.parser().currentName();
+                    if (feature.contains(".")) {
+                        throw new IllegalArgumentException(
+                            "[rank_features] fields do not support dots in feature names but found [" + feature + "]"
+                        );
+                    }
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {

@@ -128,25 +128,12 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     public void testDotinFieldname() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", Map.of("politi.cs", 10, "sports", 20))));
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
-        FeatureField featureField1 = null;
-        FeatureField featureField2 = null;
-        for (IndexableField field : fields) {
-            if (field.stringValue().equals("politi.cs")) {
-                featureField1 = (FeatureField) field;
-            } else if (field.stringValue().equals("sports")) {
-                featureField2 = (FeatureField) field;
-            } else {
-                throw new UnsupportedOperationException();
-            }
-        }
-
-        int freq1 = RankFeatureFieldMapperTests.getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = RankFeatureFieldMapperTests.getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 < freq2);
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("politi.cs", 10, "sports", 20))))
+        );
+        assertThat(ex.getCause().getMessage(), containsString("do not support dots in feature names"));
+        assertThat(ex.getCause().getMessage(), containsString("politi.cs"));
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {

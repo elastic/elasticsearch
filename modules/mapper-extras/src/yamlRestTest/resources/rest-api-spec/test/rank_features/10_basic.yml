@@ -23,7 +23,6 @@ setup:
           tags:
             foo: 3
             bar: 5
-            bazz.dot: 10
           negative_reviews:
             1star: 10
             2star: 1
@@ -36,7 +35,6 @@ setup:
           tags:
             bar: 6
             quux: 10
-            bazz.dot: 20
           negative_reviews:
             1star: 1
             2star: 10
@@ -172,23 +170,14 @@ setup:
 "Dot in feature name":
 
   - do:
-      search:
+      catch: /\[rank_features\] fields do not support dots in feature names but found \[qu\.ux\]/
+      index:
         index: test
+        id: "3"
         body:
-          query:
-            rank_feature:
-              field: tags.bazz.dot
-              linear: {}
-
-  - match:
-      hits.total.value: 2
-
-  - match:
-      hits.hits.0._id: "2"
-  - match:
-      hits.hits.0._score: 20.0
-
-  - match:
-      hits.hits.1._id: "1"
-  - match:
-      hits.hits.1._score: 10.0
+          tags:
+            bar: 6
+            qu.ux: 10
+          negative_reviews:
+            1star: 1
+            2star: 10

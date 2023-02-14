@@ -221,6 +221,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                             String modifiedIndex = REMOTE_CLUSTER_NAME + ":" + body.get("index");
                             body.put("index", modifiedIndex);
                         } else if (body.containsKey("query") && body.containsKey("pit")) {
+                            // search/350_point_in_time/msearch uses _index in a match query
                             @SuppressWarnings("unchecked")
                             final var query = (Map<String, Object>) body.get("query");
                             if (query.containsKey("match")) {

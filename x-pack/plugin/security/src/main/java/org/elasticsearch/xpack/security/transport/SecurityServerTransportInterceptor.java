@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
@@ -321,9 +320,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
 
                 if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
-                    throw new IllegalStateException(
-                        Strings.format("Action [%s] towards remote cluster [%s] is not allow-listed", action, remoteClusterAlias)
-                    );
+                    logger.trace("Action [{}] towards remote cluster [{}] is not allow-listed", action, remoteClusterAlias);
+                    return Optional.empty();
                 }
 
                 final Authentication authentication = securityContext.getAuthentication();

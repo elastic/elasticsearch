@@ -86,7 +86,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .name(REMOTE_CLUSTER_NAME)
         .nodes(2)
         .setting("node.roles", "[data,ingest,master]")
-        .setting("remote_cluster.enabled", "true")
+        .setting("remote_cluster_server.enabled", "true")
         .setting("remote_cluster.port", "0")
         .apply(commonClusterConfig)
         .build();

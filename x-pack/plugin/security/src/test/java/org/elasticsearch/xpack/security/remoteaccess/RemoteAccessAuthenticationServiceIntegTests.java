@@ -132,7 +132,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
 
         try (var ignored = threadContext.stashContext()) {
             threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, "ApiKey " + encodedRemoteAccessApiKey);
-            Authentication authentication = AuthenticationTestHelper.builder().apiKey().build();
+            Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
             new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY).writeToContext(threadContext);
             authenticateAndAssertExpectedErrorMessage(
                 service,

@@ -10,6 +10,8 @@ package org.elasticsearch.action.support.broadcast.unpromotable;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,11 +22,12 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.support.IndicesOptions.strictSingleIndexNoExpandForbidClosed;
 
 /**
  * A request that is broadcast to the unpromotable assigned replicas of a primary.
  */
-public class BroadcastUnpromotableRequest extends ActionRequest {
+public class BroadcastUnpromotableRequest extends ActionRequest implements IndicesRequest {
 
     /**
      * Holds the index shard routing table that will be used by {@link TransportBroadcastUnpromotableAction} to broadcast the requests to
@@ -33,16 +36,19 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
      */
     final @Nullable IndexShardRoutingTable indexShardRoutingTable;
 
+    protected final String[] indices;
     protected final ShardId shardId;
 
     public BroadcastUnpromotableRequest(StreamInput in) throws IOException {
         super(in);
-        shardId = new ShardId(in);
         indexShardRoutingTable = null;
+        indices = new String[] { in.readString() };
+        shardId = new ShardId(in);
     }
 
     public BroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable) {
         this.indexShardRoutingTable = Objects.requireNonNull(indexShardRoutingTable, "index shard routing table is null");
+        this.indices = new String[] { indexShardRoutingTable.shardId().getIndex().getName() };
         this.shardId = indexShardRoutingTable.shardId();
     }
 
@@ -62,6 +68,7 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(indices[0]);
         out.writeWriteable(shardId);
     }
 
@@ -75,4 +82,13 @@ public class BroadcastUnpromotableRequest extends ActionRequest {
         return toString();
     }
 
+    @Override
+    public String[] indices() {
+        return indices;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return strictSingleIndexNoExpandForbidClosed();
+    }
 }

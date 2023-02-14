@@ -344,7 +344,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so no additional checks are needed here.
                     listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
-            } else if (action.equals(ClosePointInTimeAction.NAME) || action.equals(TransportUnpromotableShardRefreshAction.NAME)) {
+            } else if (action.equals(ClosePointInTimeAction.NAME)) {
                 listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
                 assert false

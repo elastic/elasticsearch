@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
-import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;

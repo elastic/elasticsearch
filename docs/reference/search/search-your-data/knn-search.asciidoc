@@ -431,10 +431,13 @@ against an index containing dense vectors created with the same text embedding
 [IMPORTANT]
 =====================
 To perform semantic search:
+
 * you need an index that contains the dens vector representation of the input 
 data to search against,
+
 * you must use the same text embedding model for search that you used to create 
 the dens vectors from the input data,
+
 * the text embedding NLP model deployment must be started.
 =====================
 

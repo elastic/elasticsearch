@@ -8,6 +8,7 @@
 
 package org.elasticsearch.benchmark.compute.operation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregationName;
 import org.elasticsearch.compute.aggregation.AggregationType;
@@ -18,9 +19,13 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -41,7 +46,9 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -55,10 +62,16 @@ public class AggregatorBenchmark {
 
     private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
 
+    private static final String LONGS = "longs";
+    private static final String INTS = "ints";
+    private static final String DOUBLES = "doubles";
+    private static final String BOOLEANS = "booleans";
+    private static final String BYTES_REFS = "bytes_refs";
+
     private static final String VECTOR_DOUBLES = "vector_doubles";
     private static final String HALF_NULL_DOUBLES = "half_null_doubles";
-    private static final String VECTOR_LONGS = "vector";
-    private static final String HALF_NULL_LONGS = "half_null";
+    private static final String VECTOR_LONGS = "vector_" + LONGS;
+    private static final String HALF_NULL_LONGS = "half_null_" + LONGS;
     private static final String MULTIVALUED_LONGS = "multivalued";
 
     private static final String AVG = "avg";
@@ -67,10 +80,12 @@ public class AggregatorBenchmark {
     private static final String MAX = "max";
     private static final String SUM = "sum";
 
+    private static final String NONE = "none";
+
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
         try {
-            for (boolean grouping : new boolean[] { false, true }) {
+            for (String grouping : AggregatorBenchmark.class.getField("grouping").getAnnotationsByType(Param.class)[0].value()) {
                 for (String op : AggregatorBenchmark.class.getField("op").getAnnotationsByType(Param.class)[0].value()) {
                     for (String blockType : AggregatorBenchmark.class.getField("blockType").getAnnotationsByType(Param.class)[0].value()) {
                         run(grouping, op, blockType);
@@ -82,8 +97,8 @@ public class AggregatorBenchmark {
         }
     }
 
-    @Param({ "false", "true" })
-    public boolean grouping;
+    @Param({ NONE, LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS })
+    public String grouping;
 
     @Param({ AVG, COUNT, MIN, MAX, SUM })
     public String op;
@@ -91,42 +106,94 @@ public class AggregatorBenchmark {
     @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES })
     public String blockType;
 
-    private static Operator operator(boolean grouping, AggregationName aggName, AggregationType aggType) {
-        if (grouping) {
-            GroupingAggregatorFunction.Factory factory = GroupingAggregatorFunction.of(aggName, aggType);
-            return new HashAggregationOperator(
-                List.of(new GroupingAggregator.GroupingAggregatorFactory(BIG_ARRAYS, factory, AggregatorMode.SINGLE, 1)),
-                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)), BIG_ARRAYS)
-            );
+    private static Operator operator(String grouping, AggregationName aggName, AggregationType aggType) {
+        if (grouping.equals("none")) {
+            AggregatorFunction.Factory factory = AggregatorFunction.of(aggName, aggType);
+            return new AggregationOperator(List.of(new Aggregator(factory, AggregatorMode.SINGLE, 0)));
         }
-        AggregatorFunction.Factory factory = AggregatorFunction.of(aggName, aggType);
-        return new AggregationOperator(List.of(new Aggregator(factory, AggregatorMode.SINGLE, 0)));
+        List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
+            case LONGS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG));
+            case INTS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.INT));
+            case DOUBLES -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.DOUBLE));
+            case BOOLEANS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BOOLEAN));
+            case BYTES_REFS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF));
+            default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
+        };
+        GroupingAggregatorFunction.Factory factory = GroupingAggregatorFunction.of(aggName, aggType);
+        return new HashAggregationOperator(
+            List.of(new GroupingAggregator.GroupingAggregatorFactory(BIG_ARRAYS, factory, AggregatorMode.SINGLE, groups.size())),
+            () -> BlockHash.build(groups, BIG_ARRAYS)
+        );
     }
 
-    private static void checkExpected(boolean grouping, String op, String blockType, AggregationType aggType, Page page) {
+    private static void checkExpected(String grouping, String op, String blockType, AggregationType aggType, Page page) {
         String prefix = String.format("[%s][%s][%s] ", grouping, op, blockType);
-        if (grouping) {
-            checkGrouped(prefix, op, aggType, page);
-        } else {
+        if (grouping.equals("none")) {
             checkUngrouped(prefix, op, aggType, page);
+            return;
         }
+        checkGrouped(prefix, grouping, op, aggType, page);
     }
 
-    private static void checkGrouped(String prefix, String op, AggregationType aggType, Page page) {
-        LongBlock groups = page.getBlock(0);
-        for (int g = 0; g < GROUPS; g++) {
-            if (groups.getLong(g) != (long) g) {
-                throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getLong(g) + "]");
+    private static void checkGrouped(String prefix, String grouping, String op, AggregationType aggType, Page page) {
+        switch (grouping) {
+            case LONGS -> {
+                LongBlock groups = page.getBlock(0);
+                for (int g = 0; g < GROUPS; g++) {
+                    if (groups.getLong(g) != (long) g) {
+                        throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getLong(g) + "]");
+                    }
+                }
             }
+            case INTS -> {
+                IntBlock groups = page.getBlock(0);
+                for (int g = 0; g < GROUPS; g++) {
+                    if (groups.getInt(g) != g) {
+                        throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getInt(g) + "]");
+                    }
+                }
+            }
+            case DOUBLES -> {
+                DoubleBlock groups = page.getBlock(0);
+                for (int g = 0; g < GROUPS; g++) {
+                    if (groups.getDouble(g) != (double) g) {
+                        throw new AssertionError(prefix + "bad group expected [" + (double) g + "] but was [" + groups.getDouble(g) + "]");
+                    }
+                }
+            }
+            case BOOLEANS -> {
+                BooleanBlock groups = page.getBlock(0);
+                if (groups.getBoolean(0) != false) {
+                    throw new AssertionError(prefix + "bad group expected [false] but was [" + groups.getBoolean(0) + "]");
+                }
+                if (groups.getBoolean(1) != true) {
+                    throw new AssertionError(prefix + "bad group expected [true] but was [" + groups.getBoolean(1) + "]");
+                }
+            }
+            case BYTES_REFS -> {
+                BytesRefBlock groups = page.getBlock(0);
+                for (int g = 0; g < GROUPS; g++) {
+                    if (false == groups.getBytesRef(g, new BytesRef()).equals(bytesGroup(g))) {
+                        throw new AssertionError(
+                            prefix + "bad group expected [" + bytesGroup(g) + "] but was [" + groups.getBytesRef(g, new BytesRef()) + "]"
+                        );
+                    }
+                }
+            }
+            default -> throw new IllegalArgumentException("bad grouping [" + grouping + "]");
         }
         Block values = page.getBlock(1);
+        int groups = switch (grouping) {
+            case BOOLEANS -> 2;
+            default -> GROUPS;
+        };
         switch (op) {
             case AVG -> {
                 DoubleBlock dValues = (DoubleBlock) values;
-                for (int g = 0; g < GROUPS; g++) {
+                for (int g = 0; g < groups; g++) {
                     long group = g;
-                    long sum = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).sum();
-                    long count = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).count();
+                    long sum = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum();
+                    long count = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).count();
                     double expected = (double) sum / count;
                     if (dValues.getDouble(g) != expected) {
                         throw new AssertionError(prefix + "expected [" + expected + "] but was [" + dValues.getDouble(g) + "]");
@@ -135,9 +202,9 @@ public class AggregatorBenchmark {
             }
             case COUNT -> {
                 LongBlock lValues = (LongBlock) values;
-                for (int g = 0; g < GROUPS; g++) {
+                for (int g = 0; g < groups; g++) {
                     long group = g;
-                    long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).count() * 1024;
+                    long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).count() * 1024;
                     if (lValues.getLong(g) != expected) {
                         throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
                     }
@@ -147,7 +214,7 @@ public class AggregatorBenchmark {
                 switch (aggType) {
                     case longs -> {
                         LongBlock lValues = (LongBlock) values;
-                        for (int g = 0; g < GROUPS; g++) {
+                        for (int g = 0; g < groups; g++) {
                             if (lValues.getLong(g) != (long) g) {
                                 throw new AssertionError(prefix + "expected [" + g + "] but was [" + lValues.getLong(g) + "]");
                             }
@@ -155,7 +222,7 @@ public class AggregatorBenchmark {
                     }
                     case doubles -> {
                         DoubleBlock dValues = (DoubleBlock) values;
-                        for (int g = 0; g < GROUPS; g++) {
+                        for (int g = 0; g < groups; g++) {
                             if (dValues.getDouble(g) != (long) g) {
                                 throw new AssertionError(prefix + "expected [" + g + "] but was [" + dValues.getDouble(g) + "]");
                             }
@@ -167,9 +234,9 @@ public class AggregatorBenchmark {
                 switch (aggType) {
                     case longs -> {
                         LongBlock lValues = (LongBlock) values;
-                        for (int g = 0; g < GROUPS; g++) {
+                        for (int g = 0; g < groups; g++) {
                             long group = g;
-                            long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).max().getAsLong();
+                            long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).max().getAsLong();
                             if (lValues.getLong(g) != expected) {
                                 throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
                             }
@@ -177,9 +244,9 @@ public class AggregatorBenchmark {
                     }
                     case doubles -> {
                         DoubleBlock dValues = (DoubleBlock) values;
-                        for (int g = 0; g < GROUPS; g++) {
+                        for (int g = 0; g < groups; g++) {
                             long group = g;
-                            long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).max().getAsLong();
+                            long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).max().getAsLong();
                             if (dValues.getDouble(g) != expected) {
                                 throw new AssertionError(prefix + "expected [" + expected + "] but was [" + dValues.getDouble(g) + "]");
                             }
@@ -191,9 +258,9 @@ public class AggregatorBenchmark {
                 switch (aggType) {
                     case longs -> {
                         LongBlock lValues = (LongBlock) values;
-                        for (int g = 0; g < GROUPS; g++) {
+                        for (int g = 0; g < groups; g++) {
                             long group = g;
-                            long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).sum() * 1024;
+                            long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum() * 1024;
                             if (lValues.getLong(g) != expected) {
                                 throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
                             }
@@ -201,9 +268,9 @@ public class AggregatorBenchmark {
                     }
                     case doubles -> {
                         DoubleBlock dValues = (DoubleBlock) values;
-                        for (int g = 0; g < GROUPS; g++) {
+                        for (int g = 0; g < groups; g++) {
                             long group = g;
-                            long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).sum() * 1024;
+                            long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum() * 1024;
                             if (dValues.getDouble(g) != expected) {
                                 throw new AssertionError(prefix + "expected [" + expected + "] but was [" + dValues.getDouble(g) + "]");
                             }
@@ -269,8 +336,17 @@ public class AggregatorBenchmark {
         }
     }
 
-    private static Page page(boolean grouping, String blockType) {
-        Block dataBlock = switch (blockType) {
+    private static Page page(String grouping, String blockType) {
+        Block dataBlock = dataBlock(blockType);
+        if (grouping.equals("none")) {
+            return new Page(dataBlock);
+        }
+        List<Block> blocks = groupingBlocks(grouping, blockType);
+        return new Page(Stream.concat(blocks.stream(), Stream.of(dataBlock)).toArray(Block[]::new));
+    }
+
+    private static Block dataBlock(String blockType) {
+        return switch (blockType) {
             case VECTOR_LONGS -> new LongArrayVector(LongStream.range(0, BLOCK_LENGTH).toArray(), BLOCK_LENGTH).asBlock();
             case VECTOR_DOUBLES -> new DoubleArrayVector(
                 LongStream.range(0, BLOCK_LENGTH).mapToDouble(l -> Long.valueOf(l).doubleValue()).toArray(),
@@ -307,25 +383,95 @@ public class AggregatorBenchmark {
             }
             default -> throw new IllegalArgumentException("bad blockType: " + blockType);
         };
-        return new Page(grouping ? new Block[] { groupingBlock(blockType), dataBlock } : new Block[] { dataBlock });
     }
 
-    private static Block groupingBlock(String blockType) {
+    private static List<Block> groupingBlocks(String grouping, String blockType) {
         return switch (blockType) {
-            case VECTOR_LONGS, VECTOR_DOUBLES -> new LongArrayVector(
-                LongStream.range(0, BLOCK_LENGTH).map(l -> l % GROUPS).toArray(),
-                BLOCK_LENGTH
-            ).asBlock();
-            case HALF_NULL_LONGS, HALF_NULL_DOUBLES -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendLong(i % GROUPS);
-                    builder.appendLong(i % GROUPS);
-                }
-                yield builder.build();
-            }
+            case VECTOR_LONGS, VECTOR_DOUBLES -> switch (grouping) {
+                    case LONGS -> List.of(
+                        new LongArrayVector(LongStream.range(0, BLOCK_LENGTH).map(l -> l % GROUPS).toArray(), BLOCK_LENGTH).asBlock()
+                    );
+                    case INTS -> List.of(
+                        new IntArrayVector(IntStream.range(0, BLOCK_LENGTH).map(i -> i % GROUPS).toArray(), BLOCK_LENGTH, null).asBlock()
+                    );
+                    case DOUBLES -> List.of(
+                        new DoubleArrayVector(
+                            IntStream.range(0, BLOCK_LENGTH).map(i -> i % GROUPS).mapToDouble(i -> (double) i).toArray(),
+                            BLOCK_LENGTH
+                        ).asBlock()
+                    );
+                    case BOOLEANS -> {
+                        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(BLOCK_LENGTH);
+                        for (int i = 0; i < BLOCK_LENGTH; i++) {
+                            builder.appendBoolean(i % 2 == 1);
+                        }
+                        yield List.of(builder.build());
+                    }
+                    case BYTES_REFS -> {
+                        BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(BLOCK_LENGTH);
+                        for (int i = 0; i < BLOCK_LENGTH; i++) {
+                            builder.appendBytesRef(bytesGroup(i % GROUPS));
+                        }
+                        yield List.of(builder.build());
+                    }
+                    default -> throw new UnsupportedOperationException("unsupported grouping [" + grouping + "]");
+                };
+            case HALF_NULL_LONGS, HALF_NULL_DOUBLES -> switch (grouping) {
+                    case LONGS -> {
+                        var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                        for (int i = 0; i < BLOCK_LENGTH; i++) {
+                            builder.appendLong(i % GROUPS);
+                            builder.appendLong(i % GROUPS);
+                        }
+                        yield List.of(builder.build());
+                    }
+                    case INTS -> {
+                        var builder = IntBlock.newBlockBuilder(BLOCK_LENGTH);
+                        for (int i = 0; i < BLOCK_LENGTH; i++) {
+                            builder.appendInt(i % GROUPS);
+                            builder.appendInt(i % GROUPS);
+                        }
+                        yield List.of(builder.build());
+                    }
+                    case DOUBLES -> {
+                        var builder = DoubleBlock.newBlockBuilder(BLOCK_LENGTH);
+                        for (int i = 0; i < BLOCK_LENGTH; i++) {
+                            builder.appendDouble(i % GROUPS);
+                            builder.appendDouble(i % GROUPS);
+                        }
+                        yield List.of(builder.build());
+                    }
+                    case BOOLEANS -> {
+                        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(BLOCK_LENGTH);
+                        for (int i = 0; i < BLOCK_LENGTH; i++) {
+                            builder.appendBoolean(i % 2 == 1);
+                            builder.appendBoolean(i % 2 == 1);
+                        }
+                        yield List.of(builder.build());
+                    }
+                    case BYTES_REFS -> {
+                        BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(BLOCK_LENGTH);
+                        for (int i = 0; i < BLOCK_LENGTH; i++) {
+                            builder.appendBytesRef(bytesGroup(i % GROUPS));
+                            builder.appendBytesRef(bytesGroup(i % GROUPS));
+                        }
+                        yield List.of(builder.build());
+                    }
+                    default -> throw new UnsupportedOperationException("unsupported grouping [" + grouping + "]");
+                };
             default -> throw new IllegalArgumentException("bad blockType: " + blockType);
         };
+    }
+
+    private static BytesRef bytesGroup(int group) {
+        return new BytesRef(switch (group) {
+            case 0 -> "cat";
+            case 1 -> "dog";
+            case 2 -> "chicken";
+            case 3 -> "pig";
+            case 4 -> "cow";
+            default -> throw new UnsupportedOperationException("can't handle [" + group + "]");
+        });
     }
 
     @Benchmark
@@ -334,7 +480,7 @@ public class AggregatorBenchmark {
         run(grouping, op, blockType);
     }
 
-    private static void run(boolean grouping, String op, String blockType) {
+    private static void run(String grouping, String op, String blockType) {
         AggregationName aggName = AggregationName.of(op);
         AggregationType aggType = switch (blockType) {
             case VECTOR_LONGS, HALF_NULL_LONGS -> AggregationType.longs;

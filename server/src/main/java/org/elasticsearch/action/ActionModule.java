@@ -746,7 +746,7 @@ public class ActionModule extends AbstractModule {
                     catActions.add((AbstractCatAction) handler);
                 }
                 restController.registerHandler(handler);
-            }
+            } // else there's no way this handler can be reached, so no point in keeping it around
         };
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
@@ -931,6 +931,12 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
     }
 
+    /**
+     * This method is used to determine whether a RestHandler ought to be kept in memory or not. Returns true if serverless mode is
+     * disabled, or if there is any ServlerlessScope annotation on the RestHandler.
+     * @param handler
+     * @return
+     */
     private boolean shouldKeepRestHandler(final RestHandler handler) {
         return serverlessEnabled == false || handler.getServerlessScope() != null;
     }

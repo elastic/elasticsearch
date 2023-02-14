@@ -372,9 +372,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestChannel responseChannel = channel;
         if (serverlessEnabled) {
             Scope scope = handler.getServerlessScope();
-            final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
-            boolean internalRequest = internalOrigin != null;
             if (Scope.INTERNAL.equals(scope)) {
+                final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
+                boolean internalRequest = internalOrigin != null;
                 if (internalRequest == false) {
                     handleBadRequest(request.uri(), request.method(), responseChannel);
                     return;
@@ -795,7 +795,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @ServerlessScope(Scope.PUBLIC)
     private static final class RestFavIconHandler implements RestHandler {
-
         @Override
         public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
             channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE));

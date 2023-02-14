@@ -56,8 +56,10 @@ public interface RestHandler {
     }
 
     /**
-     * Returns the serverless Scope of this RestHandler. This is only meaningful when running in a servlerless environment.
-     * @return
+     * Returns the serverless Scope of this RestHandler. This is only meaningful when running in a servlerless environment. If a
+     * RestHandler has no ServerlessScope annotation, then this method returns null, meaning that this RestHandler is not visible at all in
+     * Serverless mode.
+     * @return The Scope for this handler, or null if there is no ServerlessScope annotation
      */
     default Scope getServerlessScope() {
         ServerlessScope serverlessScope = getConcreteRestHandler().getClass().getAnnotation(ServerlessScope.class);

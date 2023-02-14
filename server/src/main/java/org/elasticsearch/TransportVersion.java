@@ -195,6 +195,10 @@ public class TransportVersion implements Comparable<TransportVersion> {
         VERSION_IDS = getAllVersionIds(TransportVersion.class);
     }
 
+    static Collection<TransportVersion> getAllVersions() {
+        return VERSION_IDS.values();
+    }
+
     public static TransportVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
@@ -224,13 +228,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
      */
     public static TransportVersion max(TransportVersion version1, TransportVersion version2) {
         return version1.id > version2.id ? version1 : version2;
-    }
-
-    /**
-     * returns a sorted collection of declared transport version constants
-     */
-    public static Collection<TransportVersion> getAllVersions() {
-        return VERSION_IDS.values();
     }
 
     public final int id;

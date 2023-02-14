@@ -18,13 +18,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -63,15 +62,12 @@ public class Engine implements Writeable, ToXContentObject {
         out.writeStringArray(indices);
     }
 
-    private static final ConstructingObjectParser<Engine, String> PARSER = new ConstructingObjectParser<>(
-        "engine",
-        false,
-        (params, name) -> {
-            @SuppressWarnings("unchecked")
-            String[] indices = ((List<String>) params[1]).toArray(String[]::new);
-            return new Engine(name, indices);
-        }
-    );
+    private static final ConstructingObjectParser<Engine, Void> PARSER = new ConstructingObjectParser<>("engine", false, params -> {
+        final String name = (String) params[0];
+        @SuppressWarnings("unchecked")
+        final String[] indices = ((List<String>) params[1]).toArray(String[]::new);
+        return new Engine(name, indices);
+    });
     private static final ParseField NAME_FIELD = new ParseField("name");
     private static final ParseField INDICES_FIELD = new ParseField("indices");
 
@@ -82,17 +78,16 @@ public class Engine implements Writeable, ToXContentObject {
 
     /**
      * Parses a {@link Engine} from its {@param xContentType} representation in bytes.
+     *
+     * @param resourceName The name of the resource (must match the {@link Engine} name).
+     * @param source The bytes that represents the {@link Engine}.
+     * @param xContentType The format of the representation.
+     *
+     * @return The parsed {@link Engine}.
      */
-    public static Engine fromXContentBytes(String name, BytesReference source, XContentType xContentType) {
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                source,
-                xContentType
-            )
-        ) {
-            return Engine.fromXContent(name, parser);
+    public static Engine fromXContentBytes(String resourceName, BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return Engine.fromXContent(resourceName, parser);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse the get result", e);
         }
@@ -100,13 +95,26 @@ public class Engine implements Writeable, ToXContentObject {
 
     /**
      * Parses an engine through the provided {@param parser}.
+     *
+     * @param resourceName The name of the resource (must match the {@link Engine} name).
+     * @param parser The {@link XContentType} parser.
+     *
+     * @return The parsed {@link Engine}.
      */
-    public static Engine fromXContent(String name, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, name);
+    public static Engine fromXContent(String resourceName, XContentParser parser) throws IOException {
+        final Engine engine = PARSER.parse(parser, null);
+        if (engine.name().equals(resourceName) == false) {
+            throw new IllegalStateException(
+                "The name of the engine must match the resource name, got " + engine.name() + " and " + resourceName
+            );
+        }
+        return engine;
     }
 
     /**
      * Converts the {@link Engine} to XContent.
+     *
+     * @return The {@link XContentBuilder} containing the serialized {@link Engine}.
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -119,6 +127,8 @@ public class Engine implements Writeable, ToXContentObject {
 
     /**
      * Returns the name of the {@link Engine}.
+     *
+     * @return The name of the {@link Engine}.
      */
     public String name() {
         return name;
@@ -126,6 +136,8 @@ public class Engine implements Writeable, ToXContentObject {
 
     /**
      * Returns the list of indices targeted by the {@link Engine}.
+     *
+     * @return The list of indices targeted by the {@link Engine}.
      */
     public String[] indices() {
         return indices;
@@ -154,6 +166,12 @@ public class Engine implements Writeable, ToXContentObject {
     /**
      * Returns the merged {@link Engine} from the current state and the provided {@param update}.
      * This function returns the current instance if the update is a noop.
+     *
+     * @param update The source of the update represented in bytes.
+     * @param xContentType The format of the bytes.
+     * @param bigArrays The {@link BigArrays} to use to recycle bytes array.
+     *
+     * @return The merged {@link Engine}.
      */
     Engine merge(BytesReference update, XContentType xContentType, BigArrays bigArrays) {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent;
@@ -165,7 +183,7 @@ public class Engine implements Writeable, ToXContentObject {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        final Tuple<XContentType, Map<String, Object>> updateAndContent = XContentHelper.convertToMap(update, true);
+        final Tuple<XContentType, Map<String, Object>> updateAndContent = XContentHelper.convertToMap(update, true, XContentType.JSON);
         final Map<String, Object> newSourceAsMap = new HashMap<>(sourceAndContent.v2());
         final boolean noop = XContentHelper.update(newSourceAsMap, updateAndContent.v2(), true) == false;
         if (noop) {
@@ -176,7 +194,7 @@ public class Engine implements Writeable, ToXContentObject {
             try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), newSourceBuffer)) {
                 builder.value(newSourceAsMap);
             }
-            return Engine.fromXContentBytes("", newSourceBuffer.bytes(), XContentType.JSON);
+            return Engine.fromXContentBytes(name, newSourceBuffer.bytes(), XContentType.JSON);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

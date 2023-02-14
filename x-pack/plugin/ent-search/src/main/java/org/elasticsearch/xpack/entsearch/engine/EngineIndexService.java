@@ -61,6 +61,11 @@ public class EngineIndexService {
         this.bigArrays = bigArrays;
     }
 
+    /**
+     * Returns the {@link SystemIndexDescriptor} for the {@link Engine} system index.
+     *
+     * @return The {@link SystemIndexDescriptor} for the {@link Engine} system index.
+     */
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(ENGINE_INDEX_NAME_PATTERN)

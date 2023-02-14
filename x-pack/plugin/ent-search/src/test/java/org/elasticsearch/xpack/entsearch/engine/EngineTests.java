@@ -51,10 +51,10 @@ public class EngineTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "name": "my_search_application",
+              "name": "my_engine",
               "indices": ["my_index"]
             }""");
-        Engine engine = Engine.fromXContentBytes("my_search_application", new BytesArray(content), XContentType.JSON);
+        Engine engine = Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(engine, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         Engine parsed;
@@ -67,7 +67,7 @@ public class EngineTests extends ESTestCase {
     public void testMerge() {
         String content = """
             {
-              "name": "my_search_application",
+              "name": "my_engine",
               "indices": ["my_index"]
             }""";
 
@@ -75,9 +75,21 @@ public class EngineTests extends ESTestCase {
             {
               "indices": ["my_index", "my_index2"]
             }""";
-        Engine engine = Engine.fromXContentBytes("my_search_application", new BytesArray(content), XContentType.JSON);
+        Engine engine = Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON);
         Engine updatedEngine = engine.merge(new BytesArray(update), XContentType.JSON, BigArrays.NON_RECYCLING_INSTANCE);
         assertThat(updatedEngine.indices(), equalTo(new String[] { "my_index", "my_index2" }));
+    }
+
+    public void testMatchingResourceName() {
+        String content = """
+            {
+              "name": "my_new_engine",
+              "indices": ["my_index"]
+            }""";
+        IllegalStateException exc = expectThrows(
+            IllegalStateException.class,
+            () -> Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON)
+        );
     }
 
     private Engine assertXContent(Engine engine, boolean humanReadable) throws IOException {

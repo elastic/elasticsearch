@@ -170,7 +170,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        latch.await(5, TimeUnit.SECONDS);
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
@@ -195,7 +195,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        latch.await(5, TimeUnit.SECONDS);
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
@@ -220,7 +220,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        latch.await(5, TimeUnit.SECONDS);
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
@@ -245,7 +245,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        latch.await(5, TimeUnit.SECONDS);
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
@@ -253,6 +253,9 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    /**
+     * Test plugin to register the {@link EngineIndexService} system index descriptor.
+     */
     public static class TestPlugin extends Plugin implements SystemIndexPlugin {
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {

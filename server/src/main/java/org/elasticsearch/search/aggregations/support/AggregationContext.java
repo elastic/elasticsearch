@@ -99,7 +99,7 @@ public abstract class AggregationContext implements Releasable {
             // The field is unmapped
             return null;
         }
-        return new FieldContext(field, buildFieldData(ft), ft);
+        return new FieldContext(ft.name(), buildFieldData(ft), ft);
     }
 
     /**

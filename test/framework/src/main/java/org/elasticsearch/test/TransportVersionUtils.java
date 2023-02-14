@@ -86,7 +86,8 @@ public class TransportVersionUtils {
             // version does not exist - need the item before the index this version should be inserted
             place = -(place + 1);
         }
-        if (place <= 1) {
+
+        if (place < 1) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
         return ALL_VERSIONS.get(place - 1);
@@ -97,11 +98,15 @@ public class TransportVersionUtils {
         if (place < 0) {
             // version does not exist - need the item at the index this version should be inserted
             place = -(place + 1);
+        } else {
+            // need the *next* version
+            place++;
         }
-        if (place <= 1) {
+
+        if (place < 0 || place >= ALL_VERSIONS.size()) {
             throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
         }
-        return ALL_VERSIONS.get(place + 1);
+        return ALL_VERSIONS.get(place);
     }
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */

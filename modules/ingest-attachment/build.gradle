@@ -18,10 +18,10 @@ esplugin {
 // this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies
 // as we (and tika) demand, and are not interested in, say, having the same version of commons-codec as elasticsearch itself
 def versions = [
-  'tika'  : '2.6.0',
+  'tika'  : '2.7.0',
   'pdfbox': '2.0.27',
   'poi'   : '5.2.3',
-  'mime4j': '0.8.5'
+  'mime4j': '0.8.9'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here

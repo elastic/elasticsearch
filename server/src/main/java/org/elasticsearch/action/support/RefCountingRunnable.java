@@ -110,19 +110,6 @@ public final class RefCountingRunnable implements Releasable {
     }
 
     /**
-     * Like {@link #acquire()}, but this method returns null instead of throws an exception when all references are released.
-     *
-     * @see #acquire()
-     */
-    public Releasable tryAcquire() {
-        if (refCounted.tryIncRef()) {
-            return new AcquiredRef();
-        } else {
-            return null;
-        }
-    }
-
-    /**
      * Acquire a reference to this object and return a listener which releases it when notified. The delegate {@link Runnable} is called
      * when all its references have been released.
      */

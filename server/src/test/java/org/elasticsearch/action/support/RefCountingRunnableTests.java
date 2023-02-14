@@ -55,7 +55,7 @@ public class RefCountingRunnableTests extends ESTestCase {
             for (int i = 0; i < threads.length; i++) {
                 if (randomBoolean()) {
                     async = true;
-                    var ref = randomBoolean() ? refs.acquire() : refs.tryAcquire();
+                    var ref = refs.acquire();
                     threads[i] = new Thread(() -> {
                         try (var ignored = ref) {
                             assertTrue(startLatch.await(10, TimeUnit.SECONDS));
@@ -122,7 +122,7 @@ public class RefCountingRunnableTests extends ESTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     if (asyncPermits.tryAcquire()) {
-                        executorService.execute(new AsyncAction(randomBoolean() ? refs.acquire() : refs.tryAcquire()));
+                        executorService.execute(new AsyncAction(refs.acquire()));
                     }
                 }
 
@@ -174,7 +174,6 @@ public class RefCountingRunnableTests extends ESTestCase {
 
             assertEquals(expectedMessage, expectThrows(AssertionError.class, throwingRunnable).getMessage());
             assertEquals(1, callCount.get());
-            assertNull(refs.tryAcquire());
         }
     }
 

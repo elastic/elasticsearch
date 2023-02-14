@@ -714,6 +714,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 }
             }, 30, TimeUnit.SECONDS);
             cancellable.cancel();
+            assertBusy(logAppender::assertAllExpectationsMatched);
             logger.info("--> waiting for field-caps tasks to be cancelled");
             assertBusy(() -> {
                 List<TaskInfo> tasks = client().admin()
@@ -727,7 +728,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     assertTrue(task.cancelled());
                 }
             }, 30, TimeUnit.SECONDS);
-            assertBusy(logAppender::assertAllExpectationsMatched);
             BlockingOnRewriteQueryBuilder.unblockOnRewrite();
             expectThrows(CancellationException.class, future::actionGet);
         }

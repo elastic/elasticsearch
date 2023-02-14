@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -46,7 +45,6 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -67,6 +65,8 @@ public class AggregatorBenchmark {
     private static final String DOUBLES = "doubles";
     private static final String BOOLEANS = "booleans";
     private static final String BYTES_REFS = "bytes_refs";
+    private static final String TWO_LONGS = "two_" + LONGS;
+    private static final String LONGS_AND_BYTES_REFS = LONGS + "_and_" + BYTES_REFS;
 
     private static final String VECTOR_DOUBLES = "vector_doubles";
     private static final String HALF_NULL_DOUBLES = "half_null_doubles";
@@ -97,7 +97,7 @@ public class AggregatorBenchmark {
         }
     }
 
-    @Param({ NONE, LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS })
+    @Param({ NONE, LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS })
     public String grouping;
 
     @Param({ AVG, COUNT, MIN, MAX, SUM })
@@ -117,6 +117,14 @@ public class AggregatorBenchmark {
             case DOUBLES -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.DOUBLE));
             case BOOLEANS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BOOLEAN));
             case BYTES_REFS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF));
+            case TWO_LONGS -> List.of(
+                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
+                new HashAggregationOperator.GroupSpec(1, ElementType.LONG)
+            );
+            case LONGS_AND_BYTES_REFS -> List.of(
+                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
+                new HashAggregationOperator.GroupSpec(1, ElementType.BYTES_REF)
+            );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
         GroupingAggregatorFunction.Factory factory = GroupingAggregatorFunction.of(aggName, aggType);
@@ -137,52 +145,17 @@ public class AggregatorBenchmark {
 
     private static void checkGrouped(String prefix, String grouping, String op, AggregationType aggType, Page page) {
         switch (grouping) {
-            case LONGS -> {
-                LongBlock groups = page.getBlock(0);
-                for (int g = 0; g < GROUPS; g++) {
-                    if (groups.getLong(g) != (long) g) {
-                        throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getLong(g) + "]");
-                    }
-                }
+            case TWO_LONGS -> {
+                checkGroupingBlock(prefix, LONGS, page.getBlock(0));
+                checkGroupingBlock(prefix, LONGS, page.getBlock(1));
             }
-            case INTS -> {
-                IntBlock groups = page.getBlock(0);
-                for (int g = 0; g < GROUPS; g++) {
-                    if (groups.getInt(g) != g) {
-                        throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getInt(g) + "]");
-                    }
-                }
+            case LONGS_AND_BYTES_REFS -> {
+                checkGroupingBlock(prefix, LONGS, page.getBlock(0));
+                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
             }
-            case DOUBLES -> {
-                DoubleBlock groups = page.getBlock(0);
-                for (int g = 0; g < GROUPS; g++) {
-                    if (groups.getDouble(g) != (double) g) {
-                        throw new AssertionError(prefix + "bad group expected [" + (double) g + "] but was [" + groups.getDouble(g) + "]");
-                    }
-                }
-            }
-            case BOOLEANS -> {
-                BooleanBlock groups = page.getBlock(0);
-                if (groups.getBoolean(0) != false) {
-                    throw new AssertionError(prefix + "bad group expected [false] but was [" + groups.getBoolean(0) + "]");
-                }
-                if (groups.getBoolean(1) != true) {
-                    throw new AssertionError(prefix + "bad group expected [true] but was [" + groups.getBoolean(1) + "]");
-                }
-            }
-            case BYTES_REFS -> {
-                BytesRefBlock groups = page.getBlock(0);
-                for (int g = 0; g < GROUPS; g++) {
-                    if (false == groups.getBytesRef(g, new BytesRef()).equals(bytesGroup(g))) {
-                        throw new AssertionError(
-                            prefix + "bad group expected [" + bytesGroup(g) + "] but was [" + groups.getBytesRef(g, new BytesRef()) + "]"
-                        );
-                    }
-                }
-            }
-            default -> throw new IllegalArgumentException("bad grouping [" + grouping + "]");
+            default -> checkGroupingBlock(prefix, grouping, page.getBlock(0));
         }
-        Block values = page.getBlock(1);
+        Block values = page.getBlock(page.getBlockCount() - 1);
         int groups = switch (grouping) {
             case BOOLEANS -> 2;
             default -> GROUPS;
@@ -279,6 +252,55 @@ public class AggregatorBenchmark {
                 }
             }
             default -> throw new IllegalArgumentException("bad op " + op);
+        }
+    }
+
+    private static void checkGroupingBlock(String prefix, String grouping, Block block) {
+        switch (grouping) {
+            case LONGS -> {
+                LongBlock groups = (LongBlock) block;
+                for (int g = 0; g < GROUPS; g++) {
+                    if (groups.getLong(g) != (long) g) {
+                        throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getLong(g) + "]");
+                    }
+                }
+            }
+            case INTS -> {
+                IntBlock groups = (IntBlock) block;
+                for (int g = 0; g < GROUPS; g++) {
+                    if (groups.getInt(g) != g) {
+                        throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getInt(g) + "]");
+                    }
+                }
+            }
+            case DOUBLES -> {
+                DoubleBlock groups = (DoubleBlock) block;
+                for (int g = 0; g < GROUPS; g++) {
+                    if (groups.getDouble(g) != (double) g) {
+                        throw new AssertionError(prefix + "bad group expected [" + (double) g + "] but was [" + groups.getDouble(g) + "]");
+                    }
+                }
+            }
+            case BOOLEANS -> {
+                BooleanBlock groups = (BooleanBlock) block;
+                if (groups.getBoolean(0) != false) {
+                    throw new AssertionError(prefix + "bad group expected [false] but was [" + groups.getBoolean(0) + "]");
+                }
+                if (groups.getBoolean(1) != true) {
+                    throw new AssertionError(prefix + "bad group expected [true] but was [" + groups.getBoolean(1) + "]");
+                }
+            }
+            case BYTES_REFS -> {
+                BytesRefBlock groups = (BytesRefBlock) block;
+                for (int g = 0; g < GROUPS; g++) {
+                    if (false == groups.getBytesRef(g, new BytesRef()).equals(bytesGroup(g))) {
+                        throw new AssertionError(
+                            prefix + "bad group expected [" + bytesGroup(g) + "] but was [" + groups.getBytesRef(g, new BytesRef()) + "]"
+                        );
+                    }
+                }
+            }
+            default -> throw new IllegalArgumentException("bad grouping [" + grouping + "]");
         }
     }
 
@@ -386,80 +408,66 @@ public class AggregatorBenchmark {
     }
 
     private static List<Block> groupingBlocks(String grouping, String blockType) {
-        return switch (blockType) {
-            case VECTOR_LONGS, VECTOR_DOUBLES -> switch (grouping) {
-                    case LONGS -> List.of(
-                        new LongArrayVector(LongStream.range(0, BLOCK_LENGTH).map(l -> l % GROUPS).toArray(), BLOCK_LENGTH).asBlock()
-                    );
-                    case INTS -> List.of(
-                        new IntArrayVector(IntStream.range(0, BLOCK_LENGTH).map(i -> i % GROUPS).toArray(), BLOCK_LENGTH, null).asBlock()
-                    );
-                    case DOUBLES -> List.of(
-                        new DoubleArrayVector(
-                            IntStream.range(0, BLOCK_LENGTH).map(i -> i % GROUPS).mapToDouble(i -> (double) i).toArray(),
-                            BLOCK_LENGTH
-                        ).asBlock()
-                    );
-                    case BOOLEANS -> {
-                        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(BLOCK_LENGTH);
-                        for (int i = 0; i < BLOCK_LENGTH; i++) {
-                            builder.appendBoolean(i % 2 == 1);
-                        }
-                        yield List.of(builder.build());
+        return switch (grouping) {
+            case TWO_LONGS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(LONGS, blockType));
+            case LONGS_AND_BYTES_REFS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(BYTES_REFS, blockType));
+            default -> List.of(groupingBlock(grouping, blockType));
+        };
+    }
+
+    private static Block groupingBlock(String grouping, String blockType) {
+        int valuesPerGroup = switch (blockType) {
+            case VECTOR_LONGS, VECTOR_DOUBLES -> 1;
+            case HALF_NULL_LONGS, HALF_NULL_DOUBLES -> 2;
+            default -> throw new UnsupportedOperationException("bad grouping [" + grouping + "]");
+        };
+        return switch (grouping) {
+            case LONGS -> {
+                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    for (int v = 0; v < valuesPerGroup; v++) {
+                        builder.appendLong(i % GROUPS);
                     }
-                    case BYTES_REFS -> {
-                        BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(BLOCK_LENGTH);
-                        for (int i = 0; i < BLOCK_LENGTH; i++) {
-                            builder.appendBytesRef(bytesGroup(i % GROUPS));
-                        }
-                        yield List.of(builder.build());
+                }
+                yield builder.build();
+            }
+            case INTS -> {
+                var builder = IntBlock.newBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    for (int v = 0; v < valuesPerGroup; v++) {
+                        builder.appendInt(i % GROUPS);
                     }
-                    default -> throw new UnsupportedOperationException("unsupported grouping [" + grouping + "]");
-                };
-            case HALF_NULL_LONGS, HALF_NULL_DOUBLES -> switch (grouping) {
-                    case LONGS -> {
-                        var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
-                        for (int i = 0; i < BLOCK_LENGTH; i++) {
-                            builder.appendLong(i % GROUPS);
-                            builder.appendLong(i % GROUPS);
-                        }
-                        yield List.of(builder.build());
+                }
+                yield builder.build();
+            }
+            case DOUBLES -> {
+                var builder = DoubleBlock.newBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    for (int v = 0; v < valuesPerGroup; v++) {
+                        builder.appendDouble(i % GROUPS);
                     }
-                    case INTS -> {
-                        var builder = IntBlock.newBlockBuilder(BLOCK_LENGTH);
-                        for (int i = 0; i < BLOCK_LENGTH; i++) {
-                            builder.appendInt(i % GROUPS);
-                            builder.appendInt(i % GROUPS);
-                        }
-                        yield List.of(builder.build());
+                }
+                yield builder.build();
+            }
+            case BOOLEANS -> {
+                BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    for (int v = 0; v < valuesPerGroup; v++) {
+                        builder.appendBoolean(i % 2 == 1);
                     }
-                    case DOUBLES -> {
-                        var builder = DoubleBlock.newBlockBuilder(BLOCK_LENGTH);
-                        for (int i = 0; i < BLOCK_LENGTH; i++) {
-                            builder.appendDouble(i % GROUPS);
-                            builder.appendDouble(i % GROUPS);
-                        }
-                        yield List.of(builder.build());
+                }
+                yield builder.build();
+            }
+            case BYTES_REFS -> {
+                BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    for (int v = 0; v < valuesPerGroup; v++) {
+                        builder.appendBytesRef(bytesGroup(i % GROUPS));
                     }
-                    case BOOLEANS -> {
-                        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(BLOCK_LENGTH);
-                        for (int i = 0; i < BLOCK_LENGTH; i++) {
-                            builder.appendBoolean(i % 2 == 1);
-                            builder.appendBoolean(i % 2 == 1);
-                        }
-                        yield List.of(builder.build());
-                    }
-                    case BYTES_REFS -> {
-                        BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(BLOCK_LENGTH);
-                        for (int i = 0; i < BLOCK_LENGTH; i++) {
-                            builder.appendBytesRef(bytesGroup(i % GROUPS));
-                            builder.appendBytesRef(bytesGroup(i % GROUPS));
-                        }
-                        yield List.of(builder.build());
-                    }
-                    default -> throw new UnsupportedOperationException("unsupported grouping [" + grouping + "]");
-                };
-            default -> throw new IllegalArgumentException("bad blockType: " + blockType);
+                }
+                yield builder.build();
+            }
+            default -> throw new UnsupportedOperationException("unsupported grouping [" + grouping + "]");
         };
     }
 

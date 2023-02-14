@@ -197,7 +197,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 instance.getInferenceTimeout(),
                 instance.isPreviouslyLicensed()
             );
-        } else if (version.before(Version.V_8_8_0)) {
+        } else if (version.before(TransportVersion.V_8_8_0)) {
             var r = new Request(
                 instance.getModelId(),
                 adjustedUpdate,

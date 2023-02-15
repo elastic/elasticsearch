@@ -1384,7 +1384,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final RefreshResponse refresh(String... indices) {
         waitForRelocation();
-        // TODO RANDOMIZE with flush?
         RefreshResponse actionGet = client().admin()
             .indices()
             .prepareRefresh(indices)

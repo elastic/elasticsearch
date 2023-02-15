@@ -29,7 +29,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -99,7 +98,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
-        XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         final DiscoveryNodes nodes = clusterState.nodes();
 

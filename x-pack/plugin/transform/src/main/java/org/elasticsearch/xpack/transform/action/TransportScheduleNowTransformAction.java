@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
@@ -81,7 +80,6 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
-        XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         useSecondaryAuthIfAvailable(securityContext, () -> {
             ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(unusedConfig -> {

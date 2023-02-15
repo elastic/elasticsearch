@@ -14,9 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -42,7 +39,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -78,18 +74,14 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
-import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TransportTermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
-import org.elasticsearch.xpack.core.transform.TransformMetadata;
-import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -104,7 +96,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 @SuppressWarnings("HiddenField")
 public class XPackPlugin extends XPackClientPlugin
@@ -117,7 +108,6 @@ public class XPackPlugin extends XPackClientPlugin
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
-    public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -227,70 +217,9 @@ public class XPackPlugin extends XPackClientPlugin
         return epochMillisSupplier.get();
     }
 
-    /**
-     * Checks if the cluster state allows this node to add x-pack metadata to the cluster state,
-     * and throws an exception otherwise.
-     * This check should be called before installing any x-pack metadata to the cluster state,
-     * to ensure that the other nodes that are part of the cluster will be able to deserialize
-     * that metadata. Note that if the cluster state already contains x-pack metadata, this
-     * check assumes that the nodes are already ready to receive additional x-pack metadata.
-     * Having this check properly in place everywhere allows to install x-pack into a cluster
-     * using a rolling restart.
-     */
-    public static void checkReadyForXPackCustomMetadata(ClusterState clusterState) {
-        if (alreadyContainsXPackCustomMetadata(clusterState)) {
-            return;
-        }
-        List<DiscoveryNode> notReadyNodes = nodesNotReadyForXPackCustomMetadata(clusterState);
-        if (notReadyNodes.isEmpty() == false) {
-            throw new IllegalStateException("The following nodes are not ready yet for enabling x-pack custom metadata: " + notReadyNodes);
-        }
-    }
-
-    /**
-     * Checks if the cluster state allows this node to add x-pack metadata to the cluster state.
-     * See {@link #checkReadyForXPackCustomMetadata} for more details.
-     */
-    public static boolean isReadyForXPackCustomMetadata(ClusterState clusterState) {
-        return alreadyContainsXPackCustomMetadata(clusterState) || nodesNotReadyForXPackCustomMetadata(clusterState).isEmpty();
-    }
-
-    /**
-     * Returns the list of nodes that won't allow this node from adding x-pack metadata to the cluster state.
-     * See {@link #checkReadyForXPackCustomMetadata} for more details.
-     */
-    public static List<DiscoveryNode> nodesNotReadyForXPackCustomMetadata(ClusterState clusterState) {
-        // check that all nodes would be capable of deserializing newly added x-pack metadata
-        final List<DiscoveryNode> notReadyNodes = clusterState.nodes().stream().filter(node -> {
-            final String xpackInstalledAttr = node.getAttributes().getOrDefault(XPACK_INSTALLED_NODE_ATTR, "false");
-            return Booleans.parseBoolean(xpackInstalledAttr) == false;
-        }).collect(Collectors.toList());
-
-        return notReadyNodes;
-    }
-
-    private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
-        final Metadata metadata = clusterState.metadata();
-        return metadata.custom(LicensesMetadata.TYPE) != null
-            || metadata.custom(MlMetadata.TYPE) != null
-            || metadata.custom(WatcherMetadata.TYPE) != null
-            || clusterState.custom(TokenMetadata.TYPE) != null
-            || metadata.custom(TransformMetadata.TYPE) != null;
-    }
-
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        final String xpackInstalledNodeAttrSetting = "node.attr." + XPACK_INSTALLED_NODE_ATTR;
-
-        if (settings.get(xpackInstalledNodeAttrSetting) != null) {
-            throw new IllegalArgumentException("Directly setting [" + xpackInstalledNodeAttrSetting + "] is not permitted");
-        }
-        return Settings.builder().put(super.additionalSettings()).put(xpackInstalledNodeAttrSetting, "true").build();
     }
 
     @Override

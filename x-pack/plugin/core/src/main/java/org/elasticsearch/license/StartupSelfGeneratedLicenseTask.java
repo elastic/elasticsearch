@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
 import java.util.UUID;
@@ -51,7 +50,6 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
-        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         final Metadata metadata = currentState.metadata();
         final LicensesMetadata currentLicensesMetadata = metadata.custom(LicensesMetadata.TYPE);
         // do not generate a license if any license is present

@@ -79,7 +79,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -2374,14 +2373,7 @@ public final class TokenService {
             }
 
             if (state.nodes().isLocalNodeElectedMaster()) {
-                if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
-                    installTokenMetadata(state);
-                } else {
-                    logger.debug(
-                        "cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
-                        () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state)
-                    );
-                }
+                installTokenMetadata(state);
             }
 
             TokenMetadata custom = event.state().custom(TokenMetadata.TYPE);
@@ -2406,8 +2398,6 @@ public final class TokenService {
                 submitUnbatchedTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-
                         if (currentState.custom(TokenMetadata.TYPE) == null) {
                             return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, getTokenMetadata()).build();
                         } else {

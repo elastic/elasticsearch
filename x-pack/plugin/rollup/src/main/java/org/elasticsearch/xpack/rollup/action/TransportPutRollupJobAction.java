@@ -47,7 +47,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -100,7 +99,6 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         ClusterState clusterState,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(request.indices())

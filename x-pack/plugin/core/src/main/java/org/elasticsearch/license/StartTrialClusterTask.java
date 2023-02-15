@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
 import java.util.Collections;
@@ -111,7 +110,6 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         @Override
         public ClusterState execute(BatchExecutionContext<StartTrialClusterTask> batchExecutionContext) throws Exception {
             final var initialState = batchExecutionContext.initialState();
-            XPackPlugin.checkReadyForXPackCustomMetadata(initialState);
             final LicensesMetadata originalLicensesMetadata = initialState.metadata().custom(LicensesMetadata.TYPE);
             var currentLicensesMetadata = originalLicensesMetadata;
             for (final var taskContext : batchExecutionContext.taskContexts()) {

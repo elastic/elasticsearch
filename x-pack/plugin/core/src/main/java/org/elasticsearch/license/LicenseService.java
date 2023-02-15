@@ -315,7 +315,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
                     final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
                     if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
                         throw new IllegalStateException(
@@ -477,8 +476,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
             final ClusterState clusterState = clusterService.state();
             if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
-                && clusterState.nodes().getMasterNode() != null
-                && XPackPlugin.isReadyForXPackCustomMetadata(clusterState)) {
+                && clusterState.nodes().getMasterNode() != null) {
                 final LicensesMetadata currentMetadata = clusterState.metadata().custom(LicensesMetadata.TYPE);
                 boolean noLicense = currentMetadata == null || currentMetadata.getLicense() == null;
                 if (clusterState.getNodes().isLocalNodeElectedMaster()
@@ -510,14 +508,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final ClusterState previousClusterState = event.previousState();
         final ClusterState currentClusterState = event.state();
         if (currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-            if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
-                logger.debug(
-                    "cannot add license to cluster as the following nodes might not understand the license metadata: {}",
-                    () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState)
-                );
-                return;
-            }
-
             final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             // notify all interested plugins

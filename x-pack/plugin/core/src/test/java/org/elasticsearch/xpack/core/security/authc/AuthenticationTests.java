@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -751,6 +752,34 @@ public class AuthenticationTests extends ESTestCase {
             ),
             equalTo(realmRefWithDomain)
         );
+    }
+
+    public void testMaybeRemoveRemoteIndicesFromRoleDescriptors() {
+        final BytesReference roleWithoutRemoteIndices = new BytesArray("""
+            {"user_role":{"cluster":["all"]}}""");
+
+        // role without remote indices should stay the same
+        assertThat(
+            roleWithoutRemoteIndices.toBytesRef(),
+            equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(roleWithoutRemoteIndices).toBytesRef())
+        );
+
+        // role with remote indices should be filtered
+        assertThat(
+            roleWithoutRemoteIndices.toBytesRef(),
+            equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(new BytesArray("""
+                {"user_role":{"cluster":["all"],
+                "remote_indices":{"names":["logs-*"],"privileges":["read"],"clusters":["my_cluster*","other_cluster"]}}
+                }""")).toBytesRef())
+        );
+
+        // check null value
+        assertThat(null, equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
+
+        // and en empty
+        final BytesReference empty = new BytesArray("""
+            {}""");
+        assertThat(empty.toBytesRef(), equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(empty).toBytesRef()));
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {

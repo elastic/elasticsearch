@@ -26,9 +26,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -46,7 +43,6 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -54,6 +50,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -1153,60 +1150,19 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
-    private static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
+    static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
         if (roleDescriptorsBytes == null) {
             return null;
         }
-
-        List<RoleDescriptor> roleDescriptorsList = convertRoleDescriptorsBytesToList(roleDescriptorsBytes).stream().map(roleDescriptor -> {
-            if (roleDescriptor.hasRemoteIndicesPrivileges()) {
-                return new RoleDescriptor(
-                    roleDescriptor.getName(),
-                    roleDescriptor.getClusterPrivileges(),
-                    roleDescriptor.getIndicesPrivileges(),
-                    roleDescriptor.getApplicationPrivileges(),
-                    roleDescriptor.getConditionalClusterPrivileges(),
-                    roleDescriptor.getRunAs(),
-                    roleDescriptor.getMetadata(),
-                    roleDescriptor.getTransientMetadata(),
-                    null
-                );
+        Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes).entrySet().stream().map(entry -> {
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> roleDescriptor = (Map<String, Object>) entry.getValue();
+                roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName());
             }
-            return roleDescriptor;
-        }).toList();
-
-        return convertRoleDescriptorsListToBytes(roleDescriptorsList);
-    }
-
-    private static BytesReference convertRoleDescriptorsListToBytes(final List<RoleDescriptor> roleDescriptors) {
-        try {
-            final XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                builder.field(roleDescriptor.getName(), roleDescriptor);
-            }
-            builder.endObject();
-            return BytesReference.bytes(builder);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private static List<RoleDescriptor> convertRoleDescriptorsBytesToList(BytesReference roleDescriptorBytes) {
-        try (
-            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, roleDescriptorBytes, XContentType.JSON)
-        ) {
-            final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
-            parser.nextToken();
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                parser.nextToken();
-                final String roleName = parser.currentName();
-                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
-            }
-            return roleDescriptors;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+            return entry;
+        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
     }
 
     static boolean equivalentRealms(String name1, String type1, String name2, String type2) {

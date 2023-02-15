@@ -443,7 +443,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             context0.sendPublishRequest(
                 otherNode,
                 new PublishRequest(clusterState0),
-                ActionListener.wrap(() -> assertTrue(completed.compareAndSet(false, true)))
+                ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
             assertTrue(completed.getAndSet(false));
             receivedState0 = receivedStateRef.getAndSet(null);
@@ -484,7 +484,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             context1.sendPublishRequest(
                 otherNode,
                 new PublishRequest(clusterState1),
-                ActionListener.wrap(() -> assertTrue(completed.compareAndSet(false, true)))
+                ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
             assertTrue(completed.getAndSet(false));
             var receivedState1 = receivedStateRef.getAndSet(null);

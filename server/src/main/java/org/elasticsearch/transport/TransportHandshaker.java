@@ -149,7 +149,7 @@ final class TransportHandshaker {
         final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, version, listener);
         pendingHandshakes.put(requestId, handler);
         channel.addCloseListener(
-            ActionListener.wrap(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
+            ActionListener.running(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
         );
         boolean success = false;
         try {

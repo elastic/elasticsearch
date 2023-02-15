@@ -92,6 +92,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    private static final String MISSING_CHECKSUM = "_na_";
+
     public enum ObjectStoreType {
         FS("location") {
             @Override
@@ -333,12 +335,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     }
 
     private static StoreFileMetadata toStoreFileMetadata(BlobMetadata metadata) {
-        return new StoreFileMetadata(
-            metadata.name(),
-            metadata.length(),
-            "checksum is not available", // TODO ES-4993 verify segments file checksum
-            Version.CURRENT.toString()
-        );
+        return new StoreFileMetadata(metadata.name(), metadata.length(), MISSING_CHECKSUM, Version.CURRENT.toString());
     }
 
     /**

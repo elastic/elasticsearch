@@ -66,6 +66,8 @@ import static org.elasticsearch.xpack.entsearch.engine.Engine.NAME_FIELD;
 
 /**
  * A service that manages the persistent {@link Engine} configurations.
+ *
+ * TODO: Revise the internal format (mappings). Should we use rest or transport versioning for BWC?
  */
 public class EngineIndexService {
     private static final Logger logger = LogManager.getLogger(EngineIndexService.class);

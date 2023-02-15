@@ -95,6 +95,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             List.of(modelText)
         );
+        inferRequest.setHighPriority(true);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
             if (response.getInferenceResults().isEmpty()) {

@@ -114,7 +114,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
 
         final boolean remoteClusterPortEnabled = randomBoolean();
-        settings.put("remote_cluster.enabled", remoteClusterPortEnabled);
+        settings.put("remote_cluster_server.enabled", remoteClusterPortEnabled);
         final boolean remoteClusterSslEnabled = randomBoolean();
         settings.put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);
 

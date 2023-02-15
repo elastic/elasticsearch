@@ -819,8 +819,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */
     public static long randomNonNegativeLong() {
-        long randomLong = randomLong();
-        return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
+        return randomLong() & Long.MAX_VALUE;
+    }
+
+    /**
+     * @return an <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        return randomInt() & Integer.MAX_VALUE;
     }
 
     public static float randomFloat() {

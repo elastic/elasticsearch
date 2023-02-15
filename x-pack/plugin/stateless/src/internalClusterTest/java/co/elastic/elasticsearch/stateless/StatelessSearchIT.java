@@ -17,8 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
@@ -284,14 +283,13 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         final AtomicInteger searchNotifications = new AtomicInteger(0);
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addRequestHandlingBehavior(NewCommitNotificationAction.NAME, (handler, request, channel, task) -> {
-                if (request instanceof NewCommitNotificationRequest commitRequest) {
-                    if (commitRequest.isIndexingShard() == false) {
-                        searchNotifications.incrementAndGet();
-                    }
+            mockTransportService.addRequestHandlingBehavior(
+                TransportNewCommitNotificationAction.NAME + "[u]",
+                (handler, request, channel, task) -> {
+                    searchNotifications.incrementAndGet();
+                    handler.messageReceived(request, channel, task);
                 }
-                handler.messageReceived(request, channel, task);
-            });
+            );
         }
 
         final int beginningNumberOfCreatedCommits = getNumberOfCreatedCommits();

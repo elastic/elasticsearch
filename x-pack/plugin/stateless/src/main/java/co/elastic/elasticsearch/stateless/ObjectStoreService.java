@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexFileNames;
@@ -461,13 +461,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     );
 
                     NewCommitNotificationRequest request = new NewCommitNotificationRequest(
-                        shardId,
-                        true,
+                        clusterService.state().routingTable().shardRoutingTable(shardId),
                         reference.getPrimaryTerm(),
                         generation,
                         reference.getCommitFiles()
                     );
-                    client.execute(NewCommitNotificationAction.INSTANCE, request);
+                    client.execute(TransportNewCommitNotificationAction.TYPE, request);
                 }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
                     () -> IOUtils.close(reference, releasable)
                 );

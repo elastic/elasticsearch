@@ -17,15 +17,18 @@ import java.util.function.Supplier;
 public class EncodeBenchmark extends AbstractDocValuesForUtilBenchmark {
     protected ByteArrayDataOutput dataOutput;
     protected long[] input;
+    protected byte[] output;
 
     @Override
     public void setupIteration(int unUsedBitsPerValue, Supplier<long[]> arraySupplier) throws IOException {
         this.input = arraySupplier.get();
+        this.output = new byte[Long.BYTES * blockSize];
+        this.dataOutput = new ByteArrayDataOutput(this.output);
     }
 
     @Override
     public void setupInvocation(int unusedBitsPerValue) {
-        this.dataOutput = new ByteArrayDataOutput(new byte[Long.BYTES * blockSize]);
+        dataOutput.reset(this.output);
     }
 
     @Override

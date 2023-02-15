@@ -133,9 +133,7 @@ public interface Transport extends LifecycleComponent {
         /**
          * Returns the version of the data to communicate in this channel.
          */
-        default TransportVersion getTransportVersion() {
-            return TransportVersion.CURRENT;
-        }
+        TransportVersion getTransportVersion();
 
         /**
          * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to

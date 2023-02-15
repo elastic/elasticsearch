@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
@@ -175,6 +176,11 @@ public class MockTransport extends StubbableTransport {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.CURRENT;
             }
 
             @Override

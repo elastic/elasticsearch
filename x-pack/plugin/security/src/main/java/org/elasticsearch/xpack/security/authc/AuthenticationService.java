@@ -15,6 +15,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -367,7 +369,7 @@ public class AuthenticationService {
     static class AuditableHttpRequest extends AuditableRequest {
 
         private final BasicHttpRequest request;
-        private final String requestId;
+        private final Supplier<String> requestId;
 
         AuditableHttpRequest(
             AuditTrail auditTrail,
@@ -377,51 +379,52 @@ public class AuthenticationService {
         ) {
             super(auditTrail, failureHandler, threadContext);
             this.request = request;
-            // There should never be an existing audit-id when processing a rest request.
-            this.requestId = AuditUtil.generateRequestId(threadContext);
+            // There should never be an existing audit-id when processing a http request.
+            // It is lazily computed because there shouldn't be a new audit request id if authentication is already set
+            this.requestId = new CachedSupplier<>(() -> AuditUtil.generateRequestId(threadContext));
         }
 
         @Override
         void authenticationSuccess(Authentication authentication) {
-            auditTrail.authenticationSuccess(requestId, authentication, request);
+            auditTrail.authenticationSuccess(requestId.get(), authentication, request);
         }
 
         @Override
         void realmAuthenticationFailed(AuthenticationToken token, String realm) {
-            auditTrail.authenticationFailed(requestId, realm, token, request);
+            auditTrail.authenticationFailed(requestId.get(), realm, token, request);
         }
 
         @Override
         ElasticsearchSecurityException tamperedRequest() {
-            auditTrail.tamperedRequest(requestId, request);
+            auditTrail.tamperedRequest(requestId.get(), request);
             return new ElasticsearchSecurityException("rest request attempted to inject a user");
         }
 
         @Override
         ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token) {
             if (token != null) {
-                auditTrail.authenticationFailed(requestId, token, request);
+                auditTrail.authenticationFailed(requestId.get(), token, request);
             } else {
-                auditTrail.authenticationFailed(requestId, request);
+                auditTrail.authenticationFailed(requestId.get(), request);
             }
             return failureHandler.exceptionProcessingRequest(request, e, threadContext);
         }
 
         @Override
         ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
-            auditTrail.authenticationFailed(requestId, token, request);
+            auditTrail.authenticationFailed(requestId.get(), token, request);
             return failureHandler.failedAuthentication(request, token, threadContext);
         }
 
         @Override
         ElasticsearchSecurityException anonymousAccessDenied() {
-            auditTrail.anonymousAccessDenied(requestId, request);
+            auditTrail.anonymousAccessDenied(requestId.get(), request);
             return failureHandler.missingToken(request, threadContext);
         }
 
         @Override
         ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
-            auditTrail.runAsDenied(requestId, authentication, request, EmptyAuthorizationInfo.INSTANCE);
+            auditTrail.runAsDenied(requestId.get(), authentication, request, EmptyAuthorizationInfo.INSTANCE);
             return failureHandler.failedAuthentication(request, token, threadContext);
         }
 

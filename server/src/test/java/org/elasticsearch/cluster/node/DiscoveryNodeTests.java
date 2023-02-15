@@ -46,7 +46,8 @@ public class DiscoveryNodeTests extends ESTestCase {
             new TransportAddress(TransportAddress.META_ADDRESS, 9200),
             emptyMap(),
             roles,
-            Version.CURRENT
+            Version.CURRENT,
+            TransportVersion.CURRENT
         );
         DiscoveryNodeRole previous = null;
         for (final DiscoveryNodeRole current : node.getRoles()) {
@@ -63,7 +64,15 @@ public class DiscoveryNodeTests extends ESTestCase {
             ? InetAddress.getByName("192.0.2.1")
             : InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode(
+            "name1",
+            "id1",
+            transportAddress,
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT,
+            TransportVersion.CURRENT
+        );
         assertEquals(transportAddress.address().getHostString(), node.getHostName());
         assertEquals(transportAddress.getAddress(), node.getHostAddress());
     }
@@ -71,7 +80,15 @@ public class DiscoveryNodeTests extends ESTestCase {
     public void testDiscoveryNodeSerializationKeepsHost() throws Exception {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode(
+            "name1",
+            "id1",
+            transportAddress,
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT,
+            TransportVersion.CURRENT
+        );
 
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         streamOutput.setTransportVersion(TransportVersion.CURRENT);
@@ -98,7 +115,8 @@ public class DiscoveryNodeTests extends ESTestCase {
             transportAddress,
             emptyMap(),
             Collections.singleton(customRole),
-            Version.CURRENT
+            Version.CURRENT,
+            TransportVersion.CURRENT
         );
 
         {
@@ -165,7 +183,8 @@ public class DiscoveryNodeTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            Version.CURRENT,
+            TransportVersion.CURRENT
         );
         final StringBuilder stringBuilder = new StringBuilder();
         node.appendDescriptionWithoutAttributes(stringBuilder);
@@ -188,6 +207,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
             Version.CURRENT,
+            TransportVersion.CURRENT,
             withExternalId ? "test-external-id" : null
         );
 
@@ -217,9 +237,10 @@ public class DiscoveryNodeTests extends ESTestCase {
                   "transform",
                   "voting_only"
                 ],
-                "version" : "%s"
+                "version" : "%s",
+                "transportVersion" : "%s"
               }
-            }""", transportAddress, withExternalId ? "test-external-id" : "test-name", Version.CURRENT)));
+            }""", transportAddress, withExternalId ? "test-external-id" : "test-name", Version.CURRENT, TransportVersion.CURRENT)));
     }
 
     public void testDiscoveryNodeToString() {
@@ -228,7 +249,8 @@ public class DiscoveryNodeTests extends ESTestCase {
             buildNewFakeTransportAddress(),
             Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            Version.CURRENT,
+            TransportVersion.CURRENT
         );
         var toString = node.toString();
 
@@ -237,6 +259,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertThat(toString, containsString("{" + node.getAddress() + "}"));
         assertThat(toString, containsString("{IScdfhilmrstvw}"));// roles
         assertThat(toString, containsString("{" + node.getVersion() + "}"));
+        assertThat(toString, containsString("{" + node.getTransportVersion() + "}"));
         assertThat(toString, containsString("{test-attr=val}"));// attributes
     }
 }

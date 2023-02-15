@@ -137,7 +137,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 if (compressor != null) {
                     in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
                 }
-                in.setTransportVersion(node.getVersion().transportVersion);
+                in.setTransportVersion(node.getTransportVersion());
                 return in.readBoolean() == false;
             } finally {
                 IOUtils.close(in);

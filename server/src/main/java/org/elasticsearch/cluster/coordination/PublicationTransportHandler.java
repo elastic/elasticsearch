@@ -226,7 +226,7 @@ public class PublicationTransportHandler {
     }
 
     private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node) {
-        final TransportVersion serializeVersion = node.getVersion().transportVersion;
+        final TransportVersion serializeVersion = node.getTransportVersion();
         final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
         try {
@@ -262,7 +262,7 @@ public class PublicationTransportHandler {
 
     private ReleasableBytesReference serializeDiffClusterState(ClusterState newState, Diff<ClusterState> diff, DiscoveryNode node) {
         final long clusterStateVersion = newState.version();
-        final TransportVersion serializeVersion = node.getVersion().transportVersion;
+        final TransportVersion serializeVersion = node.getTransportVersion();
         final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
         try {
@@ -338,10 +338,10 @@ public class PublicationTransportHandler {
                     continue;
                 }
                 if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
-                    serializedStates.computeIfAbsent(node.getVersion().transportVersion, v -> serializeFullClusterState(newState, node));
+                    serializedStates.computeIfAbsent(node.getTransportVersion(), v -> serializeFullClusterState(newState, node));
                 } else {
                     serializedDiffs.computeIfAbsent(
-                        node.getVersion().transportVersion,
+                        node.getTransportVersion(),
                         v -> serializeDiffClusterState(newState, diffSupplier.getOrCompute(), node)
                     );
                 }
@@ -405,11 +405,11 @@ public class PublicationTransportHandler {
 
         private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             assert refCount() > 0;
-            ReleasableBytesReference bytes = serializedStates.get(destination.getVersion().transportVersion);
+            ReleasableBytesReference bytes = serializedStates.get(destination.getTransportVersion());
             if (bytes == null) {
                 try {
                     bytes = serializedStates.computeIfAbsent(
-                        destination.getVersion().transportVersion,
+                        destination.getTransportVersion(),
                         v -> serializeFullClusterState(newState, destination)
                     );
                 } catch (Exception e) {
@@ -422,7 +422,7 @@ public class PublicationTransportHandler {
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            final ReleasableBytesReference bytes = serializedDiffs.get(destination.getVersion().transportVersion);
+            final ReleasableBytesReference bytes = serializedDiffs.get(destination.getTransportVersion());
             assert bytes != null
                 : "failed to find serialized diff for node " + destination + " of version [" + destination.getVersion() + "]";
 
@@ -466,7 +466,7 @@ public class PublicationTransportHandler {
             transportService.sendChildRequest(
                 destination,
                 PUBLISH_STATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, destination.getVersion().transportVersion),
+                new BytesTransportRequest(bytes, destination.getTransportVersion()),
                 task,
                 STATE_REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(listener, PublishWithJoinResponse::new, ThreadPool.Names.CLUSTER_COORDINATION, bytes::decRef)

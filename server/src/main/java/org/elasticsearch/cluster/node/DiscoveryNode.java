@@ -779,6 +779,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             stringBuilder.append('}');
         }
         stringBuilder.append('{').append(nodeVersion).append('}');
+        stringBuilder.append('{').append(transportVersion).append('}');
     }
 
     public String descriptionWithoutAttributes() {
@@ -801,6 +802,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         builder.endArray();
         builder.field("version", nodeVersion);
+        builder.field("transportVersion", transportVersion);
         builder.endObject();
         return builder;
     }

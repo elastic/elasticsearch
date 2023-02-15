@@ -11,6 +11,8 @@ package org.elasticsearch;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -44,7 +46,7 @@ import java.util.TreeMap;
  * So the minimum compatible version needs to be hard-coded as the transport version of the minimum compatible node version.
  * That variable should be updated appropriately whenever we do a major version release.
  */
-public class TransportVersion implements Comparable<TransportVersion> {
+public class TransportVersion implements Comparable<TransportVersion>, ToXContentFragment {
     public static final TransportVersion ZERO = new TransportVersion(0, "00000000-0000-0000-0000-000000000000");
     public static final TransportVersion V_7_0_0 = new TransportVersion(7_00_00_99, "7505fd05-d982-43ce-a63f-ff4c6c8bdeec");
     public static final TransportVersion V_7_0_1 = new TransportVersion(7_00_01_99, "ae772780-e6f9-46a1-b0a0-20ed0cae37f7");
@@ -285,6 +287,11 @@ public class TransportVersion implements Comparable<TransportVersion> {
     @Override
     public int compareTo(TransportVersion other) {
         return Integer.compare(this.id, other.id);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 
     @Override

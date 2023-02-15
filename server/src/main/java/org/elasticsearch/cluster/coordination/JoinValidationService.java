@@ -302,14 +302,14 @@ public class JoinValidationService {
             assert discoveryNode.getVersion().onOrAfter(Version.V_8_3_0) : discoveryNode.getVersion();
             // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
             // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
-            final var cachedBytes = statesByVersion.get(discoveryNode.getVersion().transportVersion);
+            final var cachedBytes = statesByVersion.get(discoveryNode.getTransportVersion());
             final var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode));
             assert bytes.hasReferences() : "already closed";
             bytes.incRef();
             transportService.sendRequest(
                 discoveryNode,
                 JOIN_VALIDATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, discoveryNode.getVersion().transportVersion),
+                new BytesTransportRequest(bytes, discoveryNode.getTransportVersion()),
                 REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(
                     listener,
@@ -344,7 +344,7 @@ public class JoinValidationService {
         var success = false;
         try {
             final var clusterState = clusterStateSupplier.get();
-            final var version = discoveryNode.getVersion().transportVersion;
+            final var version = discoveryNode.getTransportVersion();
             try (
                 var stream = new OutputStreamStreamOutput(
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))

@@ -134,7 +134,7 @@ public interface Transport extends LifecycleComponent {
          * Returns the version of the data to communicate in this channel.
          */
         default TransportVersion getTransportVersion() {
-            return getVersion().transportVersion;
+            return getNode().getTransportVersion();
         }
 
         /**

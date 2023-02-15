@@ -159,7 +159,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     @Deprecated(forRemoval = true)
     public DiscoveryNode(final String id, TransportAddress address, Version nodeVersion) {
-        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), nodeVersion, nodeVersion.transportVersion);
+        this(
+            id,
+            address,
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            nodeVersion,
+            nodeVersion != null ? nodeVersion.transportVersion : null
+        );
     }
 
     /**
@@ -204,7 +211,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Set<DiscoveryNodeRole> roles,
         Version nodeVersion
     ) {
-        this("", id, address, attributes, roles, nodeVersion, nodeVersion.transportVersion);
+        this("", id, address, attributes, roles, nodeVersion, nodeVersion != null ? nodeVersion.transportVersion : null);
     }
 
     /**
@@ -270,7 +277,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             attributes,
             roles,
             nodeVersion,
-            nodeVersion.transportVersion
+            nodeVersion != null ? nodeVersion.transportVersion : null
         );
     }
 
@@ -399,7 +406,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             attributes,
             roles,
             nodeVersion,
-            nodeVersion.transportVersion,
+            nodeVersion != null ? nodeVersion.transportVersion : null,
             null
         );
     }

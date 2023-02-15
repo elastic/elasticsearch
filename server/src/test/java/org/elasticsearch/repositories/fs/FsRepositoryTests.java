@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -189,6 +190,32 @@ public class FsRepositoryTests extends ESTestCase {
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
         }
+    }
+
+    public void testCompareAndSet() throws IOException {
+        Path repo = createTempDir();
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
+            .put("location", repo)
+            .build();
+        RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+        FsRepository repository = new FsRepository(
+            metadata,
+            new Environment(settings, null),
+            NamedXContentRegistry.EMPTY,
+            BlobStoreTestUtil.mockClusterService(),
+            MockBigArrays.NON_RECYCLING_INSTANCE,
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+        );
+        repository.start();
+        final String key = UUIDs.randomBase64UUID(random());
+        assertEquals(0L, repository.getRegister(key));
+        assertFalse(repository.compareAndSetRegister(key, 1L, 2L));
+        assertTrue(repository.compareAndSetRegister(key, 0L, 1L));
+        assertFalse(repository.compareAndSetRegister(key, 2L, 3L));
+        assertTrue(repository.compareAndSetRegister(key, 1L, 2L));
+        assertEquals(2L, repository.getRegister(key));
     }
 
     private void deleteRandomDoc(Directory directory) throws IOException {

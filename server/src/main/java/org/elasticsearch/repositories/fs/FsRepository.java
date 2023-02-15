@@ -19,13 +19,21 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.function.Function;
 
 /**
@@ -140,5 +148,35 @@ public class FsRepository extends BlobStoreRepository {
         // We overwrite a file by deleting the old file and then renaming the new file into place, which is not atomic.
         // Also on Windows the overwrite may fail if the file is opened for reading at the time.
         return false;
+    }
+
+    private static final KeyedLock<Path> registerLocks = new KeyedLock<>();
+
+    @Override
+    @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
+    public boolean compareAndSetRegister(String key, long expected, long updated) throws IOException {
+        final Path path = ((FsBlobStore) blobStore()).path().resolve(REGISTERS_PATH).resolve(key);
+        try (
+            FileChannel channel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            FileLock ignored = channel.lock();
+            Closeable ignored2 = registerLocks.acquire(path)
+        ) {
+            final long fileSize = channel.size();
+            final ByteBuffer buf = ByteBuffer.allocate(Long.BYTES);
+            final long found;
+            if (fileSize == 0) {
+                found = 0L;
+            } else if (fileSize != Long.BYTES) {
+                throw new IllegalStateException("Found file of length [" + fileSize + "] for [" + key + "]");
+            } else {
+                channel.read(buf);
+                found = buf.getLong(0);
+            }
+            if (found != expected) {
+                return false;
+            }
+            channel.write(buf.clear().putLong(updated).flip(), 0);
+            return true;
+        }
     }
 }

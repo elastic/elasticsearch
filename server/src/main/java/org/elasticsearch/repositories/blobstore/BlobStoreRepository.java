@@ -3557,6 +3557,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return bufferSize;
     }
 
+    protected static final String REGISTERS_PATH = "registers";
+
+    @Override
+    public long getRegister(String key) throws IOException {
+        final BlobContainer registers = blobStore().blobContainer(basePath().add(REGISTERS_PATH));
+        final byte[] buffer = new byte[8];
+        try (var in = registers.readBlob(key)) {
+            if (Long.BYTES != org.elasticsearch.core.Streams.readFully(in, buffer)) {
+                throw new IllegalStateException("Did not find an 8b long value at key [" + key + "]");
+            }
+        } catch (NoSuchFileException noSuchFileException) {
+            return 0L;
+        }
+        return Numbers.bytesToLong(buffer, 0);
+    }
+
     /**
      * The result of removing a snapshot from a shard folder in the repository.
      *

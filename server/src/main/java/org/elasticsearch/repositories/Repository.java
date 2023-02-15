@@ -306,6 +306,30 @@ public interface Repository extends LifecycleComponent {
      */
     void awaitIdle();
 
+    /**
+     * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
+     * Keys not yet used start at initial value 0.
+     *
+     * @param key key of the value to update
+     * @param expected the expected value
+     * @param updated the new value
+     * @return true if successful, false if the expected value did not match the updated value
+     */
+    default boolean compareAndSetRegister(String key, long expected, long updated) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Gets the value set by {@link #compareAndSetRegister(String, long, long)} for a given key.
+     * If a key has not yet been used, the initial value is 0.
+     *
+     * @param key key of the value to get
+     * @return value found
+     */
+    default long getRegister(String key) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
     static boolean assertSnapshotMetaThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }

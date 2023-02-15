@@ -153,8 +153,8 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
                 actions.add(() -> delayedListener.onResponse(expectedVal));
             }
 
-            final var unexpectedResponseHeader = randomAlphaOfLength(10);
-            context.addResponseHeader(responseHeaderName, unexpectedResponseHeader);
+            final var additionalResponseHeader = randomAlphaOfLength(10);
+            context.addResponseHeader(responseHeaderName, additionalResponseHeader);
 
             actions.add(() -> listener.reroute().onResponse(null));
 
@@ -171,7 +171,7 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
             }
 
             assertEquals(
-                Set.of(expectedResponseHeader, unexpectedResponseHeader),
+                Set.of(expectedResponseHeader, additionalResponseHeader),
                 Set.copyOf(context.getResponseHeaders().get(responseHeaderName))
             );
         }

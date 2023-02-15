@@ -53,6 +53,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.BasicHttpRequest;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.HttpHeadersAuthenticator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -1644,7 +1645,13 @@ public class Security extends Plugin
             ) {
                 @Override
                 protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    populateThreadContext.apply(restRequest.getHttpRequest(), getNettyChannel(restRequest.getHttpChannel()), threadContext);
+                    HttpRequest httpRequest = restRequest.getHttpRequest();
+                    ThreadContext.StoredContext authenticatedContext = HttpHeadersAuthenticator.extractAuthenticationContext(httpRequest);
+                    if (authenticatedContext != null) {
+                        authenticatedContext.restore();
+                    } else {
+                        populateThreadContext.apply(httpRequest, getNettyChannel(restRequest.getHttpChannel()), threadContext);
+                    }
                 }
             };
         });

@@ -13,7 +13,6 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -74,13 +73,11 @@ public class HttpHeadersAuthenticator {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             populateThreadContext.apply(requestToAuthenticate, channel, threadContext);
             authenticate.accept(requestToAuthenticate, ActionListener.wrap(ignored -> {
-                final Supplier<ThreadContext.StoredContext> authenticatedContext = threadContext.wrapRestorable(
-                    threadContext.newStoredContext()
-                );
-                ((HttpHeadersWithAuthenticationContext) request.headers()).authenticatedContext.set(authenticatedContext);
+                final ThreadContext.StoredContext authenticatedContext = threadContext.newStoredContext();
+                ((HttpHeadersWithAuthenticationContext) request.headers()).markAuthenticationSucceeded(authenticatedContext);
                 contextPreservingListener.onResponse(null);
             }, e -> {
-                ((HttpHeadersWithAuthenticationContext) request.headers()).authenticationException.set(e);
+                ((HttpHeadersWithAuthenticationContext) request.headers()).markAuthenticationFailed(e);
                 contextPreservingListener.onFailure(e);
             }));
         }
@@ -106,15 +103,38 @@ public class HttpHeadersAuthenticator {
         };
     }
 
+    public static ThreadContext.StoredContext extractAuthenticationContext(org.elasticsearch.http.HttpRequest request) {
+        if (request instanceof Netty4HttpRequest == false) {
+            return null;
+        }
+        if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof HttpHeadersWithAuthenticationContext == false) {
+            return null;
+        }
+        HttpHeadersWithAuthenticationContext authenticatedHeaders = ((HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request)
+            .getNettyRequest()
+            .headers()));
+        return authenticatedHeaders.authenticatedContext.get();
+    }
+
     public static class HttpHeadersWithAuthenticationContext extends DefaultHttpHeaders {
 
-        public final SetOnce<Supplier<ThreadContext.StoredContext>> authenticatedContext = new SetOnce<>();
+        public final SetOnce<ThreadContext.StoredContext> authenticatedContext = new SetOnce<>();
         public final SetOnce<Exception> authenticationException = new SetOnce<>();
 
         public HttpHeadersWithAuthenticationContext(HttpHeaders httpHeaders) {
             // the constructor implements the same logic as HttpHeaders#copy
             super();
             set(httpHeaders);
+        }
+
+        public void markAuthenticationSucceeded(ThreadContext.StoredContext authenticatedContext) {
+            this.authenticatedContext.set(authenticatedContext);
+            this.authenticationException.set(null);
+        }
+
+        public void markAuthenticationFailed(Exception exception) {
+            this.authenticatedContext.set(null);
+            this.authenticationException.set(exception);
         }
     }
 }

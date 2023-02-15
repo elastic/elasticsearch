@@ -219,6 +219,10 @@ public class Netty4HttpRequest implements HttpRequest {
         return inboundException;
     }
 
+    protected io.netty.handler.codec.http.HttpRequest getNettyRequest() {
+        return request;
+    }
+
     protected static Method translateRequestMethod(HttpMethod httpMethod) {
         if (httpMethod == HttpMethod.GET) return Method.GET;
 

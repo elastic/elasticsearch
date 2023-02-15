@@ -1,0 +1,29 @@
+{
+  "engine.get":{
+    "documentation":{
+      "url":"TODO",
+      "description": "Returns information about a Search Engine"
+    },
+    "stability": "stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_engine/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The name (ID) of the Search Engine"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

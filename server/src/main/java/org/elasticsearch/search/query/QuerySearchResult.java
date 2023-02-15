@@ -339,7 +339,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public boolean hasSearchContext() {
-        return hasScoreDocs || hasSuggestHits();
+        return hasScoreDocs || hasSuggestHits() || rankShardResult != null;
     }
 
     public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {

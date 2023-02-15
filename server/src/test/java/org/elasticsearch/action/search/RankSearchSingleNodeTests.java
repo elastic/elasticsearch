@@ -55,10 +55,10 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 100, 300);
         SearchResponse response = client().prepareSearch("index")
             .setRank(new RankBuilder().toRankContext(new RRFRankBuilder().windowSize(100).rankConstant(1)))
-            .setTrackTotalHits(false)
+            .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(10))
-            .addSort("int", SortOrder.DESC)
+            //.addSort("int", SortOrder.ASC)
             .addFetchField("*")
             .setSize(10)
             .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))

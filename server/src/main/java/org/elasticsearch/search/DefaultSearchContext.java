@@ -257,6 +257,9 @@ final class DefaultSearchContext extends SearchContext {
             throw new UncheckedIOException(e);
         }
 
+        if (rankContext != null) {
+            rankContext.setQuery(query);
+        }
         if (query == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }

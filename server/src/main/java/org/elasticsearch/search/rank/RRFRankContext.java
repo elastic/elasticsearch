@@ -8,21 +8,18 @@
 
 package org.elasticsearch.search.rank;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -37,6 +34,8 @@ public class RRFRankContext implements RankContext {
 
     private RRFRankQuery rrfRankQuery;
 
+    private int size;
+
     public RRFRankContext(int windowSize, int rankConstant) {
         this.windowSize = windowSize;
         this.rankConstant = rankConstant;
@@ -44,8 +43,9 @@ public class RRFRankContext implements RankContext {
 
     @Override
     public void setQuery(Query query) {
-        assert query instanceof RRFRankQuery;
-        this.rrfRankQuery = (RRFRankQuery) query;
+        if (query instanceof RRFRankQuery rrfRankQuery) {
+            this.rrfRankQuery = rrfRankQuery;
+        }
     }
 
     @Override
@@ -60,7 +60,8 @@ public class RRFRankContext implements RankContext {
             rrfRankSearchContext.windowSize(windowSize);
             for (Query query : rrfRankQuery.getQueries()) {
                 rrfRankSearchContext.rrfRankQuery(query);
-                rrfRankResults.add(searchContext.queryResult().topDocs().topDocs);
+                QueryPhase.executeInternal(rrfRankSearchContext);
+                rrfRankResults.add(rrfRankSearchContext.queryResult().topDocs().topDocs);
             }
             RankShardResult rankShardResult = new RRFRankShardResult(rrfRankResults);
             searchContext.queryResult().setRankShardResult(rankShardResult);
@@ -72,25 +73,38 @@ public class RRFRankContext implements RankContext {
     }
 
     @Override
-    public SortedTopDocs rank(List<QuerySearchResult> querySearchResults) {
+    public void setSize(int size) {
+        this.size = size == -1 ? 10 : size;
+    }
+
+    @Override
+    public SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocsStats) {
         List<List<TopDocs>> unmergedTopDocs = new ArrayList<>();
-        int size = -1;
+        int shardCount = -1;
 
         for (QuerySearchResult querySearchResult : querySearchResults) {
+            if (querySearchResult.searchTimedOut()) {
+                topDocsStats.timedOut = true;
+                continue;
+            }
+            if (querySearchResult.terminatedEarly() != null && querySearchResult.terminatedEarly()) {
+                topDocsStats.terminatedEarly = true;
+            }
+
             RankShardResult rankShardResult = querySearchResult.getRankShardResult();
             assert rankShardResult instanceof RRFRankShardResult;
             RRFRankShardResult rrfRankShardResult = (RRFRankShardResult) rankShardResult;
             List<TopDocs> shardTopDocs = rrfRankShardResult.getTopDocs();
 
-            if (size == -1) {
-                size = shardTopDocs.size();
-                for (int index = 0; index < size; ++index) {
+            if (shardCount == -1) {
+                shardCount = shardTopDocs.size();
+                for (int index = 0; index < shardCount; ++index) {
                     unmergedTopDocs.add(new ArrayList<>());
                 }
             }
-            assert size == shardTopDocs.size();
+            assert shardCount == shardTopDocs.size();
 
-            for (int index = 0; index < size; ++index) {
+            for (int index = 0; index < shardCount; ++index) {
                 TopDocs std = shardTopDocs.get(index);
                 SearchPhaseController.setShardIndex(std, querySearchResult.getShardIndex());
                 unmergedTopDocs.get(index).add(std);
@@ -98,14 +112,21 @@ public class RRFRankContext implements RankContext {
         }
 
         List<SortedTopDocs> mergedTopDocs = new ArrayList<>();
+        long fetchHits = -1;
         for (List<TopDocs> utd : unmergedTopDocs) {
+            fetchHits = Math.min(fetchHits == -1 ? Long.MAX_VALUE : fetchHits, utd.stream().mapToInt(td -> td.scoreDocs.length).sum());
             mergedTopDocs.add(SearchPhaseController.sortDocs(false, utd, 0, windowSize, List.of()));
+        }
+        assert topDocsStats.fetchHits == 0;
+        if (fetchHits != -1) {
+            topDocsStats.fetchHits = fetchHits;
+        }
+
+        if (mergedTopDocs.isEmpty()) {
+            return SortedTopDocs.EMPTY;
         }
 
         Map<String, RRFRankResult> docsToRankResults = new HashMap<>();
-
-        // TODO: ensure sorted top docs have the same sort values
-
         int index = 0;
         for (SortedTopDocs mtd : mergedTopDocs) {
             int rank = 0;
@@ -128,15 +149,17 @@ public class RRFRankContext implements RankContext {
             ++index;
         }
 
-        RRFRankResult[] rankResults = docsToRankResults.values().toArray(RRFRankResult[]::new);
-        Arrays.sort(rankResults, Comparator.comparingDouble(rr -> -rr.score));
-        for (int rank = 0; rank < rankResults.length; ++rank) {
-            rankResults[rank].rank = rank + 1;
+        RRFRankResult[] allRankResults = docsToRankResults.values().toArray(RRFRankResult[]::new);
+        Arrays.sort(allRankResults, Comparator.comparingDouble(rr -> -rr.score));
+        RRFRankResult[] topRankResults = new RRFRankResult[Math.min(size, allRankResults.length)];
+        for (int rank = 0; rank < topRankResults.length; ++rank) {
+            topRankResults[rank] = allRankResults[rank];
+            topRankResults[rank].rank = rank + 1;
         }
 
         SortedTopDocs copy = mergedTopDocs.get(1);
         return new SortedTopDocs(
-            rankResults,
+            topRankResults,
             copy.isSortedByField(),
             copy.sortFields(),
             copy.collapseField(),

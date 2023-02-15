@@ -595,7 +595,10 @@ public final class SearchPhaseController {
             : new SearchProfileResultsBuilder(profileShardResults);
         final SortedTopDocs sortedTopDocs = rankContext == null
             ? sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions)
-            : rankContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList());
+            : rankContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList(), topDocsStats);
+        if (rankContext !=  null) {
+            size = sortedTopDocs.scoreDocs.length;
+        }
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
             totalHits,
@@ -770,14 +773,14 @@ public final class SearchPhaseController {
         );
     }
 
-    static final class TopDocsStats {
+    public static final class TopDocsStats {
         final int trackTotalHitsUpTo;
         long totalHits;
         private TotalHits.Relation totalHitsRelation;
-        long fetchHits;
+        public long fetchHits;
         private float maxScore = Float.NEGATIVE_INFINITY;
-        boolean timedOut;
-        Boolean terminatedEarly;
+        public boolean timedOut;
+        public Boolean terminatedEarly;
 
         TopDocsStats(int trackTotalHitsUpTo) {
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
@@ -845,6 +848,6 @@ public final class SearchPhaseController {
         Object[] collapseValues,
         int numberOfCompletionsSuggestions
     ) {
-        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
+        public static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
     }
 }

@@ -1172,12 +1172,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.from(source.from());
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
-        Query query = null;
         if (source.query() != null) {
             InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
-            ParsedQuery parsedQuery = searchExecutionContext.toQuery(source.query());
-            context.parsedQuery(parsedQuery);
-            query = parsedQuery.query();
+            context.parsedQuery(searchExecutionContext.toQuery(source.query()));
         }
         if (source.postFilter() != null) {
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
@@ -1260,10 +1257,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.rank() != null) {
-            RankContext rankContext = source.rank().toRankContext().toRankContext();
-            assert query != null;
-            rankContext.setQuery(query);
-            context.rankContext(rankContext);
+            context.rankContext(source.rank().toRankContext().toRankContext());
         }
         if (source.rescores() != null) {
             try {

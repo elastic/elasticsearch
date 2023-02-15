@@ -18,6 +18,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RRFRankQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
@@ -136,40 +137,63 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
-        List<ScoreDoc> scoreDocs = new ArrayList<>();
-        for (DfsKnnResults dfsKnnResults : knnResults) {
-            for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                    scoreDocs.add(scoreDoc);
+        if (source.rank() == null) {
+            List<ScoreDoc> scoreDocs = new ArrayList<>();
+            for (DfsKnnResults dfsKnnResults : knnResults) {
+                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                    if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                        scoreDocs.add(scoreDoc);
+                    }
                 }
             }
-        }
-        scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-        // It is possible that the different results refer to the same doc.
-        for (int i = 0; i < scoreDocs.size() - 1; i++) {
-            ScoreDoc scoreDoc = scoreDocs.get(i);
-            int j = i + 1;
-            for (; j < scoreDocs.size(); j++) {
-                ScoreDoc otherScoreDoc = scoreDocs.get(j);
-                if (otherScoreDoc.doc != scoreDoc.doc) {
-                    break;
+            scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+            // It is possible that the different results refer to the same doc.
+            for (int i = 0; i < scoreDocs.size() - 1; i++) {
+                ScoreDoc scoreDoc = scoreDocs.get(i);
+                int j = i + 1;
+                for (; j < scoreDocs.size(); j++) {
+                    ScoreDoc otherScoreDoc = scoreDocs.get(j);
+                    if (otherScoreDoc.doc != scoreDoc.doc) {
+                        break;
+                    }
+                    scoreDoc.score += otherScoreDoc.score;
                 }
-                scoreDoc.score += otherScoreDoc.score;
+                if (j > i + 1) {
+                    scoreDocs.subList(i + 1, j).clear();
+                }
             }
-            if (j > i + 1) {
-                scoreDocs.subList(i + 1, j).clear();
-            }
-        }
-        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
 
-        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
-        if (source.query() == null) {
-            newSource.query(knnQuery);
+            KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+            SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
+            if (source.query() == null) {
+                newSource.query(knnQuery);
+            } else {
+                newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
+            }
+            request.source(newSource);
         } else {
-            newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
+            RRFRankQueryBuilder rrfRankQueryBuilder = new RRFRankQueryBuilder();
+            if (source.query() != null) {
+                rrfRankQueryBuilder.addQuery(source.query());
+            }
+
+            for (DfsKnnResults dfsKnnResults : knnResults) {
+                List<ScoreDoc> scoreDocs = new ArrayList<>();
+                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                    if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                        scoreDocs.add(scoreDoc);
+                    }
+                }
+                scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+                KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+                rrfRankQueryBuilder.addQuery(knnQuery);
+            }
+
+            SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
+            newSource.query(rrfRankQueryBuilder);
+            request.source(newSource);
         }
 
-        request.source(newSource);
         return request;
     }
 }

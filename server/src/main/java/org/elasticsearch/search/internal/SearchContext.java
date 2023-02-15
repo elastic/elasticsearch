@@ -77,7 +77,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
-
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {

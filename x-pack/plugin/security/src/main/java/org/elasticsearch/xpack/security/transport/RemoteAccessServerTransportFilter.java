@@ -66,12 +66,31 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
             super.authenticate(securityAction, request, authenticationListener);
         } else {
             try {
+                ensureRemoteAccessHeadersInThreadContext();
                 ensureOnlyAllowedHeadersInThreadContext();
             } catch (Exception ex) {
                 authenticationListener.onFailure(ex);
                 return;
             }
             remoteAccessAuthcService.authenticate(securityAction, request, authenticationListener);
+        }
+    }
+
+    private void ensureRemoteAccessHeadersInThreadContext() {
+        final Set<String> headerKeys = getThreadContext().getHeaders().keySet();
+        if (false == headerKeys.contains(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)) {
+            throw new IllegalArgumentException(
+                "cross cluster requests through the dedicated remote cluster port must contain remote access header ["
+                    + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                    + "]"
+            );
+        }
+        if (false == headerKeys.contains(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)) {
+            throw new IllegalArgumentException(
+                "cross cluster requests through the dedicated remote cluster port must contain remote access header ["
+                    + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
+                    + "]"
+            );
         }
     }
 

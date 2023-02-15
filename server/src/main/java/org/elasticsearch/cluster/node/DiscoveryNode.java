@@ -65,6 +65,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
     public static final TransportVersion EXTERNAL_ID_VERSION = TransportVersion.V_8_3_0;
+    private static final TransportVersion TRANSPORT_VERSION_VERSION = TransportVersion.V_8_8_0;
     public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
         .thenComparing(DiscoveryNode::getId);
 
@@ -137,7 +138,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final String hostAddress;
     private final TransportAddress address;
     private final Map<String, String> attributes;
-    private final Version version;
+    private final Version nodeVersion;
+    private final TransportVersion transportVersion;
     private final SortedSet<DiscoveryNodeRole> roles;
     private final Set<String> roleNames;
     private final String externalId;
@@ -153,10 +155,30 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      *
      * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
      * @param address          the nodes transport address
-     * @param version          the version of the node
+     * @param nodeVersion      the version of the node
      */
-    public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
+    @Deprecated(forRemoval = true)
+    public DiscoveryNode(final String id, TransportAddress address, Version nodeVersion) {
+        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), nodeVersion, nodeVersion.transportVersion);
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()}
+     * and {@link TransportVersion#MINIMUM_COMPATIBLE} should be used for the node and transport version.
+     * They correspond to the minimum version this elasticsearch version can communicate with.
+     * If a higher version is used the node might not be able to communicate with the remote node.
+     * After initial handshakes node versions will be discovered and updated.
+     * </p>
+     *
+     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
+     * @param address          the nodes transport address
+     * @param nodeVersion      the version of the node
+     * @param transportVersion the transport version to communicate with the node
+     */
+    public DiscoveryNode(final String id, TransportAddress address, Version nodeVersion, TransportVersion transportVersion) {
+        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), nodeVersion, transportVersion);
     }
 
     /**
@@ -172,16 +194,45 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
-     * @param version          the version of the node
+     * @param nodeVersion      the version of the node
+     */
+    @Deprecated(forRemoval = true)
+    public DiscoveryNode(
+        String id,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version nodeVersion
+    ) {
+        this("", id, address, attributes, roles, nodeVersion, nodeVersion.transportVersion);
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()}
+     * and {@link TransportVersion#MINIMUM_COMPATIBLE} should be used for the node and transport version.
+     * They correspond to the minimum version this elasticsearch version can communicate with.
+     * If a higher version is used the node might not be able to communicate with the remote node.
+     * After initial handshakes node versions will be discovered and updated.
+     * </p>
+     *
+     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param nodeVersion      the version of the node
+     * @param transportVersion the transport version to communicate with the node
      */
     public DiscoveryNode(
         String id,
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        Version nodeVersion,
+        TransportVersion transportVersion
     ) {
-        this("", id, address, attributes, roles, version);
+        this("", id, address, attributes, roles, nodeVersion, transportVersion);
     }
 
     /**
@@ -198,15 +249,16 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
-     * @param version          the version of the node
+     * @param nodeVersion      the version of the node
      */
+    @Deprecated(forRemoval = true)
     public DiscoveryNode(
         String nodeName,
         String nodeId,
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        Version nodeVersion
     ) {
         this(
             nodeName,
@@ -217,17 +269,60 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             address,
             attributes,
             roles,
-            version
+            nodeVersion,
+            nodeVersion.transportVersion
         );
     }
 
     /**
      * Creates a new {@link DiscoveryNode}
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
-     * and updated.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()}
+     * and {@link TransportVersion#MINIMUM_COMPATIBLE} should be used for the node and transport version.
+     * They correspond to the minimum version this elasticsearch version can communicate with.
+     * If a higher version is used the node might not be able to communicate with the remote node.
+     * After initial handshakes node versions will be discovered and updated.
+     * </p>
+     *
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id. An ephemeral id will be auto generated.
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param nodeVersion      the version of the node
+     * @param transportVersion the transport version to communicate with the node
+     */
+    public DiscoveryNode(
+        String nodeName,
+        String nodeId,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version nodeVersion,
+        TransportVersion transportVersion
+    ) {
+        this(
+            nodeName,
+            nodeId,
+            UUIDs.randomBase64UUID(),
+            address.address().getHostString(),
+            address.getAddress(),
+            address,
+            attributes,
+            roles,
+            nodeVersion,
+            transportVersion
+        );
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()}
+     * and {@link TransportVersion#MINIMUM_COMPATIBLE} should be used for the node and transport version.
+     * They correspond to the minimum version this elasticsearch version can communicate with.
+     * If a higher version is used the node might not be able to communicate with the remote node.
+     * After initial handshakes node versions will be discovered and updated.
      * </p>
      *
      * @param nodeName         the nodes name
@@ -236,7 +331,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
-     * @param version          the version of the node
+     * @param nodeVersion      the version of the node
+     * @param transportVersion the transport version to communicate with the node
      */
     public DiscoveryNode(
         String nodeName,
@@ -245,7 +341,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        Version nodeVersion,
+        TransportVersion transportVersion
     ) {
         this(
             nodeName,
@@ -256,7 +353,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             address,
             attributes,
             roles,
-            version,
+            nodeVersion,
+            transportVersion,
             externalId
         );
     }
@@ -277,7 +375,54 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
-     * @param version          the version of the node
+     * @param nodeVersion      the version of the node
+     */
+    @Deprecated(forRemoval = true)
+    public DiscoveryNode(
+        String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version nodeVersion
+    ) {
+        this(
+            nodeName,
+            nodeId,
+            ephemeralId,
+            hostName,
+            hostAddress,
+            address,
+            attributes,
+            roles,
+            nodeVersion,
+            nodeVersion.transportVersion,
+            null
+        );
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}.
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()}
+     * and {@link TransportVersion#MINIMUM_COMPATIBLE} should be used for the node and transport version.
+     * They correspond to the minimum version this elasticsearch version can communicate with.
+     * If a higher version is used the node might not be able to communicate with the remote node.
+     * After initial handshakes node versions will be discovered and updated.
+     * </p>
+     *
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
+     * @param hostAddress      the nodes host address
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param nodeVersion      the version of the node
+     * @param transportVersion the transport version to communicate with the node
      */
     public DiscoveryNode(
         String nodeName,
@@ -288,18 +433,20 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        Version nodeVersion,
+        TransportVersion transportVersion
     ) {
-        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
+        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, nodeVersion, transportVersion, null);
     }
 
     /**
      * Creates a new {@link DiscoveryNode}.
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
-     * and updated.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()}
+     * and {@link TransportVersion#MINIMUM_COMPATIBLE} should be used for the node and transport version.
+     * They correspond to the minimum version this elasticsearch version can communicate with.
+     * If a higher version is used the node might not be able to communicate with the remote node.
+     * After initial handshakes node versions will be discovered and updated.
      * </p>
      *
      * @param nodeName         the nodes name
@@ -309,7 +456,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
-     * @param version          the version of the node
+     * @param nodeVersion      the version of the node
+     * @param transportVersion the transport version to communicate with the node
      * @param externalId       the external id used to identify this node by external systems
      */
     public DiscoveryNode(
@@ -321,7 +469,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version,
+        Version nodeVersion,
+        TransportVersion transportVersion,
         String externalId
     ) {
         if (nodeName != null) {
@@ -335,10 +484,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         assert Strings.hasText(hostAddress);
         this.hostAddress = nodeStringDeduplicator.deduplicate(hostAddress);
         this.address = address;
-        if (version == null) {
-            this.version = Version.CURRENT;
+        if (nodeVersion == null) {
+            this.nodeVersion = Version.CURRENT;
         } else {
-            this.version = version;
+            this.nodeVersion = nodeVersion;
+        }
+        if (transportVersion == null) {
+            this.transportVersion = TransportVersion.CURRENT;
+        } else {
+            this.transportVersion = transportVersion;
         }
         this.attributes = Map.copyOf(attributes);
         assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
@@ -366,7 +520,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             publishAddress,
             attributes,
             roles,
-            Version.CURRENT
+            null,
+            null
         );
     }
 
@@ -411,7 +566,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        this.version = Version.readVersion(in);
+        this.nodeVersion = Version.readVersion(in);
+        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_VERSION)) {
+            this.transportVersion = TransportVersion.readVersion(in);
+        } else {
+            this.transportVersion = nodeVersion.transportVersion;
+        }
         if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             this.externalId = readStringLiteral.read(in);
         } else {
@@ -444,7 +604,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             o.writeString(role.roleNameAbbreviation());
             o.writeBoolean(role.canContainData());
         });
-        Version.writeVersion(version, out);
+        Version.writeVersion(nodeVersion, out);
+        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_VERSION)) {
+            TransportVersion.writeVersion(transportVersion, out);
+        }
         if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             out.writeString(externalId);
         }
@@ -545,8 +708,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return roles;
     }
 
+    /**
+     * @return the node version
+     */
     public Version getVersion() {
-        return this.version;
+        return this.nodeVersion;
+    }
+
+    /**
+     * @return the transport version
+     */
+    public TransportVersion getTransportVersion() {
+        return this.transportVersion;
     }
 
     public String getHostName() {
@@ -605,7 +778,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
             stringBuilder.append('}');
         }
-        stringBuilder.append('{').append(version).append('}');
+        stringBuilder.append('{').append(nodeVersion).append('}');
     }
 
     public String descriptionWithoutAttributes() {
@@ -627,7 +800,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             builder.value(role.roleName());
         }
         builder.endArray();
-        builder.field("version", version);
+        builder.field("version", nodeVersion);
         builder.endObject();
         return builder;
     }

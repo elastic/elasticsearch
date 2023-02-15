@@ -1014,15 +1014,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static DiscoveryNode createDiscoveryNode(String id, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(
-            id,
-            id,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            roles,
-            Version.CURRENT
-        );
+        return new DiscoveryNode(id, id, UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Map.of(), roles, null, null);
     }
 
     /**

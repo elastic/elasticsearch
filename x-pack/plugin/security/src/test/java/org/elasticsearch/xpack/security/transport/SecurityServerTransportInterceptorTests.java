@@ -660,7 +660,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             expectedRoleDescriptorsIntersection = RoleDescriptorsIntersection.EMPTY;
         } else {
             expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
-                randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
+                randomList(1, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
             );
             // Call listener to complete flow
             listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);

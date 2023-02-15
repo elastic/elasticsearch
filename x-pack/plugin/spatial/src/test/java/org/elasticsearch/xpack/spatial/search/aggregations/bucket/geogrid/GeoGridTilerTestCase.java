@@ -46,13 +46,18 @@ import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.randomBBox;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public abstract class GeoGridTilerTestCase extends ESTestCase {
+public abstract class GeoGridTilerTestCase<T extends GeoGridTiler> extends ESTestCase {
 
     protected static final LongConsumer NOOP_BREAKER = (l) -> {};
 
-    protected abstract GeoGridTiler getUnboundedGridTiler(int precision);
+    protected final T getGridTiler(int precision) {
+        final GeoBoundingBox bbox = randomBoolean()
+            ? null
+            : new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
+        return getGridTiler(bbox, precision);
+    }
 
-    protected abstract GeoGridTiler getBoundedGridTiler(GeoBoundingBox bbox, int precision);
+    protected abstract T getGridTiler(GeoBoundingBox bbox, int precision);
 
     protected abstract int maxPrecision();
 
@@ -79,14 +84,14 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
                 new GeoPoint(tile.getMinLat(), tile.getMaxLon())
             );
             int otherPrecision = randomIntBetween(i, maxPrecision());
-            GeoGridTiler tiler = getBoundedGridTiler(boundingBox, otherPrecision);
+            T tiler = getGridTiler(boundingBox, otherPrecision);
             assertThat(tiler.getMaxCells(), greaterThanOrEqualTo(getCellsForDiffPrecision(otherPrecision - i)));
         }
     }
 
     public void testMaxCellsUnBounded() {
         for (int i = 0; i < maxPrecision(); i++) {
-            GeoGridTiler tiler = getUnboundedGridTiler(i);
+            T tiler = getGridTiler(i);
             assertThat(tiler.getMaxCells(), greaterThanOrEqualTo(getCellsForDiffPrecision(i)));
         }
     }
@@ -130,7 +135,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
             GeoShapeCellValues cellValues = new GeoShapeCellValues(
                 makeGeoShapeValues(value),
-                getBoundedGridTiler(geoBoundingBox, precision),
+                getGridTiler(geoBoundingBox, precision),
                 NOOP_BREAKER
             );
 
@@ -149,7 +154,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
         GeoShapeCellValues cellValues = new GeoShapeCellValues(
             makeGeoShapeValues(value),
-            getBoundedGridTiler(geoBoundingBox, precision),
+            getGridTiler(geoBoundingBox, precision),
             NOOP_BREAKER
         );
 
@@ -166,7 +171,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
             GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
                 makeGeoShapeValues(value),
-                getUnboundedGridTiler(precision),
+                getGridTiler(precision),
                 NOOP_BREAKER
             );
 
@@ -187,7 +192,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             new GeoPoint(tile.getMinLat(), tile.getMaxLon())
         );
 
-        GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(boundingBox, 4), NOOP_BREAKER);
+        GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), getGridTiler(boundingBox, 4), NOOP_BREAKER);
         assertTrue(values.advanceExact(0));
         int numTiles = values.docValueCount();
         int expectedTiles = expectedBuckets(value, 4, boundingBox);
@@ -211,7 +216,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         );
         final GeoShapeValues.GeoShapeValue value = geoShapeValue(other);
         for (int i = 0; i < 4; i++) {
-            final GeoGridTiler bounded = getBoundedGridTiler(box, precision + i);
+            final GeoGridTiler bounded = getGridTiler(box, precision + i);
             final GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), bounded, NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             final int numTiles = values.docValueCount();
@@ -221,7 +226,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     }
 
     public void testGridCircuitBreaker() throws IOException {
-        GeoGridTiler tiler = getUnboundedGridTiler(randomIntBetween(0, 3));
+        T tiler = getGridTiler(randomIntBetween(0, 3));
         Geometry geometry = GeometryTestUtils.randomPolygon(false);
 
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
@@ -253,7 +258,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         expectThrows(CircuitBreakingException.class, () -> {
             GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), tiler, circuitBreakerConsumer);
             assertTrue(values.advanceExact(0));
-            assertThat(values.getValuesBytes(), equalTo(curNumBytes));
+            assertThat((long) values.getValues().length * Long.BYTES, equalTo(curNumBytes));
             assertThat(limitedBreaker.getUsed(), equalTo(curNumBytes));
         });
     }

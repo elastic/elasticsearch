@@ -73,7 +73,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
     }
 
     @Override
-    protected InternalMedianAbsoluteDeviation mutateInstance(InternalMedianAbsoluteDeviation instance) throws IOException {
+    protected InternalMedianAbsoluteDeviation mutateInstance(InternalMedianAbsoluteDeviation instance) {
         String name = instance.getName();
         TDigestState valuesSketch = instance.getValuesSketch();
         Map<String, Object> metadata = instance.getMetadata();

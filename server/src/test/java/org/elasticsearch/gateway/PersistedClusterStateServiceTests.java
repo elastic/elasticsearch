@@ -1556,8 +1556,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
                 persistedClusterStateService.loadBestOnDiskState();
+                mockAppender.assertAllExpectationsMatched();
             }
-            mockAppender.assertAllExpectationsMatched();
         }
     }
 
@@ -1851,8 +1851,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             } else {
                 writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
             }
+            mockAppender.assertAllExpectationsMatched();
         }
-        mockAppender.assertAllExpectationsMatched();
     }
 
     @Override

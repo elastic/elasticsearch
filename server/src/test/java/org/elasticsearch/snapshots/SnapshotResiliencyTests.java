@@ -1832,6 +1832,25 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     PeerOnlyRecoveryPlannerService.INSTANCE
                 );
 
+                final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
+                final SearchTransportService searchTransportService = new SearchTransportService(
+                    transportService,
+                    client,
+                    SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
+                );
+                final SearchService searchService = new SearchService(
+                    clusterService,
+                    indicesService,
+                    threadPool,
+                    scriptService,
+                    bigArrays,
+                    new FetchPhase(Collections.emptyList()),
+                    responseCollectorService,
+                    new NoneCircuitBreakerService(),
+                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                    Tracer.NOOP
+                );
+
                 final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -1841,7 +1860,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService, snapshotFilesProvider),
                     shardStateAction,
                     repositoriesService,
-                    mock(SearchService.class),
+                    searchService,
                     peerRecoverySourceService,
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(
@@ -1965,24 +1984,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         EmptySystemIndices.INSTANCE
                     )
                 );
-                final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-                final SearchTransportService searchTransportService = new SearchTransportService(
-                    transportService,
-                    client,
-                    SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
-                );
-                final SearchService searchService = new SearchService(
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    scriptService,
-                    bigArrays,
-                    new FetchPhase(Collections.emptyList()),
-                    responseCollectorService,
-                    new NoneCircuitBreakerService(),
-                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                    Tracer.NOOP
-                );
+
                 SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 actions.put(
                     SearchAction.INSTANCE,

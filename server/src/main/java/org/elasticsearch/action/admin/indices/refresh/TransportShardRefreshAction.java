@@ -9,12 +9,17 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,10 +28,15 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
     BasicReplicationRequest,
@@ -62,6 +72,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             BasicReplicationRequest::new,
             ThreadPool.Names.REFRESH
         );
+        new TransportUnpromotableShardRefreshAction(transportService, actionFilters, indicesService);
     }
 
     @Override
@@ -75,11 +86,43 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndexShard primary,
         ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            primary.refresh(SOURCE_API);
+        try (var listeners = new RefCountingListener(listener.map(v -> new PrimaryResult<>(shardRequest, new ReplicationResponse())))) {
+            var refreshResult = primary.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
-        });
+
+            // Forward the request to all nodes that hold unpromotable replica shards
+            final ClusterState clusterState = clusterService.state();
+            final Task parentTaskId = taskManager.getTask(shardRequest.getParentTask().getId());
+            clusterState.routingTable()
+                .shardRoutingTable(shardRequest.shardId())
+                .assignedShards()
+                .stream()
+                .filter(Predicate.not(ShardRouting::isPromotableToPrimary))
+                .map(ShardRouting::currentNodeId)
+                .collect(Collectors.toUnmodifiableSet())
+                .forEach(nodeId -> {
+                    final DiscoveryNode node = clusterState.nodes().get(nodeId);
+                    UnpromotableShardRefreshRequest request = new UnpromotableShardRefreshRequest(
+                        primary.shardId(),
+                        refreshResult.generation()
+                    );
+                    logger.trace("forwarding refresh request [{}] to node [{}]", request, node);
+                    transportService.sendChildRequest(
+                        node,
+                        TransportUnpromotableShardRefreshAction.NAME,
+                        request,
+                        parentTaskId,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            listeners.acquire(ignored -> {}),
+                            (in) -> TransportResponse.Empty.INSTANCE,
+                            ThreadPool.Names.REFRESH
+                        )
+                    );
+                });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override

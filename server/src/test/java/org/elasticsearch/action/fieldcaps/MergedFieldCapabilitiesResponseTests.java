@@ -166,7 +166,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                 true,
                 false,
                 false,
-                TimeSeriesParams.MetricType.counter,
+                TimeSeriesParams.MetricType.COUNTER,
                 new String[] { "index1", "index2" },
                 null,
                 new String[] { "index1" },

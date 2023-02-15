@@ -14,28 +14,28 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
 
+/**
+ * Aggregator state for a single long.
+ * This class is generated. Do not edit it.
+ */
 @Experimental
 final class LongState implements AggregatorState<LongState> {
-
-    private long longValue;
-
-    private final LongStateSerializer serializer;
+    private long value;
 
     LongState() {
         this(0);
     }
 
-    LongState(long value) {
-        this.longValue = value;
-        this.serializer = new LongStateSerializer();
+    LongState(long init) {
+        this.value = init;
     }
 
     long longValue() {
-        return longValue;
+        return value;
     }
 
     void longValue(long value) {
-        this.longValue = value;
+        this.value = value;
     }
 
     @Override
@@ -48,31 +48,27 @@ final class LongState implements AggregatorState<LongState> {
 
     @Override
     public AggregatorStateSerializer<LongState> serializer() {
-        return serializer;
+        return new LongStateSerializer();
     }
 
-    static class LongStateSerializer implements AggregatorStateSerializer<LongState> {
-
-        static final int BYTES_SIZE = Long.BYTES;
+    private static class LongStateSerializer implements AggregatorStateSerializer<LongState> {
+        private static final VarHandle handle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int size() {
-            return BYTES_SIZE;
+            return Long.BYTES;
         }
-
-        private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int serialize(LongState state, byte[] ba, int offset) {
-            longHandle.set(ba, offset, state.longValue);
-            return BYTES_SIZE; // number of bytes written
+            handle.set(ba, offset, state.value);
+            return Long.BYTES; // number of bytes written
         }
 
-        // sets the long value in the given state.
         @Override
         public void deserialize(LongState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
-            state.longValue = (long) longHandle.get(ba, offset);
+            state.value = (long) handle.get(ba, offset);
         }
     }
 }

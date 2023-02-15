@@ -28,12 +28,14 @@ spotless {
   }
 }
 
-def prop(Type, type, TYPE) {
+def prop(Type, type, TYPE, BYTES) {
   return [
     "Type" : Type,
     "type" : type,
     "TYPE" : TYPE,
-    "int"  : type == "int"  ? "true" : "",
+    "BYTES" : BYTES,
+
+    "int" : type == "int" ? "true" : "",
     "long" : type == "long" ? "true" : "",
     "double" : type == "double" ? "true" : "",
     "BytesRef" : type == "BytesRef" ? "true" : "",
@@ -42,11 +44,11 @@ def prop(Type, type, TYPE) {
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties      = prop("Int", "int", "INT")
-  var longProperties     = prop("Long", "long", "LONG")
-  var doubleProperties   = prop("Double", "double", "DOUBLE")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN")
+  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES")
+  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES")
+  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "BytesRef.BYTES")
+  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Boolean.BYTES")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {
@@ -316,5 +318,37 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile =  vectorBuildersInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanVectorBuilder.java"
+  }
+  File stateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-State.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  stateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IntState.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  stateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LongState.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  stateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
+  }
+  File arrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ArrayState.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  arrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IntArrayState.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  arrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LongArrayState.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  arrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DoubleArrayState.java"
   }
 }

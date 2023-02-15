@@ -14,29 +14,28 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
 
+/**
+ * Aggregator state for a single double.
+ * This class is generated. Do not edit it.
+ */
 @Experimental
 final class DoubleState implements AggregatorState<DoubleState> {
-
-    // dummy
-    private double doubleValue;
-
-    private final DoubleStateSerializer serializer;
+    private double value;
 
     DoubleState() {
         this(0);
     }
 
-    DoubleState(double value) {
-        this.doubleValue = value;
-        this.serializer = new DoubleStateSerializer();
+    DoubleState(double init) {
+        this.value = init;
     }
 
     double doubleValue() {
-        return doubleValue;
+        return value;
     }
 
     void doubleValue(double value) {
-        this.doubleValue = value;
+        this.value = value;
     }
 
     @Override
@@ -49,31 +48,27 @@ final class DoubleState implements AggregatorState<DoubleState> {
 
     @Override
     public AggregatorStateSerializer<DoubleState> serializer() {
-        return serializer;
+        return new DoubleStateSerializer();
     }
 
-    static class DoubleStateSerializer implements AggregatorStateSerializer<DoubleState> {
-
-        static final int BYTES_SIZE = Double.BYTES;
+    private static class DoubleStateSerializer implements AggregatorStateSerializer<DoubleState> {
+        private static final VarHandle handle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int size() {
-            return BYTES_SIZE;
+            return Double.BYTES;
         }
-
-        private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int serialize(DoubleState state, byte[] ba, int offset) {
-            doubleHandle.set(ba, offset, state.doubleValue());
-            return BYTES_SIZE; // number of bytes written
+            handle.set(ba, offset, state.value);
+            return Double.BYTES; // number of bytes written
         }
 
-        // sets the long value in the given state.
         @Override
         public void deserialize(DoubleState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
-            state.doubleValue = (double) doubleHandle.get(ba, offset);
+            state.value = (double) handle.get(ba, offset);
         }
     }
 }

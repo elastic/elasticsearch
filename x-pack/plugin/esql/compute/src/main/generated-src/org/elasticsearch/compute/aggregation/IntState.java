@@ -14,27 +14,28 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
 
+/**
+ * Aggregator state for a single int.
+ * This class is generated. Do not edit it.
+ */
 @Experimental
 final class IntState implements AggregatorState<IntState> {
-    private int intValue;
-
-    private final LongStateSerializer serializer;
+    private int value;
 
     IntState() {
         this(0);
     }
 
-    IntState(int value) {
-        this.intValue = value;
-        this.serializer = new LongStateSerializer();
+    IntState(int init) {
+        this.value = init;
     }
 
     int intValue() {
-        return intValue;
+        return value;
     }
 
     void intValue(int value) {
-        this.intValue = value;
+        this.value = value;
     }
 
     @Override
@@ -47,31 +48,27 @@ final class IntState implements AggregatorState<IntState> {
 
     @Override
     public AggregatorStateSerializer<IntState> serializer() {
-        return serializer;
+        return new IntStateSerializer();
     }
 
-    static class LongStateSerializer implements AggregatorStateSerializer<IntState> {
-
-        static final int BYTES_SIZE = Integer.BYTES;
+    private static class IntStateSerializer implements AggregatorStateSerializer<IntState> {
+        private static final VarHandle handle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int size() {
-            return BYTES_SIZE;
+            return Integer.BYTES;
         }
-
-        private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int serialize(IntState state, byte[] ba, int offset) {
-            intHandle.set(ba, offset, state.intValue);
-            return BYTES_SIZE; // number of bytes written
+            handle.set(ba, offset, state.value);
+            return Integer.BYTES; // number of bytes written
         }
 
-        // sets the long value in the given state.
         @Override
         public void deserialize(IntState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
-            state.intValue = (int) intHandle.get(ba, offset);
+            state.value = (int) handle.get(ba, offset);
         }
     }
 }

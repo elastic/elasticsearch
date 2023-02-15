@@ -21,40 +21,40 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
 
+/**
+ * Aggregator state for an array of doubles.
+ * This class is generated. Do not edit it.
+ */
 @Experimental
 final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
-
     private final BigArrays bigArrays;
-
-    private final double initialDefaultValue;
+    private final double init;
 
     private DoubleArray values;
-    // total number of groups; <= values.length
-    int largestIndex;
+    /**
+     * Total number of groups {@code <=} values.length.
+     */
+    private int largestIndex;
     private BitArray nonNulls;
 
-    private final DoubleArrayStateSerializer serializer;
-
-    DoubleArrayState(BigArrays bigArrays, double initialDefaultValue) {
+    DoubleArrayState(BigArrays bigArrays, double init) {
         this.bigArrays = bigArrays;
         this.values = bigArrays.newDoubleArray(1, false);
-        this.values.set(0, initialDefaultValue);
-        this.initialDefaultValue = initialDefaultValue;
-        this.serializer = new DoubleArrayStateSerializer();
+        this.values.set(0, init);
+        this.init = init;
     }
 
     double get(int index) {
-        // TODO bounds check
         return values.get(index);
     }
 
     double getOrDefault(int index) {
-        return index <= largestIndex ? values.get(index) : initialDefaultValue;
+        return index <= largestIndex ? values.get(index) : init;
     }
 
     void set(double value, int index) {
-        ensureCapacity(index);
         if (index > largestIndex) {
+            ensureCapacity(index);
             largestIndex = index;
         }
         values.set(index, value);
@@ -65,9 +65,9 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
 
     void putNull(int index) {
         if (index > largestIndex) {
+            ensureCapacity(index);
             largestIndex = index;
         }
-        ensureCapacity(index);
         if (nonNulls == null) {
             nonNulls = new BitArray(index + 1, bigArrays);
             for (int i = 0; i < index; i++) {
@@ -83,31 +83,30 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
     }
 
     Block toValuesBlock() {
-        final int positions = largestIndex + 1;
+        int positions = largestIndex + 1;
         if (nonNulls == null) {
             DoubleVector.Builder builder = DoubleVector.newVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.appendDouble(values.get(i));
             }
             return builder.build().asBlock();
-        } else {
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                if (hasValue(i)) {
-                    builder.appendDouble(values.get(i));
-                } else {
-                    builder.appendNull();
-                }
-            }
-            return builder.build();
         }
+        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
+        for (int i = 0; i < positions; i++) {
+            if (hasValue(i)) {
+                builder.appendDouble(values.get(i));
+            } else {
+                builder.appendNull();
+            }
+        }
+        return builder.build();
     }
 
     private void ensureCapacity(int position) {
         if (position >= values.size()) {
             long prevSize = values.size();
             values = bigArrays.grow(values, position + 1);
-            values.fill(prevSize, values.size(), initialDefaultValue);
+            values.fill(prevSize, values.size(), init);
         }
     }
 
@@ -123,43 +122,39 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
 
     @Override
     public AggregatorStateSerializer<DoubleArrayState> serializer() {
-        return serializer;
+        return new DoubleArrayStateSerializer();
     }
 
-    static class DoubleArrayStateSerializer implements AggregatorStateSerializer<DoubleArrayState> {
-
-        static final int BYTES_SIZE = Double.BYTES;
+    private static class DoubleArrayStateSerializer implements AggregatorStateSerializer<DoubleArrayState> {
+        private static final VarHandle lengthHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+        private static final VarHandle valueHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int size() {
-            return BYTES_SIZE;
+            return Double.BYTES;
         }
-
-        private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
-        private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int serialize(DoubleArrayState state, byte[] ba, int offset) {
             int positions = state.largestIndex + 1;
-            longHandle.set(ba, offset, positions);
+            lengthHandle.set(ba, offset, positions);
             offset += Long.BYTES;
             for (int i = 0; i < positions; i++) {
-                doubleHandle.set(ba, offset, state.values.get(i));
-                offset += BYTES_SIZE;
+                valueHandle.set(ba, offset, state.values.get(i));
+                offset += Double.BYTES;
             }
-            final int valuesBytes = Long.BYTES + (BYTES_SIZE * positions);
+            final int valuesBytes = Long.BYTES + (Double.BYTES * positions);
             return valuesBytes + LongArrayState.serializeBitArray(state.nonNulls, ba, offset);
-
         }
 
         @Override
         public void deserialize(DoubleArrayState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
-            int positions = (int) (long) longHandle.get(ba, offset);
+            int positions = (int) (long) lengthHandle.get(ba, offset);
             offset += Long.BYTES;
             for (int i = 0; i < positions; i++) {
-                state.set((double) doubleHandle.get(ba, offset), i);
-                offset += BYTES_SIZE;
+                state.set((double) valueHandle.get(ba, offset), i);
+                offset += Double.BYTES;
             }
             state.largestIndex = positions - 1;
             state.nonNulls = LongArrayState.deseralizeBitArray(state.bigArrays, ba, offset);

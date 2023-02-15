@@ -21,59 +21,71 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
 
+/**
+ * Aggregator state for an array of longs.
+ * This class is generated. Do not edit it.
+ */
 @Experimental
 final class LongArrayState implements AggregatorState<LongArrayState> {
-
     private final BigArrays bigArrays;
-
-    private final long initialDefaultValue;
+    private final long init;
 
     private LongArray values;
-    // total number of groups; <= values.length
-    int largestIndex;
-
+    /**
+     * Total number of groups {@code <=} values.length.
+     */
+    private int largestIndex;
     private BitArray nonNulls;
 
-    private final LongArrayStateSerializer serializer;
-
-    LongArrayState(BigArrays bigArrays, long initialDefaultValue) {
+    LongArrayState(BigArrays bigArrays, long init) {
         this.bigArrays = bigArrays;
         this.values = bigArrays.newLongArray(1, false);
-        this.values.set(0, initialDefaultValue);
-        this.initialDefaultValue = initialDefaultValue;
-        this.serializer = new LongArrayStateSerializer();
+        this.values.set(0, init);
+        this.init = init;
     }
 
     long get(int index) {
-        // TODO bounds check
         return values.get(index);
     }
 
-    void increment(long value, int index) {
-        ensureCapacity(index);
-        values.increment(index, value);
-        if (nonNulls != null) {
-            nonNulls.set(index);
-        }
+    long getOrDefault(int index) {
+        return index <= largestIndex ? values.get(index) : init;
     }
 
     void set(long value, int index) {
-        ensureCapacity(index);
+        if (index > largestIndex) {
+            ensureCapacity(index);
+            largestIndex = index;
+        }
         values.set(index, value);
         if (nonNulls != null) {
             nonNulls.set(index);
         }
     }
 
+    void increment(long value, int index) {
+        if (index > largestIndex) {
+            ensureCapacity(index);
+            largestIndex = index;
+        }
+        values.increment(index, value);
+        if (nonNulls != null) {
+            nonNulls.set(index);
+        }
+    }
+
     void putNull(int index) {
-        ensureCapacity(index);
+        if (index > largestIndex) {
+            ensureCapacity(index);
+            largestIndex = index;
+        }
         if (nonNulls == null) {
             nonNulls = new BitArray(index + 1, bigArrays);
             for (int i = 0; i < index; i++) {
-                nonNulls.set(i); // TODO: bulk API
+                nonNulls.set(i);
             }
         } else {
-            nonNulls.ensureCapacity(index);
+            nonNulls.ensureCapacity(index + 1);
         }
     }
 
@@ -82,45 +94,36 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
     }
 
     Block toValuesBlock() {
-        final int positions = largestIndex + 1;
+        int positions = largestIndex + 1;
         if (nonNulls == null) {
             LongVector.Builder builder = LongVector.newVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.appendLong(values.get(i));
             }
             return builder.build().asBlock();
-        } else {
-            final LongBlock.Builder builder = LongBlock.newBlockBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                if (hasValue(i)) {
-                    builder.appendLong(values.get(i));
-                } else {
-                    builder.appendNull();
-                }
-            }
-            return builder.build();
         }
-    }
-
-    long getOrDefault(int index) {
-        return index <= largestIndex ? values.get(index) : initialDefaultValue;
+        LongBlock.Builder builder = LongBlock.newBlockBuilder(positions);
+        for (int i = 0; i < positions; i++) {
+            if (hasValue(i)) {
+                builder.appendLong(values.get(i));
+            } else {
+                builder.appendNull();
+            }
+        }
+        return builder.build();
     }
 
     private void ensureCapacity(int position) {
-        if (position > largestIndex) {
-            largestIndex = position;
-        }
         if (position >= values.size()) {
             long prevSize = values.size();
             values = bigArrays.grow(values, position + 1);
-            values.fill(prevSize, values.size(), initialDefaultValue);
+            values.fill(prevSize, values.size(), init);
         }
     }
 
     @Override
     public long getEstimatedSize() {
-        final long positions = largestIndex + 1L;
-        return Long.BYTES + (positions * Long.BYTES) + estimateSerializeSize(nonNulls);
+        return Long.BYTES + (largestIndex + 1L) * Long.BYTES + LongArrayState.estimateSerializeSize(nonNulls);
     }
 
     @Override
@@ -130,18 +133,10 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
 
     @Override
     public AggregatorStateSerializer<LongArrayState> serializer() {
-        return serializer;
+        return new LongArrayStateSerializer();
     }
 
     private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-
-    static int estimateSerializeSize(BitArray bits) {
-        if (bits == null) {
-            return Long.BYTES;
-        } else {
-            return Long.BYTES + Math.toIntExact(bits.getBits().size() * Long.BYTES);
-        }
-    }
 
     static int serializeBitArray(BitArray bits, byte[] ba, int offset) {
         if (bits == null) {
@@ -171,39 +166,46 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
         }
     }
 
-    static class LongArrayStateSerializer implements AggregatorStateSerializer<LongArrayState> {
+    static int estimateSerializeSize(BitArray bits) {
+        if (bits == null) {
+            return Long.BYTES;
+        }
+        return Long.BYTES + Math.toIntExact(bits.getBits().size() * Long.BYTES);
+    }
 
-        static final int BYTES_SIZE = Long.BYTES;
+    private static class LongArrayStateSerializer implements AggregatorStateSerializer<LongArrayState> {
+        private static final VarHandle lengthHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+        private static final VarHandle valueHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int size() {
-            return BYTES_SIZE;
+            return Long.BYTES;
         }
 
         @Override
         public int serialize(LongArrayState state, byte[] ba, int offset) {
             int positions = state.largestIndex + 1;
-            longHandle.set(ba, offset, positions);
+            lengthHandle.set(ba, offset, positions);
             offset += Long.BYTES;
             for (int i = 0; i < positions; i++) {
-                longHandle.set(ba, offset, state.values.get(i));
-                offset += BYTES_SIZE;
+                valueHandle.set(ba, offset, state.values.get(i));
+                offset += Long.BYTES;
             }
-            final int valuesBytes = Long.BYTES + (BYTES_SIZE * positions) + Long.BYTES;
-            return valuesBytes + serializeBitArray(state.nonNulls, ba, offset);
+            final int valuesBytes = Long.BYTES + (Long.BYTES * positions);
+            return valuesBytes + LongArrayState.serializeBitArray(state.nonNulls, ba, offset);
         }
 
         @Override
         public void deserialize(LongArrayState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
-            int positions = (int) (long) longHandle.get(ba, offset);
+            int positions = (int) (long) lengthHandle.get(ba, offset);
             offset += Long.BYTES;
             for (int i = 0; i < positions; i++) {
-                state.set((long) longHandle.get(ba, offset), i);
-                offset += BYTES_SIZE;
+                state.set((long) valueHandle.get(ba, offset), i);
+                offset += Long.BYTES;
             }
             state.largestIndex = positions - 1;
-            state.nonNulls = deseralizeBitArray(state.bigArrays, ba, offset);
+            state.nonNulls = LongArrayState.deseralizeBitArray(state.bigArrays, ba, offset);
         }
     }
 }

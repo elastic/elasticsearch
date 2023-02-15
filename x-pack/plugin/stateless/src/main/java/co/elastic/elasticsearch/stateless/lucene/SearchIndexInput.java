@@ -24,6 +24,7 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -34,7 +35,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Semaphore;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 
@@ -109,13 +109,11 @@ public class SearchIndexInput extends BufferedIndexInput {
     private void doReadInternal(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
-        final int originalByteBufPosition = b.position();
 
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to doReadInternal
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
-        final Semaphore luceneByteBufPermits = new Semaphore(Integer.MAX_VALUE);
-        boolean bufferWriteLocked = false;
+        final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
         try {
             final ByteRange startRangeToWrite = computeRange(position);
@@ -129,44 +127,45 @@ public class SearchIndexInput extends BufferedIndexInput {
 
             int bytesRead = 0;
             try {
-                bytesRead = cacheFile.populateAndRead(
-                    rangeToWrite,
-                    rangeToRead,
-                    (channel, pos, relativePos, len) -> readCacheFile(
-                        channel,
+                bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, pos, relativePos, len) -> {
+                    logger.trace(
+                        "{}: reading cached {} logical {} channel {} pos {} length {} (details: {})",
+                        cacheFile.getCacheKey().fileName(),
+                        false,
+                        rangeToRead.start(),
                         pos,
                         relativePos,
-                        len,
-                        b,
-                        rangeToRead.start(),
-                        luceneByteBufPermits
-                    ),
-                    (channel, channelPos, relativePos, len, progressUpdater) -> {
-                        final long streamStartPosition = rangeToWrite.start() + relativePos;
-                        try (InputStream in = blobContainer.readBlob(this.cacheFile.getCacheKey().fileName(), streamStartPosition, len)) {
-                            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-                            logger.trace(
-                                "{}: writing channel {} pos {} length {} (details: {})",
-                                cacheFile.getCacheKey().fileName(),
-                                channelPos,
-                                relativePos,
-                                len,
-                                cacheFile
-                            );
-                            SharedBytes.copyToCacheFileAligned(
-                                channel,
-                                in,
-                                channelPos,
-                                relativePos,
-                                len,
-                                progressUpdater,
-                                writeBuffer.get().clear(),
-                                cacheFile
-                            );
-                        }
-                    },
+                        length,
+                        cacheFile
+                    );
+                    return SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference, cacheFile);
+                }, (channel, channelPos, relativePos, len, progressUpdater) -> {
+                    final long streamStartPosition = rangeToWrite.start() + relativePos;
+                    try (InputStream in = blobContainer.readBlob(this.cacheFile.getCacheKey().fileName(), streamStartPosition, len)) {
+                        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                        logger.trace(
+                            "{}: writing channel {} pos {} length {} (details: {})",
+                            cacheFile.getCacheKey().fileName(),
+                            channelPos,
+                            relativePos,
+                            len,
+                            cacheFile
+                        );
+                        SharedBytes.copyToCacheFileAligned(
+                            channel,
+                            in,
+                            channelPos,
+                            relativePos,
+                            len,
+                            progressUpdater,
+                            writeBuffer.get().clear(),
+                            cacheFile
+                        );
+                    }
+                },
                     ThreadPool.Names.GENERIC // TODO: figure out a better/correct threadpool for this
                 );
+                byteBufferReference.finish(bytesRead);
             } catch (Exception e) {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
                     int len = length - bytesRead;
@@ -182,57 +181,9 @@ public class SearchIndexInput extends BufferedIndexInput {
                 }
             }
             assert bytesRead == length : bytesRead + " vs " + length;
-            assert luceneByteBufPermits.availablePermits() == Integer.MAX_VALUE;
-
-            luceneByteBufPermits.acquire(Integer.MAX_VALUE);
-            bufferWriteLocked = true;
-            b.position(originalByteBufPosition + bytesRead); // mark all bytes as accounted for
         } finally {
-            if (bufferWriteLocked == false) {
-                luceneByteBufPermits.acquire(Integer.MAX_VALUE);
-            }
+            byteBufferReference.finish(0);
         }
-    }
-
-    private int readCacheFile(
-        final SharedBytes.IO fc,
-        long channelPos,
-        long relativePos,
-        long length,
-        final ByteBuffer buffer,
-        long logicalPos,
-        Semaphore luceneByteBufPermits
-    ) throws IOException {
-        logger.trace(
-            "{}: reading cached {} logical {} channel {} pos {} length {} (details: {})",
-            cacheFile.getCacheKey().fileName(),
-            false,
-            logicalPos,
-            channelPos,
-            relativePos,
-            length,
-            cacheFile
-        );
-        if (length == 0L) {
-            return 0;
-        }
-        final int bytesRead;
-        if (luceneByteBufPermits.tryAcquire()) {
-            try {
-                // create slice that is positioned to read the given values
-                final ByteBuffer dup = buffer.slice(buffer.position() + Math.toIntExact(relativePos), Math.toIntExact(length));
-                bytesRead = fc.read(dup, channelPos);
-                if (bytesRead == -1) {
-                    BlobCacheUtils.throwEOF(channelPos, dup.remaining(), cacheFile);
-                }
-            } finally {
-                luceneByteBufPermits.release();
-            }
-        } else {
-            // return fake response
-            return Math.toIntExact(length);
-        }
-        return bytesRead;
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(

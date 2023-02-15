@@ -417,14 +417,13 @@ calculated on the combined set of `knn` and `query` matches.
 [[semantic-search]]
 ==== Perform semantic search
 
-KNN search enables you to perform semantic search by using a previously deployed 
+kNN search enables you to perform semantic search by using a previously deployed 
 {ml-docs}/ml-nlp-search-compare.html#ml-nlp-text-embedding[text embedding model]. 
-You can use semantic search to retrieve results based on the intent and the 
-contextual meaning of the search query not only the literal matches of the 
-keywords.
+Instead of literal matching on search terms, semantic search retrieves results
+based on the intent and the contextual meaning of a search query.
 
 Under the hood, the text embedding NLP model generates a dense vector from the 
-input query string called `model_text` you provided. Then, it is searched 
+input query string called `model_text` you provide. Then, it is searched 
 against an index containing dense vectors created with the same text embedding 
 {ml} model. The search results are semantically similar as learned by the model.
 

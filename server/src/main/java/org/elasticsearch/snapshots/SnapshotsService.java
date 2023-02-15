@@ -155,6 +155,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
+    public static final String SNAPSHOT_ALREADY_IN_PROGRESS_EXCEPTION_DESC = "snapshot with the same name is already in-progress";
+    public static final String SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC = "snapshot with the same name already exists";
 
     private final ClusterService clusterService;
 
@@ -616,7 +618,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static void ensureSnapshotNameNotRunning(SnapshotsInProgress runningSnapshots, String repositoryName, String snapshotName) {
         if (runningSnapshots.forRepo(repositoryName).stream().anyMatch(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "snapshot with the same name is already in-progress");
+            throw new InvalidSnapshotNameException(repositoryName, snapshotName, SNAPSHOT_ALREADY_IN_PROGRESS_EXCEPTION_DESC);
         }
     }
 
@@ -742,11 +744,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static void ensureSnapshotNameAvailableInRepo(RepositoryData repositoryData, String snapshotName, Repository repository) {
         // check if the snapshot name already exists in the repository
         if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(
-                repository.getMetadata().name(),
-                snapshotName,
-                "snapshot with the same name already exists"
-            );
+            throw new InvalidSnapshotNameException(repository.getMetadata().name(), snapshotName, SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC);
         }
     }
 
@@ -1070,7 +1068,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         throw new InvalidSnapshotNameException(
                             repository.getMetadata().name(),
                             snapshotName,
-                            "snapshot with the same name already exists"
+                            SNAPSHOT_ALREADY_EXISTS_EXCEPTION_DESC
                         );
                     }
                     if (clusterState.nodes().getMinNodeVersion().onOrAfter(NO_REPO_INITIALIZE_VERSION) == false) {

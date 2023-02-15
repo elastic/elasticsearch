@@ -26,6 +26,8 @@ import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
+import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsUsageTransportAction;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -74,6 +76,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -121,7 +125,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class));
+        return List.of(
+            new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class)
+        );
     }
 
     @Override

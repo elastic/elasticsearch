@@ -147,11 +147,11 @@ message to a channel. Or you can use an index connector that writes an JSON
 object to a specific index. For details about creating connectors, refer to
 {kibana-ref}/action-types.html[Connectors].
 
-You must also set the action frequency, which involves choosing how often to
-run actions (for example, at each check interval, only when the alert status
-changes, or at a custom action interval). Each rule type has a list of
-valid action groups and you must assign each action to one of these groups (for
-example, actions that run when the issue is detected or when it is recovered).
+You must set the action frequency, which involves choosing how often to run
+the action (for example, at each check interval, only when the alert status
+changes, or at a custom action interval). Each rule type also has a list of
+valid action groups and you must choose one of these groups (for example, the
+action runs when the issue is detected or when it is recovered).
 
 TIP: If you choose a custom action interval, it cannot be shorter than the
 rule's check interval.

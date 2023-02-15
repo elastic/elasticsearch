@@ -448,7 +448,7 @@ public abstract class TransportWriteAction<
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
-            assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOpts was: " + pendingOps.get();
+            assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOps was: " + pendingOps.get();
         }
 
         /** calls the response listener if all pending operations have returned otherwise it just decrements the pending opts counter.*/

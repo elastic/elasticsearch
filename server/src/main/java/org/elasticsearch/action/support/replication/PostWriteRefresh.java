@@ -11,8 +11,8 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.RefreshListeners;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.TransportService;
 
@@ -54,15 +54,22 @@ public class PostWriteRefresh {
             case NONE -> listener.onResponse(false);
             case WAIT_UNTIL -> {
                 if (location != null) {
-                    indexShard.addRefreshListener(location, refreshResult -> {
-                        afterRefresh(indexShard, isPrimary, transportService, listener, refreshResult);
-                        listener.onResponse(refreshResult.refreshForced());
-                    });
+                    indexShard.addRefreshListener(
+                        location,
+                        refreshResult -> afterRefresh(
+                            indexShard,
+                            isPrimary,
+                            transportService,
+                            listener,
+                            refreshResult.refreshForced(),
+                            refreshResult.generation()
+                        )
+                    );
                 }
             }
             case IMMEDIATE -> {
-                indexShard.refresh("refresh_flag_index");
-                listener.onResponse(true);
+                Engine.RefreshResult refreshResult = indexShard.refresh("refresh_flag_index");
+                afterRefresh(indexShard, isPrimary, transportService, listener, true, refreshResult.generation());
             }
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
@@ -73,7 +80,8 @@ public class PostWriteRefresh {
         boolean isPrimary,
         @Nullable TransportService transportService,
         ActionListener<Boolean> listener,
-        RefreshListeners.AsyncRefreshResult result
+        boolean wasForced,
+        long generation
     ) {
         boolean hasUnpromotables = indexShard.getReplicationGroup()
             .getReplicationTargets()
@@ -98,9 +106,9 @@ public class PostWriteRefresh {
             // )
             // );
             // TODO: Remove
-            listener.onResponse(result.refreshForced());
+            listener.onResponse(wasForced);
         } else {
-            listener.onResponse(result.refreshForced());
+            listener.onResponse(wasForced);
         }
     }
 }

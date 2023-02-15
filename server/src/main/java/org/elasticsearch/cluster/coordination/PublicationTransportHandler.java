@@ -225,8 +225,7 @@ public class PublicationTransportHandler {
         }
     }
 
-    private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node) {
-        final TransportVersion serializeVersion = transportService.getConnection(node).getTransportVersion();
+    private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node, TransportVersion version) {
         final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
         try {
@@ -236,7 +235,7 @@ public class PublicationTransportHandler {
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
                 )
             ) {
-                stream.setTransportVersion(serializeVersion);
+                stream.setTransportVersion(version);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
                 uncompressedBytes = stream.position();
@@ -248,7 +247,7 @@ public class PublicationTransportHandler {
             logger.trace(
                 "serialized full cluster state version [{}] using transport version [{}] with size [{}]",
                 clusterState.version(),
-                serializeVersion,
+                version,
                 result.length()
             );
             success = true;
@@ -260,9 +259,13 @@ public class PublicationTransportHandler {
         }
     }
 
-    private ReleasableBytesReference serializeDiffClusterState(ClusterState newState, Diff<ClusterState> diff, DiscoveryNode node) {
+    private ReleasableBytesReference serializeDiffClusterState(
+        ClusterState newState,
+        Diff<ClusterState> diff,
+        DiscoveryNode node,
+        TransportVersion version
+    ) {
         final long clusterStateVersion = newState.version();
-        final TransportVersion serializeVersion = transportService.getConnection(node).getTransportVersion();
         final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
         try {
@@ -272,10 +275,10 @@ public class PublicationTransportHandler {
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
                 )
             ) {
-                stream.setTransportVersion(serializeVersion);
+                stream.setTransportVersion(version);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
-                if (serializeVersion.onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION)) {
+                if (version.onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION)) {
                     stream.writeBoolean(newState.metadata().clusterUUIDCommitted());
                     newState.getLastCommittedConfiguration().writeTo(stream);
                 }
@@ -288,7 +291,7 @@ public class PublicationTransportHandler {
             logger.trace(
                 "serialized cluster state diff for version [{}] using transport version [{}] with size [{}]",
                 clusterStateVersion,
-                serializeVersion,
+                version,
                 result.length()
             );
             success = true;
@@ -339,9 +342,12 @@ public class PublicationTransportHandler {
                 }
                 TransportVersion version = transportService.getConnection(node).getTransportVersion();
                 if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
-                    serializedStates.computeIfAbsent(version, v -> serializeFullClusterState(newState, node));
+                    serializedStates.computeIfAbsent(version, v -> serializeFullClusterState(newState, node, v));
                 } else {
-                    serializedDiffs.computeIfAbsent(version, v -> serializeDiffClusterState(newState, diffSupplier.getOrCompute(), node));
+                    serializedDiffs.computeIfAbsent(
+                        version,
+                        v -> serializeDiffClusterState(newState, diffSupplier.getOrCompute(), node, v)
+                    );
                 }
             }
         }
@@ -407,14 +413,14 @@ public class PublicationTransportHandler {
             ReleasableBytesReference bytes = serializedStates.get(version);
             if (bytes == null) {
                 try {
-                    bytes = serializedStates.computeIfAbsent(version, v -> serializeFullClusterState(newState, destination));
+                    bytes = serializedStates.computeIfAbsent(version, v -> serializeFullClusterState(newState, destination, v));
                 } catch (Exception e) {
                     logger.warn(() -> format("failed to serialize cluster state before publishing it to node %s", destination), e);
                     listener.onFailure(e);
                     return;
                 }
             }
-            sendClusterState(destination, bytes, listener);
+            sendClusterState(destination, bytes, version, listener);
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
@@ -428,7 +434,7 @@ public class PublicationTransportHandler {
                 listener.onFailure(new IllegalStateException("publication context released before transmission"));
                 return;
             }
-            sendClusterState(destination, bytes, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
+            sendClusterState(destination, bytes, version, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
                 if (e instanceof final TransportException transportException) {
                     if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug(
@@ -451,6 +457,7 @@ public class PublicationTransportHandler {
         private void sendClusterState(
             DiscoveryNode destination,
             ReleasableBytesReference bytes,
+            TransportVersion version,
             ActionListener<PublishWithJoinResponse> listener
         ) {
             assert refCount() > 0;
@@ -462,7 +469,7 @@ public class PublicationTransportHandler {
             transportService.sendChildRequest(
                 destination,
                 PUBLISH_STATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, transportService.getConnection(destination).getTransportVersion()),
+                new BytesTransportRequest(bytes, version),
                 task,
                 STATE_REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(listener, PublishWithJoinResponse::new, ThreadPool.Names.CLUSTER_COORDINATION, bytes::decRef)

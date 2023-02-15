@@ -307,8 +307,7 @@ public class JoinValidationService {
             Transport.Connection connection;
             try {
                 connection = transportService.getConnection(discoveryNode);
-            }
-            catch (NodeNotConnectedException e) {
+            } catch (NodeNotConnectedException e) {
                 listener.onFailure(e);
                 return;
             }

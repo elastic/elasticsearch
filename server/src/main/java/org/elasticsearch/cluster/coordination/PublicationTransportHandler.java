@@ -413,8 +413,7 @@ public class PublicationTransportHandler {
             TransportVersion version;
             try {
                 version = transportService.getConnection(destination).getTransportVersion();
-            }
-            catch (NodeNotConnectedException e) {
+            } catch (NodeNotConnectedException e) {
                 listener.onFailure(e);
                 return;
             }
@@ -435,8 +434,7 @@ public class PublicationTransportHandler {
             TransportVersion version;
             try {
                 version = transportService.getConnection(destination).getTransportVersion();
-            }
-            catch (NodeNotConnectedException e) {
+            } catch (NodeNotConnectedException e) {
                 listener.onFailure(e);
                 return;
             }

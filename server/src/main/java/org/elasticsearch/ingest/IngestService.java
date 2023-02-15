@@ -200,22 +200,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
      * @param clusterMetadata Cluster metadata from where the pipeline information could be derived.
      */
-    public static boolean updateIndexRequestWithPipelines(
+    public static void updateIndexRequestWithPipelines(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata clusterMetadata
     ) {
-        return updateIndexRequestWithPipelines(originalRequest, indexRequest, clusterMetadata, System.currentTimeMillis());
+        updateIndexRequestWithPipelines(originalRequest, indexRequest, clusterMetadata, System.currentTimeMillis());
     }
 
-    static boolean updateIndexRequestWithPipelines(
+    static void updateIndexRequestWithPipelines(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata clusterMetadata,
         final long epochMillis
     ) {
         if (indexRequest.isPipelineResolved()) {
-            return indexRequestHasPipeline(indexRequest);
+            return;
         }
 
         final String requestPipeline = indexRequest.getPipeline();
@@ -290,8 +290,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
          * pipeline parameter too.
          */
         indexRequest.isPipelineResolved(true);
-
-        return indexRequestHasPipeline(indexRequest);
     }
 
     public ClusterService getClusterService() {
@@ -1238,7 +1236,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return indexMetadata;
     }
 
-    private static boolean indexRequestHasPipeline(IndexRequest indexRequest) {
+    public static boolean indexRequestHasPipeline(IndexRequest indexRequest) {
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }

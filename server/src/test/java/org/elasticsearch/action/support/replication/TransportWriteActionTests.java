@@ -34,6 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.RefreshListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
@@ -193,13 +194,13 @@ public class TransportWriteActionTests extends ESTestCase {
             assertNull(listener.response); // Haven't really responded yet
 
             @SuppressWarnings({ "unchecked", "rawtypes" })
-            ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
+            ArgumentCaptor<Consumer<RefreshListeners.AsyncRefreshResult>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
             verify(indexShard, never()).refresh(any());
             verify(indexShard).addRefreshListener(any(), refreshListener.capture());
 
             // Now we can fire the listener manually and we'll get a response
             boolean forcedRefresh = randomBoolean();
-            refreshListener.getValue().accept(forcedRefresh);
+            refreshListener.getValue().accept(new RefreshListeners.AsyncRefreshResult(forcedRefresh, 1));
             assertNotNull(listener.response);
             assertNull(listener.failure);
             assertEquals(forcedRefresh, listener.response.forcedRefresh);
@@ -217,13 +218,13 @@ public class TransportWriteActionTests extends ESTestCase {
         result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
+        ArgumentCaptor<Consumer<RefreshListeners.AsyncRefreshResult>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
         verify(indexShard, never()).refresh(any());
         verify(indexShard).addRefreshListener(any(), refreshListener.capture());
 
         // Now we can fire the listener manually and we'll get a response
         boolean forcedRefresh = randomBoolean();
-        refreshListener.getValue().accept(forcedRefresh);
+        refreshListener.getValue().accept(new RefreshListeners.AsyncRefreshResult(forcedRefresh, 1));
         assertNotNull(listener.response);
         assertNull(listener.failure);
     }
@@ -455,7 +456,14 @@ public class TransportWriteActionTests extends ESTestCase {
                 if (withDocumentFailureOnPrimary) {
                     throw new RuntimeException("simulated");
                 } else {
-                    return new WritePrimaryResult<>(request, new TestResponse(), location, primary, logger);
+                    return new WritePrimaryResult<>(
+                        request,
+                        new TestResponse(),
+                        location,
+                        primary,
+                        logger,
+                        new PostWriteRefresh(transportService)
+                    );
                 }
             });
         }

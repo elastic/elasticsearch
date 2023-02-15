@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action.bulk;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -71,7 +72,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 operations,
                 numOps - 1,
                 followerPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(null)
             );
 
         boolean accessStats = randomBoolean();
@@ -133,7 +135,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 firstBulk,
                 seqno,
                 oldPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(null)
             );
         assertThat(
             fullResult.replicaRequest().getOperations(),
@@ -159,7 +162,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 Stream.concat(secondBulk.stream(), existingOps.stream()).collect(Collectors.toList()),
                 seqno,
                 newPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(null)
             );
         final long newPrimaryTerm = newPrimary.getOperationPrimaryTerm();
         final long globalCheckpoint = newPrimary.getLastKnownGlobalCheckpoint();

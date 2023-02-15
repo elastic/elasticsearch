@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -161,6 +162,14 @@ public class RefreshListenersTests extends ESTestCase {
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
         listeners.setCurrentProcessedCheckpointSupplier(engine::getProcessedLocalCheckpoint);
         listeners.setMaxIssuedSeqNoSupplier(engine::getMaxSeqNo);
+        listeners.setIndexCommitGenerationSupplier(() -> {
+            Engine.IndexCommitRef commitRef = engine.acquireLastIndexCommit(false);
+            try {
+                return commitRef.getIndexCommit().getGeneration();
+            } finally {
+                IOUtils.closeWhileHandlingException(commitRef);
+            }
+        });
     }
 
     @After
@@ -205,6 +214,25 @@ public class RefreshListenersTests extends ESTestCase {
         assertTrue(seqNoListener.isDone.get());
         listener.assertNoError();
         assertEquals(0, listeners.pendingCount());
+    }
+
+    public void testGenerationIsReturned() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult index = index("1");
+        engine.refresh("I said so");
+        if (randomBoolean()) {
+            index(randomFrom("1" /* same document */, "2" /* different document */));
+            if (randomBoolean()) {
+                engine.refresh("I said so");
+            }
+        }
+        Engine.IndexCommitRef indexCommitRef = engine.acquireLastIndexCommit(false);
+        long generation = indexCommitRef.getIndexCommit().getGeneration();
+        IOUtils.closeWhileHandlingException(indexCommitRef);
+        TestLocationListener listener = new TestLocationListener();
+        assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
+        assertFalse(listener.forcedRefresh.get());
+        assertThat(listener.commitGeneration.get(), equalTo(generation));
     }
 
     public void testContextIsPreserved() throws IOException, InterruptedException {
@@ -553,17 +581,19 @@ public class RefreshListenersTests extends ESTestCase {
         return engine.index(index);
     }
 
-    private static class TestLocationListener implements Consumer<Boolean> {
+    private static class TestLocationListener implements Consumer<RefreshListeners.AsyncRefreshResult> {
         /**
          * When the listener is called this captures it's only argument.
          */
         final AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
+        final AtomicLong commitGeneration = new AtomicLong();
         private volatile Exception error;
 
         @Override
-        public void accept(Boolean forcedRefresh) {
+        public void accept(RefreshListeners.AsyncRefreshResult refreshResult) {
             try {
-                Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
+                this.commitGeneration.getAndSet(refreshResult.generation());
+                Boolean oldValue = this.forcedRefresh.getAndSet(refreshResult.refreshForced());
                 assertNull("Listener called twice", oldValue);
             } catch (Exception e) {
                 error = e;

@@ -3901,7 +3901,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
-            addRefreshListener(location, (b) -> {
+            addRefreshListener(location, (result) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
@@ -3917,7 +3917,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
      */
-    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+    public void addRefreshListener(Translog.Location location, Consumer<RefreshListeners.AsyncRefreshResult> listener) {
         final boolean readAllowed;
         if (isReadAllowed()) {
             readAllowed = true;
@@ -3933,7 +3933,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             refreshListeners.addOrNotify(location, listener);
         } else {
             // we're not yet ready for reads, just ignore refresh cycles
-            listener.accept(false);
+            listener.accept(new RefreshListeners.AsyncRefreshResult(false));
         }
     }
 

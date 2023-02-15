@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
@@ -340,7 +341,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             Arrays.asList(ops),
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
-                            logger
+                            logger,
+                            new PostWriteRefresh(null)
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -802,7 +804,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getOperations(),
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
-                    logger
+                    logger,
+                    new PostWriteRefresh(null)
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {

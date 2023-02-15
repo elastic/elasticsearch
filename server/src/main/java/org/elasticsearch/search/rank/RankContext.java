@@ -24,7 +24,7 @@ public interface RankContext {
 
     void executeQuery(SearchContext searchContext);
 
-    void setSize(int size);
+    void setSizeAndFrom(int size, int from);
 
     SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats);
 

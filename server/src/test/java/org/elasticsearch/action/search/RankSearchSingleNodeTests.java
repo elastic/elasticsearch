@@ -25,7 +25,7 @@ import java.util.List;
 
 public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
 
-    public void testSimpleRRFRerank() throws IOException {
+    public void testSimpleRRFRank() throws IOException {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
@@ -65,5 +65,47 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
             .get();
 
         assertEquals(10, response.getHits().getHits().length);
+    }
+
+    public void testRRFRankSmallerThanSize() throws IOException {
+        int numShards = 1;// + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", 1)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .startObject("text")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+
+        client().prepareIndex("index").setSource("vector", new float[] { 0.0f }, "text", "term term").get();
+        client().prepareIndex("index").setSource("vector", new float[] { 1.0f }, "text", "other").get();
+        client().prepareIndex("index").setSource("vector", new float[] { 2.0f }, "text", "term").get();
+
+        client().admin().indices().prepareRefresh("index").get();
+
+        float[] queryVector = { 0.0f };
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3);
+        SearchResponse response = client().prepareSearch("index")
+            .setRank(new RankBuilder().toRankContext(new RRFRankBuilder().windowSize(100).rankConstant(1)))
+            //.setTrackTotalHits(true)
+            .setKnnSearch(List.of(knnSearch))
+            .setQuery(QueryBuilders.termQuery("text", "term"))
+            //.addSort("int", SortOrder.ASC)
+            .addFetchField("*")
+            //.setSize(10)
+            //.addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
+            .get();
+
+        assertEquals(3, response.getHits().getHits().length);
     }
 }

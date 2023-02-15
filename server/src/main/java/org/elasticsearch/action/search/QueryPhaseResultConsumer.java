@@ -94,7 +94,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchSourceBuilder source = request.source();
         this.rankContext = source == null || source.rank() == null ? null : source.rank().toRankContext().toRankContext();
         if (rankContext != null) {
-            rankContext.setSize(request.source().size());
+            rankContext.setSizeAndFrom(request.source().size(), request.source().from());
         }
         this.hasTopDocs = (source == null || source.size() != 0) && rankContext == null;
         this.hasAggs = source != null && source.aggregations() != null;

@@ -35,6 +35,7 @@ public class RRFRankContext implements RankContext {
     private RRFRankQuery rrfRankQuery;
 
     private int size;
+    private int from;
 
     public RRFRankContext(int windowSize, int rankConstant) {
         this.windowSize = windowSize;
@@ -73,8 +74,9 @@ public class RRFRankContext implements RankContext {
     }
 
     @Override
-    public void setSize(int size) {
+    public void setSizeAndFrom(int size, int from) {
         this.size = size == -1 ? 10 : size;
+        this.from = from == -1 ? 0 : from;
     }
 
     @Override
@@ -112,14 +114,8 @@ public class RRFRankContext implements RankContext {
         }
 
         List<SortedTopDocs> mergedTopDocs = new ArrayList<>();
-        long fetchHits = -1;
         for (List<TopDocs> utd : unmergedTopDocs) {
-            fetchHits = Math.min(fetchHits == -1 ? Long.MAX_VALUE : fetchHits, utd.stream().mapToInt(td -> td.scoreDocs.length).sum());
             mergedTopDocs.add(SearchPhaseController.sortDocs(false, utd, 0, windowSize, List.of()));
-        }
-        assert topDocsStats.fetchHits == 0;
-        if (fetchHits != -1) {
-            topDocsStats.fetchHits = fetchHits;
         }
 
         if (mergedTopDocs.isEmpty()) {
@@ -151,11 +147,13 @@ public class RRFRankContext implements RankContext {
 
         RRFRankResult[] allRankResults = docsToRankResults.values().toArray(RRFRankResult[]::new);
         Arrays.sort(allRankResults, Comparator.comparingDouble(rr -> -rr.score));
-        RRFRankResult[] topRankResults = new RRFRankResult[Math.min(size, allRankResults.length)];
+        RRFRankResult[] topRankResults = new RRFRankResult[Math.min(size + from, allRankResults.length)];
         for (int rank = 0; rank < topRankResults.length; ++rank) {
             topRankResults[rank] = allRankResults[rank];
             topRankResults[rank].rank = rank + 1;
         }
+        assert topDocsStats.fetchHits == 0;
+        topDocsStats.fetchHits = topRankResults.length;
 
         SortedTopDocs copy = mergedTopDocs.get(1);
         return new SortedTopDocs(

@@ -776,7 +776,7 @@ public class AuthenticationTests extends ESTestCase {
         // check null value
         assertThat(null, equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
 
-        // and en empty
+        // and an empty map
         final BytesReference empty = new BytesArray("""
             {}""");
         assertThat(empty.toBytesRef(), equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(empty).toBytesRef()));

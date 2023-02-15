@@ -1,4 +1,31 @@
 ---
+setup:
+  - do:
+      indices.put_template:
+        name: add_final_pipeline
+        body:
+          index_patterns: foo
+          settings:
+            final_pipeline: "final_pipeline"
+
+  - do:
+      ingest.put_pipeline:
+        id: "final_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "append" : {
+                  "field" : "accumulator",
+                  "value" : [
+                    "non-repeated-value"
+                  ]
+                }
+              }
+            ]
+          }
+
+---
 teardown:
 - do:
     ingest.delete_pipeline:
@@ -8,6 +35,11 @@ teardown:
 - do:
     indices.delete:
       index: foo
+
+- do:
+    ingest.delete_pipeline:
+      id: final_pipeline
+      ignore: 404
 
 ---
 "Test Change Target Index with Explicit Pipeline":
@@ -49,7 +81,7 @@ teardown:
     get:
       index: foo
       id: "1"
-- match: { _source.a: true }
+- match: { _source: { a: true, accumulator: ["non-repeated-value"]} }
 
 # only the foo index
 - do:
@@ -107,7 +139,7 @@ teardown:
     get:
       index: foo
       id: "1"
-- match: { _source.a: true }
+- match: { _source: { a: true, accumulator: ["non-repeated-value"]} }
 
 # only the foo index
 - do:

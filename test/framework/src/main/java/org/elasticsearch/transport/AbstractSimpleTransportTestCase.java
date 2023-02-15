@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -225,7 +224,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return service;
     }
 
-    private MockTransportService buildService(
+    protected MockTransportService buildService(
         final String name,
         final Version version,
         @Nullable ClusterSettings clusterSettings,
@@ -2168,61 +2167,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TestRequest::new,
             (request, message, task) -> { throw new AssertionError("boom"); }
         );
-    }
-
-    public void testTimeoutPerConnection() throws IOException {
-        assumeTrue("Works only on BSD network stacks", Constants.MAC_OS_X || Constants.FREE_BSD);
-        try (ServerSocket socket = new MockServerSocket()) {
-            // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
-            // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which
-            // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
-            // into a connection timeout quickly. Yet other implementations can for instance can terminate the connection within the 3 way
-            // handshake which I haven't tested yet.
-            socket.bind(getLocalEphemeral(), 1);
-            socket.setReuseAddress(true);
-            DiscoveryNode first = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            DiscoveryNode second = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-            builder.addConnections(
-                1,
-                TransportRequestOptions.Type.BULK,
-                TransportRequestOptions.Type.PING,
-                TransportRequestOptions.Type.RECOVERY,
-                TransportRequestOptions.Type.REG,
-                TransportRequestOptions.Type.STATE
-            );
-            // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
-            try (TransportService service = buildService("TS_TPC", Version.CURRENT, null, Settings.EMPTY, true, false)) {
-                IOUtils.close(openConnection(service, first, builder.build()));
-                builder.setConnectTimeout(TimeValue.timeValueMillis(1));
-                final ConnectionProfile profile = builder.build();
-                // now with the 1ms timeout we got and test that is it's applied
-                long startTime = System.nanoTime();
-                ConnectTransportException ex = expectThrows(
-                    ConnectTransportException.class,
-                    () -> openConnection(service, second, profile)
-                );
-                final long now = System.nanoTime();
-                final long timeTaken = TimeValue.nsecToMSec(now - startTime);
-                assertTrue(
-                    "test didn't timeout quick enough, time taken: [" + timeTaken + "]",
-                    timeTaken < TimeValue.timeValueSeconds(5).millis()
-                );
-                assertEquals(ex.getMessage(), "[][" + second.getAddress() + "] connect_timeout[1ms]");
-            }
-        }
     }
 
     public void testHandshakeWithIncompatVersion() {

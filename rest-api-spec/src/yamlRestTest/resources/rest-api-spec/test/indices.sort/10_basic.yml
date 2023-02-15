@@ -1,16 +1,13 @@
 ---
 "Index Sort":
 
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/93599"
-
   - do:
       indices.create:
         index: test
         body:
           settings:
             number_of_shards: 1
+            number_of_replicas: 0
             index.sort.field: rank
           mappings:
             properties:

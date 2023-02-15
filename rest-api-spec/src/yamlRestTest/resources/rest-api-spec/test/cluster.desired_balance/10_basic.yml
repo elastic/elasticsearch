@@ -83,7 +83,7 @@ setup:
       _internal.get_desired_balance: { }
 
   - is_true: 'cluster_balance_stats.nodes.$node_name'
-  - is_true: 'cluster_balance_stats.nodes.$node_name.id'
+  - is_true: 'cluster_balance_stats.nodes.$node_name.node_id'
 
 ---
 "Test get desired balance for single shard":

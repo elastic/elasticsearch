@@ -9,6 +9,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
@@ -22,17 +23,17 @@ import io.netty.util.ReferenceCountUtil;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.TriConsumer;
 
 import java.util.ArrayDeque;
-import java.util.function.BiConsumer;
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
-    private final BiConsumer<HttpRequest, ActionListener<Void>> validator;
+    private final TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private STATE state = STATE.WAITING_TO_START;
 
-    public Netty4HttpHeaderValidator(BiConsumer<HttpRequest, ActionListener<Void>> validator) {
+    public Netty4HttpHeaderValidator(TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator) {
         this.validator = validator;
     }
 
@@ -85,7 +86,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         }
 
         state = STATE.QUEUEING_DATA;
-        validator.accept(httpRequest, new ActionListener<>() {
+        validator.apply(httpRequest, ctx.channel(), new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 // Always use "Submit" to prevent reentrancy concerns if we are still on event loop

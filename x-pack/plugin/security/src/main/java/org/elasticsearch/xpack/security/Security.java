@@ -1618,6 +1618,7 @@ public class Security extends Plugin
                 RemoteHostHeader.process(channel, threadContext);
             };
             final AuthenticationService authenticationService = this.authcService.get();
+            final ThreadContext threadContext = this.threadContext.get();
             final BiConsumer<BasicHttpRequest, ActionListener<Void>> authenticate = (httpRequest, listener) -> {
                 authenticationService.authenticate(httpRequest, listener.map(authentication -> {
                     if (authentication == null) {
@@ -1639,7 +1640,7 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                new HttpHeadersAuthenticator(populateThreadContext, authenticate)
+                new HttpHeadersAuthenticator(populateThreadContext, authenticate, threadContext)
             ) {
                 @Override
                 protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {

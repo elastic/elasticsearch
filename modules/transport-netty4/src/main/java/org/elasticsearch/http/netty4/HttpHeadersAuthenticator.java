@@ -14,7 +14,9 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BasicHttpRequest;
@@ -22,28 +24,32 @@ import org.elasticsearch.http.BasicHttpRequest;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 public class HttpHeadersAuthenticator {
 
     private final TriConsumer<BasicHttpRequest, Channel, ThreadContext> populateThreadContext;
     private final BiConsumer<BasicHttpRequest, ActionListener<Void>> authenticate;
+    private final ThreadContext threadContext;
 
     public HttpHeadersAuthenticator(
         TriConsumer<BasicHttpRequest, Channel, ThreadContext> populateThreadContext,
-        BiConsumer<BasicHttpRequest, ActionListener<Void>> authenticate
+        BiConsumer<BasicHttpRequest, ActionListener<Void>> authenticate,
+        ThreadContext threadContext
     ) {
         this.populateThreadContext = populateThreadContext;
         this.authenticate = authenticate;
+        this.threadContext = threadContext;
     }
 
-    public static final HttpHeadersAuthenticator NOOP = new HttpHeadersAuthenticator(null, null) {
+    public static final HttpHeadersAuthenticator NOOP = new HttpHeadersAuthenticator(null, null, null) {
         @Override
         public DefaultHttpRequest wrapNewMessage(DefaultHttpRequest decodedNewMessage) {
             return decodedNewMessage;
         }
 
         @Override
-        public void authenticateMessage(HttpRequest request, ActionListener<Void> listener) {
+        public void authenticateMessage(HttpRequest request, Channel channel, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
     };
@@ -60,9 +66,28 @@ public class HttpHeadersAuthenticator {
         );
     }
 
-    public void authenticateMessage(HttpRequest request, ActionListener<Void> listener) {
+    public void authenticateMessage(HttpRequest request, Channel channel, ActionListener<Void> listener) {
         assert request.headers() instanceof HttpHeadersAuthenticator.HttpHeadersWithAuthenticationContext;
-        new BasicHttpRequest() {
+        final BasicHttpRequest requestToAuthenticate = wrapToBasicHttpRequest(request);
+        final Supplier<ThreadContext.StoredContext> emptyContext = threadContext.wrapRestorable(threadContext.newStoredContext());
+        final ActionListener<Void> contextPreservingListener = new ContextPreservingActionListener<>(emptyContext, listener);
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            populateThreadContext.apply(requestToAuthenticate, channel, threadContext);
+            authenticate.accept(requestToAuthenticate, ActionListener.wrap(ignored -> {
+                final Supplier<ThreadContext.StoredContext> authenticatedContext = threadContext.wrapRestorable(
+                    threadContext.newStoredContext()
+                );
+                ((HttpHeadersWithAuthenticationContext) request.headers()).authenticatedContext.set(authenticatedContext);
+                contextPreservingListener.onResponse(null);
+            }, e -> {
+                ((HttpHeadersWithAuthenticationContext) request.headers()).authenticationException.set(e);
+                contextPreservingListener.onFailure(e);
+            }));
+        }
+    }
+
+    private static BasicHttpRequest wrapToBasicHttpRequest(HttpRequest request) {
+        return new BasicHttpRequest() {
 
             @Override
             public Method method() {
@@ -79,10 +104,12 @@ public class HttpHeadersAuthenticator {
                 return Netty4HttpRequest.wrapHttpHeaders(request.headers());
             }
         };
-        listener.onResponse(null);
     }
 
     public static class HttpHeadersWithAuthenticationContext extends DefaultHttpHeaders {
+
+        public final SetOnce<Supplier<ThreadContext.StoredContext>> authenticatedContext = new SetOnce<>();
+        public final SetOnce<Exception> authenticationException = new SetOnce<>();
 
         public HttpHeadersWithAuthenticationContext(HttpHeaders httpHeaders) {
             // the constructor implements the same logic as HttpHeaders#copy

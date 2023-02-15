@@ -65,6 +65,8 @@ public class PostWriteRefresh {
                             refreshResult.generation()
                         )
                     );
+                } else {
+                    listener.onResponse(false);
                 }
             }
             case IMMEDIATE -> {

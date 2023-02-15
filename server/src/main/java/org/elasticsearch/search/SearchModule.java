@@ -223,7 +223,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rank.RRFRankQueryBuilder;
+import org.elasticsearch.search.rank.RankQueryBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -1136,8 +1136,8 @@ public class SearchModule {
 
         registerQuery(
             new QuerySpec<>(
-                RRFRankQueryBuilder.NAME,
-                RRFRankQueryBuilder::new,
+                RankQueryBuilder.NAME,
+                RankQueryBuilder::new,
                 parser -> {
                     throw new IllegalArgumentException("[rrf] queries cannot be provided directly");
                 }

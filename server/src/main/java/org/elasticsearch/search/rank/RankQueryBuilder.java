@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -24,17 +23,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class RRFRankQueryBuilder extends AbstractQueryBuilder<RRFRankQueryBuilder> {
+public class RankQueryBuilder extends AbstractQueryBuilder<RankQueryBuilder> {
 
     public static final String NAME = "rrf";
 
     private final List<QueryBuilder> queryBuilders;
 
-    public RRFRankQueryBuilder() {
+    public RankQueryBuilder() {
         queryBuilders = new ArrayList<>();
     }
 
-    public RRFRankQueryBuilder(StreamInput in) throws IOException {
+    public RankQueryBuilder(StreamInput in) throws IOException {
         super(in);
         queryBuilders = readQueries(in);
     }
@@ -66,24 +65,22 @@ public class RRFRankQueryBuilder extends AbstractQueryBuilder<RRFRankQueryBuilde
         return getWriteableName();
     }
 
-    public RRFRankQueryBuilder addQuery(QueryBuilder queryBuilder) {
+    public RankQueryBuilder addQuery(QueryBuilder queryBuilder) {
         queryBuilders.add(queryBuilder);
         return this;
     }
 
     @Override
     public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        RRFRankQueryBuilder rrfRankQueryBuilder = new RRFRankQueryBuilder();
-        BoolQueryBuilder compoundQueryBuilder = new BoolQueryBuilder();
+        RankQueryBuilder rankQueryBuilder = new RankQueryBuilder();
         boolean changed = false;
         for (QueryBuilder queryBuilder : queryBuilders) {
             QueryBuilder rewrittenQueryBuilder = queryBuilder.rewrite(queryRewriteContext);
-            rrfRankQueryBuilder.addQuery(rewrittenQueryBuilder);
-            compoundQueryBuilder.should(rewrittenQueryBuilder);
+            rankQueryBuilder.addQuery(rewrittenQueryBuilder);
             changed |= rewrittenQueryBuilder != queryBuilder;
         }
         if (changed) {
-            return rrfRankQueryBuilder;
+            return rankQueryBuilder;
         }
         return this;
     }
@@ -98,7 +95,7 @@ public class RRFRankQueryBuilder extends AbstractQueryBuilder<RRFRankQueryBuilde
     }
 
     @Override
-    public boolean doEquals(RRFRankQueryBuilder o) {
+    public boolean doEquals(RankQueryBuilder o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;

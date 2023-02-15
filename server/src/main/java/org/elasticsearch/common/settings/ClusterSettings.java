@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -439,6 +440,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DiscoveryModule.DISCOVERY_TYPE_SETTING,
         DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
         DiscoveryModule.ELECTION_STRATEGY_SETTING,
+        DiscoveryNode.SERVERLESS_ENABLED_SETTING,
         SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
         SeedHostsResolver.DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING,
         SeedHostsResolver.DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING,

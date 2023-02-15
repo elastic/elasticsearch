@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,8 +42,8 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
 
         assertThat(actual.getAuthentication(), equalTo(expectedRemoteAccessAuthentication.getAuthentication()));
         final List<Set<RoleDescriptor>> roleDescriptorsList = new ArrayList<>();
-        for (BytesReference bytesReference : actual.getRoleDescriptorsBytesList()) {
-            Set<RoleDescriptor> roleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(bytesReference).toRoleDescriptors();
+        for (RemoteAccessAuthentication.RoleDescriptorsBytes rdb : actual.getRoleDescriptorsBytesList()) {
+            Set<RoleDescriptor> roleDescriptors = rdb.toRoleDescriptors();
             roleDescriptorsList.add(roleDescriptors);
         }
         final var actualRoleDescriptorsIntersection = new RoleDescriptorsIntersection(roleDescriptorsList);
@@ -56,6 +57,14 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         final Set<RoleDescriptor> actualRoleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(BytesReference.bytes(builder))
             .toRoleDescriptors();
         assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
+    }
+
+    public void testThrowsOnMissingEntry() {
+        var actual = expectThrows(
+            IllegalArgumentException.class,
+            () -> RemoteAccessAuthentication.readFromContext(new ThreadContext(Settings.EMPTY))
+        );
+        assertThat(actual.getMessage(), equalTo("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"));
     }
 
     private RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {

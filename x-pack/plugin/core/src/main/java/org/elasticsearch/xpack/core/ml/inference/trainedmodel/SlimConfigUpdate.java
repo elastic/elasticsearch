@@ -29,6 +29,8 @@ public class SlimConfigUpdate extends NlpConfigUpdate {
 
     public static final String NAME = SlimConfig.NAME;
 
+    public static final SlimConfigUpdate EMPTY_UPDATE = new SlimConfigUpdate(null, null);
+
     public static SlimConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
         String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());

@@ -58,13 +58,7 @@ class AuthorizationDenialMessages {
         TransportRequest request,
         @Nullable String context
     ) {
-        String userText = authenticatedUserDescription(authentication);
-
-        if (authentication.isRunAs()) {
-            userText = userText + " run as [" + authentication.getEffectiveSubject().getUser().principal() + "]";
-        }
-
-        userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
+        String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
 
         String message = actionIsUnauthorizedMessage(action, userText);
         if (context != null) {
@@ -96,17 +90,10 @@ class AuthorizationDenialMessages {
         Authentication authentication,
         @Nullable AuthorizationInfo authorizationInfo,
         String action,
-        TransportRequest request,
         String clusterAlias
     ) {
         assert isIndexAction(action);
-        String userText = authenticatedUserDescription(authentication);
-
-        if (authentication.isRunAs()) {
-            userText = userText + " run as [" + authentication.getEffectiveSubject().getUser().principal() + "]";
-        }
-
-        userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
+        String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
 
         return Strings.format(
             "action [%s] towards remote cluster [%s] is unauthorized for %s because it has no remote indices privilege",
@@ -153,6 +140,17 @@ class AuthorizationDenialMessages {
             }
         }
         return sb.toString();
+    }
+
+    static String successfulAuthenticationDescription(Authentication authentication, @Nullable AuthorizationInfo authorizationInfo) {
+        String userText = authenticatedUserDescription(authentication);
+
+        if (authentication.isRunAs()) {
+            userText = userText + " run as [" + authentication.getEffectiveSubject().getUser().principal() + "]";
+        }
+
+        userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
+        return userText;
     }
 
     private static List<String> extractEffectiveRoleNames(@Nullable AuthorizationInfo authorizationInfo) {

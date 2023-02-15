@@ -341,10 +341,7 @@ public class PublicationTransportHandler {
                 if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                     serializedStates.computeIfAbsent(version, v -> serializeFullClusterState(newState, node));
                 } else {
-                    serializedDiffs.computeIfAbsent(
-                        version,
-                        v -> serializeDiffClusterState(newState, diffSupplier.getOrCompute(), node)
-                    );
+                    serializedDiffs.computeIfAbsent(version, v -> serializeDiffClusterState(newState, diffSupplier.getOrCompute(), node));
                 }
             }
         }
@@ -410,10 +407,7 @@ public class PublicationTransportHandler {
             ReleasableBytesReference bytes = serializedStates.get(version);
             if (bytes == null) {
                 try {
-                    bytes = serializedStates.computeIfAbsent(
-                        version,
-                        v -> serializeFullClusterState(newState, destination)
-                    );
+                    bytes = serializedStates.computeIfAbsent(version, v -> serializeFullClusterState(newState, destination));
                 } catch (Exception e) {
                     logger.warn(() -> format("failed to serialize cluster state before publishing it to node %s", destination), e);
                     listener.onFailure(e);
@@ -426,8 +420,7 @@ public class PublicationTransportHandler {
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             var version = transportService.getConnection(destination).getTransportVersion();
             final ReleasableBytesReference bytes = serializedDiffs.get(version);
-            assert bytes != null
-                : "failed to find serialized diff for node " + destination + " of version [" + version + "]";
+            assert bytes != null : "failed to find serialized diff for node " + destination + " of version [" + version + "]";
 
             // acquire a ref to the context just in case we need to try again with the full cluster state
             if (tryIncRef() == false) {

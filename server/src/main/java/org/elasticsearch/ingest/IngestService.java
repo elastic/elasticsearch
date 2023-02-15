@@ -253,7 +253,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
                 indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
             } else {
-                List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(clusterMetadata, indexRequest.index(), null);
+                List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(
+                    clusterMetadata,
+                    indexRequest.index(),
+                    null
+                );
                 // order of templates are highest order first
                 for (final IndexTemplateMetadata template : templates) {
                     final Settings settings = template.settings();

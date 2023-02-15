@@ -168,8 +168,25 @@ are met:
 * Backing indices with a <<data-streams-generation,lower generation>> contain
 higher `@timestamp` values.
 =====
-====
 
+`write_load_forecast_per_shard`::
+(double)
+The forecasted load of a single shard of the data stream's write index.
++
+[NOTE]
+=====
+This value can be null if there is no write index in the data stream.
+=====
+
+`write_load_forecast_per_index`::
+(double)
+The forecasted load of all shards of the data stream's write index.
++
+[NOTE]
+=====
+This value can be null if there is no write index in the data stream.
+=====
+====
 [[data-stream-stats-api-example]]
 ==== {api-examples-title}
 
@@ -198,14 +215,18 @@ The API returns the following response.
       "backing_indices": 3,
       "store_size": "3.7kb",
       "store_size_bytes": 3772,
-      "maximum_timestamp": 1607512028000
+      "maximum_timestamp": 1607512028000,
+      "write_load_forecast_per_shard": 0.3453,
+      "write_load_forecast_per_index": 0.6906
     },
     {
       "data_stream": "my-data-stream-two",
       "backing_indices": 2,
       "store_size": "3.4kb",
       "store_size_bytes": 3496,
-      "maximum_timestamp": 1607425567000
+      "maximum_timestamp": 1607425567000,
+      "write_load_forecast_per_shard": 0.1254,
+      "write_load_forecast_per_index": 0.3762
     }
   ]
 }

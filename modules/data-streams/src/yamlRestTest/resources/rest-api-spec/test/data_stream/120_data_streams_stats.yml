@@ -59,6 +59,8 @@ setup:
   - match: { data_streams.0.data_stream: 'simple-data-stream1' }
   - match: { data_streams.0.backing_indices: 2 }
   - match: { data_streams.0.maximum_timestamp: 0 }
+  - match: { data_streams.0.write_load_forecast_per_shard: null }
+  - match: { data_streams.0.write_load_forecast_per_index: null }
 
   - do:
       indices.delete_data_stream:
@@ -91,6 +93,8 @@ setup:
   - match: { data_streams.0.data_stream: 'simple-data-stream1' }
   - match: { data_streams.0.backing_indices: 1 }
   - match: { data_streams.0.maximum_timestamp: 1593639273740 }
+  - match: { data_streams.0.write_load_forecast_per_shard: null }
+  - match: { data_streams.0.write_load_forecast_per_index: null }
 
   - do:
       indices.delete_data_stream:
@@ -136,6 +140,8 @@ setup:
   - match: { data_streams.0.data_stream: 'simple-data-stream1' }
   - match: { data_streams.0.backing_indices: 2 }
   - match: { data_streams.0.maximum_timestamp: 1593639345064 }
+  - match: { data_streams.0.write_load_forecast_per_shard: null }
+  - match: { data_streams.0.write_load_forecast_per_index: null }
 
   - do:
       indices.delete_data_stream:
@@ -193,9 +199,13 @@ setup:
   - match: { data_streams.0.data_stream: 'simple-data-stream1' }
   - match: { data_streams.0.backing_indices: 2 }
   - match: { data_streams.0.maximum_timestamp: 1593639468350 }
+  - match: { data_streams.0.write_load_forecast_per_shard: null }
+  - match: { data_streams.0.write_load_forecast_per_index: null }
   - match: { data_streams.1.data_stream: 'simple-data-stream2' }
   - match: { data_streams.1.backing_indices: 1 }
   - match: { data_streams.1.maximum_timestamp: 1593639450943 }
+  - match: { data_streams.1.write_load_forecast_per_shard: null }
+  - match: { data_streams.1.write_load_forecast_per_index: null }
 
   - do:
       indices.delete_data_stream:

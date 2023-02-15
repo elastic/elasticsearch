@@ -107,4 +107,9 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
             .setSecureSettings(secureSettings)
             .build();
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93824")
+    public void testReadNonExistingPath() throws IOException {
+        super.testReadNonExistingPath();
+    }
 }

@@ -559,6 +559,9 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                         "index": {
                             "number_of_replicas": 1
                         }
+                    },
+                    "lifecycle": {
+                        "data_retention": "30d"
                     }
                 }
             }

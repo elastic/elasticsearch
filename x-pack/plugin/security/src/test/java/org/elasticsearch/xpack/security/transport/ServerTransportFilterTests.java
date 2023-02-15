@@ -158,7 +158,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         );
         Authentication authentication = AuthenticationTestHelper.builder().build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        ServerTransportFilter filter = randomBoolean() ? getNodeFilter() : getNodeRemoteAccessFilter();
+        boolean remoteAccess = randomBoolean();
+        ServerTransportFilter filter = remoteAccess ? getNodeRemoteAccessFilter() : getNodeFilter();
         @SuppressWarnings("unchecked")
         PlainActionFuture<Void> listener = mock(PlainActionFuture.class);
         filter.inbound(action, request, channel, listener);
@@ -166,7 +167,12 @@ public class ServerTransportFilterTests extends ESTestCase {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
             verifyNoMoreInteractions(authzService);
         } else {
-            verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
+            if (remoteAccess) {
+                verify(listener).onFailure(isA(IllegalArgumentException.class));
+                verifyNoMoreInteractions(authzService);
+            } else {
+                verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
+            }
         }
     }
 

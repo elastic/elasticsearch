@@ -64,7 +64,7 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
         if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             authenticationListener.onFailure(
                 new IllegalArgumentException(
-                    "Action [" + securityAction + "] is not an allowed cross cluster operation on the dedicated remote cluster port"
+                    "action [" + securityAction + "] is not an allowed cross cluster operation on the dedicated remote cluster port"
                 )
             );
         } else {

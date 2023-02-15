@@ -1,0 +1,5 @@
+pr: 93022
+summary: 'Fix incorrect statement for slow log level removal'
+area: Core/Infra/Logging
+type: docs
+issues: []

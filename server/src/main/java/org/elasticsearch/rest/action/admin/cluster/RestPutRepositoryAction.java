@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.client.internal.Requests.putRepositoryRequest;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 
 /**
  * Registers repositories

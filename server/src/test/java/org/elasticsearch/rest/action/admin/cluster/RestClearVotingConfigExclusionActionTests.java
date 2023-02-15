@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -21,7 +21,7 @@ public class RestClearVotingConfigExclusionActionTests extends ESTestCase {
 
     public void testDefaultRequest() {
         final var request = resolveVotingConfigExclusionsRequest(
-            new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
+            new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.DELETE)
                 .withPath("/_cluster/voting_config_exclusions")
                 .withParams(Map.of())
                 .build()
@@ -33,7 +33,7 @@ public class RestClearVotingConfigExclusionActionTests extends ESTestCase {
 
     public void testResolveRequestParameters() {
         final var request = resolveVotingConfigExclusionsRequest(
-            new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
+            new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.DELETE)
                 .withPath("/_cluster/voting_config_exclusions")
                 .withParams(Map.of("master_timeout", "60s", "wait_for_removal", "false"))
                 .build()

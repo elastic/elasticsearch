@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -65,7 +65,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
             Map.of("source", "{\"name\":\"" + expectedName + "\"}", "source_content_type", "application/json")
         );
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
-            randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
+            randomFrom(BasicHttpRequest.Method.GET, BasicHttpRequest.Method.POST)
         ).withPath("/_security/profile/_suggest").withParams(params).build();
 
         dispatchRequest(restRequest);
@@ -77,7 +77,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
     public void testParsingDataParameter() {
         when(licenseState.isAllowed(Security.USER_PROFILE_COLLABORATION_FEATURE)).thenReturn(true);
         final FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
-            randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
+            randomFrom(BasicHttpRequest.Method.GET, BasicHttpRequest.Method.POST)
         ).withPath("/_security/profile/_suggest");
 
         if (randomBoolean()) {
@@ -95,7 +95,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
 
     public void testWillNotAllowDataInBothQueryParameterAndRequestBody() {
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
-            randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
+            randomFrom(BasicHttpRequest.Method.GET, BasicHttpRequest.Method.POST)
         )
             .withPath("/_security/profile/_suggest")
             .withParams(new HashMap<>(Map.of("data", randomAlphaOfLengthBetween(3, 8))))

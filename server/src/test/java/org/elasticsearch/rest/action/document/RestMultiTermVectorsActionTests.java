@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -39,7 +40,7 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/_mtermvectors").build();
+        ).withMethod(BasicHttpRequest.Method.POST).withPath("/some_index/some_type/_mtermvectors").build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
@@ -71,7 +72,7 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         )
-            .withMethod(RestRequest.Method.POST)
+            .withMethod(BasicHttpRequest.Method.POST)
             .withPath("/some_index/_mtermvectors")
             .withContent(BytesReference.bytes(content), null)
             .build();

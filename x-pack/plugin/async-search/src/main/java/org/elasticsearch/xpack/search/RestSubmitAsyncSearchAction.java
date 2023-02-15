@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchRequest;
 
 public final class RestSubmitAsyncSearchAction extends BaseRestHandler {

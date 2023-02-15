@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.client.internal.Requests.snapshotsStatusRequest;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 /**
  * Returns status of currently running snapshot

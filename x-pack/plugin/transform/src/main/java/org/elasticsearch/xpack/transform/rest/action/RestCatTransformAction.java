@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
 public class RestCatTransformAction extends AbstractCatAction {

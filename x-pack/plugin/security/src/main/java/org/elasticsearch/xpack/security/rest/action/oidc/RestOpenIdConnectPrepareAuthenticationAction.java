@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAut
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * Generates an oAuth 2.0 authentication request as a URL string and returns it to the REST client.

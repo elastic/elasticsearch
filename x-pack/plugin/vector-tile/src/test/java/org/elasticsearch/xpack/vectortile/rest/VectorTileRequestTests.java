@@ -12,9 +12,9 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -323,7 +323,7 @@ public class VectorTileRequestTests extends ESTestCase {
     }
 
     private FakeRestRequest.Builder getBasicRequestBuilder(String index, String field, int z, int x, int y) {
-        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.GET)
             .withParams(
                 Map.of(
                     VectorTileRequest.INDEX_PARAM,

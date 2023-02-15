@@ -16,8 +16,8 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -54,7 +54,7 @@ public class RestBulkActionTests extends ESTestCase {
                     {"field1":"val1"}
                     {"update":{"_id":"2"}}
                     {"script":{"source":"ctx._source.counter++;"},"upsert":{"field1":"upserted_val"}}
-                    """), XContentType.JSON).withMethod(RestRequest.Method.POST).build(),
+                    """), XContentType.JSON).withMethod(BasicHttpRequest.Method.POST).build(),
                 mock(RestChannel.class),
                 verifyingClient
             );

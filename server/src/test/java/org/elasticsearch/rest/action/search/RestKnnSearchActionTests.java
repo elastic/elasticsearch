@@ -8,6 +8,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -31,7 +32,7 @@ public class RestKnnSearchActionTests extends RestActionTestCase {
     public void testDeprecation() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_knn_search").build();
+        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/_knn_search").build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestKnnSearchAction.DEPRECATION_MESSAGE);

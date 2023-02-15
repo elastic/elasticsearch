@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutReque
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * This Rest endpoint handles SAML LogoutResponse sent from idP with either HTTP-Redirect or HTTP-Post binding.

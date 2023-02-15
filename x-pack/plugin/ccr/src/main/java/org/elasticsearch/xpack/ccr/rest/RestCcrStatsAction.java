@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class RestCcrStatsAction extends BaseRestHandler {
 

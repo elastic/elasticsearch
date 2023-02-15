@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -25,7 +26,7 @@ public class RestGetDesiredNodesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "_internal/desired_nodes/_latest"));
+        return List.of(new Route(BasicHttpRequest.Method.GET, "_internal/desired_nodes/_latest"));
     }
 
     @Override

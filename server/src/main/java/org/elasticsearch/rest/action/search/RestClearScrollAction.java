@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
 
 public class RestClearScrollAction extends BaseRestHandler {
 

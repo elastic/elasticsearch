@@ -19,7 +19,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class RestPendingClusterTasksAction extends AbstractCatAction {
 

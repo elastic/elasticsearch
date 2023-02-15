@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestXPackUsageAction extends BaseRestHandler {

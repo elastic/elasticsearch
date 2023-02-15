@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.CACHE_SIZE;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.QUEUE_CAPACITY;

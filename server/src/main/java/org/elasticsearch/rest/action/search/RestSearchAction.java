@@ -50,8 +50,8 @@ import java.util.function.IntConsumer;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {

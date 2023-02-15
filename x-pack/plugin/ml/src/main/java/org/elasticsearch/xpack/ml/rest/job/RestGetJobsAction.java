@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;

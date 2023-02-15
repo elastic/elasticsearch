@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.client.internal.Requests.cleanupRepositoryRequest;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * Cleans up a repository

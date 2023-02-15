@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.profiler;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
@@ -50,7 +51,7 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
                 0
             );
         });
-        RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+        RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.POST)
             .withPath("/_profiling/stacktraces")
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
@@ -74,7 +75,7 @@ public class RestGetProfilingActionTests extends RestActionTestCase {
                 0
             );
         });
-        RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+        RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.POST)
             .withPath("/_profiling/stacktraces")
             .withContent(new BytesArray("""
                             {

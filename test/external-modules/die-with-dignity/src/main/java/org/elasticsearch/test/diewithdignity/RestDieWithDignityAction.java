@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class RestDieWithDignityAction extends BaseRestHandler {
 

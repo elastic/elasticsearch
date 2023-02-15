@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * Restores the REST endpoint for freezing indices so that the JDBC tests can still freeze indices

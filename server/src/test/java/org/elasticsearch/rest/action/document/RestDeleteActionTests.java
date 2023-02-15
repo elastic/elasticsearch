@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -33,14 +34,14 @@ public class RestDeleteActionTests extends RestActionTestCase {
 
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", contentTypeHeader))
-            .withMethod(RestRequest.Method.DELETE)
+            .withMethod(BasicHttpRequest.Method.DELETE)
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(request);
         assertCriticalWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE);
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", contentTypeHeader))
-            .withMethod(RestRequest.Method.DELETE)
+            .withMethod(BasicHttpRequest.Method.DELETE)
             .withPath("/some_index/_doc/some_id")
             .build();
         dispatchRequest(validRequest);

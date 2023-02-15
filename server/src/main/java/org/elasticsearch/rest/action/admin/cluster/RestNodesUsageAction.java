@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class RestNodesUsageAction extends BaseRestHandler {
 

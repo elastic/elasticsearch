@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Req
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
 import static org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.INSTANCE;
 
 public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {

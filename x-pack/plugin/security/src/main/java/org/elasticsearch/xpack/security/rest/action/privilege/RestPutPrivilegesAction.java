@@ -27,8 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 
 /**
  * Rest endpoint to add one or more {@link ApplicationPrivilege} objects to the security index

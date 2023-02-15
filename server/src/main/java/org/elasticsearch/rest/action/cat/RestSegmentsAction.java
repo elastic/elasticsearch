@@ -30,7 +30,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class RestSegmentsAction extends AbstractCatAction {
 

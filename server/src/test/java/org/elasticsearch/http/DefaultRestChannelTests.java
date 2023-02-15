@@ -143,7 +143,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
-        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         httpRequest.getHeaders().put(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList("abc"));
         final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
@@ -180,7 +180,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     public void testCookiesSet() {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
-        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         httpRequest.getHeaders().put(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList("abc"));
         final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
@@ -211,7 +211,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testReleaseInListener() throws IOException {
         final Settings settings = Settings.builder().build();
-        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
@@ -265,16 +265,16 @@ public class DefaultRestChannelTests extends ESTestCase {
         if (brokenRequest) {
             httpRequest = new TestHttpRequest(
                 () -> { throw new IllegalArgumentException("Can't parse HTTP version"); },
-                RestRequest.Method.GET,
+                BasicHttpRequest.Method.GET,
                 "/"
             );
         } else if (randomBoolean()) {
-            httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+            httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
             if (close) {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.CLOSE));
             }
         } else {
-            httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_0, RestRequest.Method.GET, "/");
+            httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_0, BasicHttpRequest.Method.GET, "/");
             if (close == false) {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.KEEP_ALIVE));
             }
@@ -317,7 +317,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final String httpConnectionHeaderValue = close ? DefaultRestChannel.CLOSE : DefaultRestChannel.KEEP_ALIVE;
         final RestRequest request = RestRequest.request(parserConfig(), new TestHttpRequest(httpVersion, null, "/") {
             @Override
-            public RestRequest.Method method() {
+            public Method method() {
                 throw new IllegalArgumentException("test");
             }
         }, httpChannel);
@@ -417,7 +417,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     public void testHandleHeadRequest() {
-        HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.HEAD, "/");
+        HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.HEAD, "/");
         final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         DefaultRestChannel channel = new DefaultRestChannel(
             httpChannel,
@@ -472,7 +472,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String originValue, final String host) {
-        HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         if (originValue != null) {
             httpRequest.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList(originValue));
         }

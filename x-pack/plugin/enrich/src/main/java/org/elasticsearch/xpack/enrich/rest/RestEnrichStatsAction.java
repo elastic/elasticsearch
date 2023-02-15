@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class RestEnrichStatsAction extends BaseRestHandler {
 

@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.R
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.INSTANCE;
 
 public class RestPauseAutoFollowPatternAction extends BaseRestHandler {

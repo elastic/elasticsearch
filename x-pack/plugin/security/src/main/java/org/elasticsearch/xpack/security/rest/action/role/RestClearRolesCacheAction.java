@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
 

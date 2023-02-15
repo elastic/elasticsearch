@@ -30,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
@@ -203,7 +202,7 @@ public class CorsHandler {
 
     private static boolean isPreflightRequest(final HttpRequest request) {
         final Map<String, List<String>> headers = request.getHeaders();
-        return request.method().equals(RestRequest.Method.OPTIONS)
+        return request.method().equals(BasicHttpRequest.Method.OPTIONS)
             && headers.containsKey(ORIGIN)
             && headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
     }
@@ -217,7 +216,7 @@ public class CorsHandler {
     }
 
     private void setAllowMethods(final HttpResponse response) {
-        for (RestRequest.Method method : config.allowedRequestMethods()) {
+        for (BasicHttpRequest.Method method : config.allowedRequestMethods()) {
             response.addHeader(ACCESS_CONTROL_ALLOW_METHODS, method.name().trim());
         }
     }
@@ -245,7 +244,7 @@ public class CorsHandler {
         private final Optional<Pattern> pattern;
         private final boolean anyOrigin;
         private final boolean credentialsAllowed;
-        private final Set<RestRequest.Method> allowedRequestMethods;
+        private final Set<BasicHttpRequest.Method> allowedRequestMethods;
         private final Set<String> allowedRequestHeaders;
         private final long maxAge;
 
@@ -281,7 +280,7 @@ public class CorsHandler {
             return credentialsAllowed;
         }
 
-        public Set<RestRequest.Method> allowedRequestMethods() {
+        public Set<BasicHttpRequest.Method> allowedRequestMethods() {
             return allowedRequestMethods;
         }
 
@@ -327,7 +326,7 @@ public class CorsHandler {
             private final boolean anyOrigin;
             private boolean allowCredentials = false;
             long maxAge;
-            private final Set<RestRequest.Method> requestMethods = new HashSet<>();
+            private final Set<BasicHttpRequest.Method> requestMethods = new HashSet<>();
             private final Set<String> requestHeaders = new HashSet<>();
 
             private Builder() {
@@ -365,7 +364,7 @@ public class CorsHandler {
                 return this;
             }
 
-            public Builder allowedRequestMethods(RestRequest.Method[] methods) {
+            public Builder allowedRequestMethods(BasicHttpRequest.Method[] methods) {
                 requestMethods.addAll(Arrays.asList(methods));
                 return this;
             }
@@ -420,10 +419,10 @@ public class CorsHandler {
             builder.allowCredentials();
         }
         String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
-        RestRequest.Method[] methods = Arrays.stream(strMethods)
+        BasicHttpRequest.Method[] methods = Arrays.stream(strMethods)
             .map(s -> s.toUpperCase(Locale.ENGLISH))
-            .map(RestRequest.Method::valueOf)
-            .toArray(RestRequest.Method[]::new);
+            .map(BasicHttpRequest.Method::valueOf)
+            .toArray(BasicHttpRequest.Method[]::new);
         Config config = builder.allowedRequestMethods(methods)
             .maxAge(SETTING_CORS_MAX_AGE.get(settings))
             .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))

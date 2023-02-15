@@ -14,11 +14,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -80,7 +80,7 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (request.method() == Method.OPTIONS) {
+        if (request.method() == BasicHttpRequest.Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             restHandler.handleRequest(request, channel, client);
             return;

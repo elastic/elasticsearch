@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.client.internal.Requests.putMappingRequest;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put mapping request is deprecated. "

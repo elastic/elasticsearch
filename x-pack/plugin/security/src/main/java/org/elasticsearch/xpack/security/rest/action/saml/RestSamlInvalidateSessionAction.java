@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRe
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * Invalidates any security tokens associated with the provided SAML session.

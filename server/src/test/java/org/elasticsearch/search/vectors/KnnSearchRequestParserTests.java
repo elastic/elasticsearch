@@ -13,9 +13,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -218,7 +218,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
 
     private SearchRequestBuilder parseSearchRequest(XContentBuilder builder, Map<String, String> params) throws IOException {
         KnnSearchRequestParser knnRequestBuilder = KnnSearchRequestParser.parseRestRequest(
-            new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.POST)
                 .withParams(params)
                 .withContent(BytesReference.bytes(builder), builder.contentType())
                 .build()

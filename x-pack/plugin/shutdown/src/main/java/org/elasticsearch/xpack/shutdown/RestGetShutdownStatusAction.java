@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -25,8 +26,8 @@ public class RestGetShutdownStatusAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(RestRequest.Method.GET, "/_nodes/{nodeId}/shutdown"),
-            new Route(RestRequest.Method.GET, "/_nodes/shutdown")
+            new Route(BasicHttpRequest.Method.GET, "/_nodes/{nodeId}/shutdown"),
+            new Route(BasicHttpRequest.Method.GET, "/_nodes/shutdown")
         );
     }
 

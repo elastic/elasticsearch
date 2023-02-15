@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -34,7 +35,7 @@ public class RestGetIndicesActionTests extends ESTestCase {
         params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.GET).withPath("/some_index").withParams(params).build();
+        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index").withParams(params).build();
 
         RestGetIndicesAction handler = new RestGetIndicesAction();
         handler.prepareRequest(request, mock(NodeClient.class));
@@ -43,7 +44,7 @@ public class RestGetIndicesActionTests extends ESTestCase {
         // the same request without the parameter should pass without warning
         request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.GET).withPath("/some_index").build();
+        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index").build();
         handler.prepareRequest(request, mock(NodeClient.class));
     }
 
@@ -55,7 +56,7 @@ public class RestGetIndicesActionTests extends ESTestCase {
         params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.HEAD).withPath("/some_index").withParams(params).build();
+        ).withMethod(BasicHttpRequest.Method.HEAD).withPath("/some_index").withParams(params).build();
 
         RestGetIndicesAction handler = new RestGetIndicesAction();
         handler.prepareRequest(request, mock(NodeClient.class));

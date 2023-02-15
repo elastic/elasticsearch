@@ -23,8 +23,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * Class handling cluster allocation explanation at the REST level

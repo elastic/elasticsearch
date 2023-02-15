@@ -19,15 +19,24 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BasicHttpRequest;
 
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+
 public class HttpHeadersAuthenticator {
 
     private final TriConsumer<BasicHttpRequest, Channel, ThreadContext> populateThreadContext;
+    private final BiConsumer<BasicHttpRequest, ActionListener<Void>> authenticate;
 
-    public HttpHeadersAuthenticator(TriConsumer<BasicHttpRequest, Channel, ThreadContext> populateThreadContext) {
+    public HttpHeadersAuthenticator(
+        TriConsumer<BasicHttpRequest, Channel, ThreadContext> populateThreadContext,
+        BiConsumer<BasicHttpRequest, ActionListener<Void>> authenticate
+    ) {
         this.populateThreadContext = populateThreadContext;
+        this.authenticate = authenticate;
     }
 
-    public static final HttpHeadersAuthenticator NOOP = new HttpHeadersAuthenticator(null) {
+    public static final HttpHeadersAuthenticator NOOP = new HttpHeadersAuthenticator(null, null) {
         @Override
         public DefaultHttpRequest wrapNewMessage(DefaultHttpRequest decodedNewMessage) {
             return decodedNewMessage;
@@ -53,6 +62,23 @@ public class HttpHeadersAuthenticator {
 
     public void authenticateMessage(HttpRequest request, ActionListener<Void> listener) {
         assert request.headers() instanceof HttpHeadersAuthenticator.HttpHeadersWithAuthenticationContext;
+        new BasicHttpRequest() {
+
+            @Override
+            public Method method() {
+                return Netty4HttpRequest.translateRequestMethod(request.method());
+            }
+
+            @Override
+            public String uri() {
+                return request.uri();
+            }
+
+            @Override
+            public Map<String, List<String>> getHeaders() {
+                return Netty4HttpRequest.wrapHttpHeaders(request.headers());
+            }
+        };
         listener.onResponse(null);
     }
 

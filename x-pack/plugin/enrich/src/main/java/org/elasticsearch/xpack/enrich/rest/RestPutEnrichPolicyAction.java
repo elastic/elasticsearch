@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 
 public class RestPutEnrichPolicyAction extends BaseRestHandler {
 

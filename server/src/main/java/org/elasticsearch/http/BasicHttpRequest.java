@@ -8,8 +8,6 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.rest.RestRequest;
-
 import java.util.List;
 import java.util.Map;
 
@@ -18,10 +16,10 @@ public interface BasicHttpRequest {
     /**
      * Returns the HTTP method used in the HTTP request.
      *
-     * @return the {@link RestRequest.Method} used in the REST request
+     * @return the {@link Method} used in the REST request
      * @throws IllegalArgumentException if the HTTP method is invalid
      */
-    RestRequest.Method method();
+    Method method();
 
     /**
      * The uri of the rest request, with the query string.
@@ -39,5 +37,17 @@ public interface BasicHttpRequest {
             return values.get(0);
         }
         return null;
+    }
+
+    enum Method {
+        GET,
+        POST,
+        PUT,
+        DELETE,
+        OPTIONS,
+        HEAD,
+        PATCH,
+        TRACE,
+        CONNECT
     }
 }

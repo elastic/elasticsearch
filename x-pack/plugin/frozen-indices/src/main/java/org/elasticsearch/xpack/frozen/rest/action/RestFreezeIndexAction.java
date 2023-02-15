@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.GONE;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {

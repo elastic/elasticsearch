@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 public class RestExecuteSnapshotRetentionAction extends BaseRestHandler {
 

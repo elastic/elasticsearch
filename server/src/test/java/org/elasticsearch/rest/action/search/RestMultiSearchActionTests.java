@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -44,7 +45,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_msearch").withContent(bytesContent, null).build();
+        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/some_type/_msearch").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
@@ -56,7 +57,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.POST).withPath("/some_index/_msearch").withContent(bytesContent, null).build();
+        ).withMethod(BasicHttpRequest.Method.POST).withPath("/some_index/_msearch").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);

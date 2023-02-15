@@ -215,7 +215,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             headers.put("Content-Type", Collections.singletonList("aaa/bbb;compatible-with=8"));
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
-                RestRequest.Method.GET,
+                BasicHttpRequest.Method.GET,
                 "/",
                 new BytesArray(randomByteArrayOfLength(between(1, 20))),
                 headers
@@ -237,7 +237,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
-                RestRequest.Method.GET,
+                BasicHttpRequest.Method.GET,
                 "/",
                 null,
                 headers
@@ -253,7 +253,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             headers.put("Content-Type", List.of("incorrectHeader"));
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
-                RestRequest.Method.GET,
+                BasicHttpRequest.Method.GET,
                 "/",
                 null,
                 headers
@@ -428,7 +428,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
-                    RestRequest.Method.OPTIONS
+                    BasicHttpRequest.Method.OPTIONS
                 )
                     .withPath("/internal/test")
                     .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
@@ -445,7 +445,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 final FakeRestRequest fakeRestRequestExcludedPath = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
-                    RestRequest.Method.OPTIONS
+                    BasicHttpRequest.Method.OPTIONS
                 )
                     .withPath("/internal/testNotSeen")
                     .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
@@ -466,7 +466,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         mockAppender.start();
         final String opaqueId = UUIDs.randomBase64UUID(random());
         final String path = "/internal/test";
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final BasicHttpRequest.Method method = randomFrom(BasicHttpRequest.Method.values());
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "expected message",
@@ -591,7 +591,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             InetSocketAddress remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             String opaqueId = UUIDs.randomBase64UUID(random());
             FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
-                .withMethod(RestRequest.Method.GET)
+                .withMethod(BasicHttpRequest.Method.GET)
                 .withPath("/internal/stats_test")
                 .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
@@ -607,7 +607,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             opaqueId = UUIDs.randomBase64UUID(random());
             fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
-                .withMethod(RestRequest.Method.GET)
+                .withMethod(BasicHttpRequest.Method.GET)
                 .withPath("/internal/stats_test2")
                 .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER.toUpperCase(Locale.ROOT), Collections.singletonList(opaqueId)))
                 .build();
@@ -672,7 +672,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             InetSocketAddress remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             String opaqueId = UUIDs.randomBase64UUID(random());
             FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
-                .withMethod(RestRequest.Method.GET)
+                .withMethod(BasicHttpRequest.Method.GET)
                 .withPath("/internal/stats_test")
                 .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
@@ -696,7 +696,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             opaqueId = UUIDs.randomBase64UUID(random());
             fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
-                .withMethod(RestRequest.Method.GET)
+                .withMethod(BasicHttpRequest.Method.GET)
                 .withPath("/internal/stats_test")
                 .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();
@@ -713,7 +713,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             opaqueId = UUIDs.randomBase64UUID(random());
             fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
-                .withMethod(RestRequest.Method.GET)
+                .withMethod(BasicHttpRequest.Method.GET)
                 .withPath("/internal/stats_test")
                 .withHeaders(Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList(opaqueId)))
                 .build();

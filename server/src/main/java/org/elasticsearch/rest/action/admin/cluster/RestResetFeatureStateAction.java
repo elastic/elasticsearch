@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -30,7 +31,7 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.POST, "/_features/_reset"));
+        return List.of(new Route(BasicHttpRequest.Method.POST, "/_features/_reset"));
     }
 
     @Override

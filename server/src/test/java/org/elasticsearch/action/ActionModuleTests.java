@@ -47,7 +47,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;

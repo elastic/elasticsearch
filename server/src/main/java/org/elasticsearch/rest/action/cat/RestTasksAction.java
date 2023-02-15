@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
 public class RestTasksAction extends AbstractCatAction {

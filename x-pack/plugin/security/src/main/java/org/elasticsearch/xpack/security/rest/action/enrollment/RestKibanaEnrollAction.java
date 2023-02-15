@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.enrollment;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -39,7 +40,7 @@ public class RestKibanaEnrollAction extends EnrollmentBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_security/enroll/kibana"));
+        return List.of(new Route(BasicHttpRequest.Method.GET, "/_security/enroll/kibana"));
     }
 
     @Override

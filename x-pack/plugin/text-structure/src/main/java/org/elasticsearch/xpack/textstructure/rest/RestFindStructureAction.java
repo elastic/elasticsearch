@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 import static org.elasticsearch.xpack.textstructure.TextStructurePlugin.BASE_PATH;
 
 public class RestFindStructureAction extends BaseRestHandler {

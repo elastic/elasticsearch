@@ -25,7 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 public class RestStartTransformAction extends BaseRestHandler {
 

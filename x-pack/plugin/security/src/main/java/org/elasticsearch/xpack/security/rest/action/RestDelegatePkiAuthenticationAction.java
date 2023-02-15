@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticatio
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * Implements the exchange of an {@code X509Certificate} chain into an access token. The chain is represented as an ordered string array.

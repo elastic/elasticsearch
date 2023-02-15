@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -36,11 +36,11 @@ public class RestGetActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        testTypeInPath(RestRequest.Method.GET);
-        testTypeInPath(RestRequest.Method.HEAD);
+        testTypeInPath(BasicHttpRequest.Method.GET);
+        testTypeInPath(BasicHttpRequest.Method.HEAD);
     }
 
-    private void testTypeInPath(RestRequest.Method method) {
+    private void testTypeInPath(BasicHttpRequest.Method method) {
         FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withPath("/some_index/some_type/some_id");

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -34,7 +35,7 @@ public class FakeRestRequest extends RestRequest {
     public FakeRestRequest() {
         this(
             XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-            new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
+            new FakeHttpRequest(BasicHttpRequest.Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
             new HashMap<>(),
             new FakeHttpChannel(null)
         );
@@ -198,7 +199,7 @@ public class FakeRestRequest extends RestRequest {
 
         private String path = "/";
 
-        private Method method = Method.GET;
+        private BasicHttpRequest.Method method = BasicHttpRequest.Method.GET;
 
         private InetSocketAddress address = null;
 
@@ -232,7 +233,7 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withMethod(Method method) {
+        public Builder withMethod(BasicHttpRequest.Method method) {
             this.method = method;
             return this;
         }

@@ -20,7 +20,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 /**
  * Cat API class to display information about the size of fielddata fields per node

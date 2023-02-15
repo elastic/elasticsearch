@@ -13,6 +13,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -58,7 +59,7 @@ public class RestUpdateActionTests extends RestActionTestCase {
                     "name" : "new_name"
                 }
             }""";
-        FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+        FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.POST)
             .withPath("test/_update/1")
             .withParams(params)
             .withContent(new BytesArray(content), XContentType.JSON)
@@ -79,13 +80,13 @@ public class RestUpdateActionTests extends RestActionTestCase {
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/some_id/_update").build();
+        ).withMethod(BasicHttpRequest.Method.POST).withPath("/some_index/some_type/some_id/_update").build();
         dispatchRequest(request);
         assertCriticalWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE);
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.DELETE).withPath("/some_index/_update/some_id").build();
+        ).withMethod(BasicHttpRequest.Method.DELETE).withPath("/some_index/_update/some_id").build();
         dispatchRequest(validRequest);
     }
 }

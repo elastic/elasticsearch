@@ -27,8 +27,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestNoopBulkAction extends BaseRestHandler {

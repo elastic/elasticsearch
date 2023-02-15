@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     private static final String PERSISTENT = "persistent";

@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
 
 /**
  * Rest action to delete a user from the security index

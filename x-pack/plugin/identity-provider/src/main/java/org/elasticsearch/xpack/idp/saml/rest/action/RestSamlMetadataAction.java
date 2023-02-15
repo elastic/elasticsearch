@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.idp.action.SamlMetadataResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class RestSamlMetadataAction extends IdpBaseRestHandler {
 

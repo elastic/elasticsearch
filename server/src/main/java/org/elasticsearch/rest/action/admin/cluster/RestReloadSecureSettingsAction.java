@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler implements RestRequestFilter {
 

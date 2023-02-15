@@ -11,8 +11,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -60,9 +60,9 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
         final String namespace = randomAlphaOfLengthBetween(3, 8);
         final String service = randomAlphaOfLengthBetween(3, 8);
         final String name = randomFrom("", "*", "_all");
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.POST)
-            .withPath("/_security/service/" + namespace + "/" + service + "/credential/token/" + name + "/_clear_cache")
-            .build();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
+            BasicHttpRequest.Method.POST
+        ).withPath("/_security/service/" + namespace + "/" + service + "/credential/token/" + name + "/_clear_cache").build();
 
         dispatchRequest(restRequest);
 
@@ -74,7 +74,9 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
         final String namespace = randomAlphaOfLengthBetween(3, 8);
         final String service = randomAlphaOfLengthBetween(3, 8);
         final String[] names = randomArray(1, 3, String[]::new, ValidationTests::randomTokenName);
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.POST)
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
+            BasicHttpRequest.Method.POST
+        )
             .withPath(
                 "/_security/service/"
                     + namespace

@@ -28,7 +28,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 /**
  * Cat API class to display information about snapshots

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
 
 public class RestDeleteTransformAction extends BaseRestHandler {
 

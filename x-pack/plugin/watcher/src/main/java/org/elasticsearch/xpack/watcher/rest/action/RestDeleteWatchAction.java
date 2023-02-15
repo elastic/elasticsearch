@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatch
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 

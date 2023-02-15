@@ -151,7 +151,7 @@ public interface RestRequestFilter {
         }
 
         @Override
-        public RestRequest.Method method() {
+        public Method method() {
             return this.wrappedRequest.method();
         }
 

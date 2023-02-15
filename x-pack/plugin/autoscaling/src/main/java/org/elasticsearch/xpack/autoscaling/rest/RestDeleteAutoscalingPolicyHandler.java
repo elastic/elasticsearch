@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
 
 public class RestDeleteAutoscalingPolicyHandler extends BaseRestHandler {
 

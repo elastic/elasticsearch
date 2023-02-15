@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 

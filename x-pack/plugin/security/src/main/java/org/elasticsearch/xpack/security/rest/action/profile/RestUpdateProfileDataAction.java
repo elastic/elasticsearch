@@ -23,8 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {

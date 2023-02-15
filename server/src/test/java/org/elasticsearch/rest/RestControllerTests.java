@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -53,8 +54,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.OPTIONS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -230,7 +231,7 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 
-        RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        BasicHttpRequest.Method method = randomFrom(BasicHttpRequest.Method.values());
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
@@ -251,10 +252,10 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsReplacedHandler() {
         final RestController controller = mock(RestController.class);
 
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final BasicHttpRequest.Method method = randomFrom(BasicHttpRequest.Method.values());
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestHandler handler = (request, channel, client) -> {};
-        final RestRequest.Method replacedMethod = randomFrom(RestRequest.Method.values());
+        final BasicHttpRequest.Method replacedMethod = randomFrom(BasicHttpRequest.Method.values());
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestApiVersion current = RestApiVersion.current();
         final RestApiVersion previous = RestApiVersion.previous();
@@ -284,8 +285,10 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
         final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, tracer);
 
-        RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
-        RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
+        BasicHttpRequest.Method firstMethod = randomFrom(BasicHttpRequest.Method.values());
+        BasicHttpRequest.Method secondMethod = randomFrom(
+            Arrays.stream(BasicHttpRequest.Method.values()).filter(m -> m != firstMethod).toList()
+        );
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 
@@ -603,7 +606,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDoesNotConsumeContent() throws Exception {
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final BasicHttpRequest.Method method = randomFrom(BasicHttpRequest.Method.values());
         restController.registerHandler(new Route(method, "/notconsumed"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -655,7 +658,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testFaviconWithWrongHttpMethod() {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
-            randomValueOtherThanMany(m -> m == GET || m == OPTIONS, () -> randomFrom(RestRequest.Method.values()))
+            randomValueOtherThanMany(m -> m == GET || m == OPTIONS, () -> randomFrom(BasicHttpRequest.Method.values()))
         ).withPath("/favicon.ico").build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
@@ -668,7 +671,7 @@ public class RestControllerTests extends ESTestCase {
         final boolean hasContent = randomBoolean();
         final RestRequest request = RestRequest.request(parserConfig(), new HttpRequest() {
             @Override
-            public RestRequest.Method method() {
+            public Method method() {
                 throw new IllegalArgumentException("test");
             }
 
@@ -748,7 +751,7 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchUnsupportedHttpMethodTracesException() {
         final RestRequest request = new FakeRestRequest() {
             @Override
-            public Method method() {
+            public BasicHttpRequest.Method method() {
                 throw new IllegalArgumentException("test");
             }
         };
@@ -931,7 +934,7 @@ public class RestControllerTests extends ESTestCase {
         for (String path : RestController.RESERVED_PATHS) {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
                 restController.registerHandler(
-                    new Route(randomFrom(RestRequest.Method.values()), path),
+                    new Route(randomFrom(BasicHttpRequest.Method.values()), path),
                     (request, channel, client) -> channel.sendResponse(
                         new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
                     )

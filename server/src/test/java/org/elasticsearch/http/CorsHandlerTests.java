@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
@@ -68,7 +67,7 @@ public class CorsHandlerTests extends ESTestCase {
         assertEquals(headers, corsConfig.allowedRequestHeaders());
         assertEquals(
             methods.stream().map(s -> s.toUpperCase(Locale.ENGLISH)).collect(Collectors.toSet()),
-            corsConfig.allowedRequestMethods().stream().map(RestRequest.Method::name).collect(Collectors.toSet())
+            corsConfig.allowedRequestMethods().stream().map(BasicHttpRequest.Method::name).collect(Collectors.toSet())
         );
     }
 
@@ -81,7 +80,7 @@ public class CorsHandlerTests extends ESTestCase {
         assertFalse(corsConfig.isAnyOriginSupported());
         assertEquals(Collections.emptySet(), corsConfig.origins().get());
         assertEquals(headers, corsConfig.allowedRequestHeaders());
-        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(RestRequest.Method::name).collect(Collectors.toSet()));
+        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(BasicHttpRequest.Method::name).collect(Collectors.toSet()));
         assertEquals(maxAge, corsConfig.maxAge());
         assertFalse(corsConfig.isCredentialsAllowed());
     }
@@ -89,7 +88,7 @@ public class CorsHandlerTests extends ESTestCase {
     public void testHandleInboundNonCorsRequest() {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true).build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         HttpResponse httpResponse = corsHandler.handleInbound(request);
         // Since this is not a Cors request, there is not an early response
         assertThat(httpResponse, nullValue());
@@ -112,7 +111,7 @@ public class CorsHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originSetting)
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.POST, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.POST, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList(validOriginLiteral));
         HttpResponse httpResponse = corsHandler.handleInbound(request);
         // Since is a Cors enabled request. However, it is not forbidden because the origin is allowed.
@@ -132,7 +131,7 @@ public class CorsHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originSetting)
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.POST, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.POST, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("invalid-origin"));
         TestHttpResponse httpResponse = (TestHttpResponse) corsHandler.handleInbound(request);
         // Forbidden
@@ -152,7 +151,7 @@ public class CorsHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originSetting)
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.POST, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.POST, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("https://same-host"));
         request.getHeaders().put(CorsHandler.HOST, Collections.singletonList("same-host"));
         TestHttpResponse httpResponse = (TestHttpResponse) corsHandler.handleInbound(request);
@@ -168,7 +167,7 @@ public class CorsHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_HEADERS.getKey(), "Content-Type,Content-Length")
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.OPTIONS, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.OPTIONS, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
         request.getHeaders().put(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, Collections.singletonList("POST"));
         TestHttpResponse httpResponse = (TestHttpResponse) corsHandler.handleInbound(request);
@@ -191,7 +190,7 @@ public class CorsHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.OPTIONS, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.OPTIONS, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
         request.getHeaders().put(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, Collections.singletonList("POST"));
         TestHttpResponse httpResponse = (TestHttpResponse) corsHandler.handleInbound(request);
@@ -219,7 +218,7 @@ public class CorsHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.OPTIONS, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.OPTIONS, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
         request.getHeaders().put(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, Collections.singletonList("POST"));
         TestHttpResponse httpResponse = (TestHttpResponse) corsHandler.handleInbound(request);
@@ -248,7 +247,7 @@ public class CorsHandlerTests extends ESTestCase {
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
 
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         TestHttpResponse response = new TestHttpResponse(RestStatus.OK, BytesArray.EMPTY);
         corsHandler.setCorsResponseHeaders(request, response);
 
@@ -263,7 +262,7 @@ public class CorsHandlerTests extends ESTestCase {
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
 
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
         TestHttpResponse response = new TestHttpResponse(RestStatus.OK, BytesArray.EMPTY);
         corsHandler.setCorsResponseHeaders(request, response);
@@ -281,7 +280,7 @@ public class CorsHandlerTests extends ESTestCase {
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
 
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
         TestHttpResponse response = new TestHttpResponse(RestStatus.OK, BytesArray.EMPTY);
         corsHandler.setCorsResponseHeaders(request, response);
@@ -301,7 +300,7 @@ public class CorsHandlerTests extends ESTestCase {
             .build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
 
-        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, BasicHttpRequest.Method.GET, "/");
         request.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList("valid-origin"));
         TestHttpResponse response = new TestHttpResponse(RestStatus.OK, BytesArray.EMPTY);
         corsHandler.setCorsResponseHeaders(request, response);

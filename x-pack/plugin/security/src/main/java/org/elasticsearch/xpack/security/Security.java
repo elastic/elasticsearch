@@ -347,7 +347,6 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.RemoteClusterAuthorizationResolver;
-import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -383,6 +382,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
+import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.getNettyChannel;
 
 public class Security extends Plugin
     implements
@@ -1617,6 +1617,17 @@ public class Security extends Plugin
                 populateClientCertificate.accept(channel, threadContext);
                 RemoteHostHeader.process(channel, threadContext);
             };
+            final AuthenticationService authenticationService = this.authcService.get();
+            final BiConsumer<BasicHttpRequest, ActionListener<Void>> authenticate = (httpRequest, listener) -> {
+                authenticationService.authenticate(httpRequest, listener.map(authentication -> {
+                    if (authentication == null) {
+                        logger.trace("No authentication available for HTTP request [{}]", httpRequest.uri());
+                    } else {
+                        logger.trace("Authenticated HTTP request [{}] as {}", httpRequest.uri(), authentication);
+                    }
+                    return null;
+                }));
+            };
             return new Netty4HttpServerTransport(
                 settings,
                 networkService,
@@ -1628,13 +1639,11 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                new HttpHeadersAuthenticator(populateThreadContext)
+                new HttpHeadersAuthenticator(populateThreadContext, authenticate)
             ) {
                 @Override
                 protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    Channel channel = SSLEngineUtils.getNettyChannel(restRequest.getHttpChannel());
-                    BasicHttpRequest httpRequest = restRequest.getHttpRequest();
-                    populateThreadContext.apply(httpRequest, channel, threadContext);
+                    populateThreadContext.apply(restRequest.getHttpRequest(), getNettyChannel(restRequest.getHttpChannel()), threadContext);
                 }
             };
         });

@@ -24,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
@@ -41,7 +40,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
     private final FullHttpRequest request;
     private final BytesReference content;
-    private final HttpHeadersMap headers;
+    private final Map<String, List<String>> headers;
     private final AtomicBoolean released;
     private final Exception inboundException;
     private final boolean pooled;
@@ -52,7 +51,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this(
             sequence,
             request,
-            new HttpHeadersMap(request.headers()),
+            wrapHttpHeaders(request.headers()),
             new AtomicBoolean(false),
             true,
             Netty4Utils.toBytesReference(request.content())
@@ -63,7 +62,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this(
             sequence,
             request,
-            new HttpHeadersMap(request.headers()),
+            wrapHttpHeaders(request.headers()),
             new AtomicBoolean(false),
             true,
             Netty4Utils.toBytesReference(request.content()),
@@ -74,7 +73,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private Netty4HttpRequest(
         int sequence,
         FullHttpRequest request,
-        HttpHeadersMap headers,
+        Map<String, List<String>> headers,
         AtomicBoolean released,
         boolean pooled,
         BytesReference content
@@ -85,7 +84,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private Netty4HttpRequest(
         int sequence,
         FullHttpRequest request,
-        HttpHeadersMap headers,
+        Map<String, List<String>> headers,
         AtomicBoolean released,
         boolean pooled,
         BytesReference content,
@@ -101,37 +100,8 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
-    public RestRequest.Method method() {
-        HttpMethod httpMethod = request.method();
-        if (httpMethod == HttpMethod.GET) return RestRequest.Method.GET;
-
-        if (httpMethod == HttpMethod.POST) return RestRequest.Method.POST;
-
-        if (httpMethod == HttpMethod.PUT) return RestRequest.Method.PUT;
-
-        if (httpMethod == HttpMethod.DELETE) return RestRequest.Method.DELETE;
-
-        if (httpMethod == HttpMethod.HEAD) {
-            return RestRequest.Method.HEAD;
-        }
-
-        if (httpMethod == HttpMethod.OPTIONS) {
-            return RestRequest.Method.OPTIONS;
-        }
-
-        if (httpMethod == HttpMethod.PATCH) {
-            return RestRequest.Method.PATCH;
-        }
-
-        if (httpMethod == HttpMethod.TRACE) {
-            return RestRequest.Method.TRACE;
-        }
-
-        if (httpMethod == HttpMethod.CONNECT) {
-            return RestRequest.Method.CONNECT;
-        }
-
-        throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
+    public Method method() {
+        return translateRequestMethod(request.method());
     }
 
     @Override
@@ -227,7 +197,7 @@ public class Netty4HttpRequest implements HttpRequest {
         return new Netty4HttpRequest(
             sequence,
             requestWithoutHeader,
-            new HttpHeadersMap(requestWithoutHeader.headers()),
+            wrapHttpHeaders(requestWithoutHeader.headers()),
             released,
             pooled,
             content
@@ -247,6 +217,42 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public Exception getInboundException() {
         return inboundException;
+    }
+
+    protected static Method translateRequestMethod(HttpMethod httpMethod) {
+        if (httpMethod == HttpMethod.GET) return Method.GET;
+
+        if (httpMethod == HttpMethod.POST) return Method.POST;
+
+        if (httpMethod == HttpMethod.PUT) return Method.PUT;
+
+        if (httpMethod == HttpMethod.DELETE) return Method.DELETE;
+
+        if (httpMethod == HttpMethod.HEAD) {
+            return Method.HEAD;
+        }
+
+        if (httpMethod == HttpMethod.OPTIONS) {
+            return Method.OPTIONS;
+        }
+
+        if (httpMethod == HttpMethod.PATCH) {
+            return Method.PATCH;
+        }
+
+        if (httpMethod == HttpMethod.TRACE) {
+            return Method.TRACE;
+        }
+
+        if (httpMethod == HttpMethod.CONNECT) {
+            return Method.CONNECT;
+        }
+
+        throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
+    }
+
+    protected static Map<String, List<String>> wrapHttpHeaders(HttpHeaders httpHeaders) {
+        return new HttpHeadersMap(httpHeaders);
     }
 
     /**

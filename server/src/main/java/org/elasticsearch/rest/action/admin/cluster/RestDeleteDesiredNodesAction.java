@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -25,7 +26,7 @@ public class RestDeleteDesiredNodesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "_internal/desired_nodes"));
+        return List.of(new Route(BasicHttpRequest.Method.DELETE, "_internal/desired_nodes"));
     }
 
     @Override

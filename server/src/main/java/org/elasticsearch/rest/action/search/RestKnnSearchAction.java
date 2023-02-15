@@ -20,8 +20,8 @@ import org.elasticsearch.search.vectors.KnnSearchRequestParser;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * The REST action for handling kNN searches. Currently, it just parses

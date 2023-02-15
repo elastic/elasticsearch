@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.idp.action.DeleteSamlServiceProviderResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
 
 /**
  * Rest endpoint to remove a service provider (by Entity ID) from the IdP.

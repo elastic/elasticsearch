@@ -9,6 +9,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -34,7 +35,7 @@ public class RestSearchTemplateActionTests extends RestActionTestCase {
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_search/template").build();
+        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/some_type/_search/template").build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
@@ -46,7 +47,7 @@ public class RestSearchTemplateActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search/template").withParams(params).build();
+        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/_search/template").withParams(params).build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);

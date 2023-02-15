@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.Request;
 

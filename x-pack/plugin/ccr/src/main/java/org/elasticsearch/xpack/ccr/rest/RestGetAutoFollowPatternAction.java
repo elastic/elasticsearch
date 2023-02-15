@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.Reques
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.INSTANCE;
 
 public class RestGetAutoFollowPatternAction extends BaseRestHandler {

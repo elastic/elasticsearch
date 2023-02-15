@@ -27,7 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.core.RestApiVersion.V_7;
 import static org.elasticsearch.core.RestApiVersion.V_8;
 import static org.elasticsearch.core.RestApiVersion.onOrAfter;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 

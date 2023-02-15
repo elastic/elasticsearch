@@ -17,7 +17,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 public class RestRethrottleAction extends BaseRestHandler {

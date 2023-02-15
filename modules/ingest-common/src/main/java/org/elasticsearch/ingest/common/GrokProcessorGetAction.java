@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
 

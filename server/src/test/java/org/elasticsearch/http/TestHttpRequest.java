@@ -11,7 +11,6 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Arrays;
@@ -23,22 +22,22 @@ import java.util.function.Supplier;
 class TestHttpRequest implements HttpRequest {
 
     private final Supplier<HttpVersion> version;
-    private final RestRequest.Method method;
+    private final Method method;
     private final String uri;
     private final HashMap<String, List<String>> headers = new HashMap<>();
 
-    TestHttpRequest(Supplier<HttpVersion> versionSupplier, RestRequest.Method method, String uri) {
+    TestHttpRequest(Supplier<HttpVersion> versionSupplier, Method method, String uri) {
         this.version = versionSupplier;
         this.method = method;
         this.uri = uri;
     }
 
-    TestHttpRequest(HttpVersion version, RestRequest.Method method, String uri) {
+    TestHttpRequest(HttpVersion version, Method method, String uri) {
         this(() -> version, method, uri);
     }
 
     @Override
-    public RestRequest.Method method() {
+    public Method method() {
         return method;
     }
 

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request.DEFAULT_TIMEOUT;
 import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;

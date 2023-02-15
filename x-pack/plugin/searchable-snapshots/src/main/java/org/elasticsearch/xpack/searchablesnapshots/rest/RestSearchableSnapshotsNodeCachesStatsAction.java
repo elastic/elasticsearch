@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 /**
  * Node level stats for searchable snapshots caches.

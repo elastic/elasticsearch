@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 
 public class RestPutPipelineAction extends BaseRestHandler {
 

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 import static org.elasticsearch.xpack.search.RestSubmitAsyncSearchAction.RESPONSE_PARAMS;
 
 public class RestGetAsyncSearchAction extends BaseRestHandler {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -106,7 +107,7 @@ public class RestCreateIndexActionTests extends ESTestCase {
         Map<String, String> params = new HashMap<>();
         params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(RestRequest.Method.PUT)
+            .withMethod(BasicHttpRequest.Method.PUT)
             .withPath("/some_index")
             .withParams(params)
             .build();
@@ -114,7 +115,7 @@ public class RestCreateIndexActionTests extends ESTestCase {
         action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
         assertCriticalWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.PUT)
             .withPath("/some_index")
             .build();
         action.prepareRequest(validRequest, mock(NodeClient.class));
@@ -140,7 +141,7 @@ public class RestCreateIndexActionTests extends ESTestCase {
 
         Map<String, String> params = new HashMap<>();
         params.put(RestCreateIndexAction.INCLUDE_TYPE_NAME_PARAMETER, "true");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.PUT)
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withPath("/some_index")
             .withParams(params)

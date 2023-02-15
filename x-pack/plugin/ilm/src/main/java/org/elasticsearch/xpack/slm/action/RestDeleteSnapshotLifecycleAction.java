@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
 
 public class RestDeleteSnapshotLifecycleAction extends BaseRestHandler {
 

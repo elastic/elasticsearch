@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,7 +28,7 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.PUT, "_internal/desired_nodes/{history_id}/{version}"));
+        return List.of(new Route(BasicHttpRequest.Method.PUT, "_internal/desired_nodes/{history_id}/{version}"));
     }
 
     @Override

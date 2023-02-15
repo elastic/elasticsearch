@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 /**
  * Rest action to retrieve an application privilege from the security index

@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.client.internal.Requests.getRepositoryRequest;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
 
 /**
  * Returns repository information

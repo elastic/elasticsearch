@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -230,7 +231,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessOptionsMethod() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        when(request.method()).thenReturn(RestRequest.Method.OPTIONS);
+        when(request.method()).thenReturn(BasicHttpRequest.Method.OPTIONS);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
         verifyNoMoreInteractions(channel);

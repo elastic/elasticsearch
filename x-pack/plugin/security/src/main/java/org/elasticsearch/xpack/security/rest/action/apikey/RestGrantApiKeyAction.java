@@ -31,8 +31,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
 
 /**
  * Rest action to create an API key on behalf of another user. Loosely mimics the API of

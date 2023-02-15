@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -18,8 +19,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 public class RestUpgradeActionDeprecated extends BaseRestHandler {
     public static final String UPGRADE_API_DEPRECATION_MESSAGE =
@@ -49,7 +50,7 @@ public class RestUpgradeActionDeprecated extends BaseRestHandler {
 
     public static class UpgradeActionDeprecatedException extends IllegalArgumentException {
         private final String path;
-        private final RestRequest.Method method;
+        private final BasicHttpRequest.Method method;
 
         public UpgradeActionDeprecatedException(RestRequest restRequest) {
             this.path = restRequest.path();

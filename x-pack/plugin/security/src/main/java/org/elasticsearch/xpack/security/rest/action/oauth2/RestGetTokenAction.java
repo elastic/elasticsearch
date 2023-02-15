@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
 
 /**
  * An implementation of a OAuth2-esque API for retrieval of an access token.

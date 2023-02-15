@@ -223,26 +223,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
         String defaultPipeline = null;
         String finalPipeline = null;
-        IndexMetadata indexMetadata = null;
-        // start to look for default or final pipelines via settings found in the index clusterMetadata
-        if (originalRequest != null) {
-            indexMetadata = clusterMetadata.indices()
-                .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
-        }
-        // check the alias for the index request (this is how normal index requests are modeled)
-        if (indexMetadata == null && indexRequest.index() != null) {
-            IndexAbstraction indexAbstraction = clusterMetadata.getIndicesLookup().get(indexRequest.index());
-            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = clusterMetadata.index(indexAbstraction.getWriteIndex());
-            }
-        }
-        // check the alias for the action request (this is how upserts are modeled)
-        if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
-            IndexAbstraction indexAbstraction = clusterMetadata.getIndicesLookup().get(originalRequest.index());
-            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = clusterMetadata.index(indexAbstraction.getWriteIndex());
-            }
-        }
+        var indexMetadata = findIndexMetadata(originalRequest, indexRequest, clusterMetadata, epochMillis);
+
         if (indexMetadata != null) {
             final Settings indexSettings = indexMetadata.getSettings();
             if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings)) {
@@ -1225,6 +1207,35 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             this.configuration = Objects.requireNonNull(configuration);
             this.pipeline = Objects.requireNonNull(pipeline);
         }
+    }
+
+    private static IndexMetadata findIndexMetadata(
+        DocWriteRequest<?> originalRequest,
+        IndexRequest indexRequest,
+        Metadata clusterMetadata,
+        long epochMillis
+    ) {
+        IndexMetadata indexMetadata = null;
+        // start to look for default or final pipelines via settings found in the cluster metadata
+        if (originalRequest != null) {
+            indexMetadata = clusterMetadata.indices()
+                .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
+        }
+        // check the alias for the index request (this is how normal index requests are modeled)
+        if (indexMetadata == null && indexRequest.index() != null) {
+            IndexAbstraction indexAbstraction = clusterMetadata.getIndicesLookup().get(indexRequest.index());
+            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
+                indexMetadata = clusterMetadata.index(indexAbstraction.getWriteIndex());
+            }
+        }
+        // check the alias for the action request (this is how upserts are modeled)
+        if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
+            IndexAbstraction indexAbstraction = clusterMetadata.getIndicesLookup().get(originalRequest.index());
+            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
+                indexMetadata = clusterMetadata.index(indexAbstraction.getWriteIndex());
+            }
+        }
+        return indexMetadata;
     }
 
     private static boolean indexRequestHasPipeline(IndexRequest indexRequest) {

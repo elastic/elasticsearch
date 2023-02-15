@@ -83,11 +83,7 @@ public class PostWriteRefresh {
         boolean wasForced,
         long generation
     ) {
-        boolean hasUnpromotables = indexShard.getReplicationGroup()
-            .getReplicationTargets()
-            .stream()
-            .anyMatch(sr -> sr.isPromotableToPrimary() == false);
-        if (isPrimary && hasUnpromotables) {
+        if (isPrimary && hasUnpromotables(indexShard)) {
             assert transportService != null : "TransportService cannot be null if unpromotables present";
 
             // Integrate #93600
@@ -110,5 +106,9 @@ public class PostWriteRefresh {
         } else {
             listener.onResponse(wasForced);
         }
+    }
+
+    private static boolean hasUnpromotables(IndexShard indexShard) {
+        return indexShard.getReplicationGroup().getReplicationTargets().stream().anyMatch(sr -> sr.isPromotableToPrimary() == false);
     }
 }

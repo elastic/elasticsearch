@@ -252,6 +252,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         var bulkRequest = client().prepareBulk();
         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        bulkRequest.setRefreshPolicy(IMMEDIATE); // to ensure search shards are up-to-date
         BulkResponse response = bulkRequest.get();
         assertNoFailures(response);
         String id = response.getItems()[0].getResponse().getId();

@@ -29,6 +29,7 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -42,6 +43,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -84,6 +86,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin {
 
@@ -184,23 +188,33 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         indexModule.addIndexEventListener(new IndexEventListener() {
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                if (indexShard.routingEntry().isPromotableToPrimary()) {
-                    listener.onResponse(null);
-                    return;
-                }
-                assert indexShard.routingEntry().isSearchable();
-                final Store store = indexShard.store();
-                store.incRef();
-                try {
-                    var dir = SearchDirectory.unwrapDirectory(store.directory());
-                    dir.init(objectStoreService.get().getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm()));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                    return;
-                } finally {
-                    store.decRef();
-                }
-                listener.onResponse(null);
+                ActionListener.completeWith(listener, () -> {
+                    if (indexShard.routingEntry().role().isSearchable()) {
+                        final BlobContainer blobContainer = objectStoreService.get()
+                            .getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+
+                        final Store store = indexShard.store();
+                        store.incRef();
+                        try {
+                            var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
+                            searchDirectory.setBlobContainer(blobContainer);
+                            final Map<String, StoreFileMetadata> commit = ObjectStoreService.findSearchShardFiles(blobContainer);
+                            logger.debug(() -> {
+                                var segments = commit.keySet().stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findFirst();
+                                var shardId = indexShard.shardId();
+                                if (segments.isPresent()) {
+                                    return format("[%s] bootstrapping shard from object store using commit [%s]", shardId, segments.get());
+                                } else {
+                                    return format("[%s] bootstrapping shard from object store using empty commit", shardId);
+                                }
+                            });
+                            searchDirectory.updateCommit(commit);
+                        } finally {
+                            store.decRef();
+                        }
+                    }
+                    return null;
+                });
             }
         });
     }

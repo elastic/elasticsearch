@@ -267,7 +267,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * The query to execute in its rewritten form.
      */
-    public final Query rewrittenQuery() {
+    public Query rewrittenQuery() {
         if (query() == null) {
             throw new IllegalStateException("preProcess must be called first");
         }

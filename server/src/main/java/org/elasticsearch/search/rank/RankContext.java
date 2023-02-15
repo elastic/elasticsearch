@@ -13,16 +13,15 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryCollectorContext;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
 
 public interface RankContext {
 
-    Query updateQuery(Query query);
+    void setQuery(Query query);
 
-    QueryCollectorContext createQueryCollectorContext(Query query, SearchContext searchContext);
+    void executeQuery(SearchContext searchContext);
 
     SortedTopDocs rank(List<QuerySearchResult> querySearchResults);
 

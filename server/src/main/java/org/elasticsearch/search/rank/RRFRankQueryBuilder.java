@@ -21,41 +21,33 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 public class RRFRankQueryBuilder extends AbstractQueryBuilder<RRFRankQueryBuilder> {
 
-    public static final String NAME = "rerank";
+    public static final String NAME = "rrf";
 
     private final List<QueryBuilder> queryBuilders;
-    private QueryBuilder compoundQueryBuilder;
 
     public RRFRankQueryBuilder() {
         queryBuilders = new ArrayList<>();
-        compoundQueryBuilder = null;
     }
 
     public RRFRankQueryBuilder(StreamInput in) throws IOException {
         super(in);
         queryBuilders = readQueries(in);
-        compoundQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         writeQueries(out, queryBuilders);
-        out.writeOptionalNamedWriteable(compoundQueryBuilder);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.array("queries", queryBuilders);
-        if (compoundQueryBuilder != null) {
-            builder.field("compound", compoundQueryBuilder);
-        }
         builder.endObject();
     }
 
@@ -90,9 +82,7 @@ public class RRFRankQueryBuilder extends AbstractQueryBuilder<RRFRankQueryBuilde
             compoundQueryBuilder.should(rewrittenQueryBuilder);
             changed |= rewrittenQueryBuilder != queryBuilder;
         }
-        this.compoundQueryBuilder = compoundQueryBuilder.rewrite(queryRewriteContext);
         if (changed) {
-            rrfRankQueryBuilder.compoundQueryBuilder = this.compoundQueryBuilder;
             return rrfRankQueryBuilder;
         }
         return this;
@@ -100,11 +90,11 @@ public class RRFRankQueryBuilder extends AbstractQueryBuilder<RRFRankQueryBuilde
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return compoundQueryBuilder.toQuery(context);
-    }
-
-    public List<QueryBuilder> queryBuilders() {
-        return Collections.unmodifiableList(queryBuilders);
+        List<Query> queries = new ArrayList<>();
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            queries.add(queryBuilder.toQuery(context));
+        }
+        return new RRFRankQuery(queries);
     }
 
     @Override
@@ -112,11 +102,11 @@ public class RRFRankQueryBuilder extends AbstractQueryBuilder<RRFRankQueryBuilde
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        return Objects.equals(queryBuilders, o.queryBuilders) && Objects.equals(compoundQueryBuilder, o.compoundQueryBuilder);
+        return Objects.equals(queryBuilders, o.queryBuilders);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(super.hashCode(), queryBuilders, compoundQueryBuilder);
+        return Objects.hash(super.hashCode(), queryBuilders);
     }
 }

@@ -59,6 +59,14 @@ public class QueryPhase {
     public QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        if (searchContext.rankContext() != null) {
+            searchContext.rankContext().executeQuery(searchContext);
+        } else {
+            executeInternal(searchContext);
+        }
+    }
+
+    public static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
             searchContext.queryResult()
@@ -77,7 +85,7 @@ public class QueryPhase {
         // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext);
+        boolean rescore = executeWithCollectors(searchContext);
 
         if (rescore) { // only if we do a regular search
             RescorePhase.execute(searchContext);
@@ -95,7 +103,7 @@ public class QueryPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static boolean executeWithCollectors(SearchContext searchContext) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();

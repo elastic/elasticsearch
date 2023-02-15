@@ -27,6 +27,8 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -177,6 +179,26 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
         return in.fetchSourceContext(fetchSourceContext);
+    }
+
+    @Override
+    public FetchDocValuesContext docValuesContext() {
+        return in.docValuesContext();
+    }
+
+    @Override
+    public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
+        return in.docValuesContext(docValuesContext);
+    }
+
+    @Override
+    public FetchFieldsContext fetchFieldsContext() {
+        return in.fetchFieldsContext();
+    }
+
+    @Override
+    public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
+        return in.fetchFieldsContext(fetchFieldsContext);
     }
 
     @Override

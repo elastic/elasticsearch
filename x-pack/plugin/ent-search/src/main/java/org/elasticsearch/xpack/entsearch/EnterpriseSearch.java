@@ -83,7 +83,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        final EngineIndexService engineService = new EngineIndexService(client, null);
+        final EngineIndexService engineService = new EngineIndexService(client, clusterService, namedWriteableRegistry, null);
         return Collections.singletonList(engineService);
     }
 
@@ -94,7 +94,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public String getFeatureName() {
-        return "ent-search";
+        return "ent_search";
     }
 
     @Override

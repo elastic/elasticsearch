@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.entsearch.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -24,24 +26,43 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Streams;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.CharBuffer;
+import java.util.Base64;
 import java.util.Collections;
 
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.entsearch.engine.Engine.BINARY_CONTENT_FIELD;
+import static org.elasticsearch.xpack.entsearch.engine.Engine.INDICES_FIELD;
+import static org.elasticsearch.xpack.entsearch.engine.Engine.NAME_FIELD;
 
 /**
  * A service that manages the persistent {@link Engine} configurations.
@@ -54,10 +75,19 @@ public class EngineIndexService {
     public static final String ENGINE_ORIGIN = "engine";
 
     private final Client clientWithOrigin;
+    private final ClusterService clusterService;
+    public final NamedWriteableRegistry namedWriteableRegistry;
     private final BigArrays bigArrays;
 
-    public EngineIndexService(Client client, BigArrays bigArrays) {
+    public EngineIndexService(
+        Client client,
+        ClusterService clusterService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BigArrays bigArrays
+    ) {
         this.clientWithOrigin = new OriginSettingClient(client, ENGINE_ORIGIN);
+        this.clusterService = clusterService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.bigArrays = bigArrays;
     }
 
@@ -70,7 +100,7 @@ public class EngineIndexService {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(ENGINE_INDEX_NAME_PATTERN)
             .setPrimaryIndex(ENGINE_CONCRETE_INDEX_NAME)
-            .setDescription("Contains auth token data")
+            .setDescription("Contains Engine configuration")
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
             .setAliasName(ENGINE_ALIAS_NAME)
@@ -102,12 +132,17 @@ public class EngineIndexService {
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
                 {
-                    builder.startObject("name");
+                    builder.startObject(NAME_FIELD.getPreferredName());
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    builder.startObject("indices");
+                    builder.startObject(INDICES_FIELD.getPreferredName());
                     builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject(BINARY_CONTENT_FIELD.getPreferredName());
+                    builder.field("type", "object");
+                    builder.field("enabled", "false");
                     builder.endObject();
                 }
                 builder.endObject();
@@ -125,24 +160,18 @@ public class EngineIndexService {
      * listener if not.
      *
      * @param resourceName The resource name.
-     * @param respListener The action listener to invoke on response/failure.
+     * @param listener The action listener to invoke on response/failure.
      */
-    public void getEngine(String resourceName, ActionListener<Engine> respListener) {
-        final GetRequest getRequest = new GetRequest(ENGINE_CONCRETE_INDEX_NAME).id(resourceName).realtime(true);
-        clientWithOrigin.get(getRequest, respListener.delegateFailure((listener, getResponse) -> {
+    public void getEngine(String resourceName, ActionListener<Engine> listener) {
+        final GetRequest getRequest = new GetRequest(ENGINE_ALIAS_NAME).id(resourceName).realtime(true);
+        clientWithOrigin.get(getRequest, listener.delegateFailure((delegate, getResponse) -> {
             if (getResponse.isExists() == false) {
-                listener.onFailure(new ResourceNotFoundException(resourceName));
+                delegate.onFailure(new ResourceNotFoundException(resourceName));
                 return;
             }
-            final Engine res;
-            try {
-                final BytesReference source = getResponse.getSourceInternal();
-                res = Engine.fromXContentBytes(getResponse.getId(), source, XContentType.JSON);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            listener.onResponse(res);
+            final BytesReference source = getResponse.getSourceInternal();
+            final Engine res = parseEngineBinaryFromSource(source);
+            delegate.onResponse(res);
         }));
     }
 
@@ -150,24 +179,27 @@ public class EngineIndexService {
      * Creates or updates the {@link Engine} in the underlying index.
      *
      * @param engine The engine object.
-     * @param respListener The action listener to invoke on response/failure.
+     * @param listener The action listener to invoke on response/failure.
      */
-    public void putEngine(Engine engine, ActionListener<IndexResponse> respListener) {
-        try {
-            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
-            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-            respListener = ActionListener.runBefore(respListener, buffer::close);
-            engine.toXContent(source, EMPTY_PARAMS);
-            // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
-            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
-            source.flush();
+    public void putEngine(Engine engine, ActionListener<IndexResponse> listener) {
+        try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
+            try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
+                source.startObject()
+                    .field(NAME_FIELD.getPreferredName(), engine.name())
+                    .field(INDICES_FIELD.getPreferredName(), engine.indices())
+                    .directFieldAsBase64(
+                        BINARY_CONTENT_FIELD.getPreferredName(),
+                        os -> writeEngineBinaryWithVersion(engine, os, clusterService.state().nodes().getMinNodeVersion())
+                    )
+                    .endObject();
+            }
             final IndexRequest indexRequest = new IndexRequest(ENGINE_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(engine.name())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(buffer.bytes(), source.contentType());
-            clientWithOrigin.index(indexRequest, respListener);
+                .source(buffer.bytes(), XContentType.JSON);
+            clientWithOrigin.index(indexRequest, listener);
         } catch (Exception e) {
-            respListener.onFailure(e);
+            listener.onFailure(e);
         }
     }
 
@@ -176,38 +208,90 @@ public class EngineIndexService {
      * listener if the resource does not exist or failed to delete.
      *
      * @param engineName The name of the {@link Engine} to delete.
-     * @param respListener The action listener to invoke on response/failure.
+     * @param listener The action listener to invoke on response/failure.
      *
      */
-    public void deleteEngine(String engineName, ActionListener<DeleteResponse> respListener) {
+    public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
         try {
             final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            clientWithOrigin.delete(deleteRequest, respListener);
+            clientWithOrigin.delete(deleteRequest, listener);
         } catch (Exception e) {
-            respListener.onFailure(e);
+            listener.onFailure(e);
         }
     }
 
     /**
      * List the {@link Engine} in ascending order of their names.
      *
+     * @param queryString The query string to filter the results.
      * @param from From index to start the search from.
      * @param size The maximum number of {@link Engine} to return.
-     * @param respListener The action listener to invoke on response/failure.
+     * @param listener The action listener to invoke on response/failure.
      */
-    public void listEngine(int from, int size, ActionListener<SearchResponse> respListener) {
+    public void listEngine(String queryString, int from, int size, ActionListener<SearchResponse> listener) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
-                .docValueField("name")
-                .docValueField("indices")
+                .query(new QueryStringQueryBuilder(queryString))
+                .docValueField(NAME_FIELD.getPreferredName())
+                .docValueField(INDICES_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
-                .sort("name", SortOrder.ASC);
+                .sort(NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(ENGINE_ALIAS_NAME).source(source);
-            clientWithOrigin.search(req, respListener);
+            clientWithOrigin.search(req, listener);
         } catch (Exception e) {
-            respListener.onFailure(e);
+            listener.onFailure(e);
+        }
+    }
+
+    private Engine parseEngineBinaryFromSource(BytesReference source) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
+            ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                parser.nextToken();
+                if (BINARY_CONTENT_FIELD.getPreferredName().equals(parser.currentName())) {
+                    final CharBuffer encodedBuffer = parser.charBuffer();
+                    InputStream encodedIn = Base64.getDecoder().wrap(new InputStream() {
+                        @Override
+                        public int read() {
+                            if (encodedBuffer.hasRemaining()) {
+                                return encodedBuffer.get();
+                            } else {
+                                return -1; // end of stream
+                            }
+                        }
+                    });
+                    try (
+                        StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), namedWriteableRegistry)
+                    ) {
+                        return parseEngineBinaryWithVersion(in);
+                    }
+                } else {
+                    XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
+                }
+            }
+            throw new ElasticsearchParseException("[" + BINARY_CONTENT_FIELD.getPreferredName() + "] field is missing");
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
+        }
+    }
+
+    static Engine parseEngineBinaryWithVersion(StreamInput in) throws IOException {
+        TransportVersion version = TransportVersion.readVersion(in);
+        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        in.setTransportVersion(version);
+        return new Engine(in);
+    }
+
+    static void writeEngineBinaryWithVersion(Engine engine, OutputStream os, Version minNodeVersion) throws IOException {
+        // do not close the output
+        os = Streams.noCloseStream(os);
+        TransportVersion.writeVersion(minNodeVersion.transportVersion, new OutputStreamStreamOutput(os));
+        try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
+            out.setTransportVersion(minNodeVersion.transportVersion);
+            engine.writeTo(out);
         }
     }
 }

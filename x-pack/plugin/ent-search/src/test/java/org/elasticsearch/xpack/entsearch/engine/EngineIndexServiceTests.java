@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -39,7 +40,9 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        this.engineService = new EngineIndexService(client(), BigArrays.NON_RECYCLING_INSTANCE);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
+        this.engineService = new EngineIndexService(client(), clusterService, writableRegistry(), bigArrays);
     }
 
     @Override
@@ -50,7 +53,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateEngine() throws Exception {
-        final Engine engine = new Engine("my_engine", new String[] { "index_1" });
+        final Engine engine = new Engine("my_engine", new String[] { "index_1" }, null);
 
         IndexResponse resp = awaitPutEngine(engine);
         assertThat(resp.status(), equalTo(RestStatus.CREATED));
@@ -62,7 +65,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateEngine() throws Exception {
         {
-            final Engine engine = new Engine("my_engine", new String[] { "index_1" });
+            final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" }, null);
             IndexResponse resp = awaitPutEngine(engine);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
@@ -71,7 +74,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
             assertThat(getEngine, equalTo(engine));
         }
 
-        final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" });
+        final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" }, "my_engine_analytics_collection");
         IndexResponse newResp = awaitPutEngine(engine);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
@@ -81,14 +84,14 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testListEngine() throws Exception {
         for (int i = 0; i < 10; i++) {
-            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i });
+            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
             IndexResponse resp = awaitPutEngine(engine);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
         }
 
         {
-            SearchResponse resp = awaitListEngine(0, 10);
+            SearchResponse resp = awaitListEngine("*:*", 0, 10);
             assertNotNull(resp.getHits());
             assertThat(resp.getHits().getHits().length, equalTo(10));
             assertThat(resp.getHits().getTotalHits().value, equalTo(10L));
@@ -104,7 +107,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            SearchResponse resp = awaitListEngine(5, 10);
+            SearchResponse resp = awaitListEngine("*:*", 5, 10);
             assertNotNull(resp.getHits());
             assertThat(resp.getHits().getHits().length, equalTo(5));
             assertThat(resp.getHits().getTotalHits().value, equalTo(10L));
@@ -121,9 +124,41 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testListEngineWithQuery() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
+            IndexResponse resp = awaitPutEngine(engine);
+            assertThat(resp.status(), equalTo(RestStatus.CREATED));
+            assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
+        }
+
+        {
+            for (String queryString : new String[] {
+                "*my_engine_4*",
+                "name:my_engine_4",
+                "my_engine_4",
+                "*_4",
+                "indices:index_4",
+                "index_4",
+                "*_4" }) {
+                SearchResponse resp = awaitListEngine(queryString, 0, 10);
+                assertNotNull(resp.getHits());
+                assertThat(resp.getHits().getHits().length, equalTo(1));
+                assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
+
+                SearchHits searchHits = resp.getHits();
+                SearchHit hit = searchHits.getAt(0);
+                assertNotNull(hit.getFields().get("name"));
+                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_4")));
+                assertNotNull(hit.getFields().get("indices"));
+                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_4")));
+            }
+        }
+    }
+
     public void testDeleteEngine() throws Exception {
         for (int i = 0; i < 5; i++) {
-            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i });
+            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
             IndexResponse resp = awaitPutEngine(engine);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
@@ -137,7 +172,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetEngine("my_engine_4"));
 
         {
-            SearchResponse searchResponse = awaitListEngine(0, 10);
+            SearchResponse searchResponse = awaitListEngine("*:*", 0, 10);
             assertNotNull(searchResponse.getHits());
             assertThat(searchResponse.getHits().getHits().length, equalTo(4));
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L));
@@ -228,11 +263,11 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private SearchResponse awaitListEngine(int from, int size) throws Exception {
+    private SearchResponse awaitListEngine(String queryString, int from, int size) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<SearchResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        engineService.listEngine(from, size, new ActionListener<>() {
+        engineService.listEngine(queryString, from, size, new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 resp.set(searchResponse);

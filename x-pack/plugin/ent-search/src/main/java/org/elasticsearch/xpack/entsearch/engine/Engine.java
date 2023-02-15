@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,49 +36,63 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Engine implements Writeable, ToXContentObject {
     private final String name;
     private final String[] indices;
+    private final String analyticsCollectionName;
 
     /**
      * Public constructor.
      *
-     * @param name The name of the engine.
-     * @param indices The list of indices targeted by this engine.
+     * @param name                    The name of the engine.
+     * @param indices                 The list of indices targeted by this engine.
+     * @param analyticsCollectionName The name of the associated analytics collection.
      */
-    public Engine(String name, String[] indices) {
+    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName) {
         this.name = name;
         this.indices = indices;
+        Arrays.sort(indices);
+        this.analyticsCollectionName = analyticsCollectionName;
     }
 
     public Engine(StreamInput in) throws IOException {
         this.name = in.readString();
         this.indices = in.readStringArray();
+        this.analyticsCollectionName = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeStringArray(indices);
+        out.writeOptionalString(analyticsCollectionName);
     }
 
-    private static final ConstructingObjectParser<Engine, Void> PARSER = new ConstructingObjectParser<>("engine", false, params -> {
-        final String name = (String) params[0];
-        @SuppressWarnings("unchecked")
-        final String[] indices = ((List<String>) params[1]).toArray(String[]::new);
-        return new Engine(name, indices);
-    });
-    private static final ParseField NAME_FIELD = new ParseField("name");
-    private static final ParseField INDICES_FIELD = new ParseField("indices");
+    private static final ConstructingObjectParser<Engine, String> PARSER = new ConstructingObjectParser<>(
+        "engine",
+        false,
+        (params, engineName) -> {
+            @SuppressWarnings("unchecked")
+            final String[] indices = ((List<String>) params[0]).toArray(String[]::new);
+            final String analyticsCollectionName = (String) params[1];
+            return new Engine(engineName, indices, analyticsCollectionName);
+        }
+    );
+
+    public static final ParseField NAME_FIELD = new ParseField("name");
+    public static final ParseField INDICES_FIELD = new ParseField("indices");
+    public static final ParseField ANALYTICS_COLLECTION_NAME_FIELD = new ParseField("analytics_collection_name");
+    public static final ParseField BINARY_CONTENT_FIELD = new ParseField("binary_content");
 
     static {
-        PARSER.declareString(constructorArg(), NAME_FIELD);
         PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
     }
 
     /**
-     * Parses a {@link Engine} from its {@param xContentType} representation in bytes.
+     * Parses an {@link Engine} from its {@param xContentType} representation in bytes.
      *
      * @param resourceName The name of the resource (must match the {@link Engine} name).
      * @param source The bytes that represents the {@link Engine}.
@@ -89,12 +104,12 @@ public class Engine implements Writeable, ToXContentObject {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
             return Engine.fromXContent(resourceName, parser);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse the get result", e);
+            throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
         }
     }
 
     /**
-     * Parses an engine through the provided {@param parser}.
+     * Parses an {@link Engine} through the provided {@param parser}.
      *
      * @param resourceName The name of the resource (must match the {@link Engine} name).
      * @param parser The {@link XContentType} parser.
@@ -102,13 +117,7 @@ public class Engine implements Writeable, ToXContentObject {
      * @return The parsed {@link Engine}.
      */
     public static Engine fromXContent(String resourceName, XContentParser parser) throws IOException {
-        final Engine engine = PARSER.parse(parser, null);
-        if (engine.name().equals(resourceName) == false) {
-            throw new IllegalStateException(
-                "The name of the engine must match the resource name, got " + engine.name() + " and " + resourceName
-            );
-        }
-        return engine;
+        return PARSER.parse(parser, resourceName);
     }
 
     /**
@@ -119,8 +128,10 @@ public class Engine implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("name", name);
-        builder.field("indices", indices);
+        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        if (analyticsCollectionName != null) {
+            builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
+        }
         builder.endObject();
         return builder;
     }
@@ -143,17 +154,28 @@ public class Engine implements Writeable, ToXContentObject {
         return indices;
     }
 
+    /**
+     * Returns the name of the analytics collection linked with this {@link Engine}.
+     *
+     * @return The analytics collection name.
+     */
+    public @Nullable String analyticsCollectionName() {
+        return analyticsCollectionName;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Engine engine = (Engine) o;
-        return name.equals(engine.name) && Arrays.equals(indices, engine.indices);
+        return name.equals(engine.name)
+            && Arrays.equals(indices, engine.indices)
+            && Objects.equals(analyticsCollectionName, engine.analyticsCollectionName);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name);
+        int result = Objects.hash(name, analyticsCollectionName);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
@@ -176,14 +198,14 @@ public class Engine implements Writeable, ToXContentObject {
     Engine merge(BytesReference update, XContentType xContentType, BigArrays bigArrays) {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent;
         try (ReleasableBytesStreamOutput sourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, sourceBuffer)) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder(sourceBuffer)) {
                 toXContent(builder, EMPTY_PARAMS);
             }
             sourceAndContent = XContentHelper.convertToMap(sourceBuffer.bytes(), true, XContentType.JSON);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        final Tuple<XContentType, Map<String, Object>> updateAndContent = XContentHelper.convertToMap(update, true, XContentType.JSON);
+        final Tuple<XContentType, Map<String, Object>> updateAndContent = XContentHelper.convertToMap(update, true, xContentType);
         final Map<String, Object> newSourceAsMap = new HashMap<>(sourceAndContent.v2());
         final boolean noop = XContentHelper.update(newSourceAsMap, updateAndContent.v2(), true) == false;
         if (noop) {
@@ -191,7 +213,7 @@ public class Engine implements Writeable, ToXContentObject {
         }
 
         try (ReleasableBytesStreamOutput newSourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
-            try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), newSourceBuffer)) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder(newSourceBuffer)) {
                 builder.value(newSourceAsMap);
             }
             return Engine.fromXContentBytes(name, newSourceBuffer.bytes(), XContentType.JSON);

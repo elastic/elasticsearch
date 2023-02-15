@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.entsearch.engine;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,15 +47,15 @@ public class EngineTests extends ESTestCase {
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
             Engine testInstance = randomEngine();
-            assertSerialization(testInstance);
+            assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
+            assertIndexSerialization(testInstance, Version.CURRENT);
         }
     }
 
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "name": "my_engine",
               "indices": ["my_index"]
             }""");
         Engine engine = Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON);
@@ -67,29 +71,19 @@ public class EngineTests extends ESTestCase {
     public void testMerge() {
         String content = """
             {
-              "name": "my_engine",
-              "indices": ["my_index"]
+              "indices": ["my_index", "my_index_2"]
             }""";
 
         String update = """
             {
-              "indices": ["my_index", "my_index2"]
+              "indices": ["my_index_2", "my_index"],
+              "analytics_collection_name": "my_engine_analytics"
             }""";
         Engine engine = Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON);
         Engine updatedEngine = engine.merge(new BytesArray(update), XContentType.JSON, BigArrays.NON_RECYCLING_INSTANCE);
-        assertThat(updatedEngine.indices(), equalTo(new String[] { "my_index", "my_index2" }));
-    }
-
-    public void testMatchingResourceName() {
-        String content = """
-            {
-              "name": "my_new_engine",
-              "indices": ["my_index"]
-            }""";
-        IllegalStateException exc = expectThrows(
-            IllegalStateException.class,
-            () -> Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON)
-        );
+        assertNotSame(engine, updatedEngine);
+        assertThat(updatedEngine.indices(), equalTo(new String[] { "my_index", "my_index_2" }));
+        assertThat(updatedEngine.analyticsCollectionName(), equalTo("my_engine_analytics"));
     }
 
     private Engine assertXContent(Engine engine, boolean humanReadable) throws IOException {
@@ -102,12 +96,31 @@ public class EngineTests extends ESTestCase {
         return parsed;
     }
 
-    private Engine assertSerialization(Engine testInstance) throws IOException {
-        return assertSerialization(testInstance, Version.CURRENT);
+    private Engine assertTransportSerialization(Engine testInstance) throws IOException {
+        return assertTransportSerialization(testInstance, Version.CURRENT);
     }
 
-    private Engine assertSerialization(Engine testInstance, Version version) throws IOException {
+    private Engine assertTransportSerialization(Engine testInstance, Version version) throws IOException {
         Engine deserializedInstance = copyInstance(testInstance, version);
+        assertNotSame(testInstance, deserializedInstance);
+        assertThat(testInstance, equalTo(deserializedInstance));
+        return deserializedInstance;
+    }
+
+    private Engine assertIndexSerialization(Engine testInstance, Version version) throws IOException {
+        final Engine deserializedInstance;
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version.transportVersion);
+            EngineIndexService.writeEngineBinaryWithVersion(testInstance, output, version.minimumCompatibilityVersion());
+            try (
+                StreamInput in = new NamedWriteableAwareStreamInput(
+                    new InputStreamStreamInput(output.bytes().streamInput()),
+                    namedWriteableRegistry
+                )
+            ) {
+                deserializedInstance = EngineIndexService.parseEngineBinaryWithVersion(in);
+            }
+        }
         assertNotSame(testInstance, deserializedInstance);
         assertThat(testInstance, equalTo(deserializedInstance));
         return deserializedInstance;
@@ -123,6 +136,7 @@ public class EngineTests extends ESTestCase {
         for (int i = 0; i < indices.length; i++) {
             indices[i] = randomAlphaOfLengthBetween(10, 20);
         }
-        return new Engine(name, indices);
+        String analyticsCollectionName = randomBoolean() ? randomAlphaOfLengthBetween(10, 15) : null;
+        return new Engine(name, indices, analyticsCollectionName);
     }
 }

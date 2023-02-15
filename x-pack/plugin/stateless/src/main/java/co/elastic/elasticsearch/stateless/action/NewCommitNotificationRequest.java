@@ -17,33 +17,30 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class NewCommitNotificationRequest extends ActionRequest {
-    private final ShardId shardId;
-    private final boolean indexingShard;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
     private final long term;
     private final long generation;
     private final Map<String, StoreFileMetadata> commitFiles;
 
     public NewCommitNotificationRequest(
-        final ShardId shardId,
-        final boolean indexingShard,
+        final IndexShardRoutingTable indexShardRoutingTable,
         final long term,
         final long generation,
         final Map<String, StoreFileMetadata> commitFiles
     ) {
-        this.shardId = shardId;
-        this.indexingShard = indexingShard;
-        assert term >= 0 && generation >= 0 : "term and generation should not be negative";
+        super(indexShardRoutingTable);
         this.term = term;
         this.generation = generation;
         this.commitFiles = commitFiles;
@@ -51,19 +48,9 @@ public class NewCommitNotificationRequest extends ActionRequest {
 
     public NewCommitNotificationRequest(final StreamInput in) throws IOException {
         super(in);
-        shardId = new ShardId(in);
-        indexingShard = in.readBoolean();
         term = in.readVLong();
         generation = in.readVLong();
         commitFiles = in.readImmutableMap(StreamInput::readString, StoreFileMetadata::new);
-    }
-
-    public ShardId getShardId() {
-        return shardId;
-    }
-
-    public boolean isIndexingShard() {
-        return indexingShard;
     }
 
     public long getTerm() {
@@ -78,20 +65,21 @@ public class NewCommitNotificationRequest extends ActionRequest {
         return commitFiles;
     }
 
-    public NewCommitNotificationRequest withIndexingShard(boolean indexingShard) {
-        return new NewCommitNotificationRequest(shardId, indexingShard, term, generation, commitFiles);
-    }
-
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = super.validate();
+        if (term < 0) {
+            validationException = addValidationError("term is negative", validationException);
+        }
+        if (generation < 0) {
+            validationException = addValidationError("generation is negative", validationException);
+        }
+        return validationException;
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
-        shardId.writeTo(out);
-        out.writeBoolean(indexingShard);
         out.writeVLong(term);
         out.writeVLong(generation);
         out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
@@ -101,9 +89,7 @@ public class NewCommitNotificationRequest extends ActionRequest {
     public String toString() {
         return "NotifyRequest{"
             + "shardId="
-            + shardId
-            + ", isIndexingShard="
-            + indexingShard
+            + shardId()
             + ", term="
             + term
             + ", generation="

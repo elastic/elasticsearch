@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -39,30 +38,36 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportNewCommitNotificationAction extends HandledTransportAction<NewCommitNotificationRequest, ActionResponse.Empty> {
+
     private static final Logger logger = LogManager.getLogger(TransportNewCommitNotificationAction.class);
+
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final IndicesService indicesService;
-    private final Client client;
 
     @Inject
     public TransportNewCommitNotificationAction(
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        IndicesService indicesService,
-        Client client
+        IndicesService indicesService
     ) {
-        super(NewCommitNotificationAction.NAME, transportService, actionFilters, NewCommitNotificationRequest::new);
+        super(
+            NewCommitNotificationAction.NAME,
+            transportService,
+            actionFilters,
+            NewCommitNotificationRequest::new,
+            ThreadPool.Names.REFRESH
+        );
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indicesService = indicesService;
-        this.client = client;
     }
 
     @Override

@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
-
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -43,7 +41,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class SearchDirectory extends BaseDirectory {
 
@@ -92,12 +89,8 @@ public class SearchDirectory extends BaseDirectory {
         this.shardId = shardId;
     }
 
-    public void init(BlobContainer blobContainer) throws IOException {
+    public void setBlobContainer(BlobContainer blobContainer) {
         this.blobContainer.set(blobContainer);
-        this.currentMetadata = ObjectStoreService.findSearchShardFiles(blobContainer)
-            .entrySet()
-            .stream()
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().length()));
     }
 
     /**
@@ -106,6 +99,7 @@ public class SearchDirectory extends BaseDirectory {
      * @param newCommit map of file name to store metadata
      */
     public void updateCommit(Map<String, StoreFileMetadata> newCommit) {
+        assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         // TODO: we only accumulate files as we see new commits, we need to start cleaning this map once we add deletes
         final Map<String, Long> updated = new HashMap<>(currentMetadata);
         newCommit.forEach((name, storeMetadata) -> updated.put(name, storeMetadata.length()));

@@ -17,12 +17,21 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.CompletionStatsCache;
+import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
@@ -65,52 +74,73 @@ public class SearchEngine extends Engine {
     private final AtomicLong lastSeqNo = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private final AtomicLong lastTranslogLocation = new AtomicLong(0);
 
-    private final StatelessReaderManager statelessReaderManager;
+    private final Map<Long, ListenableActionFuture<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
+    private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
+    private final SearchDirectory directory;
+
+    private volatile SegmentInfos segmentInfos;
 
     public SearchEngine(EngineConfig config) {
         super(config);
         assert config.isPromotableToPrimary() == false;
+
+        ElasticsearchDirectoryReader directoryReader = null;
+        ElasticsearchReaderManager readerManager = null;
+        boolean success = false;
         store.incRef();
         try {
-            StatelessReaderManager readerManager = null;
-            boolean success = false;
-            try {
-                readerManager = new StatelessReaderManager(
-                    config.getShardId(),
-                    store,
-                    config.getThreadPool(),
-                    config.getGlobalCheckpointSupplier(),
-                    config.getLeafSorter()
-                );
-                readerManager.reloadReaderManager();
-                var localCheckpoint = readerManager.getSeqNoStats().getLocalCheckpoint();
-                this.lastSeqNo.set(Math.max(localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong()));
-                this.statelessReaderManager = readerManager;
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(readerManager, store::decRef);
-                }
-            }
+            this.directory = SearchDirectory.unwrapDirectory(store.directory());
+            directoryReader = ElasticsearchDirectoryReader.wrap(
+                new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory, config.getLeafSorter()), Lucene.SOFT_DELETES_FIELD),
+                shardId
+            );
+            readerManager = new ElasticsearchReaderManager(directoryReader);
+            this.segmentInfos = store.readLastCommittedSegmentsInfo();
+            this.readerManager = readerManager;
+            success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(readerManager, directoryReader, store::decRef);
+            }
         }
+    }
+
+    private long getCurrentGeneration() {
+        final SegmentInfos current = this.segmentInfos;
+        assert current.getGeneration() > 0 : current;
+        return current.getGeneration();
     }
 
     public void onCommitNotification(
         final long primaryTerm,
         final long generation,
-        final Map<String, StoreFileMetadata> commitFiles,
+        final Map<String, StoreFileMetadata> commit,
         ActionListener<Void> listener
     ) {
-        statelessReaderManager.onNewCommit(primaryTerm, generation, commitFiles, listener);
+        ActionListener.completeWith(listener, () -> {
+            ensureOpen();
+            directory.updateCommit(commit);
+            if (readerManager.maybeRefresh()) {
+                final ElasticsearchDirectoryReader reader = readerManager.acquire();
+                try {
+                    this.segmentInfos = Lucene.readSegmentInfos(reader.getIndexCommit());
+                    callSegmentGenerationListeners(reader.getIndexCommit().getGeneration());
+                } finally {
+                    readerManager.release(reader);
+                }
+            }
+            return null;
+        });
     }
 
     @Override
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
-                IOUtils.close(statelessReaderManager, store::decRef);
+                IOUtils.close(this::failSegmentGenerationListeners, readerManager, store::decRef);
+                assert segmentGenerationListeners.isEmpty() : segmentGenerationListeners;
             } catch (Exception ex) {
                 logger.warn("failed to close reader", ex);
             } finally {
@@ -156,17 +186,21 @@ public class SearchEngine extends Engine {
 
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
-        return statelessReaderManager.getSegmentInfos();
+        return segmentInfos;
     }
 
     @Override
     public String getHistoryUUID() {
-        return statelessReaderManager.getSegmentInfos().getUserData().get(Engine.HISTORY_UUID_KEY);
+        return segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY);
     }
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
         return new Translog.Location(0, lastTranslogLocation.get(), 0);
+    }
+
+    private SequenceNumbers.CommitInfo getSequenceNumbersCommitInfo() {
+        return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(segmentInfos.userData.entrySet());
     }
 
     @Override
@@ -230,7 +264,7 @@ public class SearchEngine extends Engine {
 
     @Override
     protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
-        return statelessReaderManager.getReaderManager();
+        return readerManager;
     }
 
     @Override
@@ -296,7 +330,8 @@ public class SearchEngine extends Engine {
 
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
-        return statelessReaderManager.getSeqNoStats();
+        var commitInfo = getSequenceNumbersCommitInfo();
+        return new SeqNoStats(commitInfo.maxSeqNo, commitInfo.localCheckpoint, config().getGlobalCheckpointSupplier().getAsLong());
     }
 
     @Override
@@ -367,7 +402,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        return statelessReaderManager.getSafeCommitInfo();
+        return new SafeCommitInfo(getSequenceNumbersCommitInfo().localCheckpoint, segmentInfos.totalMaxDoc());
     }
 
     @Override
@@ -417,6 +452,62 @@ public class SearchEngine extends Engine {
 
     @Override
     public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
-        statelessReaderManager.addSegmentGenerationListener(minGeneration, listener);
+        try {
+            ensureOpen();
+            // check current state first - not strictly necessary, but a little more efficient than what happens next
+            final long preFlightGeneration = getCurrentGeneration();
+            if (preFlightGeneration >= minGeneration) {
+                listener.onResponse(preFlightGeneration);
+                return;
+            }
+
+            // register this listener before checking current state again
+            segmentGenerationListeners.computeIfAbsent(minGeneration, ignored -> new ListenableActionFuture<>()).addListener(listener);
+
+            // current state may have moved forwards in the meantime, in which case we must undo what we just did
+            final long currentGeneration = getCurrentGeneration();
+            if (currentGeneration >= minGeneration) {
+                final var listeners = segmentGenerationListeners.remove(minGeneration);
+                if (listeners != null) {
+                    listeners.onResponse(currentGeneration);
+                }
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private void callSegmentGenerationListeners(long currentGen) {
+        final var iterator = segmentGenerationListeners.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            if (entry.getKey() <= currentGen) {
+                iterator.remove();
+                try {
+                    entry.getValue().onResponse(currentGen);
+                } catch (Exception e) {
+                    logger.warn(() -> "segment generation listener [" + entry.getKey() + "] failed", e);
+                    assert false : e;
+                }
+            }
+        }
+    }
+
+    private void failSegmentGenerationListeners() {
+        assert isClosed.get();
+        final var iterator = segmentGenerationListeners.entrySet().iterator();
+        final AlreadyClosedException e = new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            iterator.remove();
+            try {
+                entry.getValue().onFailure(e);
+            } catch (Exception e2) {
+                e2.addSuppressed(e);
+                logger.warn(() -> "segment generation listener [" + entry.getKey() + "] failed", e2);
+                assert false : e2;
+            }
+        }
+        assert segmentGenerationListeners.isEmpty();
     }
 }

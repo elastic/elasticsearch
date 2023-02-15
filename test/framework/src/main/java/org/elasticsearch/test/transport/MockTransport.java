@@ -49,7 +49,7 @@ import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 public class MockTransport extends StubbableTransport {
 
     private TransportMessageListener listener;
-    private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
 
     public TransportService createTransportService(
         Settings settings,

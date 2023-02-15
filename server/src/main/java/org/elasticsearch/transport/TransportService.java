@@ -1522,11 +1522,6 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public TransportVersion getVersion() {
-            return localNode.getVersion().transportVersion;
-        }
-
-        @Override
         public String toString() {
             return Strings.format("DirectResponseChannel{req=%d}{%s}", requestId, action);
         }

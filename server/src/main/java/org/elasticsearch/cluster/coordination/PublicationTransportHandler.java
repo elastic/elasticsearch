@@ -39,6 +39,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -409,7 +410,14 @@ public class PublicationTransportHandler {
 
         private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             assert refCount() > 0;
-            var version = transportService.getConnection(destination).getTransportVersion();
+            TransportVersion version;
+            try {
+                version = transportService.getConnection(destination).getTransportVersion();
+            }
+            catch (NodeNotConnectedException e) {
+                listener.onFailure(e);
+                return;
+            }
             ReleasableBytesReference bytes = serializedStates.get(version);
             if (bytes == null) {
                 try {
@@ -424,7 +432,14 @@ public class PublicationTransportHandler {
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            var version = transportService.getConnection(destination).getTransportVersion();
+            TransportVersion version;
+            try {
+                version = transportService.getConnection(destination).getTransportVersion();
+            }
+            catch (NodeNotConnectedException e) {
+                listener.onFailure(e);
+                return;
+            }
             final ReleasableBytesReference bytes = serializedDiffs.get(version);
             assert bytes != null : "failed to find serialized diff for node " + destination + " of version [" + version + "]";
 

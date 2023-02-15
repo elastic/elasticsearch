@@ -33,6 +33,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -302,13 +304,21 @@ public class JoinValidationService {
             assert discoveryNode.getVersion().onOrAfter(Version.V_8_3_0) : discoveryNode.getVersion();
             // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
             // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
-            TransportVersion version = transportService.getConnection(discoveryNode).getTransportVersion();
-            final var cachedBytes = statesByVersion.get(version);
-            final var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode));
+            Transport.Connection connection;
+            try {
+                connection = transportService.getConnection(discoveryNode);
+            }
+            catch (NodeNotConnectedException e) {
+                listener.onFailure(e);
+                return;
+            }
+            var version = connection.getTransportVersion();
+            var cachedBytes = statesByVersion.get(version);
+            var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode, version));
             assert bytes.hasReferences() : "already closed";
             bytes.incRef();
             transportService.sendRequest(
-                discoveryNode,
+                connection,
                 JOIN_VALIDATE_ACTION_NAME,
                 new BytesTransportRequest(bytes, version),
                 REQUEST_OPTIONS,
@@ -340,12 +350,11 @@ public class JoinValidationService {
         }
     }
 
-    private ReleasableBytesReference serializeClusterState(DiscoveryNode discoveryNode) {
+    private ReleasableBytesReference serializeClusterState(DiscoveryNode discoveryNode, TransportVersion version) {
         final var bytesStream = transportService.newNetworkBytesStream();
         var success = false;
         try {
             final var clusterState = clusterStateSupplier.get();
-            final var version = transportService.getConnection(discoveryNode).getTransportVersion();
             try (
                 var stream = new OutputStreamStreamOutput(
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))

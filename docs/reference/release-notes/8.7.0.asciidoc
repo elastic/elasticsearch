@@ -23,6 +23,7 @@ Aggregations::
 Allocation::
 * Fallback to the actual shard size when forecast is not available {es-pull}93461[#93461]
 * Only simulate legal desired moves {es-pull}93635[#93635] (issue: {es-issue}93271[#93271])
+* Skip `DiskThresholdMonitor` when cluster state is not recovered {es-pull}93699[#93699]
 
 Authentication::
 * -| Correctly remove domain from realm when rewriting `Authentication` for compatibility with node versions that don't support domains {es-pull}93276[#93276]
@@ -59,6 +60,7 @@ Infra/CLI::
 
 Infra/Core::
 * Add `jdk.internal.reflect` permission to es codebase {es-pull}92387[#92387] (issue: {es-issue}92356[#92356])
+* Don't report MIGRATION_NEEDED for 7.x indices {es-pull}93666[#93666]
 * Ensure one-shot wrappers release their delegates {es-pull}92928[#92928]
 * Fix `InputStream#readAllBytes` on `InputStreamIndexInput` {es-pull}92680[#92680]
 * Fix indices resolver for datemath with colon {es-pull}92973[#92973]
@@ -82,6 +84,7 @@ Ingest Node::
 * Forwarding simulate calls to ingest nodes {es-pull}92171[#92171]
 * Grok returns a list of matches for repeated pattern names #92092 {es-pull}92586[#92586] (issue: {es-issue}92092[#92092])
 * Handle a default/request pipeline and a final pipeline with minimal additional overhead {es-pull}93329[#93329] (issues: {es-issue}92843[#92843], {es-issue}81244[#81244], {es-issue}93118[#93118])
+* Ingest-attachment module tika dependency versions {es-pull}93755[#93755]
 * More accurate total ingest stats {es-pull}91730[#91730] (issue: {es-issue}91358[#91358])
 * Speed up ingest geoip processors {es-pull}92372[#92372]
 * Speed up ingest set and append processors {es-pull}92395[#92395]
@@ -91,6 +94,7 @@ Machine Learning::
 * Fix tokenization bug when handling normalization in BERT and MPNet {es-pull}92329[#92329]
 * Free resources correctly when model loading is cancelled {es-pull}92204[#92204]
 * Stop the `frequent_items` aggregation reporting a subset when a superset exists {es-pull}92239[#92239]
+* Use long inference timeout at ingest {es-pull}93731[#93731]
 
 Mapping::
 * No length check for source-only keyword fields {es-pull}93299[#93299] (issue: {es-issue}9304[#9304])
@@ -113,6 +117,10 @@ Search::
 * Fix missing override for matches in `ProfileWeight` {es-pull}92360[#92360]
 * Nested path info shouldn't be added during `copy_to` {es-pull}93340[#93340] (issue: {es-issue}93117[#93117])
 * Use all profiling events on startup {es-pull}92087[#92087]
+* [Profiling] Ensure responses are only sent once {es-pull}93692[#93692] (issue: {es-issue}93691[#93691])
+
+Snapshot/Restore::
+* Support for GCS proxies everywhere in the GCS API {es-pull}92192[#92192] (issue: {es-issue}91952[#91952])
 
 Stats::
 * Avoid capturing cluster state in TBbNA {es-pull}92255[#92255]
@@ -253,6 +261,7 @@ Search::
 * Runtime fields to optionally ignore script errors {es-pull}92380[#92380]
 * Speed up retrieval of data for flamegraphs {es-pull}93448[#93448]
 * Support retrieving inlined stack frames {es-pull}92863[#92863]
+* [Profiling] Reduce GC pressure {es-pull}93590[#93590]
 
 Security::
 * Configurable retention period for invalidated or expired API keys {es-pull}92219[#92219]

@@ -26,13 +26,14 @@ Other versions:
 [[geohex_aggregations_on_both_geo_point_geo_shape_fields]]
 === Geohex aggregations on both `geo_point` and `geo_shape` fields
 Previously Elasticsearch 8.1.0 expanded `geo_grid` aggregation support from rectangular tiles (geotile and geohash)
-to include hexagonal tiles, but for `geo_point` only. Now Elasticsearch 8.7.0 will support Geohex aggregations
-over `geo_shape` as well, which completes the long desired need to perform hexagonal aggregations on spatial data.
+to include hexagonal tiles, but for `geo_point` only. Now Elasticsearch 8.7.0 will support
+<<geohexgrid-aggregating-geo-shape,Geohex aggregations over `geo_shape`>> as well,
+which completes the long desired need to perform hexagonal aggregations on spatial data.
 
 [role="screenshot"]
 image::images/spatial/geogrid_h3_aggregation.png[Kibana map with geohex aggregation inclusing polygons and lines]
 
-In 2018 [Uber announced they had open sourced their H3 library](https://www.uber.com/en-SE/blog/h3/),
+In 2018 https://www.uber.com/en-SE/blog/h3/[Uber announced they had open sourced their H3 library],
 enabling hexagonal tiling of the planet for much better analytics of their traffic and regional pricing models.
 The use of hexagonal tiles for analytics has become increasingly popular, due to the fact that each tile represents
 a very similar geographic area on the planet, as well as the fact that the distance between tile centers is
@@ -119,7 +120,8 @@ executed.
 [discrete]
 [[support_geo_grid_ingest_processor]]
 === Support geo_grid ingest processor
-The `geo_grid` ingest processor supports creating indexable geometries from geohash, geotile and H3 cells.
+The <<ingest-geo-grid-processor,`geo_grid` ingest processor>> supports creating indexable geometries
+from geohash, geotile and H3 cells.
 
 There already exists a `circle` ingest processor that creates a polygon from a point and radius definition.
 This concept is useful when there is need to use spatial operations that work with indexable geometries on

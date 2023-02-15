@@ -61,9 +61,12 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
         final TransportRequest request,
         final ActionListener<Authentication> authenticationListener
     ) {
-        // TODO fail request instead, once handshake action is handled correctly
         if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
-            super.authenticate(securityAction, request, authenticationListener);
+            authenticationListener.onFailure(
+                new IllegalArgumentException(
+                    "Action [" + securityAction + "] is not an allowed cross cluster operation on the dedicated remote cluster port"
+                )
+            );
         } else {
             try {
                 ensureOnlyAllowedHeadersInThreadContext();

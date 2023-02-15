@@ -105,22 +105,23 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter();
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        filter.inbound(action, request, channel, future);
-        // future.get(); // don't block it's not called really just mocked
-        verify(authzService).authorize(
-            eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
-            eq(action),
-            eq(request),
-            anyActionListener()
-        );
+        @SuppressWarnings("unchecked")
+        PlainActionFuture<Void> listener = mock(PlainActionFuture.class);
+        filter.inbound(action, request, channel, listener);
         if (allowlisted) {
+            verify(authzService).authorize(
+                eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
+                eq(action),
+                eq(request),
+                anyActionListener()
+            );
             verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
-            // TODO update once we switch to failing non-allow-listed actions on remote access port
-            verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
             verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
+            verifyNoMoreInteractions(authzService);
+            verify(listener).onFailure(isA(IllegalArgumentException.class));
         }
     }
 
@@ -141,14 +142,10 @@ public class ServerTransportFilterTests extends ESTestCase {
             verifyNoMoreInteractions(authcService);
             verifyNoMoreInteractions(authzService);
         } else {
-            // TODO update once we switch to failing non-allow-listed actions on remote access port
-            verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(authzService).authorize(
-                eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
-                eq(action),
-                eq(request),
-                anyActionListener()
-            );
+            verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
+            verifyNoMoreInteractions(authzService);
+            verify(listener).onFailure(isA(IllegalArgumentException.class));
         }
         verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
     }
@@ -199,8 +196,9 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testRemoteAccessInboundAuthenticationException() {
         TransportRequest request = mock(TransportRequest.class);
         Exception authE = authenticationError("authc failed");
-        boolean allowListed = randomBoolean();
-        String action = allowListed ? randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
+        // Only pick allowlisted action -- it does not make sense to pick one that isn't because we will never get to authenticate in that
+        // case
+        String action = randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(3));
@@ -227,14 +225,8 @@ public class ServerTransportFilterTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("authc failed"));
         }
         verifyNoMoreInteractions(authzService);
-        if (allowListed) {
-            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
-            verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-        } else {
-            // TODO update once we switch to failing non-allow-listed actions on remote access port
-            verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
-        }
+        verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
+        verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
     }
 
     public void testInboundAuthorizationException() {

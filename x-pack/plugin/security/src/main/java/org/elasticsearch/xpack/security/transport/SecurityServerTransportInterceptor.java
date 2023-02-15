@@ -312,11 +312,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     return Optional.empty();
                 }
 
-                if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
-                    logger.trace("Action [{}] towards remote cluster [{}] is not allow-listed", action, remoteClusterAlias);
-                    return Optional.empty();
-                }
-
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
@@ -341,6 +336,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportResponseHandler<T> handler
             ) {
                 final String remoteClusterAlias = remoteAccessCredentials.clusterAlias();
+                if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
+                    throw new IllegalArgumentException(
+                        "action ["
+                            + action
+                            + "] towards remote cluster ["
+                            + remoteClusterAlias
+                            + "] cannot be executed because is not an allow-listed cross cluster operation"
+                    );
+                }
                 if (connection.getTransportVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["

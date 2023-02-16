@@ -13,7 +13,6 @@ import fixture.gcs.TestUtils;
 
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;

@@ -1,0 +1,6 @@
+pr: 93863
+summary: "`final_pipeline` is executed only once in the case there's document re-routing"
+area: Ingest Node
+type: bug
+issues:
+ - 83653

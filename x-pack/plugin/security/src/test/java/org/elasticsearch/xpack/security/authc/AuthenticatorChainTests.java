@@ -124,6 +124,18 @@ public class AuthenticatorChainTests extends ESTestCase {
         verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(eq(authentication), any());
     }
 
+    public void testAuthenticateFailsIfExistingAuthenticationFoundForRestRequest() throws IOException {
+        final AuthenticationService.AuditableHttpRequest auditableRestRequest = mock(AuthenticationService.AuditableHttpRequest.class);
+        final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
+        when(auditableRestRequest.tamperedRequest()).thenReturn(e);
+        final Authenticator.Context context = createAuthenticatorContext(auditableRestRequest);
+        when(authenticationContextSerializer.readFromContext(any())).thenReturn(AuthenticationTestHelper.builder().build());
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        authenticatorChain.authenticateAsync(context, future);
+        assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
+    }
+
     public void testAuthenticateWithServiceAccount() throws IOException {
         final Authenticator.Context context = createAuthenticatorContext();
         when(serviceAccountAuthenticator.extractCredentials(context)).thenReturn(mock(ServiceAccountToken.class));

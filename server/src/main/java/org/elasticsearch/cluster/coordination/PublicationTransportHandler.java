@@ -320,6 +320,7 @@ public class PublicationTransportHandler {
         private final Task task;
         private final boolean sendFullVersion;
 
+        private final Map<DiscoveryNode, Transport.Connection> nodeConnections = new HashMap<>();
         // All the values of these maps have one ref for the context (while it's open) and one for each in-flight message.
         private final Map<TransportVersion, ReleasableBytesReference> serializedStates = new ConcurrentHashMap<>();
         private final Map<TransportVersion, ReleasableBytesReference> serializedDiffs = new HashMap<>();
@@ -342,20 +343,22 @@ public class PublicationTransportHandler {
                     // publication to local node bypasses any serialization
                     continue;
                 }
-                TransportVersion version;
+
+                Transport.Connection connection;
                 try {
-                    version = transportService.getConnection(node).getTransportVersion();
+                    connection = transportService.getConnection(node);
                 } catch (NodeNotConnectedException e) {
                     // can't send to this node, don't need to serialize anything for it
-                    logger.debug(() -> format("No connection to %s available, skipping serialization", node), e);
+                    logger.debug(() -> format("No connection to [%s] available, skipping serialization", node), e);
                     continue;
                 }
 
+                nodeConnections.put(node, connection);
                 if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
-                    serializedStates.computeIfAbsent(version, v -> serializeFullClusterState(newState, node, v));
+                    serializedStates.computeIfAbsent(connection.getTransportVersion(), v -> serializeFullClusterState(newState, node, v));
                 } else {
                     serializedDiffs.computeIfAbsent(
-                        version,
+                        connection.getTransportVersion(),
                         v -> serializeDiffClusterState(newState, diffSupplier.getOrCompute(), node, v)
                     );
                 }
@@ -419,11 +422,9 @@ public class PublicationTransportHandler {
 
         private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             assert refCount() > 0;
-            Transport.Connection connection;
-            try {
-                connection = transportService.getConnection(destination);
-            } catch (NodeNotConnectedException e) {
-                listener.onFailure(e);
+            Transport.Connection connection = nodeConnections.get(destination);
+            if (connection == null) {
+                logger.debug("No connection to [{}] available, skipping send", destination);
                 return;
             }
 
@@ -442,11 +443,9 @@ public class PublicationTransportHandler {
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            Transport.Connection connection;
-            try {
-                connection = transportService.getConnection(destination);
-            } catch (NodeNotConnectedException e) {
-                listener.onFailure(e);
+            Transport.Connection connection = nodeConnections.get(destination);
+            if (connection == null) {
+                logger.debug("No connection to [{}] available, skipping send", destination);
                 return;
             }
 

@@ -12,8 +12,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -89,7 +92,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME,
             SearchTransportService.QUERY_CAN_MATCH_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
+            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
+            TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+            ResolveIndexAction.NAME,
+            FieldCapabilitiesAction.NAME,
+            FieldCapabilitiesAction.NAME + "[n]"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)

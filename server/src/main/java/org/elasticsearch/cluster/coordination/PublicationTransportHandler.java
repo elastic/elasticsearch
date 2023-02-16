@@ -40,6 +40,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -345,6 +346,7 @@ public class PublicationTransportHandler {
                 try {
                     version = transportService.getConnection(node).getTransportVersion();
                 } catch (NodeNotConnectedException e) {
+                    // can't send to this node, don't need to serialize anything for it
                     logger.debug("No connection to {} available, skipping serialization", node, e);
                     continue;
                 }
@@ -417,13 +419,15 @@ public class PublicationTransportHandler {
 
         private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             assert refCount() > 0;
-            TransportVersion version;
+            Transport.Connection connection;
             try {
-                version = transportService.getConnection(destination).getTransportVersion();
+                connection = transportService.getConnection(destination);
             } catch (NodeNotConnectedException e) {
                 listener.onFailure(e);
                 return;
             }
+
+            var version = connection.getTransportVersion();
             ReleasableBytesReference bytes = serializedStates.get(version);
             if (bytes == null) {
                 try {
@@ -434,19 +438,21 @@ public class PublicationTransportHandler {
                     return;
                 }
             }
-            sendClusterState(destination, bytes, version, listener);
+            sendClusterState(connection, bytes, listener);
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            TransportVersion version;
+            Transport.Connection connection;
             try {
-                version = transportService.getConnection(destination).getTransportVersion();
+                connection = transportService.getConnection(destination);
             } catch (NodeNotConnectedException e) {
                 listener.onFailure(e);
                 return;
             }
-            final ReleasableBytesReference bytes = serializedDiffs.get(version);
-            assert bytes != null : "failed to find serialized diff for node " + destination + " of version [" + version + "]";
+
+            final ReleasableBytesReference bytes = serializedDiffs.get(connection.getTransportVersion());
+            assert bytes != null
+                : "failed to find serialized diff for node " + destination + " of version [" + connection.getTransportVersion() + "]";
 
             // acquire a ref to the context just in case we need to try again with the full cluster state
             if (tryIncRef() == false) {
@@ -454,7 +460,7 @@ public class PublicationTransportHandler {
                 listener.onFailure(new IllegalStateException("publication context released before transmission"));
                 return;
             }
-            sendClusterState(destination, bytes, version, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
+            sendClusterState(connection, bytes, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
                 if (e instanceof final TransportException transportException) {
                     if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug(
@@ -475,9 +481,8 @@ public class PublicationTransportHandler {
         }
 
         private void sendClusterState(
-            DiscoveryNode destination,
+            Transport.Connection connection,
             ReleasableBytesReference bytes,
-            TransportVersion version,
             ActionListener<PublishWithJoinResponse> listener
         ) {
             assert refCount() > 0;
@@ -487,9 +492,9 @@ public class PublicationTransportHandler {
                 return;
             }
             transportService.sendChildRequest(
-                destination,
+                connection,
                 PUBLISH_STATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, version),
+                new BytesTransportRequest(bytes, connection.getTransportVersion()),
                 task,
                 STATE_REQUEST_OPTIONS,
                 new CleanableResponseHandler<>(listener, PublishWithJoinResponse::new, ThreadPool.Names.CLUSTER_COORDINATION, bytes::decRef)

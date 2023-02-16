@@ -10,6 +10,9 @@ package org.elasticsearch.repositories.gcs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mocksocket.MockServerSocket;
 
 import java.io.BufferedInputStream;
@@ -22,8 +25,6 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,12 +37,15 @@ class MockHttpProxyServer implements Closeable {
     private final MockServerSocket serverSocket;
     private final Thread serverThread;
     private final CountDownLatch latch;
-    private final ExecutorService executorService = new ThreadPoolExecutor(
+    private final ExecutorService executorService = EsExecutors.newScaling(
+        "mock-http-proxy",
         1,
-        Runtime.getRuntime().availableProcessors(),
+        EsExecutors.allocatedProcessors(Settings.EMPTY),
         1,
-        TimeUnit.MINUTES,
-        new LinkedBlockingQueue<>()
+        TimeUnit.SECONDS,
+        true,
+        Thread::new,
+        new ThreadContext(Settings.EMPTY)
     );
 
     MockHttpProxyServer(SocketRequestHandler handler) throws IOException {

@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -19,7 +21,11 @@ import java.io.IOException;
 public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
     public static final GetEngineAction INSTANCE = new GetEngineAction();
-    public static final String NAME = "cluster.admin/engine/get"; // TODO verify this
+    public static final String NAME = "cluster:admin/engine/get"; // TODO verify this
+
+    private GetEngineAction() {
+        super(NAME, GetEngineAction.Response::new);
+    }
 
     public static class Request extends ActionRequest {
 
@@ -28,6 +34,11 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.engineId = in.readString();
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         public Request(String engineId) {
@@ -44,11 +55,17 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
         private final String engineId;
         private final String[] indices;
-        private final String analyticsCollectionName;
+        private final String analyticsCollectionName; // TODO should this be optional?
 
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            this.engineId = in.readString();
+            this.indices = in.readStringArray();
+            this.analyticsCollectionName = in.readString(); // TODO: Check this is needed
+        }
 
         public Response(String engineId, String[] indices, String analyticsCollectionName) {
-            super(this);
             this.engineId = engineId;
             this.indices = indices;
             this.analyticsCollectionName = analyticsCollectionName;

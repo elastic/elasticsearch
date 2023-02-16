@@ -214,7 +214,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         mapping.startObject(FIELD_LABEL_DOUBLE).field("type", "double").endObject();
         mapping.startObject(FIELD_LABEL_INTEGER).field("type", "integer").endObject();
         mapping.startObject(FIELD_LABEL_KEYWORD).field("type", "keyword").endObject();
-        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").endObject();
+        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").field("store", "true").endObject();
         mapping.startObject(FIELD_LABEL_BOOLEAN).field("type", "boolean").endObject();
         mapping.startObject(FIELD_LABEL_IPv4_ADDRESS).field("type", "ip").endObject();
         mapping.startObject(FIELD_LABEL_IPv6_ADDRESS).field("type", "ip").endObject();

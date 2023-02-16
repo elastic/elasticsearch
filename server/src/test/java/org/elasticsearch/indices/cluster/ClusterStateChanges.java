@@ -410,7 +410,7 @@ public class ClusterStateChanges {
                 JoinTask.singleNode(
                     discoveryNode,
                     DUMMY_REASON,
-                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); }),
+                    ActionListener.running(() -> { throw new AssertionError("should not complete publication"); }),
                     clusterState.term()
                 )
             )
@@ -428,7 +428,7 @@ public class ClusterStateChanges {
                             node -> new JoinTask.NodeJoinTask(
                                 node,
                                 DUMMY_REASON,
-                                ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                                ActionListener.running(() -> { throw new AssertionError("should not complete publication"); })
                             )
                         ),
                     clusterState.term() + between(1, 10)
@@ -544,6 +544,6 @@ public class ClusterStateChanges {
     }
 
     private ActionListener<TransportResponse.Empty> createTestListener() {
-        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
+        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
     }
 }

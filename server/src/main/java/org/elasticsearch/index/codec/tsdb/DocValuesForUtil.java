@@ -22,10 +22,10 @@ public class DocValuesForUtil {
     private final int blockSize;
 
     public DocValuesForUtil() {
-        this(ES87TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE);
+        this(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
     }
 
-    public DocValuesForUtil(int blockSize) {
+    private DocValuesForUtil(int blockSize) {
         this.blockSize = blockSize;
     }
 

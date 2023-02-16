@@ -217,12 +217,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         super(in);
         field = in.readString();
         name = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String documentType = in.readOptionalString();
             assert documentType == null;
         }
         indexedDocumentIndex = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String indexedDocumentType = in.readOptionalString();
             assert indexedDocumentType == null;
         }
@@ -259,12 +259,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         out.writeString(field);
         out.writeOptionalString(name);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null documentType values
             out.writeOptionalString(null);
         }
         out.writeOptionalString(indexedDocumentIndex);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null indexedDocumentType values
             out.writeOptionalString(null);
         }
@@ -590,7 +590,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                                 registry
                             )
                         ) {
-                            input.setVersion(indexVersion);
+                            input.setTransportVersion(indexVersion.transportVersion);
                             // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
                             // to encode multiple binary values into a single binary doc values field.
                             // This is the reason we need to first need to read the number of values and

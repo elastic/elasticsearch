@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -28,7 +28,8 @@ import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    private static final DoubleHistogram EMPTY_HISTOGRAM = new DoubleHistogram(3);
+    private static final DoubleHistogram EMPTY_HISTOGRAM_THREE_DIGITS = new DoubleHistogram(3);
+    private static final DoubleHistogram EMPTY_HISTOGRAM_ZERO_DIGITS = new EmptyDoubleHdrHistogram();
 
     protected final double[] keys;
     protected final DoubleHistogram state;
@@ -54,7 +55,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             if (in.readBoolean()) {
                 state = decode(in);
             } else {
@@ -83,7 +84,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             if (this.state != null) {
                 out.writeBoolean(true);
                 encode(this.state, out);
@@ -91,7 +92,9 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
                 out.writeBoolean(false);
             }
         } else {
-            DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+            DoubleHistogram state = this.state != null ? this.state
+                : out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0) ? EMPTY_HISTOGRAM_ZERO_DIGITS
+                : EMPTY_HISTOGRAM_THREE_DIGITS;
             encode(state, out);
         }
         out.writeBoolean(keyed);
@@ -157,12 +160,33 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
                 merged = new DoubleHistogram(percentiles.state);
                 merged.setAutoResize(true);
             }
-            merged.add(percentiles.state);
+            merged = merge(merged, percentiles.state);
         }
         if (merged == null) {
-            merged = EMPTY_HISTOGRAM;
+            merged = EMPTY_HISTOGRAM_ZERO_DIGITS;
         }
         return createReduced(getName(), keys, merged, keyed, getMetadata());
+    }
+
+    /**
+     * Merges two {@link DoubleHistogram}s such that we always merge the one with less
+     * numberOfSignificantValueDigits into the one with more numberOfSignificantValueDigits.
+     * This prevents producing a result that has lower than expected precision.
+     *
+     * @param histogram1 The first histogram to merge
+     * @param histogram2 The second histogram to merge
+     * @return One of the input histograms such that the one with higher numberOfSignificantValueDigits is used as the one for merging
+     */
+    private DoubleHistogram merge(final DoubleHistogram histogram1, final DoubleHistogram histogram2) {
+        DoubleHistogram moreDigits = histogram1;
+        DoubleHistogram lessDigits = histogram2;
+        if (histogram2.getNumberOfSignificantValueDigits() > histogram1.getNumberOfSignificantValueDigits()) {
+            moreDigits = histogram2;
+            lessDigits = histogram1;
+        }
+        moreDigits.setAutoResize(true);
+        moreDigits.add(lessDigits);
+        return moreDigits;
     }
 
     @Override
@@ -180,7 +204,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+        DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM_ZERO_DIGITS;
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {

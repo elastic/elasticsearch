@@ -113,6 +113,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class IngestServiceTests extends ESTestCase {
@@ -1866,6 +1868,20 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest6.getRawTimestamp(), equalTo(10));
         assertThat(indexRequest7.getRawTimestamp(), equalTo(100));
         assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
+    }
+
+    public void testUpdateIndexRequestWithPipelinesShouldShortCircuitExecution() {
+        var mockedRequest = mock(DocWriteRequest.class);
+        var mockedIndexRequest = mock(IndexRequest.class);
+        var mockedMetadata = mock(Metadata.class);
+
+        when(mockedIndexRequest.isPipelineResolved()).thenReturn(true);
+
+        IngestService.updateIndexRequestWithPipelines(mockedRequest, mockedIndexRequest, mockedMetadata);
+
+        verify(mockedIndexRequest, times(1)).isPipelineResolved();
+        verifyNoMoreInteractions(mockedIndexRequest);
+        verifyNoInteractions(mockedRequest, mockedMetadata);
     }
 
     public void testIndexRequestHasAPipeline() {

@@ -9,11 +9,11 @@
 package org.elasticsearch.search.rank;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,43 +22,50 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 public class RankBuilder implements Writeable, ToXContent {
 
-    private static final ConstructingObjectParser<RankBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        "rank",
-        args -> new RankBuilder().toRankContext((RRFRankBuilder) args[0])
-    );
-
-    static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> RRFRankBuilder.fromXContent(p), RRFRankBuilder.RANK_NAME);
-    }
-
     public static RankBuilder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        RankBuilder rankBuilder;
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + parser.currentToken() + "]");
+        }
+        parser.nextToken();
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + parser.currentToken() + "]");
+        }
+        String fieldName = parser.currentName();
+        if (RRFRankBuilderBuilder.RANK_NAME.getPreferredName().equals(fieldName)) {
+            rankBuilder = new RankBuilder().toRankContext(RRFRankBuilderBuilder.fromXContent(parser));
+        } else {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + parser.currentToken() + "]");
+        }
+        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + parser.currentToken() + "]");
+        }
+        parser.nextToken();
+        return rankBuilder;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (toRankContext != null) {
-            builder.field(toRankContext.getRankName().getPreferredName(), toRankContext);
+        if (rankContextBuilder != null) {
+            builder.field(rankContextBuilder.name().getPreferredName(), rankContextBuilder);
         }
         builder.endObject();
 
         return builder;
     }
 
-    private ToRankContext toRankContext;
+    private RankContextBuilder rankContextBuilder;
 
     public RankBuilder() {}
 
     public RankBuilder(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             String rankName = in.readString();
-            if (RRFRankBuilder.RANK_NAME.getPreferredName().equals(rankName)) {
-                toRankContext = in.readOptionalWriteable(RRFRankBuilder::new);
+            if (RRFRankBuilderBuilder.RANK_NAME.getPreferredName().equals(rankName)) {
+                rankContextBuilder = in.readOptionalWriteable(RRFRankBuilderBuilder::new);
             } else {
                 throw new IllegalStateException("unknown rank name [" + rankName + "]");
             }
@@ -67,22 +74,22 @@ public class RankBuilder implements Writeable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (toRankContext == null) {
+        if (rankContextBuilder == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeString(toRankContext.getRankName().getPreferredName());
-            out.writeWriteable(toRankContext);
+            out.writeString(rankContextBuilder.name().getPreferredName());
+            out.writeWriteable(rankContextBuilder);
         }
     }
 
-    public RankBuilder toRankContext(ToRankContext toRankContext) {
-        this.toRankContext = toRankContext;
+    public RankBuilder toRankContext(RankContextBuilder rankContextBuilder) {
+        this.rankContextBuilder = rankContextBuilder;
         return this;
     }
 
-    public ToRankContext toRankContext() {
-        return toRankContext;
+    public RankContextBuilder toRankContext() {
+        return rankContextBuilder;
     }
 
     @Override
@@ -90,12 +97,12 @@ public class RankBuilder implements Writeable, ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RankBuilder that = (RankBuilder) o;
-        return Objects.equals(toRankContext, that.toRankContext);
+        return Objects.equals(rankContextBuilder, that.rankContextBuilder);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(toRankContext);
+        return Objects.hash(rankContextBuilder);
     }
 
     @Override

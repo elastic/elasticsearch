@@ -14,12 +14,23 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
+
 public class TransportVersionUtils {
-    private static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
+    /** Returns all released versions */
+    public static List<TransportVersion> allReleasedVersions() {
+        return ALL_VERSIONS;
+    }
+
+    /** Returns the oldest {@link TransportVersion} */
+    public static TransportVersion getFirstVersion() {
+        return ALL_VERSIONS.get(0);
+    }
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion() {
@@ -75,10 +86,27 @@ public class TransportVersionUtils {
             // version does not exist - need the item before the index this version should be inserted
             place = -(place + 1);
         }
-        if (place <= 1) {
+
+        if (place < 1) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
         return ALL_VERSIONS.get(place - 1);
+    }
+
+    public static TransportVersion getNextVersion(TransportVersion version) {
+        int place = Collections.binarySearch(ALL_VERSIONS, version);
+        if (place < 0) {
+            // version does not exist - need the item at the index this version should be inserted
+            place = -(place + 1);
+        } else {
+            // need the *next* version
+            place++;
+        }
+
+        if (place < 0 || place >= ALL_VERSIONS.size()) {
+            throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
+        }
+        return ALL_VERSIONS.get(place);
     }
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
@@ -89,5 +117,12 @@ public class TransportVersionUtils {
 
     public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
         return randomVersionBetween(random, version.calculateMinimumCompatVersion(), getPreviousVersion(version));
+    }
+
+    /** returns the first future compatible version */
+    public static TransportVersion compatibleFutureVersion(TransportVersion version) {
+        final Optional<TransportVersion> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
+        assert opt.isPresent() : "no future compatible version for " + version;
+        return opt.get();
     }
 }

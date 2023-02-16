@@ -71,10 +71,7 @@ public class RoleReferenceTests extends ESTestCase {
         final var remoteAccessRoleReference = new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes);
 
         final RoleKey roleKey = remoteAccessRoleReference.id();
-        assertThat(
-            roleKey.getNames(),
-            hasItem("remote_access:" + MessageDigests.toHexString(MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())))
-        );
+        assertThat(roleKey.getNames(), hasItem("remote_access:" + roleDescriptorsBytes.digest()));
         assertThat(roleKey.getSource(), equalTo("remote_access"));
     }
 

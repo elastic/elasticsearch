@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
@@ -317,8 +316,8 @@ public class PublicationTransportHandler {
         private final boolean sendFullVersion;
 
         // All the values of these maps have one ref for the context (while it's open) and one for each in-flight message.
-        private final Map<Version, ReleasableBytesReference> serializedStates = new ConcurrentHashMap<>();
-        private final Map<Version, ReleasableBytesReference> serializedDiffs = new HashMap<>();
+        private final Map<TransportVersion, ReleasableBytesReference> serializedStates = new ConcurrentHashMap<>();
+        private final Map<TransportVersion, ReleasableBytesReference> serializedDiffs = new HashMap<>();
 
         PublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
             discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
@@ -339,10 +338,10 @@ public class PublicationTransportHandler {
                     continue;
                 }
                 if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
-                    serializedStates.computeIfAbsent(node.getVersion(), v -> serializeFullClusterState(newState, node));
+                    serializedStates.computeIfAbsent(node.getVersion().transportVersion, v -> serializeFullClusterState(newState, node));
                 } else {
                     serializedDiffs.computeIfAbsent(
-                        node.getVersion(),
+                        node.getVersion().transportVersion,
                         v -> serializeDiffClusterState(newState, diffSupplier.getOrCompute(), node)
                     );
                 }
@@ -406,11 +405,11 @@ public class PublicationTransportHandler {
 
         private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             assert refCount() > 0;
-            ReleasableBytesReference bytes = serializedStates.get(destination.getVersion());
+            ReleasableBytesReference bytes = serializedStates.get(destination.getVersion().transportVersion);
             if (bytes == null) {
                 try {
                     bytes = serializedStates.computeIfAbsent(
-                        destination.getVersion(),
+                        destination.getVersion().transportVersion,
                         v -> serializeFullClusterState(newState, destination)
                     );
                 } catch (Exception e) {
@@ -423,7 +422,7 @@ public class PublicationTransportHandler {
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            final ReleasableBytesReference bytes = serializedDiffs.get(destination.getVersion());
+            final ReleasableBytesReference bytes = serializedDiffs.get(destination.getVersion().transportVersion);
             assert bytes != null
                 : "failed to find serialized diff for node " + destination + " of version [" + destination.getVersion() + "]";
 

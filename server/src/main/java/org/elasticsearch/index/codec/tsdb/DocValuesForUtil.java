@@ -15,11 +15,13 @@ import org.elasticsearch.common.util.ByteUtils;
 import java.io.IOException;
 
 public class DocValuesForUtil {
+    private static final int BITS_IN_FOUR_BYTES = 4 * Byte.SIZE;
     private static final int BITS_IN_FIVE_BYTES = 5 * Byte.SIZE;
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
     private final ForUtil forUtil = new ForUtil();
     private final int blockSize;
+    private final byte[] encoded;
 
     public DocValuesForUtil() {
         this(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
@@ -27,10 +29,13 @@ public class DocValuesForUtil {
 
     private DocValuesForUtil(int blockSize) {
         this.blockSize = blockSize;
+        this.encoded = new byte[1024];
     }
 
     public static int roundBits(int bitsPerValue) {
-        if (bitsPerValue > 32 && bitsPerValue <= BITS_IN_FIVE_BYTES) {
+        if (bitsPerValue > 24 && bitsPerValue <= 32) {
+            return BITS_IN_FOUR_BYTES;
+        } else if (bitsPerValue > 32 && bitsPerValue <= BITS_IN_FIVE_BYTES) {
             return BITS_IN_FIVE_BYTES;
         } else if (bitsPerValue > BITS_IN_FIVE_BYTES && bitsPerValue <= BITS_IN_SIX_BYTES) {
             return BITS_IN_SIX_BYTES;
@@ -60,12 +65,10 @@ public class DocValuesForUtil {
 
     private void encodeFiveSixOrSevenBytesPerValue(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
         int bytesPerValue = bitsPerValue / Byte.SIZE;
-        int padding = Long.BYTES - bytesPerValue;
-        byte[] encoded = new byte[bytesPerValue * blockSize + padding];
         for (int i = 0; i < in.length; ++i) {
-            ByteUtils.writeLongLE(in[i], encoded, i * bytesPerValue);
+            ByteUtils.writeLongLE(in[i], this.encoded, i * bytesPerValue);
         }
-        out.writeBytes(encoded, bytesPerValue * in.length);
+        out.writeBytes(this.encoded, bytesPerValue * in.length);
     }
 
     void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {

@@ -136,7 +136,7 @@ public class Subject {
                     (Authentication) resourceCreatorSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY)
                 );
             } else {
-                // A remote access never share resources with non-remote access
+                // A remote access subject can never share resources with non-remote access
                 return false;
             }
         } else {

@@ -917,10 +917,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
             // remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
-            final Request deleteRequest = new Request(
-                "DELETE",
-                preserveSecurityIndices ? "*,-.ds-ilm-history-*,-.security-*" : "*,-.ds-ilm-history-*"
-            );
+            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*"));
+            if (preserveSecurityIndices) {
+                indexPatterns.add("-.security-*");
+            }
+            final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
             RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
                 if (warnings.size() == 0) {

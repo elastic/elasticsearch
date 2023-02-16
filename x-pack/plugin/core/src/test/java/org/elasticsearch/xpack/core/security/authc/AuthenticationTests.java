@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -36,6 +37,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthenticationTests.randomRoleDescriptorsIntersection;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -132,9 +134,12 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
-    public void testRemoteAccessCanAccessResourceOf() {
+    public void testRemoteAccessCanAccessResourceOf() throws IOException {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
-        final RemoteAccessAuthentication remoteAccessAuthentication1 = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final RemoteAccessAuthentication remoteAccessAuthentication1 = randomValueOtherThanMany(
+            ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()),
+            () -> AuthenticationTestHelper.randomRemoteAccessAuthentication()
+        );
         final Authentication authentication = AuthenticationTestHelper.builder()
             .remoteAccess(apiKeyId1, remoteAccessAuthentication1)
             .build(false);
@@ -160,7 +165,7 @@ public class AuthenticationTests extends ESTestCase {
             AuthenticationTestHelper.builder().remoteAccess(apiKeyId2, remoteAccessAuthentication1).build(false)
         );
 
-        // 5. The same API key but for a different QC user
+        // 5. The same API key but for a different QC user base on its own canAccessResourcesOf
         final RemoteAccessAuthentication remoteAccessAuthentication2 = randomValueOtherThanMany(
             ra -> remoteAccessAuthentication1.getAuthentication().canAccessResourcesOf(ra.getAuthentication()),
             AuthenticationTestHelper::randomRemoteAccessAuthentication
@@ -169,6 +174,86 @@ public class AuthenticationTests extends ESTestCase {
             authentication,
             AuthenticationTestHelper.builder().remoteAccess(apiKeyId1, remoteAccessAuthentication2).build(false)
         );
+
+        // 6. Allow access if QC authentication is a run-as equivalent
+        final Authentication qcAuthentication1 = remoteAccessAuthentication1.getAuthentication();
+        final Authentication qcAuthentication2;
+        if (qcAuthentication1.isRunAs()) {
+            qcAuthentication2 = Authentication.newRealmAuthentication(
+                qcAuthentication1.getEffectiveSubject().getUser(),
+                qcAuthentication1.getEffectiveSubject().getRealm()
+            );
+        } else {
+            qcAuthentication2 = AuthenticationTestHelper.builder()
+                .runAs()
+                .user(qcAuthentication1.getEffectiveSubject().getUser())
+                .realmRef(qcAuthentication1.getEffectiveSubject().getRealm())
+                .build();
+        }
+        // random the role descriptor intersection because it does not matter for resource sharing check
+        final Authentication authentication2 = AuthenticationTestHelper.builder()
+            .remoteAccess(apiKeyId1, new RemoteAccessAuthentication(qcAuthentication2, randomRoleDescriptorsIntersection()))
+            .build(false);
+        assertCanAccessResources(authentication, authentication2);
+
+        // 7. QC username variation
+        final String qcUsername1 = qcAuthentication1.getEffectiveSubject().getUser().principal();
+        assertCannotAccessResources(
+            authentication,
+            AuthenticationTestHelper.builder()
+                .remoteAccess(
+                    apiKeyId1,
+                    new RemoteAccessAuthentication(
+                        AuthenticationTestHelper.builder()
+                            .user(randomValueOtherThanMany(u -> u.principal().equals(qcUsername1), AuthenticationTests::randomUser))
+                            .realmRef(qcAuthentication1.getEffectiveSubject().getRealm())
+                            .build(),
+                        randomRoleDescriptorsIntersection()
+                    )
+                )
+                .build(false)
+        );
+
+        // 8. QC user realm variations
+        final RealmRef realm1 = qcAuthentication1.getEffectiveSubject().getRealm();
+        final Authentication authenticationWithSameQcUserDifferentRealm;
+        final CheckedFunction<RealmRef, Authentication, IOException> authenticationForRealm = realmRef -> AuthenticationTestHelper.builder()
+            .remoteAccess(
+                apiKeyId1,
+                new RemoteAccessAuthentication(
+                    AuthenticationTestHelper.builder().user(qcAuthentication1.getEffectiveSubject().getUser()).realmRef(realmRef).build(),
+                    randomRoleDescriptorsIntersection()
+                )
+            )
+            .build(false);
+        switch (randomIntBetween(0, 2)) {
+            case 0: // change name
+                authenticationWithSameQcUserDifferentRealm = authenticationForRealm.apply(
+                    mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), null)
+                );
+                if (realmIsSingleton(realm1)) {
+                    assertCanAccessResources(authentication, authenticationWithSameQcUserDifferentRealm);
+                } else {
+                    assertCannotAccessResources(authentication, authenticationWithSameQcUserDifferentRealm);
+                }
+                break;
+            case 1: // change type
+                authenticationWithSameQcUserDifferentRealm = authenticationForRealm.apply(
+                    mutateRealm(realm1, null, randomAlphaOfLengthBetween(3, 8))
+                );
+                assertCannotAccessResources(authentication, authenticationWithSameQcUserDifferentRealm);
+                break;
+            case 2: // both
+                authenticationWithSameQcUserDifferentRealm = authenticationForRealm.apply(
+                    mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
+                );
+                assertCannotAccessResources(authentication, authenticationWithSameQcUserDifferentRealm);
+                break;
+            default:
+                assert false : "Case number out of range";
+        }
+
+        // TODO: Add more tests for API keys when they work as QC subject
     }
 
     public void testTokenAccessResourceOf() {

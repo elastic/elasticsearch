@@ -3,16 +3,20 @@
 ++++
 <titleabbrev>Redact</titleabbrev>
 ++++
+The Redact processor uses the Grok rules engine to obscure
+text in the input document matching the given Grok patterns. The processor can
+be used to obscure Personal Identifying Information (PII) by configuring it to
+detect known patterns such as email or IP addresses. Text that matches a Grok
+pattern is replaced with a configurable string such as `<EMAIL>` where an email
+address is matched or simply replace all matches with the text `<REDACTED>`
+if preferred.
 
-The Redact processor obscures portions of text in the input document
-matching the given Grok patterns. A Grok pattern is like a regular
-expression with a named capturing group: text that matches the regular
-expression is replaced with the capture name. {es} comes packaged with
-a number of useful predefined {es-repo}blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns].
+{es} comes packaged with a number of useful predefined {es-repo}blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
+that can be conveniently referenced by the Redact processor.
 If one of those does not suit your needs, create a new pattern with a
 custom pattern definition. The Redact processor replaces every occurrence
 of a match. If there are multiple matches all will be replaced with the
-capture name.
+pattern name.
 
 The Redact processor is compatible with {ecs-ref}/ecs-field-reference.html[Elastic Common Schema (ECS)]
 patterns. Legacy Grok patterns are not supported.

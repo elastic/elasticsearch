@@ -71,7 +71,8 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    private static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+    static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
@@ -319,11 +320,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     return Optional.empty();
                 }
 
-                if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
-                    logger.trace("Action [{}] towards remote cluster [{}] is not allow-listed", action, remoteClusterAlias);
-                    return Optional.empty();
-                }
-
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
@@ -348,6 +344,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportResponseHandler<T> handler
             ) {
                 final String remoteClusterAlias = remoteAccessCredentials.clusterAlias();
+                if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
+                    throw new IllegalArgumentException(
+                        "action ["
+                            + action
+                            + "] towards remote cluster ["
+                            + remoteClusterAlias
+                            + "] cannot be executed because it is not allowed as a cross cluster operation"
+                    );
+                }
                 if (connection.getTransportVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["
@@ -393,6 +398,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
+                            if (roleDescriptorsIntersection.isEmpty()) {
+                                throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
+                            }
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                                 new RemoteAccessHeaders(
                                     remoteAccessCredentials.credentials(),

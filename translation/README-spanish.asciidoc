@@ -1,0 +1,236 @@
+= Elasticsearch
+
+Elasticssearch es el distribuido, motor de análisis y búsqueda RESTful en el
+corazón de https://www.elastic.co/products[Elastic Stack]. Puedes usar
+Elasticsearch para almacenar, buscar y administrar datos para:
+
+* Registros
+* Metricas
+* Motor de busqueda
+* Seguimiento de aplicaciones
+* Seguridad en endpoint
+
+\... y mas!
+
+Para obtener más información sobre las características y capacidades de Elasticsearch, consulte nuestra
+https://www.elastic.co/products/elasticsearch[página del producto].
+
+[[Iniciar]]
+== Iniciar
+
+La forma más sencilla de configurar Elasticsearch es crear una implementación administrada con
+https://www.elastic.co/cloud/as-a-service[Servicio Elasticsearch en Elastic
+Cloud].
+
+Si prefiere instalar y administrar Elasticsearch usted mismo, puede descargar
+la última versión de
+https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
+
+=== Ejecutar Elasticsearch localmente
+
+////
+IMPORTANTE: Este contenido está replicado en la guía de Elasticsearch.
+Si realiza cambios, también debe actualizar setup/set-up-local-dev-deployment.asciidoc.
+////
+
+Para probar Elasticsearch en su propia máquina, recomendamos usar Docker
+y ejecutar tanto Elasticsearch como Kibana.
+Las imágenes de Docker están disponibles en https://www.docker.elastic.co[registro de Elastic Docker].
+
+NOTE: A partir de Elasticsearch 8.0, la seguridad está habilitada de forma predeterminada.
+La primera vez que inicia Elasticsearch, el cifrado TLS se configura automáticamente,
+se genera una contraseña para el usuario `elastic`,
+y se crea un token de inscripción de Kibana para que pueda conectar Kibana a su clúster seguro.
+
+Para otras opciones de instalación, consulte la
+https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[documentación de instalación de Elasticsearch].
+
+**Iniciar Elasticsearch**
+
+. Instale e inicie https://www.docker.com/products/docker-desktop[Docker
+Desktop]. Vaya a **Preferences > Resources > Advanced** y configure la Memoria en al menos 4 GB.
+
+. Inicie un contenedor de Elasticsearch:
++
+----
+docker network create elastic
+docker pull docker.elastic.co/elasticsearch/elasticsearch:{version} <1>
+docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
+----
+<1> Reemplace {version} con la versión de Elasticsearch que desea ejecutar.
++
+Cuando inicia Elasticsearch por primera vez, la contraseña generada del usuario `elastic` y
+el token de inscripción de Kibana se envian a la terminal.
++
+NOTE: Es posible que deba retroceder un poco en la terminal para ver la contraseña
+y el token de inscripción.
+
+. Copie la contraseña generada y el token de inscripción y guárdelos en un lugar seguro.
+Estos valores se muestran solo cuando inicia Elasticsearch por primera vez.
+Los usará para inscribir a Kibana con su clúster de Elasticsearch e iniciar sesión.
+
+**Empezar Kibana**
+
+Kibana le permite enviar fácilmente solicitudes a Elasticsearch y analizar, visualizar y administrar datos de forma interactiva.
+
+. En una nueva sesión de terminal, inicie Kibana y conéctelo a su contenedor de Elasticsearch:
++
+----
+docker pull docker.elastic.co/kibana/kibana:{version} <1>
+docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
+----
+<1> Reemplace {version} con la versión de Kibana que desea ejecutar.
++
+Cuando inicia Kibana, se envía una URL única a su terminal.
+
+. Para acceder a Kibana, abra la URL generada en su navegador.
+
+  .. Pegue el token de inscripción que copió al iniciar
+  Elasticsearch y haga clic en el botón para conectar su instancia de Kibana con Elasticsearch.
+  
+  .. Inicie sesión en Kibana como el usuario `elastic` con la contraseña que se generó
+  cuando inició Elasticsearch.
+  
+**Enviar solicitudes a Elasticsearch**
+
+Envía datos y otras solicitudes a Elasticsearch a través de las REST APIs.
+Puede interactuar con Elasticsearch utilizando cualquier cliente que envíe solicitudes HTTP,
+como el https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
+lenguaje de clientes] y https://curl.se[curl].
+La consola para desarrolladores de Kibana proporciona una manera fácil de experimentar y probar las solicitudes.
+Para acceder a la consola, vaya a **Administración > Herramientas de desarrollo**.
+
+**Agregar datos**
+
+Usted agrega datos en Elasticsearch enviando objetos JSON (documentos) a través de las REST APIs.
+Ya sea que tenga texto estructurado o no estructurado, datos numéricos o datos geoespaciales,
+Elasticsearch eficientemente lo almacena y agrega de una manera que admite búsquedas rápidas.
+
+Para datos con marca de tiempo, como registros y métricas, normalmente agrega documentos a un
+flujo de datos compuesto por múltiples índices de respaldo generados automáticamente.
+
+Para agregar un solo documento a un índice, envíe una solicitud de publicación HTTP dirigida al índice.
+
+----
+POST /customer/_doc/1
+{
+  "firstname": "Jennifer",
+  "lastname": "Walters"
+}
+----
+
+Esta solicitud crea automáticamente el índice `customer` si no existe,
+agrega un nuevo documento que tiene una ID de 1, y
+almacena y agrega los campos `firstname` y `lastname`.
+
+El nuevo documento está disponible inmediatamente desde cualquier nodo del clúster.
+Puede recuperarlo con una solicitud GET que especifica su ID de documento:
+
+----
+GET /customer/_doc/1
+----
+
+Para agregar varios documentos en una solicitud, use la API `_bulk`.
+Los datos masivos deben ser JSON delimitados por saltos de línea (NDJSON).
+Cada línea debe terminar en un carácter de nueva línea (`\n`), incluida la última línea.
+
+----
+PUT customer/_bulk
+{ "create": { } }
+{ "firstname": "Monica","lastname":"Rambeau"}
+{ "create": { } }
+{ "firstname": "Carol","lastname":"Danvers"}
+{ "create": { } }
+{ "firstname": "Wanda","lastname":"Maximoff"}
+{ "create": { } }
+{ "firstname": "Jennifer","lastname":"Takeda"}
+----
+
+**Buscar**
+
+Los documentos agregados están disponibles para su búsqueda casi en tiempo real.
+La siguiente búsqueda coincide con todos los clientes cuyo nombre de pila es _Jennifer_
+en el índice `customer`.
+
+----
+GET customer/_search
+{
+  "query" : {
+    "match" : { "firstname": "Jennifer" }  
+  }
+}
+----
+
+**Explorar**
+
+Puede usar Discover en Kibana para buscar y filtrar sus datos de forma interactiva.
+A partir de ahí, puede comenzar a crear visualizaciones y crear y compartir tableros.
+
+Para comenzar, cree una _data view_ que se conecte a uno o más índices de Elasticsearch,
+flujos de datos o alias de índice.
+
+. Vaya a **Management > Stack Management > Kibana > Data Views**.
+. Selecciona  **Create data view**.
+. Introduzca un nombre para la vista de datos y un patrón que coincida con uno o más índices,
+como _customer_. 
+. Seleccione **Save data view to Kibana**.  
+
+Para comenzar a explorar, vaya a **Analytics > Discover**.
+
+[[actualizar]]
+== Actualizar
+
+Para actualizar desde una versión anterior de Elasticsearch, consulte la
+https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[Documentacion de actualización de 
+Elasticsearch].
+
+[[construir-fuente]]
+== Construir desde la fuente
+
+Elasticsearch usa https://gradle.org[Gradle] para su sistema de compilación.
+
+Para crear una distribución para su sistema operativo local e imprimir su ubicación de salida en
+finalización, ejecute:
+----
+./gradlew localDistro
+----
+
+Para crear una distribución para otra plataforma, ejecute el comando relacionado:
+----
+./gradlew :distribution:archives:linux-tar:assemble
+./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:windows-zip:assemble
+----
+
+Para crear distribuciones para todas las plataformas compatibles, ejecute:
+----
+./gradlew assemble
+----
+
+Las distribuciones se envían a `distribution/archives`.
+Para ejecutar el conjunto de pruebas, consulte xref:TESTING.asciidoc[TESTING].
+
+[[docs]]
+== Documentación
+
+Para ver la documentación completa de Elasticsearch, visite
+https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[elastic.co].
+
+Para obtener información sobre nuestros procesos de documentación, consulte el
+xref:docs/README.asciidoc[docs README].
+
+[[contribuir]]
+== Contribuir
+
+Para conocer las pautas de contribución, consulte xref:CONTRIBUTING.md[CONTRIBUTING]. 
+
+[[preguntas]]
+== ¿Preguntas?, ¿Problemas?, ¿Sugerencias?
+
+* Para informar un error o solicitar una función, cree una
+https://github.com/elastic/elasticsearch/issues/new/choose[GitHub Issue]. Por favor
+asegúrese de que otra persona no haya creado un problema para el mismo tema.
+
+* ¿Necesita ayuda para usar Elasticsearch? Ve a
+https://discuss.elastic.co[Elastic Forum] o https://ela.st/slack[Slack].
+Un miembro de la comunidad o un ingeniero de Elastic estarán encantados de ayudarte.

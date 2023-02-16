@@ -141,7 +141,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertTrue(shard.isSearchIdle());
         CountDownLatch refreshLatch = new CountDownLatch(1);
         // async on purpose to make sure it happens concurrently
-        client().admin().indices().prepareRefresh().execute(ActionListener.wrap(refreshLatch::countDown));
+        client().admin().indices().prepareRefresh().execute(ActionListener.running(refreshLatch::countDown));
         assertHitCount(client().prepareSearch().get(), 1);
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertFalse(shard.scheduledRefresh());
@@ -153,7 +153,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build())
-            .execute(ActionListener.wrap(updateSettingsLatch::countDown));
+            .execute(ActionListener.running(updateSettingsLatch::countDown));
         assertHitCount(client().prepareSearch().get(), 2);
         // wait for both to ensure we don't have in-flight operations
         updateSettingsLatch.await();

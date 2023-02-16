@@ -64,7 +64,9 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
         if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             authenticationListener.onFailure(
                 new IllegalArgumentException(
-                    "action [" + securityAction + "] is not an allowed cross cluster operation on the dedicated remote cluster port"
+                    "action ["
+                        + securityAction
+                        + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port"
                 )
             );
         } else {
@@ -84,7 +86,7 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
                 throw new IllegalArgumentException(
                     "transport request header ["
                         + header
-                        + "] is not allowed for cross cluster requests through the dedicated remote cluster port"
+                        + "] is not allowed for cross cluster requests through the dedicated remote cluster server port"
                 );
             }
         }

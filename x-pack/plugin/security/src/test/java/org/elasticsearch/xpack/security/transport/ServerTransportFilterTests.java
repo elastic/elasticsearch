@@ -39,6 +39,7 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_HEADER_FILTERS;
@@ -46,12 +47,12 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -97,7 +98,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
     }
 
-    public void testRemoteAccessInbound() {
+    public void testRemoteAccessInbound() throws ExecutionException, InterruptedException {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
@@ -105,10 +106,10 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter();
-        @SuppressWarnings("unchecked")
-        PlainActionFuture<Void> listener = mock(PlainActionFuture.class);
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
         filter.inbound(action, request, channel, listener);
         if (allowlisted) {
+            listener.get();
             verify(authzService).authorize(
                 eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
                 eq(action),
@@ -118,10 +119,14 @@ public class ServerTransportFilterTests extends ESTestCase {
             verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
+            var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
+            assertThat(
+                actual.getMessage(),
+                equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
+            );
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
             verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
             verifyNoMoreInteractions(authzService);
-            verify(listener).onFailure(isA(IllegalArgumentException.class));
         }
     }
 
@@ -133,19 +138,24 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
-        @SuppressWarnings("unchecked")
-        PlainActionFuture<Void> listener = mock(PlainActionFuture.class);
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
         filter.inbound(action, request, channel, listener);
-        // future.get(); // don't block it's not called really just mocked
+        var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
         if (allowlisted) {
-            verify(listener).onFailure(isA(IllegalArgumentException.class));
             verifyNoMoreInteractions(authcService);
             verifyNoMoreInteractions(authzService);
+            assertThat(
+                actual.getMessage(),
+                containsString("is not allowed for cross cluster requests through the dedicated remote cluster server port")
+            );
         } else {
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
             verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
             verifyNoMoreInteractions(authzService);
-            verify(listener).onFailure(isA(IllegalArgumentException.class));
+            assertThat(
+                actual.getMessage(),
+                equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
+            );
         }
         verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
     }
@@ -160,17 +170,23 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         boolean remoteAccess = randomBoolean();
         ServerTransportFilter filter = remoteAccess ? getNodeRemoteAccessFilter() : getNodeFilter();
-        @SuppressWarnings("unchecked")
-        PlainActionFuture<Void> listener = mock(PlainActionFuture.class);
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
         filter.inbound(action, request, channel, listener);
         if (failDestructiveOperations) {
-            verify(listener).onFailure(isA(IllegalArgumentException.class));
+            expectThrows(IllegalArgumentException.class, listener::actionGet);
             verifyNoMoreInteractions(authzService);
         } else {
             if (remoteAccess) {
-                verify(listener).onFailure(isA(IllegalArgumentException.class));
+                var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
+                assertThat(
+                    actual.getMessage(),
+                    equalTo(
+                        "action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port"
+                    )
+                );
                 verifyNoMoreInteractions(authzService);
             } else {
+                listener.actionGet();
                 verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
             }
         }

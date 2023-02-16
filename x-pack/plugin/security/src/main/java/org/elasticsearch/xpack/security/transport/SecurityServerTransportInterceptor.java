@@ -349,7 +349,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             + action
                             + "] towards remote cluster ["
                             + remoteClusterAlias
-                            + "] cannot be executed because is not an allow-listed cross cluster operation"
+                            + "] cannot be executed because it is not allowed as a cross cluster operation"
                     );
                 }
                 if (connection.getTransportVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {

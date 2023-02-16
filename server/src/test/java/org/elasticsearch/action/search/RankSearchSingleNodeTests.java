@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,7 +57,7 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
             .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(10))
-            //.addSort("int", SortOrder.ASC)
+            // .addSort("int", SortOrder.ASC)
             .addFetchField("*")
             .setSize(10)
             .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
@@ -96,13 +96,13 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3);
         SearchResponse response = client().prepareSearch("index")
             .setRank(new RankBuilder().rankContextBuilder(new RRFRankContextBuilder().windowSize(100).rankConstant(1)))
-            //.setTrackTotalHits(true)
+            // .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.termQuery("text", "term"))
-            //.addSort("int", SortOrder.ASC)
+            // .addSort("int", SortOrder.ASC)
             .addFetchField("*")
-            //.setSize(10)
-            //.addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
+            // .setSize(10)
+            // .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
             .get();
 
         assertEquals(3, response.getHits().getHits().length);

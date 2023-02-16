@@ -28,7 +28,7 @@ public class RRFRankSearchContext extends FilteredSearchContext {
         super(in);
     }
 
-    public void rrfRankQuery(Query rrfRankQuery) throws IOException  {
+    public void rrfRankQuery(Query rrfRankQuery) throws IOException {
         this.rrfRankQuery = searcher().rewrite(buildFilteredQuery(rrfRankQuery));
         querySearchResult = QuerySearchResult.nullInstance();
     }

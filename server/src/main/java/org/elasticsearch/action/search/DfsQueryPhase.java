@@ -192,7 +192,10 @@ final class DfsQueryPhase extends SearchPhase {
                 rankContextBuilder.queryBuilders().add(knnQuery);
             }
 
-            SearchSourceBuilder newSource = source.shallowCopy().query(rankContextBuilder.searchQuery()).knnSearch(List.of()).rank(new RankBuilder().rankContextBuilder(rankContextBuilder));
+            SearchSourceBuilder newSource = source.shallowCopy()
+                .query(rankContextBuilder.searchQuery())
+                .knnSearch(List.of())
+                .rank(new RankBuilder().rankContextBuilder(rankContextBuilder));
             request.source(newSource);
         }
 

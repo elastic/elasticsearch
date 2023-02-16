@@ -596,7 +596,7 @@ public final class SearchPhaseController {
         final SortedTopDocs sortedTopDocs = rankContext == null
             ? sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions)
             : rankContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList(), topDocsStats);
-        if (rankContext !=  null) {
+        if (rankContext != null) {
             size = sortedTopDocs.scoreDocs.length;
         }
         final TotalHits totalHits = topDocsStats.getTotalHits();

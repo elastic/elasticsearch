@@ -39,7 +39,6 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankContext;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -78,6 +77,7 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
+
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {

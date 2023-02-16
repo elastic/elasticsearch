@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.rank;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -91,10 +90,6 @@ public abstract class RankContextBuilder implements Writeable, ToXContent {
 
     @Override
     public String toString() {
-        return "RankContextBuilder{" +
-            "queryBuilders=" + queryBuilders +
-            ", size=" + size +
-            ", from=" + from +
-            '}';
+        return "RankContextBuilder{" + "queryBuilders=" + queryBuilders + ", size=" + size + ", from=" + from + '}';
     }
 }

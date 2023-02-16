@@ -81,7 +81,7 @@ import java.util.function.Supplier;
  * (for example, @see org.elasticsearch.discovery.HandshakingTransportAddressConnector, which constructs
  * fake DiscoveryNode instances where the publish address is one of the bound addresses).
  */
-public final class MockTransportService extends TransportService {
+public class MockTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(MockTransportService.class);
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
@@ -667,7 +667,7 @@ public final class MockTransportService extends TransportService {
         super.openConnection(node, connectionProfile, listener.delegateFailure((l, connection) -> {
             synchronized (openConnections) {
                 openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
-                connection.addCloseListener(ActionListener.wrap(() -> {
+                connection.addCloseListener(ActionListener.running(() -> {
                     synchronized (openConnections) {
                         List<Transport.Connection> connections = openConnections.get(node);
                         boolean remove = connections.remove(connection);

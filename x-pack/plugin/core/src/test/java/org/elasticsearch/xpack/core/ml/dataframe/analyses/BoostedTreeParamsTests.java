@@ -52,6 +52,11 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
         return createRandom();
     }
 
+    @Override
+    protected BoostedTreeParams mutateInstance(BoostedTreeParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static BoostedTreeParams createRandom() {
         return BoostedTreeParams.builder()
             .setLambda(randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true))

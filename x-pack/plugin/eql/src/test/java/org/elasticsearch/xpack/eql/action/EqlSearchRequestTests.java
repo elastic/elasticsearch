@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -90,6 +90,11 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         return null;
     }
 
+    @Override
+    protected EqlSearchRequest mutateInstance(EqlSearchRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private TimeValue randomTV() {
         return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }
@@ -116,7 +121,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
     }
 
     @Override
-    protected EqlSearchRequest mutateInstanceForVersion(EqlSearchRequest instance, Version version) {
+    protected EqlSearchRequest mutateInstanceForVersion(EqlSearchRequest instance, TransportVersion version) {
         EqlSearchRequest mutatedInstance = new EqlSearchRequest();
         mutatedInstance.indices(instance.indices());
         mutatedInstance.indicesOptions(instance.indicesOptions());
@@ -127,14 +132,14 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.size(instance.size());
         mutatedInstance.fetchSize(instance.fetchSize());
         mutatedInstance.query(instance.query());
-        mutatedInstance.ccsMinimizeRoundtrips(version.onOrAfter(Version.V_7_15_0) == false || instance.ccsMinimizeRoundtrips());
+        mutatedInstance.ccsMinimizeRoundtrips(version.onOrAfter(TransportVersion.V_7_15_0) == false || instance.ccsMinimizeRoundtrips());
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
         mutatedInstance.keepAlive(instance.keepAlive());
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
-        mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
-        mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
-        mutatedInstance.resultPosition(version.onOrAfter(Version.V_7_17_8) ? instance.resultPosition() : "tail");
-        mutatedInstance.maxSamplesPerKey(version.onOrAfter(Version.V_8_7_0) ? instance.maxSamplesPerKey() : 1);
+        mutatedInstance.fetchFields(version.onOrAfter(TransportVersion.V_7_13_0) ? instance.fetchFields() : null);
+        mutatedInstance.runtimeMappings(version.onOrAfter(TransportVersion.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
+        mutatedInstance.resultPosition(version.onOrAfter(TransportVersion.V_7_17_8) ? instance.resultPosition() : "tail");
+        mutatedInstance.maxSamplesPerKey(version.onOrAfter(TransportVersion.V_8_7_0) ? instance.maxSamplesPerKey() : 1);
 
         return mutatedInstance;
     }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -42,8 +42,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
-    public static final Version DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
-    public static final Version DATA_PATH_NEW_KEY_VERSION = Version.V_8_6_0;
+    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersion.V_7_13_0;
+    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersion.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -87,12 +87,12 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.leastAvailableSpaceUsage = in.readImmutableMap(StreamInput::readString, DiskUsage::new);
         this.mostAvailableSpaceUsage = in.readImmutableMap(StreamInput::readString, DiskUsage::new);
         this.shardSizes = in.readImmutableMap(StreamInput::readString, StreamInput::readLong);
-        if (in.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
             this.shardDataSetSizes = in.readImmutableMap(ShardId::new, StreamInput::readLong);
         } else {
             this.shardDataSetSizes = Map.of();
         }
-        if (in.getVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
             this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
         } else {
             this.dataPath = in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
@@ -109,10 +109,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> o.writeLong(v == null ? -1 : v));
-        if (out.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
             out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
         }
-        if (out.getVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
             out.writeMap(this.dataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);

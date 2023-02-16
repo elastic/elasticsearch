@@ -101,4 +101,19 @@ public abstract class FilterBlobContainer implements BlobContainer {
     public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
     }
+
+    @Override
+    public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException {
+        return delegate.compareAndExchangeRegister(key, expected, updated);
+    }
+
+    @Override
+    public boolean compareAndSetRegister(String key, long expected, long updated) throws IOException {
+        return delegate.compareAndSetRegister(key, expected, updated);
+    }
+
+    @Override
+    public long getRegister(String key) throws IOException {
+        return delegate.getRegister(key);
+    }
 }

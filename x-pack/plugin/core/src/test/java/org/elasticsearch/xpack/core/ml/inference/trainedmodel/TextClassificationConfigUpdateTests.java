@@ -189,6 +189,11 @@ public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdate
     }
 
     @Override
+    protected TextClassificationConfigUpdate mutateInstance(TextClassificationConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected TextClassificationConfigUpdate mutateInstanceForVersion(TextClassificationConfigUpdate instance, Version version) {
         return mutateForVersion(instance, version);
     }

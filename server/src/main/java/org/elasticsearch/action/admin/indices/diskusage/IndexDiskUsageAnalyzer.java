@@ -26,6 +26,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -39,7 +40,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -547,13 +547,13 @@ final class IndexDiskUsageAnalyzer {
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }
                     case FLOAT32 -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getVectorValues(field.name), vectors -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name), vectors -> {
                             cancellationChecker.logEvent();
                             vectors.vectorValue();
                         });
 
                         // do a couple of randomized searches to figure out min and max offsets of index file
-                        VectorValues vectorValues = vectorReader.getVectorValues(field.name);
+                        FloatVectorValues vectorValues = vectorReader.getFloatVectorValues(field.name);
                         int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
                         int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                         for (int i = 0; i < reader.maxDoc(); i += skipFactor) {

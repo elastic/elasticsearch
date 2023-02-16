@@ -187,7 +187,7 @@ public class QuestionAnsweringConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public Version getMinimalSupportedNodeVersion() {
         return Version.V_8_3_0;
     }
 

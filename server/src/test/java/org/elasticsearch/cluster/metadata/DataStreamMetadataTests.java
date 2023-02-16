@@ -45,7 +45,7 @@ public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<
     }
 
     @Override
-    protected DataStreamMetadata mutateInstance(DataStreamMetadata instance) throws IOException {
+    protected DataStreamMetadata mutateInstance(DataStreamMetadata instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 

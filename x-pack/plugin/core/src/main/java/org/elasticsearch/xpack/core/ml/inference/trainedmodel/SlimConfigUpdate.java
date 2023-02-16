@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +28,8 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.T
 public class SlimConfigUpdate extends NlpConfigUpdate {
 
     public static final String NAME = SlimConfig.NAME;
+
+    public static final SlimConfigUpdate EMPTY_UPDATE = new SlimConfigUpdate(null, null);
 
     public static SlimConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
@@ -152,8 +154,8 @@ public class SlimConfigUpdate extends NlpConfigUpdate {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_7_0;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<SlimConfigUpdate.Builder, SlimConfigUpdate> {

@@ -105,6 +105,11 @@ public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerCon
     }
 
     @Override
+    protected NerConfigUpdate mutateInstance(NerConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NerConfigUpdate mutateInstanceForVersion(NerConfigUpdate instance, Version version) {
         return mutateForVersion(instance, version);
     }

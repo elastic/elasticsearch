@@ -27,7 +27,6 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,7 +51,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
     }
 
     @Override
-    protected VersionStats mutateInstance(VersionStats instance) throws IOException {
+    protected VersionStats mutateInstance(VersionStats instance) {
         return new VersionStats(instance.versionStats().stream().map(svs -> {
             return switch (randomIntBetween(1, 4)) {
                 case 1 -> new VersionStats.SingleVersionStats(

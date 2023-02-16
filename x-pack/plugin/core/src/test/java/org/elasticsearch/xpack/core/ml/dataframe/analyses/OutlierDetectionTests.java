@@ -35,6 +35,11 @@ public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<Outl
         return createRandom();
     }
 
+    @Override
+    protected OutlierDetection mutateInstance(OutlierDetection instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static OutlierDetection createRandom() {
         Integer numberNeighbors = randomBoolean() ? null : randomIntBetween(1, 20);
         OutlierDetection.Method method = randomBoolean() ? null : randomFrom(OutlierDetection.Method.values());

@@ -152,7 +152,7 @@ public class InferenceProcessor extends AbstractProcessor {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return InferModelAction.Request.forDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
+        return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -355,12 +355,12 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         void checkSupportedVersion(InferenceConfig config) {
-            if (config.getMinimalSupportedVersion().after(minNodeVersion)) {
+            if (config.getMinimalSupportedVersion().after(minNodeVersion.transportVersion)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
                         config.getName(),
-                        config.getMinimalSupportedVersion(),
+                        config.getMinimalSupportedNodeVersion(),
                         minNodeVersion
                     )
                 );

@@ -1484,8 +1484,7 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(ingestStats.getPipelineStats().size(), equalTo(3));
 
             // total
-            // see https://github.com/elastic/elasticsearch/issues/92843 -- this should be 1, but it's actually 2
-            // assertStats(ingestStats.getTotalStats(), 1, 0, 0);
+            assertStats(ingestStats.getTotalStats(), 1, 0, 0);
             // pipeline
             assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 1, 0, 0);
             assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 1, 0, 0);
@@ -1865,8 +1864,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest5.getRawTimestamp(), nullValue());
         assertThat(indexRequest6.getRawTimestamp(), equalTo(10));
         assertThat(indexRequest7.getRawTimestamp(), equalTo(100));
-        // see https://github.com/elastic/elasticsearch/issues/93118 -- this should be 100, but it's actually 10
-        // assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
+        assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
@@ -2374,7 +2372,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {
-        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionListener.wrap(() -> fail("not called")), request));
+        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionListener.running(() -> fail("not called")), request));
     }
 
     private static ClusterState executeDelete(DeletePipelineRequest request, ClusterState clusterState) {
@@ -2390,7 +2388,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(PutPipelineRequest request) {
-        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionListener.wrap(() -> fail("not called")), request));
+        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionListener.running(() -> fail("not called")), request));
     }
 
     private static ClusterState executePut(PutPipelineRequest request, ClusterState clusterState) {

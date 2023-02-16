@@ -977,7 +977,18 @@ public class ApiKeyService {
         if (false == isEnabled()) {
             return null;
         }
-        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
+        return getCredentialsFromHeader(threadContext.getHeader("Authorization"));
+    }
+
+    static ApiKeyCredentials getCredentialsFromHeader(final String header) {
+        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"));
+    }
+
+    public static String withApiKeyPrefix(final String encodedApiKey) {
+        return "ApiKey " + encodedApiKey;
+    }
+
+    private static ApiKeyCredentials parseApiKey(SecureString apiKeyString) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;
@@ -1079,6 +1090,7 @@ public class ApiKeyService {
         public void clearCredentials() {
             close();
         }
+
     }
 
     private static class ApiKeyLoggingDeprecationHandler implements DeprecationHandler {

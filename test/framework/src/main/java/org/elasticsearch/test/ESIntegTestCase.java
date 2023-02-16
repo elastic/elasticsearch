@@ -1384,7 +1384,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final RefreshResponse refresh(String... indices) {
         waitForRelocation();
-        // TODO RANDOMIZE with flush?
         RefreshResponse actionGet = client().admin()
             .indices()
             .prepareRefresh(indices)
@@ -2057,6 +2056,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Returns {@code true} if this test cluster can use the {@link MockFSIndexStore} test plugin. Defaults to true.
+     */
+    protected boolean addMockFSIndexStore() {
+        return true;
+    }
+
+    /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
      * framework. By default this method returns an identity function {@link Function#identity()}.
@@ -2072,7 +2078,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }
-            if (randomBoolean()) {
+            if (addMockFSIndexStore() && randomBoolean()) {
                 mocks.add(MockFSIndexStore.TestPlugin.class);
             }
             if (randomBoolean()) {

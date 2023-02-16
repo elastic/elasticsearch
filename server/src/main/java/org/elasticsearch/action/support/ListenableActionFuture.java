@@ -78,13 +78,9 @@ public class ListenableActionFuture<T> extends PlainActionFuture<T> {
     }
 
     private void executeListener(final ActionListener<T> listener) {
-        try {
-            // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
-            // here we know we will never block
-            listener.onResponse(actionGet(0));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
+        // here we know we will never block
+        ActionListener.completeWith(listener, () -> actionGet(0));
     }
 
 }

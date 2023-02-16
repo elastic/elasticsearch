@@ -39,6 +39,11 @@ public class TransformTaskParamsTests extends AbstractSerializingTransformTestCa
     }
 
     @Override
+    protected TransformTaskParams mutateInstance(TransformTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformTaskParams> instanceReader() {
         return TransformTaskParams::new;
     }

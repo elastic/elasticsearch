@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.Streams;
 
 import java.io.EOFException;
 import java.io.IOException;

@@ -11,6 +11,7 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -130,6 +131,10 @@ public class FsBlobContainerTests extends ESTestCase {
             }
             expectedValue.set(newValue);
         }
+
+        final byte[] corruptContents = new byte[9];
+        container.writeBlob(key, new BytesArray(corruptContents, 0, randomFrom(1, 7, 9)), false);
+        expectThrows(IllegalStateException.class, () -> container.compareAndExchangeRegister(key, expectedValue.get(), 0));
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

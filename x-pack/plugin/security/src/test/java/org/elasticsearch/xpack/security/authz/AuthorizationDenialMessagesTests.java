@@ -253,6 +253,25 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             AuthorizationDenialMessages.successfulAuthenticationDescription(authentication4, null),
             equalTo(Strings.format("service account [%s]", authentication4.getEffectiveSubject().getUser().principal()))
         );
+
+        final var remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final Authentication authentication5 = AuthenticationTestHelper.builder()
+            .remoteAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
+            .build();
+        final Authentication innerAuthentication = (Authentication) authentication5.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+        assertThat(
+            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication5, null),
+            equalTo(
+                Strings.format(
+                    "remote %s authenticated by API key id [%s] of user [%s] for remote access",
+                    AuthorizationDenialMessages.successfulAuthenticationDescription(innerAuthentication, null),
+                    authentication5.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
+                    authentication5.getEffectiveSubject().getUser().principal()
+                )
+            )
+        );
     }
 
     public void testRemoteAccessDenied() {

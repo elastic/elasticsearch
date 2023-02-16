@@ -109,12 +109,23 @@ class AuthorizationDenialMessages {
             + " ["
             + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";
-        if (authentication.isAuthenticatedAsApiKey()) {
+        if (authentication.isAuthenticatedAsApiKey() || authentication.isRemoteAccess()) {
             final String apiKeyId = (String) authentication.getAuthenticatingSubject()
                 .getMetadata()
                 .get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
+            if (authentication.isRemoteAccess()) {
+                final Authentication remoteAccessAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                assert remoteAccessAuthentication != null : "remote access authentication must be present in the metadata";
+                userText = "remote "
+                    + successfulAuthenticationDescription(remoteAccessAuthentication, null)
+                    + " authenticated by "
+                    + userText
+                    + " for remote access";
+            }
         }
         return userText;
     }

@@ -96,7 +96,8 @@ class AuthorizationDenialMessages {
         String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
 
         return Strings.format(
-            "action [%s] towards remote cluster [%s] is unauthorized for %s because it has no remote indices privilege",
+            "action [%s] towards remote cluster [%s] is unauthorized for %s"
+                + " because no remote indices privileges apply for the target cluster",
             action,
             clusterAlias,
             userText

@@ -394,14 +394,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             if (roleDescriptorsIntersection.isEmpty()) {
-                                contextRestoreHandler.handleException(
-                                    new SendRequestTransportException(
-                                        connection.getNode(),
-                                        action,
-                                        authzService.remoteActionDenied(authentication, action, remoteClusterAlias)
-                                    )
-                                );
-                                return;
+                                throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
                             }
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                                 new RemoteAccessHeaders(

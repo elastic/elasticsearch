@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
@@ -168,15 +169,23 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
             // Check access is denied when user has no remote indices privileges
             final var putLocalSearchRoleRequest = new Request("PUT", "/_security/role/local_search");
-            putLocalSearchRoleRequest.setJsonEntity("""
+            putLocalSearchRoleRequest.setJsonEntity(Strings.format("""
                 {
                   "indices": [
                     {
                       "names": ["local_index"],
                       "privileges": ["read"]
                     }
-                  ]
-                }""");
+                  ]%s
+                }""", randomBoolean() ? "" : """
+                ,
+                "remote_indices": [
+                   {
+                     "names": ["*"],
+                     "privileges": ["read", "read_cross_cluster"],
+                     "clusters": ["other_remote_*"]
+                   }
+                 ]"""));
             assertOK(adminClient().performRequest(putLocalSearchRoleRequest));
             final var putlocalSearchUserRequest = new Request("PUT", "/_security/user/local_search_user");
             putlocalSearchUserRequest.setJsonEntity("""

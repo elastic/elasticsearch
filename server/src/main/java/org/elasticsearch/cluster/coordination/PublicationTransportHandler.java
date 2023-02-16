@@ -341,7 +341,14 @@ public class PublicationTransportHandler {
                     // publication to local node bypasses any serialization
                     continue;
                 }
-                TransportVersion version = transportService.getConnection(node).getTransportVersion();
+                TransportVersion version;
+                try {
+                    version = transportService.getConnection(node).getTransportVersion();
+                } catch (NodeNotConnectedException e) {
+                    logger.debug("No connection to {} available, skipping serialization", node, e);
+                    continue;
+                }
+
                 if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                     serializedStates.computeIfAbsent(version, v -> serializeFullClusterState(newState, node, v));
                 } else {

@@ -71,7 +71,8 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    private static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+    static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;

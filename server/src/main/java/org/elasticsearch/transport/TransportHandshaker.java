@@ -146,7 +146,7 @@ final class TransportHandshaker {
         ActionListener<TransportVersion> listener
     ) {
         numHandshakes.inc();
-        final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, version, listener);
+        final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, listener);
         pendingHandshakes.put(requestId, handler);
         channel.addCloseListener(
             ActionListener.running(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
@@ -211,13 +211,11 @@ final class TransportHandshaker {
     private class HandshakeResponseHandler implements TransportResponseHandler<HandshakeResponse> {
 
         private final long requestId;
-        private final TransportVersion currentVersion;
         private final ActionListener<TransportVersion> listener;
         private final AtomicBoolean isDone = new AtomicBoolean(false);
 
-        private HandshakeResponseHandler(long requestId, TransportVersion currentVersion, ActionListener<TransportVersion> listener) {
+        private HandshakeResponseHandler(long requestId, ActionListener<TransportVersion> listener) {
             this.requestId = requestId;
-            this.currentVersion = currentVersion;
             this.listener = listener;
         }
 
@@ -230,13 +228,13 @@ final class TransportHandshaker {
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
                 TransportVersion responseVersion = response.responseVersion;
-                if (currentVersion.isCompatible(responseVersion) == false) {
+                if (TransportVersion.isCompatible(responseVersion) == false) {
                     listener.onFailure(
                         new IllegalStateException(
                             "Received message from unsupported version: ["
                                 + responseVersion
                                 + "] minimal compatible version is: ["
-                                + currentVersion.calculateMinimumCompatVersion()
+                                + TransportVersion.MINIMUM_COMPATIBLE
                                 + "]"
                         )
                     );

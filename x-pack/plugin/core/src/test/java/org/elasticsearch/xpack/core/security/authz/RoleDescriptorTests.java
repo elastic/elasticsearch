@@ -396,7 +396,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersion.V_8_6_0);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
@@ -415,12 +415,8 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_6_0);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            versionBeforeRemoteIndices.calculateMinimumCompatVersion(),
-            versionBeforeRemoteIndices
-        );
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(RoleDescriptor.VERSION_REMOTE_INDICES);
+        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteIndices);
         final BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 

@@ -84,11 +84,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(RoleDescriptor.VERSION_REMOTE_INDICES);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            versionBeforeRemoteIndices.calculateMinimumCompatVersion(),
-            versionBeforeRemoteIndices
-        );
+        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteIndices);
         out.setTransportVersion(version);
 
         final GetUserPrivilegesResponse original = randomResponse();

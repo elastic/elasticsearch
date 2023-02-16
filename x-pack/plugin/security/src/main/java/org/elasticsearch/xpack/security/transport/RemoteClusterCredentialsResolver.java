@@ -36,7 +36,7 @@ public class RemoteClusterCredentialsResolver {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
                 if (Strings.isEmpty(entry.getValue()) == false) {
-                    this.update(entry.getKey(), entry.getValue());
+                    update(entry.getKey(), entry.getValue());
                 }
             }
             clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_AUTHORIZATION, this::update, (clusterAlias, authorization) -> {});

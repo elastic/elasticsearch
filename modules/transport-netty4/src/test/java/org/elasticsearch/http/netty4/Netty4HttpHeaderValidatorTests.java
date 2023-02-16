@@ -122,15 +122,15 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         ElasticsearchException elasticsearchFailure = new ElasticsearchException("Failure");
         listener.get().onFailure(elasticsearchFailure);
         channel.runPendingTasks();
-        assertFalse(channel.config().isAutoRead());
+        assertTrue(channel.config().isAutoRead());
         failed = channel.readInbound();
         assertThat(failed, sameInstance(request2));
-        assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), equalTo(HttpHeaderValues.CLOSE.toString()));
+        assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), nullValue());
         assertTrue(failed.decoderResult().isFailure());
         cause = (HeaderValidationException) failed.decoderResult().cause();
         assertThat(failed.decoderResult().cause().getCause(), equalTo(elasticsearchFailure));
-        assertTrue(cause.shouldCloseChannel());
-        assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_PERMANENTLY));
+        assertFalse(cause.shouldCloseChannel());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST));
 
         reset();
         final DefaultHttpRequest request3 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -659,7 +660,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             expectedRoleDescriptorsIntersection = RoleDescriptorsIntersection.EMPTY;
         } else {
             expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
-                randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
+                randomList(1, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
             );
             // Call listener to complete flow
             listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
@@ -850,6 +851,84 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             )
         );
         verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
+        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
+    }
+
+    public void testSendRemoteRequestFailsIfUserHasNoRemoteIndicesPrivileges() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles()))
+            .realm()
+            .build();
+        authentication.writeToContext(threadContext);
+        final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
+        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
+        when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(remoteClusterCredential);
+        final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
+        final AuthorizationService authzService = mock(AuthorizationService.class);
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<RoleDescriptorsIntersection>) invocation.getArgument(2);
+            listener.onResponse(RoleDescriptorsIntersection.EMPTY);
+            return null;
+        }).when(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(any(), any(), anyActionListener());
+
+        final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+            settings,
+            threadPool,
+            mock(AuthenticationService.class),
+            authzService,
+            mock(SSLService.class),
+            securityContext,
+            new DestructiveOperations(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+            ),
+            mock(RemoteAccessAuthenticationService.class),
+            remoteClusterAuthorizationResolver,
+            ignored -> Optional.of(remoteClusterAlias)
+        );
+
+        final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                fail("request should have failed");
+            }
+        });
+        final Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
+        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
+
+        final ElasticsearchSecurityException expectedException = new ElasticsearchSecurityException("remote action denied");
+        when(authzService.remoteActionDenied(authentication, actionAndReq.v1(), remoteClusterAlias)).thenReturn(expectedException);
+
+        final var actualException = new AtomicReference<Throwable>();
+        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
+            @Override
+            public void handleResponse(TransportResponse response) {
+                fail("should not success");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                actualException.set(exp.getCause());
+            }
+
+            @Override
+            public TransportResponse read(StreamInput in) {
+                return null;
+            }
+        });
+        assertThat(actualException.get(), is(expectedException));
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
     }

@@ -166,7 +166,7 @@ the underlying exception (default).
 
 `debug` (default `false`):: Setting it to `true` will enable the debug logging.
 
-`debug.out` (default `out`):: The destination of the debug logs produced by the JDBC Driver. By default, they are sent to standard output. The setting can be also a file path.
+`debug.output` (default `err`):: The destination of the debug logs. By default, they are sent to standard error. Value `out` will redirect the logging to standard output. A file path can also be specified.
 
 [discrete]
 ==== Additional

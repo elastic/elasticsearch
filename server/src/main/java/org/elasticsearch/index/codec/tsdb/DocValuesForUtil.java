@@ -45,7 +45,7 @@ public class DocValuesForUtil {
         return bitsPerValue;
     }
 
-    void encode(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
+    public void encode(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
             forUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
@@ -71,7 +71,7 @@ public class DocValuesForUtil {
         out.writeBytes(this.encoded, bytesPerValue * in.length);
     }
 
-    void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
+    public void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         if (bitsPerValue <= 24) {
             forUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {

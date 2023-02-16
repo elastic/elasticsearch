@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.function.Function;
@@ -177,6 +178,27 @@ public class FsRepository extends BlobStoreRepository {
             }
             channel.write(buf.clear().putLong(updated).flip(), 0);
             return true;
+        }
+    }
+
+    @Override
+    @SuppressForbidden(reason = "read from channel that we have open for locking purposes already directly")
+    public long getRegister(String key) throws IOException {
+        final Path path = ((FsBlobStore) blobStore()).path().resolve(REGISTERS_PATH).resolve(key);
+        try (
+            FileChannel channel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
+            FileLock ignored = channel.lock();
+            Closeable ignored2 = registerLocks.acquire(path)
+        ) {
+            final long foundSize = channel.size();
+            if (foundSize != Long.BYTES) {
+                throw new IllegalStateException("Found file of length [" + foundSize + "] for [" + key + "]");
+            }
+            final ByteBuffer buf = ByteBuffer.allocate(Long.BYTES);
+            channel.read(buf);
+            return buf.getLong(0);
+        } catch (NoSuchFileException noSuchFileException) {
+            return 0L;
         }
     }
 }

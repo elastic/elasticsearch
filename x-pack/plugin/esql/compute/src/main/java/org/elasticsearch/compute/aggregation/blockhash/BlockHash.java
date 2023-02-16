@@ -26,10 +26,9 @@ import java.util.List;
  * @see LongHash
  * @see BytesRefHash
  */
-public abstract sealed class BlockHash
-    implements
-        Releasable permits BooleanBlockHash,BytesRefBlockHash,DoubleBlockHash,IntBlockHash,LongBlockHash,PackedValuesBlockHash {
-
+public abstract sealed class BlockHash implements Releasable //
+permits BooleanBlockHash,BytesRefBlockHash,DoubleBlockHash,IntBlockHash,LongBlockHash,//
+PackedValuesBlockHash,BytesRefLongBlockHash,LongLongBlockHash {
     /**
      * Add all values for the "group by" columns in the page to the hash and return
      * their ordinal in a LongBlock.
@@ -47,6 +46,19 @@ public abstract sealed class BlockHash
     public static BlockHash build(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays) {
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), bigArrays);
+        }
+        if (groups.size() == 2) {
+            var g1 = groups.get(0);
+            var g2 = groups.get(1);
+            if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
+                return new LongLongBlockHash(bigArrays, g1.channel(), g2.channel());
+            }
+            if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
+                return new BytesRefLongBlockHash(bigArrays, g1.channel(), g2.channel(), false);
+            }
+            if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
+                return new BytesRefLongBlockHash(bigArrays, g2.channel(), g1.channel(), true);
+            }
         }
         return new PackedValuesBlockHash(groups, bigArrays);
     }

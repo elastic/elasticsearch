@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.aggregation;
+package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -25,13 +24,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -41,7 +38,8 @@ public class BlockHashTests extends ESTestCase {
         int[] values = new int[] { 1, 2, 3, 1, 2, 3, 1, 2, 3 };
         IntBlock block = new IntArrayVector(values, values.length, null).asBlock();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("IntBlockHash{channel=0, entries=3}"), block);
+        OrdsAndKeys ordsAndKeys = hash(false, block);
+        assertThat(ordsAndKeys.description, equalTo("IntBlockHash{channel=0, entries=3}"));
         assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 1L, 2L, 0L, 1L, 2L);
         assertKeys(ordsAndKeys.keys, 1, 2, 3);
     }
@@ -53,7 +51,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendInt(2);
         builder.appendNull();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("IntBlockHash{channel=0, entries=2}"), builder.build());
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, equalTo("IntBlockHash{channel=0, entries=2}"));
         assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
         assertKeys(ordsAndKeys.keys, 0, 2);
     }
@@ -62,7 +61,8 @@ public class BlockHashTests extends ESTestCase {
         long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
         LongBlock block = new LongArrayVector(values, values.length).asBlock();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("LongBlockHash{channel=0, entries=4}"), block);
+        OrdsAndKeys ordsAndKeys = hash(false, block);
+        assertThat(ordsAndKeys.description, equalTo("LongBlockHash{channel=0, entries=4}"));
         assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
         assertKeys(ordsAndKeys.keys, 2L, 1L, 4L, 3L);
     }
@@ -74,7 +74,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendLong(2);
         builder.appendNull();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("LongBlockHash{channel=0, entries=2}"), builder.build());
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, equalTo("LongBlockHash{channel=0, entries=2}"));
         assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
         assertKeys(ordsAndKeys.keys, 0L, 2L);
     }
@@ -82,8 +83,9 @@ public class BlockHashTests extends ESTestCase {
     public void testDoubleHash() {
         double[] values = new double[] { 2.0, 1.0, 4.0, 2.0, 4.0, 1.0, 3.0, 4.0 };
         DoubleBlock block = new DoubleArrayVector(values, values.length).asBlock();
-        OrdsAndKeys ordsAndKeys = hash(equalTo("DoubleBlockHash{channel=0, entries=4}"), block);
+        OrdsAndKeys ordsAndKeys = hash(false, block);
 
+        assertThat(ordsAndKeys.description, equalTo("DoubleBlockHash{channel=0, entries=4}"));
         assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
         assertKeys(ordsAndKeys.keys, 2.0, 1.0, 4.0, 3.0);
     }
@@ -95,7 +97,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendDouble(2);
         builder.appendNull();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("DoubleBlockHash{channel=0, entries=2}"), builder.build());
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, equalTo("DoubleBlockHash{channel=0, entries=2}"));
         assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
         assertKeys(ordsAndKeys.keys, 0.0, 2.0);
     }
@@ -110,11 +113,10 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBytesRef(new BytesRef("item-1"));
         builder.appendBytesRef(new BytesRef("item-3"));
         builder.appendBytesRef(new BytesRef("item-4"));
-        OrdsAndKeys ordsAndKeys = hash(
-            both(startsWith("BytesRefBlockHash{channel=0, entries=4, size=")).and(endsWith("b}")),
-            builder.build()
-        );
 
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
+        assertThat(ordsAndKeys.description, endsWith("b}"));
         assertOrds(ordsAndKeys.ords, 0L, 1L, 2L, 0L, 2L, 1L, 3L, 2L);
         assertKeys(ordsAndKeys.keys, "item-2", "item-1", "item-4", "item-3");
     }
@@ -126,10 +128,9 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBytesRef(new BytesRef("dog"));
         builder.appendNull();
 
-        OrdsAndKeys ordsAndKeys = hash(
-            both(startsWith("BytesRefBlockHash{channel=0, entries=2, size=")).and(endsWith("b}")),
-            builder.build()
-        );
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+        assertThat(ordsAndKeys.description, endsWith("b}"));
         assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
         assertKeys(ordsAndKeys.keys, "cat", "dog");
     }
@@ -138,7 +139,8 @@ public class BlockHashTests extends ESTestCase {
         boolean[] values = new boolean[] { false, true, true, true, true };
         BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("BooleanBlockHash{channel=0, true=1, false=0}"), block);
+        OrdsAndKeys ordsAndKeys = hash(false, block);
+        assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, true=1, false=0}"));
         assertOrds(ordsAndKeys.ords, 0L, 1L, 1L, 1L, 1L);
         assertKeys(ordsAndKeys.keys, false, true);
     }
@@ -147,7 +149,8 @@ public class BlockHashTests extends ESTestCase {
         boolean[] values = new boolean[] { true, false, false, true, true };
         BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("BooleanBlockHash{channel=0, true=0, false=1}"), block);
+        OrdsAndKeys ordsAndKeys = hash(false, block);
+        assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, true=0, false=1}"));
         assertOrds(ordsAndKeys.ords, 0L, 1L, 1L, 0L, 0L);
         assertKeys(ordsAndKeys.keys, true, false);
     }
@@ -156,7 +159,8 @@ public class BlockHashTests extends ESTestCase {
         boolean[] values = new boolean[] { true, true, true, true };
         BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("BooleanBlockHash{channel=0, true=0}"), block);
+        OrdsAndKeys ordsAndKeys = hash(false, block);
+        assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, true=0}"));
         assertOrds(ordsAndKeys.ords, 0L, 0L, 0L, 0L);
         assertKeys(ordsAndKeys.keys, true);
     }
@@ -165,7 +169,8 @@ public class BlockHashTests extends ESTestCase {
         boolean[] values = new boolean[] { false, false, false, false };
         BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("BooleanBlockHash{channel=0, false=0}"), block);
+        OrdsAndKeys ordsAndKeys = hash(false, block);
+        assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, false=0}"));
         assertOrds(ordsAndKeys.ords, 0L, 0L, 0L, 0L);
         assertKeys(ordsAndKeys.keys, false);
     }
@@ -177,7 +182,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBoolean(true);
         builder.appendNull();
 
-        OrdsAndKeys ordsAndKeys = hash(equalTo("BooleanBlockHash{channel=0, true=1, false=0}"), builder.build());
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, true=1, false=0}"));
         assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
         assertKeys(ordsAndKeys.keys, false, true);
     }
@@ -187,17 +193,23 @@ public class BlockHashTests extends ESTestCase {
         LongBlock block1 = new LongArrayVector(values1, values1.length).asBlock();
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
         LongBlock block2 = new LongArrayVector(values2, values2.length).asBlock();
-
-        OrdsAndKeys ordsAndKeys = hash(
-            both(startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], LongKey[channel=1]], entries=4, size=")).and(endsWith("b}")),
-            block1,
-            block2
-        );
-        assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
-        assertKeys(
-            ordsAndKeys.keys,
-            new Object[][] { new Object[] { 0L, 0L }, new Object[] { 1L, 0L }, new Object[] { 1L, 1L }, new Object[] { 0L, 1L } }
-        );
+        Object[][] expectedKeys = { new Object[] { 0L, 0L }, new Object[] { 1L, 0L }, new Object[] { 1L, 1L }, new Object[] { 0L, 1L } };
+        {
+            OrdsAndKeys ordsAndKeys = hash(false, block1, block2);
+            assertThat(ordsAndKeys.description, equalTo("LongLongBlockHash{channels=[0,1], entries=4}"));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
+            assertKeys(ordsAndKeys.keys, expectedKeys);
+        }
+        {
+            OrdsAndKeys ordsAndKeys = hash(true, block1, block2);
+            assertThat(
+                ordsAndKeys.description,
+                startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], LongKey[channel=1]], entries=4, size=")
+            );
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
+            assertKeys(ordsAndKeys.keys, expectedKeys);
+        }
     }
 
     public void testLongLongHashWithNull() {
@@ -213,14 +225,23 @@ public class BlockHashTests extends ESTestCase {
         b2.appendNull();
         b1.appendNull();
         b2.appendLong(0);
-
-        OrdsAndKeys ordsAndKeys = hash(
-            both(startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], LongKey[channel=1]], entries=2, size=")).and(endsWith("b}")),
-            b1.build(),
-            b2.build()
-        );
-        assertOrds(ordsAndKeys.ords, 0L, null, 1L, null, null);
-        assertKeys(ordsAndKeys.keys, new Object[][] { new Object[] { 1L, 0L }, new Object[] { 0L, 1L } });
+        Object[][] expectedKeys = { new Object[] { 1L, 0L }, new Object[] { 0L, 1L } };
+        {
+            OrdsAndKeys ordsAndKeys = hash(false, b1.build(), b2.build());
+            assertThat(ordsAndKeys.description, equalTo("LongLongBlockHash{channels=[0,1], entries=2}"));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null, null);
+            assertKeys(ordsAndKeys.keys, expectedKeys);
+        }
+        {
+            OrdsAndKeys ordsAndKeys = hash(true, b1.build(), b2.build());
+            assertThat(
+                ordsAndKeys.description,
+                startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], LongKey[channel=1]], entries=2")
+            );
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null, null);
+            assertKeys(ordsAndKeys.keys, expectedKeys);
+        }
     }
 
     public void testLongBytesRefHash() {
@@ -234,23 +255,31 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBytesRef(new BytesRef("dog"));
         builder.appendBytesRef(new BytesRef("dog"));
         BytesRefBlock block2 = builder.build();
-
-        OrdsAndKeys ordsAndKeys = hash(
-            both(startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=4, size=")).and(
-                endsWith("b}")
-            ),
-            block1,
-            block2
-        );
-        assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
-        assertKeys(
-            ordsAndKeys.keys,
-            new Object[][] {
-                new Object[] { 0L, "cat" },
-                new Object[] { 1L, "cat" },
-                new Object[] { 1L, "dog" },
-                new Object[] { 0L, "dog" } }
-        );
+        Object[][] expectedKeys = {
+            new Object[] { 0L, "cat" },
+            new Object[] { 1L, "cat" },
+            new Object[] { 1L, "dog" },
+            new Object[] { 0L, "dog" } };
+        {
+            OrdsAndKeys ordsAndKeys = hash(false, block1, block2);
+            assertThat(
+                ordsAndKeys.description,
+                startsWith("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=4, size=")
+            );
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
+            assertKeys(ordsAndKeys.keys, expectedKeys);
+        }
+        {
+            OrdsAndKeys ordsAndKeys = hash(true, block1, block2);
+            assertThat(
+                ordsAndKeys.description,
+                startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=4, size=")
+            );
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
+            assertKeys(ordsAndKeys.keys, expectedKeys);
+        }
     }
 
     public void testLongBytesRefHashWithNull() {
@@ -266,34 +295,45 @@ public class BlockHashTests extends ESTestCase {
         b2.appendNull();
         b1.appendNull();
         b2.appendBytesRef(new BytesRef("vanish"));
-
-        OrdsAndKeys ordsAndKeys = hash(
-            both(startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=2, size=")).and(
-                endsWith("b}")
-            ),
-            b1.build(),
-            b2.build()
-        );
-        assertOrds(ordsAndKeys.ords, 0L, null, 1L, null, null);
-        assertKeys(ordsAndKeys.keys, new Object[][] { new Object[] { 1L, "cat" }, new Object[] { 0L, "dog" } });
+        {
+            OrdsAndKeys ordsAndKeys = hash(false, b1.build(), b2.build());
+            assertThat(
+                ordsAndKeys.description,
+                startsWith("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=2, size=")
+            );
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null, null);
+            assertKeys(ordsAndKeys.keys, new Object[][] { new Object[] { 1L, "cat" }, new Object[] { 0L, "dog" } });
+        }
+        {
+            OrdsAndKeys ordsAndKeys = hash(true, b1.build(), b2.build());
+            assertThat(
+                ordsAndKeys.description,
+                startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=2, size=")
+            );
+            assertThat(ordsAndKeys.description, endsWith("b}"));
+            assertOrds(ordsAndKeys.ords, 0L, null, 1L, null, null);
+            assertKeys(ordsAndKeys.keys, new Object[][] { new Object[] { 1L, "cat" }, new Object[] { 0L, "dog" } });
+        }
     }
 
-    record OrdsAndKeys(LongBlock ords, Block[] keys) {}
+    record OrdsAndKeys(String description, LongBlock ords, Block[] keys) {}
 
-    private OrdsAndKeys hash(Matcher<String> toStringMatcher, Block... values) {
+    private OrdsAndKeys hash(boolean usePackedVersion, Block... values) {
         List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(values.length);
         for (int c = 0; c < values.length; c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
         }
-        try (
-            BlockHash blockHash = BlockHash.build(
-                specs,
-                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService())
-            )
-        ) {
+        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+        final BlockHash blockHash;
+        if (usePackedVersion) {
+            blockHash = new PackedValuesBlockHash(specs, bigArrays);
+        } else {
+            blockHash = BlockHash.build(specs, bigArrays);
+        }
+        try (blockHash) {
             LongBlock ordsBlock = blockHash.add(new Page(values));
-            assertThat(blockHash.toString(), toStringMatcher);
-            return new OrdsAndKeys(ordsBlock, blockHash.getKeys());
+            return new OrdsAndKeys(blockHash.toString(), ordsBlock, blockHash.getKeys());
         }
     }
 

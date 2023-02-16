@@ -253,27 +253,21 @@ public class AuthenticationTestHelper {
     public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
         return randomRemoteAccessAuthentication(
             new RoleDescriptorsIntersection(
-                List.of(
-                    // TODO randomize to add a second set once we have querying-cluster-side API key support
-                    Set.of(
-                        new RoleDescriptor(
-                            "_remote_user",
-                            null,
-                            new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("index1")
-                                    .privileges("read", "read_cross_cluster")
-                                    .build() },
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null
-                        )
-                    )
+                // TODO randomize to add a second set once we have querying-cluster-side API key support
+                new RoleDescriptor(
+                    "_remote_user",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read", "read_cross_cluster").build() },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
                 )
             )
+
         );
     }
 

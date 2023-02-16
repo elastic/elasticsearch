@@ -50,7 +50,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
@@ -1018,21 +1017,13 @@ public final class Authentication implements ToXContentObject {
     public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
         assert isApiKey() : "can only convert API key authentication to remote access";
         assert false == isRunAs() : "remote access does not support authentication with run-as";
+        assert getEffectiveSubject().getUser().roles().length == 0
+            : "the user associated with a remote access authentication must have no role";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
-        final User userFromRemoteCluster = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser();
-        assert userFromRemoteCluster.enabled() : "the user received from a remote cluster must be enabled";
-        final User userWithoutRoles = new User(
-            userFromRemoteCluster.principal(),
-            EMPTY_ARRAY,
-            userFromRemoteCluster.fullName(),
-            userFromRemoteCluster.email(),
-            userFromRemoteCluster.metadata(),
-            userFromRemoteCluster.enabled()
-        );
         final Authentication authentication = new Authentication(
             new Subject(
-                userWithoutRoles,
+                getEffectiveSubject().getUser(),
                 authenticatedBy,
                 TransportVersion.CURRENT,
                 remoteAccessAuthentication.copyWithRemoteAccessEntries(metadata)

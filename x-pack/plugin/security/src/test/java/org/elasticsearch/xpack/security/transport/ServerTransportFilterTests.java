@@ -39,7 +39,6 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_HEADER_FILTERS;
@@ -57,6 +56,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -98,7 +98,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
     }
 
-    public void testRemoteAccessInbound() throws ExecutionException, InterruptedException {
+    public void testRemoteAccessInbound() {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
@@ -106,10 +106,9 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter();
-        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
         if (allowlisted) {
-            listener.get();
             verify(authzService).authorize(
                 eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
                 eq(action),
@@ -170,7 +169,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         boolean remoteAccess = randomBoolean();
         ServerTransportFilter filter = remoteAccess ? getNodeRemoteAccessFilter() : getNodeFilter();
-        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
         if (failDestructiveOperations) {
             expectThrows(IllegalArgumentException.class, listener::actionGet);
@@ -186,7 +185,6 @@ public class ServerTransportFilterTests extends ESTestCase {
                 );
                 verifyNoMoreInteractions(authzService);
             } else {
-                listener.actionGet();
                 verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
             }
         }

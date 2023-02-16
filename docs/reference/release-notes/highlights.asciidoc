@@ -95,6 +95,21 @@ a resolution.
 {es-pull}92879[#92879]
 
 [discrete]
+[[support_redact_ingest_processor]]
+=== Support redact ingest processor
+The <<redact-processor,Redact processor>> obscures portions of text in the input document
+matching the given Grok patterns. A Grok pattern is like a regular
+expression with a named capturing group: text that matches the regular
+expression is replaced with the capture name. {es} comes packaged with
+a number of useful predefined {es-repo}blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns].
+If one of those does not suit your needs, create a new pattern with a
+custom pattern definition. The Redact processor replaces every occurrence
+of a match. If there are multiple matches all will be replaced with the
+capture name.
+
+{es-pull}92951[#92951]
+
+[discrete]
 [[improved_performance_for_get_mget_indexing_with_explicit_id_s]]
 === Improved performance for get, mget and indexing with explicit `_id`s
 The false positive rate for the bloom filter on the `_id` field was reduced from ~10% to ~1%,

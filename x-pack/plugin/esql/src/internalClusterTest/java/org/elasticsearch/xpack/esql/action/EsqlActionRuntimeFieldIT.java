@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
@@ -73,6 +76,19 @@ public class EsqlActionRuntimeFieldIT extends ESIntegTestCase {
         createIndexWithConstRuntimeField("keyword");
         EsqlQueryResponse response = EsqlActionIT.run("from test | stats max(foo) by const", Settings.EMPTY);
         assertThat(response.values(), equalTo(List.of(List.of(SIZE - 1L, "const"))));
+    }
+
+    public void testBoolean() throws InterruptedException, IOException {
+        createIndexWithConstRuntimeField("boolean");
+        EsqlQueryResponse response = EsqlActionIT.run("from test | sort foo | limit 3", Settings.EMPTY);
+        assertThat(response.values(), equalTo(List.of(List.of(true, 0L), List.of(true, 1L), List.of(true, 2L))));
+    }
+
+    public void testDate() throws InterruptedException, IOException {
+        createIndexWithConstRuntimeField("date");
+        EsqlQueryResponse response = EsqlActionIT.run("""
+            from test | eval d=date_format(const, "yyyy") | stats min (foo) by d""", Settings.EMPTY);
+        assertThat(response.values(), equalTo(List.of(List.of(0L, "2023"))));
     }
 
     private void createIndexWithConstRuntimeField(String type) throws InterruptedException, IOException {
@@ -167,12 +183,55 @@ public class EsqlActionRuntimeFieldIT extends ESIntegTestCase {
                             }
                         };
                     }
+                    if (context == BooleanFieldScript.CONTEXT) {
+                        return (FactoryType) new BooleanFieldScript.Factory() {
+                            @Override
+                            public BooleanFieldScript.LeafFactory newFactory(
+                                String fieldName,
+                                Map<String, Object> params,
+                                SearchLookup searchLookup,
+                                OnScriptError onScriptError
+                            ) {
+                                return ctx -> new BooleanFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        emit(true);
+                                    }
+                                };
+                            }
+                        };
+                    }
+                    if (context == DateFieldScript.CONTEXT) {
+                        return (FactoryType) new DateFieldScript.Factory() {
+                            @Override
+                            public DateFieldScript.LeafFactory newFactory(
+                                String fieldName,
+                                Map<String, Object> params,
+                                SearchLookup searchLookup,
+                                DateFormatter dateFormatter,
+                                OnScriptError onScriptError
+                            ) {
+                                return ctx -> new DateFieldScript(fieldName, params, searchLookup, dateFormatter, onScriptError, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        emit(dateFormatter.parseMillis("2023-01-01T00:00:00Z"));
+                                    }
+                                };
+                            }
+                        };
+                    }
                     throw new IllegalArgumentException("unsupported context " + context);
                 }
 
                 @Override
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(LongFieldScript.CONTEXT);
+                    return Set.of(
+                        LongFieldScript.CONTEXT,
+                        DoubleFieldScript.CONTEXT,
+                        StringFieldScript.CONTEXT,
+                        BooleanFieldScript.CONTEXT,
+                        DateFieldScript.CONTEXT
+                    );
                 }
             };
         }

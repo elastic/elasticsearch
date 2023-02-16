@@ -3,7 +3,7 @@
 ++++
 <titleabbrev>Redact</titleabbrev>
 ++++
-The <<redact-processor,Redact processor>> uses the Grok rules engine to obscure
+The Redact processor uses the Grok rules engine to obscure
 text in the input document matching the given Grok patterns. The processor can
 be used to obscure Personal Identifying Information (PII) by configuring it to
 detect known patterns such as email or IP addresses. Text that matches a Grok

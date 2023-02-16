@@ -347,7 +347,7 @@ public class PublicationTransportHandler {
                     version = transportService.getConnection(node).getTransportVersion();
                 } catch (NodeNotConnectedException e) {
                     // can't send to this node, don't need to serialize anything for it
-                    logger.debug("No connection to {} available, skipping serialization", node, e);
+                    logger.debug(() -> format("No connection to %s available, skipping serialization", node), e);
                     continue;
                 }
 

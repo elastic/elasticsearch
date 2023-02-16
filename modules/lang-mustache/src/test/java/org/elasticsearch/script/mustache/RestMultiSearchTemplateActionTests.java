@@ -43,11 +43,7 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        )
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/some_type/_msearch/template")
-            .withContent(bytesContent, null)
-            .build();
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_msearch/template").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);

@@ -77,6 +77,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -1630,12 +1631,30 @@ public class Security extends Plugin
                     return null;
                 }));
             };
+            HttpServerTransport.Dispatcher authenticationFailedDispatcher = new HttpServerTransport.Dispatcher() {
+                @Override
+                public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                    dispatcher.dispatchRequest(request, channel, threadContext);
+                }
+
+                @Override
+                public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                    Exception authenticationException = HttpHeadersAuthenticator.extractAuthenticationException(
+                        channel.request().getHttpRequest()
+                    );
+                    if (authenticationException != null) {
+                        SecurityRestFilter.handleAuthenticationFailed(channel, authenticationException);
+                    } else {
+                        dispatcher.dispatchBadRequest(channel, threadContext, cause);
+                    }
+                }
+            };
             return new Netty4HttpServerTransport(
                 settings,
                 networkService,
                 threadPool,
                 xContentRegistry,
-                dispatcher,
+                authenticationFailedDispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
                 tracer,

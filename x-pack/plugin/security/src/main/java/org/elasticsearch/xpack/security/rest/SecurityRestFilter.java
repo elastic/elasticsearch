@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
@@ -116,21 +115,28 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
-        logger.debug(() -> format("%s failed for REST request [%s]", actionType, request.uri()), e);
         threadContext.sanitizeHeaders();
-        final RestStatus restStatus = ExceptionsHelper.status(e);
+        handleException(actionType, channel, e);
+    }
+
+    public static void handleAuthenticationFailed(RestChannel channel, Exception e) {
+        handleException(ActionType.Authentication, channel, e);
+    }
+
+    private static void handleException(ActionType actionType, RestChannel channel, Exception e) {
+        logger.debug(() -> format("%s failed for HTTP request [%s]", actionType, channel.request().uri()), e);
         try {
-            channel.sendResponse(new RestResponse(channel, restStatus, e) {
+            channel.sendResponse(new RestResponse(channel, e) {
 
                 @Override
                 protected boolean skipStackTrace() {
-                    return restStatus == RestStatus.UNAUTHORIZED;
+                    return status() == RestStatus.UNAUTHORIZED;
                 }
 
                 @Override
                 public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
                     if (actionType != ActionType.RequestHandling
-                        || (restStatus == RestStatus.UNAUTHORIZED || restStatus == RestStatus.FORBIDDEN)) {
+                        || (status() == RestStatus.UNAUTHORIZED || status() == RestStatus.FORBIDDEN)) {
                         if (headers.containsKey("Warning")) {
                             headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
                         }
@@ -144,7 +150,7 @@ public class SecurityRestFilter implements RestHandler {
             });
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error((Supplier<?>) () -> "failed to send failure response for uri [" + request.uri() + "]", inner);
+            logger.error((Supplier<?>) () -> "failed to send failure response for uri [" + channel.request().uri() + "]", inner);
         }
     }
 

@@ -106,16 +106,23 @@ public class HttpHeadersAuthenticator {
     }
 
     public static ThreadContext.StoredContext extractAuthenticationContext(org.elasticsearch.http.HttpRequest request) {
+        HttpHeadersWithAuthenticationContext authenticatedHeaders = unwrapHeadersAuthenticationContext(request);
+        return authenticatedHeaders != null ? authenticatedHeaders.authenticatedContext.get() : null;
+    }
+
+    public static Exception extractAuthenticationException(org.elasticsearch.http.HttpRequest request) {
+        HttpHeadersWithAuthenticationContext authenticatedHeaders = unwrapHeadersAuthenticationContext(request);
+        return authenticatedHeaders != null ? authenticatedHeaders.authenticationException.get() : null;
+    }
+
+    private static HttpHeadersWithAuthenticationContext unwrapHeadersAuthenticationContext(org.elasticsearch.http.HttpRequest request) {
         if (request instanceof Netty4HttpRequest == false) {
             return null;
         }
         if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof HttpHeadersWithAuthenticationContext == false) {
             return null;
         }
-        HttpHeadersWithAuthenticationContext authenticatedHeaders = ((HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request)
-            .getNettyRequest()
-            .headers()));
-        return authenticatedHeaders.authenticatedContext.get();
+        return ((HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request).getNettyRequest().headers()));
     }
 
     public static class HttpHeadersWithAuthenticationContext extends DefaultHttpHeaders {

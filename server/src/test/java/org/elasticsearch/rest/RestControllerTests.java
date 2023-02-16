@@ -285,9 +285,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, tracer);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
-        RestRequest.Method secondMethod = randomFrom(
-            Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList()
-        );
+        RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 

@@ -99,7 +99,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
                 if (e instanceof HeaderValidationException) {
                     toForward = (HeaderValidationException) e;
                 } else if (e instanceof ElasticsearchException) {
-                    toForward = new HeaderValidationException((ElasticsearchException) e, true);
+                    toForward = new HeaderValidationException((ElasticsearchException) e, false);
                 } else {
                     toForward = new HeaderValidationException(new ElasticsearchException(e), true);
                 }

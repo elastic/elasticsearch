@@ -20,9 +20,9 @@ import org.elasticsearch.xcontent.ParseField;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xcontent.ObjectParser.fromList;
 
 public class RestFieldCapabilitiesAction extends BaseRestHandler {

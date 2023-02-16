@@ -247,23 +247,11 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return MINIMUM_COMPATIBLE;
     }
 
-    @Deprecated(forRemoval = true)
-    public boolean isCompatible(TransportVersion version) {
-        return onOrAfter(version.calculateMinimumCompatVersion()) && version.onOrAfter(calculateMinimumCompatVersion());
-    }
-
-    private TransportVersion minimumCompatibleVersion;
-
     /**
-     * Placeholder for code calling {@code minimumCompatibilityVersion} on arbitrary Version instances.
-     * Code calling this should be refactored to not do this.
+     * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
      */
-    @Deprecated(forRemoval = true)
-    public TransportVersion calculateMinimumCompatVersion() {
-        if (minimumCompatibleVersion == null) {
-            minimumCompatibleVersion = Version.findVersion(this).minimumCompatibilityVersion().transportVersion;
-        }
-        return minimumCompatibleVersion;
+    public static boolean isCompatible(TransportVersion version) {
+        return version.onOrAfter(MINIMUM_COMPATIBLE);
     }
 
     public boolean after(TransportVersion version) {

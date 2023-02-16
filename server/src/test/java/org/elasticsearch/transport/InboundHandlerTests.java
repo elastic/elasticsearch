@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -51,7 +52,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class InboundHandlerTests extends ESTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
-    private final TransportVersion version = TransportVersion.CURRENT;
 
     private TaskManager taskManager;
     private Transport.ResponseHandlers responseHandlers;
@@ -66,11 +66,16 @@ public class InboundHandlerTests extends ESTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
-        TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {}, ignoreDeserializationErrors);
+        TransportHandshaker handshaker = new TransportHandshaker(
+            TransportVersion.CURRENT,
+            threadPool,
+            (n, c, r, v) -> {},
+            ignoreDeserializationErrors
+        );
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler(
             "node",
-            version,
+            TransportVersion.CURRENT,
             new StatsTracker(),
             threadPool,
             new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE),
@@ -122,7 +127,7 @@ public class InboundHandlerTests extends ESTestCase {
 
     public void testRequestAndResponse() throws Exception {
         String action = "test-request";
-        int headerSize = TcpHeader.headerSize(version);
+        int headerSize = TcpHeader.headerSize(TransportVersion.CURRENT);
         boolean isError = randomBoolean();
         AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
         AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
@@ -163,7 +168,7 @@ public class InboundHandlerTests extends ESTestCase {
         OutboundMessage.Request request = new OutboundMessage.Request(
             threadPool.getThreadContext(),
             new TestRequest(requestValue),
-            version,
+            TransportVersion.CURRENT,
             action,
             requestId,
             false,
@@ -173,7 +178,12 @@ public class InboundHandlerTests extends ESTestCase {
         BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
-        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
+        Header requestHeader = new Header(
+            fullRequestBytes.length() - 6,
+            requestId,
+            TransportStatus.setRequest((byte) 0),
+            TransportVersion.CURRENT
+        );
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
@@ -194,7 +204,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
-        Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, version);
+        Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.CURRENT);
         InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
@@ -232,8 +242,10 @@ public class InboundHandlerTests extends ESTestCase {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.running(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
-            final TransportVersion remoteVersion = TransportVersion.fromId(
-                randomIntBetween(0, version.minimumCompatibilityVersion().id - 1)
+            final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersionUtils.getFirstVersion(),
+                TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE)
             );
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(

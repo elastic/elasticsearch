@@ -808,12 +808,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        final TransportVersion versionBeforeRemoteAccessHeaders = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_7_0);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            versionBeforeRemoteAccessHeaders.calculateMinimumCompatVersion(),
-            versionBeforeRemoteAccessHeaders
+        final TransportVersion versionBeforeRemoteAccessHeaders = TransportVersionUtils.getPreviousVersion(
+            SecurityServerTransportInterceptor.VERSION_REMOTE_ACCESS_HEADERS
         );
+        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteAccessHeaders);
         when(connection.getTransportVersion()).thenReturn(version);
         final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);

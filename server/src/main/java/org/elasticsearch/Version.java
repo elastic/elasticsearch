@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.TreeMap;
 
@@ -194,19 +193,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
-    }
-
-    /**
-     * Returns the highest Version that has this or a lesser TransportVersion.
-     */
-    @Deprecated
-    static Version findVersion(TransportVersion transportVersion) {
-        return VERSION_IDS.descendingMap()
-            .values()
-            .stream()
-            .filter(v -> v.transportVersion.compareTo(transportVersion) <= 0)
-            .findFirst()
-            .orElseThrow(() -> new NoSuchElementException("No valid Version found")); // only if transportVersion < 0 ?????
     }
 
     public static Version fromId(int id) {

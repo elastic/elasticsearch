@@ -72,9 +72,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         )
                     ),
                     Map.ofEntries(
-                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 4L, 4L)),
-                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 3L, 3L)),
-                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats(2, 0.0, 5L, 5L))
+                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats("node-1", 2, 0.0, 4L, 4L)),
+                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats("node-2", 2, 0.0, 3L, 3L)),
+                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats("node-3", 2, 0.0, 5L, 5L))
                     )
                 )
             )
@@ -116,9 +116,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         )
                     ),
                     Map.ofEntries(
-                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats(2, 3.5, 14L, 4L)),
-                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats(2, 4.0, 12L, 3L)),
-                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats(2, 4.5, 10L, 5L))
+                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats("node-1", 2, 3.5, 14L, 4L)),
+                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats("node-2", 2, 4.0, 12L, 3L)),
+                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats("node-3", 2, 4.5, 10L, 5L))
                     )
                 )
             )
@@ -185,12 +185,12 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         )
                     ),
                     Map.ofEntries(
-                        Map.entry("node-hot-1", new ClusterBalanceStats.NodeBalanceStats(3, 8.5, 16L, 15L)),
-                        Map.entry("node-hot-2", new ClusterBalanceStats.NodeBalanceStats(2, 6.0, 10L, 9L)),
-                        Map.entry("node-hot-3", new ClusterBalanceStats.NodeBalanceStats(2, 6.5, 10L, 10L)),
-                        Map.entry("node-warm-1", new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 12L, 12L)),
-                        Map.entry("node-warm-2", new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 12L, 12L)),
-                        Map.entry("node-warm-3", new ClusterBalanceStats.NodeBalanceStats(1, 0.0, 18L, 18L))
+                        Map.entry("node-hot-1", new ClusterBalanceStats.NodeBalanceStats("node-hot-1", 3, 8.5, 16L, 15L)),
+                        Map.entry("node-hot-2", new ClusterBalanceStats.NodeBalanceStats("node-hot-2", 2, 6.0, 10L, 9L)),
+                        Map.entry("node-hot-3", new ClusterBalanceStats.NodeBalanceStats("node-hot-3", 2, 6.5, 10L, 10L)),
+                        Map.entry("node-warm-1", new ClusterBalanceStats.NodeBalanceStats("node-warm-1", 1, 0.0, 12L, 12L)),
+                        Map.entry("node-warm-2", new ClusterBalanceStats.NodeBalanceStats("node-warm-2", 1, 0.0, 12L, 12L)),
+                        Map.entry("node-warm-3", new ClusterBalanceStats.NodeBalanceStats("node-warm-3", 1, 0.0, 18L, 18L))
                     )
                 )
             )
@@ -225,9 +225,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         )
                     ),
                     Map.ofEntries(
-                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L, 0L)),
-                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L, 0L)),
-                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats(0, 0.0, 0L, 0L))
+                        Map.entry("node-1", new ClusterBalanceStats.NodeBalanceStats("node-1", 0, 0.0, 0L, 0L)),
+                        Map.entry("node-2", new ClusterBalanceStats.NodeBalanceStats("node-2", 0, 0.0, 0L, 0L)),
+                        Map.entry("node-3", new ClusterBalanceStats.NodeBalanceStats("node-3", 0, 0.0, 0L, 0L))
                     )
                 )
             )

@@ -97,18 +97,21 @@ The API returns the following result:
     },
     "nodes": {
       "node-1": {
+        "node_id": "UPYt8VwWTt-IADAEbqpLxA",
         "shard_count": 10,
         "forecast_write_load": 8.5,
         "forecast_disk_usage_bytes": 498435,
         "actual_disk_usage_bytes": 498435
       },
       "node-2": {
+        "node_id": "bgC66tboTIeFQ0VgRGI4Gg",
         "shard_count": 15,
         "forecast_write_load": 3.25,
         "forecast_disk_usage_bytes": 384935,
         "actual_disk_usage_bytes": 384935
       },
       "node-3": {
+        "node_id": "2x1VTuSOQdeguXPdN73yRw",
         "shard_count": 12,
         "forecast_write_load": 6.0,
         "forecast_disk_usage_bytes": 648766,

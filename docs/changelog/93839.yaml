@@ -1,5 +1,5 @@
 pr: 93839
-summary: Terms enum for version fields
+summary: Enable _terms_enum on version fields
 area: Search
 type: enhancement
 issues:

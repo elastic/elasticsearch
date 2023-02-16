@@ -82,7 +82,7 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("engine_id", this.engineId);
-            builder.field("indices", this.indices); // TODO this cool with a String[]?
+            builder.array("indices", this.indices);
             builder.field("analytics_collection_name", this.analyticsCollectionName);
             builder.endObject();
             return builder;

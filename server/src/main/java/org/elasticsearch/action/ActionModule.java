@@ -449,6 +449,12 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
+    /**
+     *  This RestHandler is used as a placeholder for any routes that are unreachable (i.e. have no ServerlessScope annotation) when
+     *  running in serverless mode. It does nothing, and its handleRequest method is never called. It just provides a way to register the
+     *  routes so that we know they do exist.
+     */
+    private static final RestHandler placeholderRestHandler = (request, channel, client) -> {};
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -746,7 +752,13 @@ public class ActionModule extends AbstractModule {
                     catActions.add((AbstractCatAction) handler);
                 }
                 restController.registerHandler(handler);
-            } // else there's no way this handler can be reached, so no point in keeping it around
+            } else {
+                /*
+                 * There's no way this handler can be reached, so we just register a placeholder so that requests for it are routed to
+                 * RestController for proper error messages.
+                 */
+                handler.routes().forEach(route -> restController.registerHandler(route, placeholderRestHandler));
+            }
         };
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());

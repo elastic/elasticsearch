@@ -376,11 +376,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
                 boolean internalRequest = internalOrigin != null;
                 if (internalRequest == false) {
-                    handleBadRequest(request.uri(), request.method(), responseChannel);
+                    handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
                     return;
                 }
             } else if (Scope.PUBLIC.equals(scope) == false) {
-                handleBadRequest(request.uri(), request.method(), responseChannel);
+                handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
                 return;
             }
         }
@@ -681,6 +681,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
             builder.startObject();
             {
                 builder.field("error", "no handler found for uri [" + uri + "] and method [" + method + "]");
+            }
+            builder.endObject();
+            channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
+        }
+    }
+
+    public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
+        throws IOException {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            builder.startObject();
+            {
+                builder.field(
+                    "error",
+                    "uri [" + uri + "] with method [" + method + "] exists but is not available when running in " + "serverless mode"
+                );
             }
             builder.endObject();
             channel.sendResponse(new RestResponse(BAD_REQUEST, builder));

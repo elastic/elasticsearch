@@ -393,9 +393,9 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
     }
 
     private void assertContainsRemoteClusterCredential(String clusterCredential, CapturedActionWithHeaders actual) {
-        assertThat(actual.headers(), hasKey(RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY));
+        assertThat(actual.headers(), hasKey(RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY));
         assertThat(
-            actual.headers().get(RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY),
+            actual.headers().get(RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY),
             equalTo("ApiKey " + clusterCredential)
         );
     }
@@ -480,7 +480,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             actualHeaders.keySet(),
             containsInAnyOrder(
                 RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
-                RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY
             )
         );
     }

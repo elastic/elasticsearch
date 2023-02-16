@@ -13,6 +13,10 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
+/**
+ * {@link Schedule} implementation wrapping a {@link TimeValue} interval that'll compute the
+ * next scheduled execution time according to the configured interval.
+ */
 public class TimeValueSchedule implements Schedule {
 
     private TimeValue interval;

@@ -31,6 +31,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Thread-safe scheduling implementation that'll cancel an already scheduled job
+ * before rescheduling.
+ * The scheduler engine offers support for registering listeners that'll get notified
+ * when a job triggers (according to the job's configured schedule)
+ */
 public class SchedulerEngine {
 
     public static class Job {

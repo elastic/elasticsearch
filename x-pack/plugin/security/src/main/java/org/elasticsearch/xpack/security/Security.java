@@ -1669,6 +1669,7 @@ public class Security extends Plugin
                     if (authenticatedContext != null) {
                         authenticatedContext.restore();
                     } else {
+                        assert false : "all HTTP request must be authenticated";
                         populateThreadContext.apply(httpRequest, getNettyChannel(restRequest.getHttpChannel()), threadContext);
                     }
                 }

@@ -22,7 +22,9 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A mock HTTP Proxy server for testing of support of HTTP proxies in various SDKs
@@ -34,7 +36,13 @@ class MockHttpProxyServer implements Closeable {
     private final MockServerSocket serverSocket;
     private final Thread serverThread;
     private final CountDownLatch latch;
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final ExecutorService executorService = new ThreadPoolExecutor(
+        1,
+        Runtime.getRuntime().availableProcessors(),
+        1,
+        TimeUnit.MINUTES,
+        new LinkedBlockingQueue<>()
+    );
 
     MockHttpProxyServer(SocketRequestHandler handler) throws IOException {
         // Emulate a proxy HTTP server with plain sockets because MockHttpServer doesn't work as a proxy

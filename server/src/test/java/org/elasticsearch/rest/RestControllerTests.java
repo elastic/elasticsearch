@@ -967,84 +967,92 @@ public class RestControllerTests extends ESTestCase {
         }
     }
 
-    public void testApiProtection() {
-        {
-            // First, protections are disabled and no headers are provided. So everything ought to succeed:
-            final RestController restController = new RestController(
-                Set.of(),
-                null,
-                client,
-                circuitBreakerService,
-                new UsageService(),
-                tracer,
-                false
-            );
-            restController.registerHandler(new PublicRestHandler());
-            restController.registerHandler(new InternalRestHandler());
-            restController.registerHandler(new HiddenRestHandler());
-            List<String> accessiblePaths = List.of("/public", "/internal", "/hidden");
-            accessiblePaths.forEach(path -> {
-                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-                AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
-                restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-            });
-        }
-        {
-            // Now enable protections, but no headers. So only public ought to succeed:
-            final RestController restController = new RestController(
-                Set.of(),
-                null,
-                client,
-                circuitBreakerService,
-                new UsageService(),
-                tracer,
-                true
-            );
-            restController.registerHandler(new PublicRestHandler());
-            restController.registerHandler(new InternalRestHandler());
-            restController.registerHandler(new HiddenRestHandler());
-            List<String> accessiblePaths = List.of("/public");
-            accessiblePaths.forEach(path -> {
-                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-                AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
-                restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-            });
-            List<String> inaccessiblePaths = List.of("/internal", "/hidden");
-            inaccessiblePaths.forEach(path -> {
-                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-                AssertingChannel channel = new AssertingChannel(request, false, RestStatus.BAD_REQUEST);
-                restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-            });
-        }
-        {
-            // Finally enable protections and pass the proper headers. So public and internal ought to succeed:
-            final RestController restController = new RestController(
-                Set.of(),
-                null,
-                client,
-                circuitBreakerService,
-                new UsageService(),
-                tracer,
-                true
-            );
-            restController.registerHandler(new PublicRestHandler());
-            restController.registerHandler(new InternalRestHandler());
-            restController.registerHandler(new HiddenRestHandler());
-            Map<String, List<String>> headers = new HashMap<>();
-            headers.put(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER, Collections.singletonList("true"));
-            List<String> accessiblePaths = List.of("/public", "/internal");
-            accessiblePaths.forEach(path -> {
-                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();
-                AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
-                restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-            });
-            List<String> inaccessiblePaths = List.of("/hidden");
-            inaccessiblePaths.forEach(path -> {
-                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();
-                AssertingChannel channel = new AssertingChannel(request, false, RestStatus.BAD_REQUEST);
-                restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
-            });
-        }
+    /*
+     * Test that when serverless is disabled, all endpoints are available regardless of ServerlessScope annotations.
+     */
+    public void testApiProtectionDisabled() {
+        final RestController restController = new RestController(
+            Set.of(),
+            null,
+            client,
+            circuitBreakerService,
+            new UsageService(),
+            tracer,
+            false
+        );
+        restController.registerHandler(new PublicRestHandler());
+        restController.registerHandler(new InternalRestHandler());
+        restController.registerHandler(new HiddenRestHandler());
+        List<String> accessiblePaths = List.of("/public", "/internal", "/hidden");
+        accessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+    }
+
+    /*
+     * Test that when serverless is enabled, a normal user not using the X-elastic-internal-origin header can only access endpoints
+     * annotated with a PUBLIC scope.
+     */
+    public void testApiProtectionEnabledEndUser() {
+        final RestController restController = new RestController(
+            Set.of(),
+            null,
+            client,
+            circuitBreakerService,
+            new UsageService(),
+            tracer,
+            true
+        );
+        restController.registerHandler(new PublicRestHandler());
+        restController.registerHandler(new InternalRestHandler());
+        restController.registerHandler(new HiddenRestHandler());
+        List<String> accessiblePaths = List.of("/public");
+        accessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+        List<String> inaccessiblePaths = List.of("/internal", "/hidden");
+        inaccessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.BAD_REQUEST);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+    }
+
+    /*
+     * Test that when serverless is enabled, a system user using the X-elastic-internal-origin header can only access endpoints
+     * annotated with a PUBLIC or INTERNAL scope.
+     */
+    public void testApiProtectionEnabledInternalUser() {
+        final RestController restController = new RestController(
+            Set.of(),
+            null,
+            client,
+            circuitBreakerService,
+            new UsageService(),
+            tracer,
+            true
+        );
+        restController.registerHandler(new PublicRestHandler());
+        restController.registerHandler(new InternalRestHandler());
+        restController.registerHandler(new HiddenRestHandler());
+        Map<String, List<String>> headers = new HashMap<>();
+        headers.put(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER, Collections.singletonList("true"));
+        List<String> accessiblePaths = List.of("/public", "/internal");
+        accessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+        List<String> inaccessiblePaths = List.of("/hidden");
+        inaccessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.BAD_REQUEST);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
     }
 
     @ServerlessScope(Scope.PUBLIC)

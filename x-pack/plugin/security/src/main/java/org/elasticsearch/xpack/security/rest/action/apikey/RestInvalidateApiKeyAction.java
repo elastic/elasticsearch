@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRespo
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest action to invalidate one or more API keys

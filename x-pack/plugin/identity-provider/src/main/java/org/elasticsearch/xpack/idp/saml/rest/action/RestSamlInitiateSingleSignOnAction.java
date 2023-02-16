@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
     static final ObjectParser<SamlInitiateSingleSignOnRequest, Void> PARSER = new ObjectParser<>(

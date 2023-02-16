@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.Reques
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.INSTANCE;
 
 public class RestPutAutoFollowPatternAction extends BaseRestHandler {

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.graph.rest.action;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -39,11 +38,11 @@ public class RestGraphActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        for (Tuple<BasicHttpRequest.Method, String> methodAndPath : List.of(
-            Tuple.tuple(BasicHttpRequest.Method.GET, "/some_index/some_type/_graph/explore"),
-            Tuple.tuple(BasicHttpRequest.Method.POST, "/some_index/some_type/_graph/explore"),
-            Tuple.tuple(BasicHttpRequest.Method.GET, "/some_index/some_type/_xpack/graph/_explore"),
-            Tuple.tuple(BasicHttpRequest.Method.POST, "/some_index/some_type/_xpack/graph/_explore")
+        for (Tuple<RestRequest.Method, String> methodAndPath : List.of(
+            Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_graph/explore"),
+            Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_graph/explore"),
+            Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_xpack/graph/_explore"),
+            Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_xpack/graph/_explore")
         )) {
 
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(

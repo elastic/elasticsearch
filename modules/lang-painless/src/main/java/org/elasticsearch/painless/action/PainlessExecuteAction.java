@@ -99,8 +99,8 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Response> {
 

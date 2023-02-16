@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherSer
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestWatchServiceAction extends BaseRestHandler {
 

@@ -15,7 +15,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class TestResponseHeaderRestAction extends BaseRestHandler {
 

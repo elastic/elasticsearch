@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * cat API class for handling get componentTemplate.

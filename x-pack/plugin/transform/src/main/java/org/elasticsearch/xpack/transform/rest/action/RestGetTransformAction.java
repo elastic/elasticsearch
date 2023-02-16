@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENERATED;
 

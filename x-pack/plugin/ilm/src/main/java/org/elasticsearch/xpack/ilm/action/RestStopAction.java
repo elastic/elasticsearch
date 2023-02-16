@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStopAction extends BaseRestHandler {
 

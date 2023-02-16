@@ -9,7 +9,6 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,7 +20,7 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<BasicHttpRequest.Method, Map<RestApiVersion, RestHandler>> methodHandlers;
+    private final Map<RestRequest.Method, Map<RestApiVersion, RestHandler>> methodHandlers;
 
     MethodHandlers(String path) {
         this.path = path;
@@ -41,7 +40,7 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethod(BasicHttpRequest.Method method, RestApiVersion version, RestHandler handler) {
+    MethodHandlers addMethod(RestRequest.Method method, RestApiVersion version, RestHandler handler) {
         RestHandler existing = methodHandlers
             // same sizing notes as 'methodHandlers' above, except that having a size here that's more than 1 is vanishingly
             // rare, so an initialCapacity of 1 with a loadFactor of 1 is perfect
@@ -61,7 +60,7 @@ final class MethodHandlers {
      * (as opposed to non-compatible/breaking)
      * or {@code null} if none exists.
      */
-    RestHandler getHandler(BasicHttpRequest.Method method, RestApiVersion version) {
+    RestHandler getHandler(RestRequest.Method method, RestApiVersion version) {
         Map<RestApiVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
         if (versionToHandlers == null) {
             return null; // method not found
@@ -73,7 +72,7 @@ final class MethodHandlers {
     /**
      * Return a set of all valid HTTP methods for the particular path
      */
-    Set<BasicHttpRequest.Method> getValidMethods() {
+    Set<RestRequest.Method> getValidMethods() {
         return methodHandlers.keySet();
     }
 }

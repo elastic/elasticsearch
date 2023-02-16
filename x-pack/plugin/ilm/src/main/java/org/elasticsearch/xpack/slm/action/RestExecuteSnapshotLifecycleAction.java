@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
-import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
 

@@ -30,7 +30,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -35,7 +34,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
      */
     private final String deprecationMessage = randomAlphaOfLengthBetween(1, 30);
     private DeprecationLogger deprecationLogger;
-    private static final BasicHttpRequest.Method METHOD = BasicHttpRequest.Method.GET;
+    private static final RestRequest.Method METHOD = RestRequest.Method.GET;
     private static final String PATH = "/some/path";
 
     @Before

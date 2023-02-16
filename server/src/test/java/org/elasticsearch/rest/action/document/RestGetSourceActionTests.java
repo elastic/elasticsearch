@@ -14,7 +14,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -94,7 +93,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      * test deprecation is logged if type is used in path
      */
     public void testTypeInPath() {
-        for (BasicHttpRequest.Method method : Arrays.asList(BasicHttpRequest.Method.GET, BasicHttpRequest.Method.HEAD)) {
+        for (RestRequest.Method method : Arrays.asList(RestRequest.Method.GET, RestRequest.Method.HEAD)) {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
                 .withMethod(method)
                 .withPath("/some_index/some_type/id/_source")
@@ -110,7 +109,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     public void testTypeParameter() {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
-        for (BasicHttpRequest.Method method : Arrays.asList(BasicHttpRequest.Method.GET, BasicHttpRequest.Method.HEAD)) {
+        for (RestRequest.Method method : Arrays.asList(RestRequest.Method.GET, RestRequest.Method.HEAD)) {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
                 .withMethod(method)
                 .withPath("/some_index/_source/id")

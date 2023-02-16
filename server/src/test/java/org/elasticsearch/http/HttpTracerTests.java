@@ -53,7 +53,7 @@ public class HttpTracerTests extends ESTestCase {
                 )
             );
 
-            RestRequest request = new FakeRestRequest.Builder(new NamedXContentRegistry(List.of())).withMethod(BasicHttpRequest.Method.GET)
+            RestRequest request = new FakeRestRequest.Builder(new NamedXContentRegistry(List.of())).withMethod(RestRequest.Method.GET)
                 .withPath("uri")
                 .withHeaders(
                     Map.of(

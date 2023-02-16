@@ -25,7 +25,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest action to delete one or more privileges from the security index

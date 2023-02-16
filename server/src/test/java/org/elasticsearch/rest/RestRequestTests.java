@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -268,7 +267,7 @@ public class RestRequestTests extends ESTestCase {
         }
 
         @Override
-        public BasicHttpRequest.Method method() {
+        public Method method() {
             return restRequest.method();
         }
 

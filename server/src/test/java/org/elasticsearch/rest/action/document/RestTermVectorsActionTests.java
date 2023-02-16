@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -40,7 +39,7 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(BasicHttpRequest.Method.POST).withPath("/some_index/some_type/some_id/_termvectors").build();
+        ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/some_id/_termvectors").build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
@@ -52,7 +51,7 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         )
-            .withMethod(BasicHttpRequest.Method.GET)
+            .withMethod(RestRequest.Method.GET)
             .withPath("/some_index/_termvectors/some_id")
             .withContent(BytesReference.bytes(content), null)
             .build();

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction.MAX_REQUEST_SIZE;
 
 public class RestUpdateTransformAction extends BaseRestHandler {

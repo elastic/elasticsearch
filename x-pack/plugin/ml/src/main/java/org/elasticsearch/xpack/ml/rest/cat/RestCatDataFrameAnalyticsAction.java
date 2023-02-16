@@ -30,7 +30,7 @@ import java.util.function.Function;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatDataFrameAnalyticsAction extends AbstractCatAction {
 

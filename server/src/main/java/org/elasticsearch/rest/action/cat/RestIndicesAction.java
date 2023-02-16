@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesAction extends AbstractCatAction {
 

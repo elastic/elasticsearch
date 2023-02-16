@@ -18,8 +18,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
-import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutComponentTemplateAction extends BaseRestHandler {
 

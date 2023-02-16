@@ -30,8 +30,8 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestFleetMultiSearchAction extends BaseRestHandler {
 

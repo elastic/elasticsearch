@@ -27,7 +27,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodeAttrsAction extends AbstractCatAction {
 

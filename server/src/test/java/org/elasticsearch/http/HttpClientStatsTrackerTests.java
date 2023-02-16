@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -417,7 +418,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         putRandomHeader("x-forwarded-for", headers);
         putRandomHeader("x-opaque-id", headers);
         return new FakeRestRequest.FakeHttpRequest(
-            randomFrom(BasicHttpRequest.Method.values()),
+            randomFrom(RestRequest.Method.values()),
             randomAlphaOfLength(10),
             new BytesArray(randomByteArrayOfLength(between(0, 20))),
             headers

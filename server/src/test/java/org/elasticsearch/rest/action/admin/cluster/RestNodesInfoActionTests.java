@@ -10,7 +10,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -130,7 +129,7 @@ public class RestNodesInfoActionTests extends ESTestCase {
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {
-        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.GET)
+        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_nodes")
             .withParams(params)
             .build();

@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -27,7 +26,7 @@ public class RestFieldUsageStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(BasicHttpRequest.Method.GET, "/{index}/_field_usage_stats"));
+        return List.of(new RestHandler.Route(RestRequest.Method.GET, "/{index}/_field_usage_stats"));
     }
 
     @Override

@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Expose reindex over rest.

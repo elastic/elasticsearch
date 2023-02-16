@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Invalidates the provided security token, and if the associated SAML realm support logout, generates

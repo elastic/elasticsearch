@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction.Response
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * A REST handler to obtain information about TLS/SSL (X.509) certificates

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction.Request.MODEL_ALIAS;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 

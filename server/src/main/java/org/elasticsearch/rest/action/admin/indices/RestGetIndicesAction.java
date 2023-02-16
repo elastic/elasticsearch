@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
-import static org.elasticsearch.http.BasicHttpRequest.Method.HEAD;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 /**
  * The REST handler for get index and head index APIs.

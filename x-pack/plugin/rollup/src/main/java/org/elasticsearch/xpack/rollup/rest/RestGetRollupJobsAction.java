@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetRollupJobsAction extends BaseRestHandler {
 

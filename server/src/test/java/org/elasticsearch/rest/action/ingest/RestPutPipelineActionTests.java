@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -45,7 +44,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
         params.put("if_version", invalidValue);
         params.put("id", "my_pipeline");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.PUT)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
             .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
             .withParams(params)
@@ -59,7 +58,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("id", "my_pipeline");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.PUT)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
             .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
             .withParams(params)
@@ -93,7 +92,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
         params.put("id", "my_pipeline");
         params.put("if_version", Integer.toString(numericValue));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.PUT)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
             .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
             .withParams(params)

@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -40,7 +39,7 @@ public class RestCountActionTests extends RestActionTestCase {
 
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", contentTypeHeader))
-            .withMethod(BasicHttpRequest.Method.POST)
+            .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_count")
             .build();
 
@@ -53,7 +52,7 @@ public class RestCountActionTests extends RestActionTestCase {
         params.put("type", "some_type");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", contentTypeHeader))
-            .withMethod(BasicHttpRequest.Method.GET)
+            .withMethod(RestRequest.Method.GET)
             .withPath("/some_index/_count")
             .withParams(params)
             .build();

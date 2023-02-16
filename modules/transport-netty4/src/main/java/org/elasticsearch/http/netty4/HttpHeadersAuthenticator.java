@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BasicHttpRequest;
+import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -88,7 +89,7 @@ public class HttpHeadersAuthenticator {
         return new BasicHttpRequest() {
 
             @Override
-            public Method method() {
+            public RestRequest.Method method() {
                 return Netty4HttpRequest.translateRequestMethod(request.method());
             }
 

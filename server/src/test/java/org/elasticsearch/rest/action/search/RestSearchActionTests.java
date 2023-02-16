@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -45,7 +44,7 @@ public class RestSearchActionTests extends RestActionTestCase {
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/some_type/_search").build();
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_search").build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
@@ -57,7 +56,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
         dispatchRequest(request);
         assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
@@ -72,7 +71,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
         action.handleRequest(request, new FakeRestChannel(request, false, 1), verifyingClient);
     }
@@ -84,7 +83,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
                 Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-            ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+            ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().trackTotalHitsUpTo(100));
@@ -101,7 +100,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
                 Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-            ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+            ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
             SearchRequest searchRequest = new SearchRequest();
             KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100);
@@ -127,7 +126,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(BasicHttpRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
         Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
         assertEquals("No search type for [some_search_type]", ex.getMessage());

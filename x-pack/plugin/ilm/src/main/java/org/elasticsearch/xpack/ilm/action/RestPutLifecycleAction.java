@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLifecycleAction extends BaseRestHandler {
 

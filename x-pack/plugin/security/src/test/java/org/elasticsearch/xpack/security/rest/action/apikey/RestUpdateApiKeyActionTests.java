@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -45,7 +45,7 @@ public class RestUpdateApiKeyActionTests extends RestActionTestCase {
 
     public void testAbsentRoleDescriptorsAndMetadataSetToNull() {
         final var apiKeyId = "api_key_id";
-        final var builder = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.PUT)
+        final var builder = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_security/api_key/" + apiKeyId);
         if (randomBoolean()) {
             builder.withContent(new BytesArray("{}"), XContentType.JSON);

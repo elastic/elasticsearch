@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
@@ -100,7 +101,7 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
-    public Method method() {
+    public RestRequest.Method method() {
         return translateRequestMethod(request.method());
     }
 
@@ -223,33 +224,33 @@ public class Netty4HttpRequest implements HttpRequest {
         return request;
     }
 
-    protected static Method translateRequestMethod(HttpMethod httpMethod) {
-        if (httpMethod == HttpMethod.GET) return Method.GET;
+    protected static RestRequest.Method translateRequestMethod(HttpMethod httpMethod) {
+        if (httpMethod == HttpMethod.GET) return RestRequest.Method.GET;
 
-        if (httpMethod == HttpMethod.POST) return Method.POST;
+        if (httpMethod == HttpMethod.POST) return RestRequest.Method.POST;
 
-        if (httpMethod == HttpMethod.PUT) return Method.PUT;
+        if (httpMethod == HttpMethod.PUT) return RestRequest.Method.PUT;
 
-        if (httpMethod == HttpMethod.DELETE) return Method.DELETE;
+        if (httpMethod == HttpMethod.DELETE) return RestRequest.Method.DELETE;
 
         if (httpMethod == HttpMethod.HEAD) {
-            return Method.HEAD;
+            return RestRequest.Method.HEAD;
         }
 
         if (httpMethod == HttpMethod.OPTIONS) {
-            return Method.OPTIONS;
+            return RestRequest.Method.OPTIONS;
         }
 
         if (httpMethod == HttpMethod.PATCH) {
-            return Method.PATCH;
+            return RestRequest.Method.PATCH;
         }
 
         if (httpMethod == HttpMethod.TRACE) {
-            return Method.TRACE;
+            return RestRequest.Method.TRACE;
         }
 
         if (httpMethod == HttpMethod.CONNECT) {
-            return Method.CONNECT;
+            return RestRequest.Method.CONNECT;
         }
 
         throw new IllegalArgumentException("Unexpected http method: " + httpMethod);

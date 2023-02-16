@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * Rest action to get one or more API keys information.

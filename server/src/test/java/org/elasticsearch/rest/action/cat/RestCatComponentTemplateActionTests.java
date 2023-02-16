@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.BasicHttpRequest;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -75,7 +75,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
 
     public void testRestCatComponentAction() throws Exception {
         FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(
-            BasicHttpRequest.Method.GET
+            RestRequest.Method.GET
         ).withPath("_cat/component_templates").build();
         FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
 
@@ -92,7 +92,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
 
     public void testRestCatComponentActionWithParam() throws Exception {
         FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(
-            BasicHttpRequest.Method.GET
+            RestRequest.Method.GET
         ).withPath("_cat/component_templates").withParams(singletonMap("name", "test")).build();
         FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
 

@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Rest handler that authenticates the user based on the information provided as parameters of the redirect_uri

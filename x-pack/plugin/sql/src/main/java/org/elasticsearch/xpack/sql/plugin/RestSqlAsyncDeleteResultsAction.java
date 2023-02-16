@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
 

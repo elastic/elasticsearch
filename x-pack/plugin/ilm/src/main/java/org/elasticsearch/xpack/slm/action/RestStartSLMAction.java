@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStartSLMAction extends BaseRestHandler {
 

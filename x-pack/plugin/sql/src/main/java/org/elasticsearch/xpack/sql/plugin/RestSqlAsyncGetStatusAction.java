@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.SQL_ASYNC_STATUS_REST_ENDPOINT;
 

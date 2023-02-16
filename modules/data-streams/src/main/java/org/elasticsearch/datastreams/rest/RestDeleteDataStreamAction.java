@@ -17,7 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteDataStreamAction extends BaseRestHandler {
 

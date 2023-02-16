@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ccr.action.UnfollowAction.INSTANCE;
 
 public class RestUnfollowAction extends BaseRestHandler {

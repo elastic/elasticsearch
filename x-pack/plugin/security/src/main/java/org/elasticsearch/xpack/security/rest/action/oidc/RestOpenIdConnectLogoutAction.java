@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResp
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Rest handler that invalidates a security token for the given OpenID Connect realm and if the configuration of

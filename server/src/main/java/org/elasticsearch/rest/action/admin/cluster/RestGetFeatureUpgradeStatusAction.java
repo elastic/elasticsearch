@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -30,7 +29,7 @@ public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(BasicHttpRequest.Method.GET, "/_migration/system_features"));
+        return List.of(new Route(RestRequest.Method.GET, "/_migration/system_features"));
     }
 
     @Override

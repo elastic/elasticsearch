@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
-import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "

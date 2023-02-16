@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 

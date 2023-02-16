@@ -10,7 +10,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -59,7 +58,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             executeCalled.set(true);
             return new AsyncSearchResponse("", randomBoolean(), randomBoolean(), 0L, 0L);
         });
-        RestRequest submitAsyncRestRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.POST)
+        RestRequest submitAsyncRestRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/test_index/_async_search")
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
@@ -110,7 +109,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
         });
         Map<String, String> params = new HashMap<>();
         params.put(paramName, paramValue);
-        RestRequest submitAsyncRestRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.POST)
+        RestRequest submitAsyncRestRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/test_index/_async_search")
             .withParams(params)
             .withContent(new BytesArray("{}"), XContentType.JSON)

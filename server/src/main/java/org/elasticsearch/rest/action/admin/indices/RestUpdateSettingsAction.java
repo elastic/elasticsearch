@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.client.internal.Requests.updateSettingsRequest;
-import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestUpdateSettingsAction extends BaseRestHandler {
 

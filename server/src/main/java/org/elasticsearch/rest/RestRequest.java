@@ -21,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.http.BasicHttpRequest.Method;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.xcontent.ParsedMediaType;
@@ -599,6 +598,18 @@ public class RestRequest implements ToXContent.Params {
      */
     public RestApiVersion getRestApiVersion() {
         return restApiVersion;
+    }
+
+    public enum Method {
+        GET,
+        POST,
+        PUT,
+        DELETE,
+        OPTIONS,
+        HEAD,
+        PATCH,
+        TRACE,
+        CONNECT
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

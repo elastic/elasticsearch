@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -65,7 +64,7 @@ public class RestPutIndexTemplateActionTests extends ESTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         )
-            .withMethod(BasicHttpRequest.Method.PUT)
+            .withMethod(RestRequest.Method.PUT)
             .withParams(params)
             .withPath("/_template/_some_template")
             .withContent(BytesReference.bytes(typedContent), null)

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.repositories.metering.action.ClearRepositoriesMet
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestClearRepositoriesMeteringArchiveAction extends BaseRestHandler {
     @Override

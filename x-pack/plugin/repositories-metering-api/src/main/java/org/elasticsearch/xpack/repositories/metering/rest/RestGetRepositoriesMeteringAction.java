@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMetering
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public final class RestGetRepositoriesMeteringAction extends BaseRestHandler {
 

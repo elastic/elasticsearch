@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -172,7 +171,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(BasicHttpRequest.Method.GET)
+            .withMethod(RestRequest.Method.GET)
             .withPath("/some_index/some_type/_validate/query")
             .build();
 
@@ -186,7 +185,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(BasicHttpRequest.Method.GET)
+            .withMethod(RestRequest.Method.GET)
             .withPath("_validate/query")
             .withParams(params)
             .build();

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
@@ -81,7 +80,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             executeCalled.set(true);
             return new IndexResponse(new ShardId("test", "test", 0), "id", 0, 0, 0, true);
         });
-        RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.POST)
+        RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc")
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
@@ -96,7 +95,7 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     public void testTypeInPath() {
         // using CompatibleRestIndexAction
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.PUT)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withPath("/some_index/some_type/some_id")
             .build();
@@ -106,7 +105,7 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     public void testCreateWithTypeInPath() {
         // using CompatibleCreateHandler
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.PUT)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withPath("/some_index/some_type/some_id/_create")
             .build();
@@ -116,7 +115,7 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     public void testAutoIdWithType() {
         // using CompatibleAutoIdHandler
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.POST)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withPath("/some_index/some_type/")
             .build();

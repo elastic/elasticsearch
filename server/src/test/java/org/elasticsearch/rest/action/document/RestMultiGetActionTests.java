@@ -13,7 +13,6 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -45,7 +44,7 @@ public class RestMultiGetActionTests extends RestActionTestCase {
     public void testTypeInPath() {
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(BasicHttpRequest.Method.GET).withPath("some_index/some_type/_mget").build();
+        ).withMethod(RestRequest.Method.GET).withPath("some_index/some_type/_mget").build();
         dispatchRequest(deprecatedRequest);
         assertCriticalWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
     }

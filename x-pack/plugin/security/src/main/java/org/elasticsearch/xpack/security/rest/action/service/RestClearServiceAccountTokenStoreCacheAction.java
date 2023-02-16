@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRestHandler {
 

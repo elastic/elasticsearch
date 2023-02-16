@@ -40,7 +40,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
 

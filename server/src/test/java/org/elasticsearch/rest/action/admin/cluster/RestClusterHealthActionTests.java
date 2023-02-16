@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.http.BasicHttpRequest;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -69,7 +69,7 @@ public class RestClusterHealthActionTests extends ESTestCase {
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {
-        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(BasicHttpRequest.Method.GET)
+        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_cluster/health")
             .withParams(params)
             .build();

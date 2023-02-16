@@ -12,7 +12,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -42,7 +41,7 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
             new BytesArray(json),
             XContentType.JSON
-        ).withMethod(BasicHttpRequest.Method.POST).withPath("/_forcemerge").build();
+        ).withMethod(RestRequest.Method.POST).withPath("/_forcemerge").build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         dispatchRequest(request, new AbstractRestChannel(request, true) {

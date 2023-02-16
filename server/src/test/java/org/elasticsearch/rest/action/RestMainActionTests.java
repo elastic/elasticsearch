@@ -13,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -42,8 +41,8 @@ public class RestMainActionTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         RestRequest restRequest = new FakeRestRequest() {
             @Override
-            public BasicHttpRequest.Method method() {
-                return BasicHttpRequest.Method.HEAD;
+            public Method method() {
+                return RestRequest.Method.HEAD;
             }
         };
 

@@ -9,7 +9,6 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.BasicHttpRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -38,7 +37,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
     public void testTypeInPath() throws IOException {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(BasicHttpRequest.Method.POST).withPath("/some_index/some_type/_update_by_query").build();
+        ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/_update_by_query").build();
 
         // checks the type in the URL is propagated correctly to the request object
         // only works after the request is dispatched, so its params are filled from url.

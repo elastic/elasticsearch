@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.http.BasicHttpRequest;
 
 import java.util.Objects;
 
@@ -49,7 +48,7 @@ public class DeprecationRestHandler implements RestHandler {
      */
     public DeprecationRestHandler(
         RestHandler handler,
-        BasicHttpRequest.Method method,
+        RestRequest.Method method,
         String path,
         @Nullable Level deprecationLevel,
         String deprecationMessage,

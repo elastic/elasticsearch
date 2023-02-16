@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestEqlGetAsyncStatusAction extends BaseRestHandler {
     @Override

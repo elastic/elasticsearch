@@ -103,7 +103,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
         boolean isHeadRequest = false;
         try {
-            if (request.method() == BasicHttpRequest.Method.HEAD) {
+            if (request.method() == RestRequest.Method.HEAD) {
                 isHeadRequest = true;
             }
         } catch (IllegalArgumentException ignored) {

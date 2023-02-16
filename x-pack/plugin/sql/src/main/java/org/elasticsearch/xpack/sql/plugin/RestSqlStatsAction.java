@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.action.Protocol;
 
 import java.util.List;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSqlStatsAction extends BaseRestHandler {
 

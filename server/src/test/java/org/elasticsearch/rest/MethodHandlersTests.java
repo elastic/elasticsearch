@@ -11,8 +11,8 @@ package org.elasticsearch.rest;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.http.BasicHttpRequest.Method.POST;
-import static org.elasticsearch.http.BasicHttpRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class MethodHandlersTests extends ESTestCase {

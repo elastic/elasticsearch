@@ -3557,8 +3557,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return bufferSize;
     }
 
-    public static final String REGISTERS_PATH = "registers";
-
     /**
      * The result of removing a snapshot from a shard folder in the repository.
      *

@@ -94,6 +94,44 @@ public class FsBlobContainerTests extends ESTestCase {
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
     }
 
+    public void testCompareAndExchange() throws Exception {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+
+        final String key = randomAlphaOfLength(10);
+        final AtomicLong expectedValue = new AtomicLong();
+
+        for (int i = 0; i < 5; i++) {
+            switch (between(1, 4)) {
+                case 1 -> assertEquals(expectedValue.get(), container.getRegister(key));
+                case 2 -> assertFalse(
+                    container.compareAndSetRegister(key, randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong), randomLong())
+                );
+                case 3 -> assertEquals(
+                    expectedValue.get(),
+                    container.compareAndExchangeRegister(
+                        key,
+                        randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong),
+                        randomLong()
+                    )
+                );
+                case 4 -> {/* no-op */}
+            }
+
+            final var newValue = randomLong();
+            if (randomBoolean()) {
+                assertTrue(container.compareAndSetRegister(key, expectedValue.get(), newValue));
+            } else {
+                assertEquals(expectedValue.get(), container.compareAndExchangeRegister(key, expectedValue.get(), newValue));
+            }
+            expectedValue.set(newValue);
+        }
+    }
+
     static class MockFileSystemProvider extends FilterFileSystemProvider {
 
         final Consumer<Long> onRead;

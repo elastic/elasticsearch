@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,7 +30,7 @@ public class FsBlobStore implements BlobStore {
         this.path = path;
         this.readOnly = readonly;
         if (this.readOnly == false) {
-            Files.createDirectories(path.resolve(BlobStoreRepository.REGISTERS_PATH));
+            Files.createDirectories(path);
         }
         this.bufferSizeInBytes = bufferSizeInBytes;
     }

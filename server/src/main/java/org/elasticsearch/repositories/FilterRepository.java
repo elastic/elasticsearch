@@ -194,14 +194,4 @@ public class FilterRepository implements Repository {
     public void close() {
         in.close();
     }
-
-    @Override
-    public boolean compareAndSetRegister(String key, long expected, long updated) throws IOException {
-        return in.compareAndSetRegister(key, expected, updated);
-    }
-
-    @Override
-    public long getRegister(String key) throws IOException {
-        return in.getRegister(key);
-    }
 }

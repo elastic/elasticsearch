@@ -28,6 +28,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -146,7 +147,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         public List<Route> routes() {
-            return List.of(Route.builder(RestRequest.Method.PUT, "/_net_new_sys_index/_create").build());
+            return List.of(Route.builder(Method.PUT, "/_net_new_sys_index/_create").build());
         }
 
         @Override

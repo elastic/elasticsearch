@@ -397,7 +397,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     }
 
-    protected abstract void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext);
+    protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {}
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         if (exception == null) {

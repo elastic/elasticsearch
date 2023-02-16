@@ -49,43 +49,20 @@ public class Netty4HttpRequest implements HttpRequest {
     private final int sequence;
 
     Netty4HttpRequest(int sequence, FullHttpRequest request) {
-        this(
-            sequence,
-            request,
-            wrapHttpHeaders(request.headers()),
-            new AtomicBoolean(false),
-            true,
-            Netty4Utils.toBytesReference(request.content())
-        );
+        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.toBytesReference(request.content()));
     }
 
     Netty4HttpRequest(int sequence, FullHttpRequest request, Exception inboundException) {
-        this(
-            sequence,
-            request,
-            wrapHttpHeaders(request.headers()),
-            new AtomicBoolean(false),
-            true,
-            Netty4Utils.toBytesReference(request.content()),
-            inboundException
-        );
+        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.toBytesReference(request.content()), inboundException);
+    }
+
+    private Netty4HttpRequest(int sequence, FullHttpRequest request, AtomicBoolean released, boolean pooled, BytesReference content) {
+        this(sequence, request, released, pooled, content, null);
     }
 
     private Netty4HttpRequest(
         int sequence,
         FullHttpRequest request,
-        Map<String, List<String>> headers,
-        AtomicBoolean released,
-        boolean pooled,
-        BytesReference content
-    ) {
-        this(sequence, request, headers, released, pooled, content, null);
-    }
-
-    private Netty4HttpRequest(
-        int sequence,
-        FullHttpRequest request,
-        Map<String, List<String>> headers,
         AtomicBoolean released,
         boolean pooled,
         BytesReference content,
@@ -93,7 +70,7 @@ public class Netty4HttpRequest implements HttpRequest {
     ) {
         this.sequence = sequence;
         this.request = request;
-        this.headers = headers;
+        this.headers = wrapHttpHeaders(request.headers());
         this.content = content;
         this.pooled = pooled;
         this.released = released;
@@ -141,7 +118,6 @@ public class Netty4HttpRequest implements HttpRequest {
                     request.headers(),
                     request.trailingHeaders()
                 ),
-                headers,
                 new AtomicBoolean(false),
                 false,
                 Netty4Utils.toBytesReference(copiedContent)
@@ -195,14 +171,7 @@ public class Netty4HttpRequest implements HttpRequest {
             headersWithoutContentTypeHeader,
             trailingHeaders
         );
-        return new Netty4HttpRequest(
-            sequence,
-            requestWithoutHeader,
-            wrapHttpHeaders(requestWithoutHeader.headers()),
-            released,
-            pooled,
-            content
-        );
+        return new Netty4HttpRequest(sequence, requestWithoutHeader, released, pooled, content);
     }
 
     @Override

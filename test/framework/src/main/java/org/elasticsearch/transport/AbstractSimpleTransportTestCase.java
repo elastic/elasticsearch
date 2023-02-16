@@ -1612,7 +1612,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             channel.sendResponse(response);
             // channel versions don't make sense on DirectResponseChannel
             assertThat(channel, instanceOf(TaskTransportChannel.class));
-            assertThat(((TaskTransportChannel)channel).getChannel(), instanceOf(TransportService.DirectResponseChannel.class));
+            assertThat(((TaskTransportChannel) channel).getChannel(), instanceOf(TransportService.DirectResponseChannel.class));
         });
 
         Version1Request version1Request = new Version1Request();
@@ -1654,7 +1654,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             channel.sendResponse(response);
             // channel versions don't make sense on DirectResponseChannel
             assertThat(channel, instanceOf(TaskTransportChannel.class));
-            assertThat(((TaskTransportChannel)channel).getChannel(), instanceOf(TransportService.DirectResponseChannel.class));
+            assertThat(((TaskTransportChannel) channel).getChannel(), instanceOf(TransportService.DirectResponseChannel.class));
         });
 
         Version0Request version0Request = new Version0Request();

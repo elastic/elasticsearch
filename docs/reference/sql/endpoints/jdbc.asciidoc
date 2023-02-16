@@ -162,6 +162,13 @@ experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
 the underlying exception (default).
 
 [discrete]
+==== Troubleshooting
+
+`debug` (default `false`):: Whether to produce debug logs or not.
+
+`debug.out` (default `out`):: The destination of the debug logs produced by the JDBC Driver. By default, they are sent to standard output. The setting can be also a file path.
+
+[discrete]
 ==== Additional
 
 `validate.properties` (default `true`):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception

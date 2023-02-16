@@ -197,7 +197,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 containsString(
                     "action [indices:data/read/search] towards remote cluster [my_remote_cluster]"
                         + " is unauthorized for user [local_search_user] with effective roles [local_search]"
-                        + " because it has no remote indices privilege"
+                        + " because no remote indices privileges apply for the target cluster"
                 )
             );
 

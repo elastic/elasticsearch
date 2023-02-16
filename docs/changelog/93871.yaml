@@ -1,0 +1,5 @@
+pr: 93871
+summary: Fix explain and hybrid search scoring bug
+area: Vector Search
+type: bug
+issues: []

@@ -66,15 +66,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (enabled == false) {
-            return Collections.emptyList();
-        }
-        // Register new actions here
-        return List.of(new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class));
-    }
-
-    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,
@@ -88,8 +79,18 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
+
+        return List.of(new RestGetEngineAction(), new RestPutEngineAction());
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (enabled == false) {
+            return Collections.emptyList();
+        }
         // Register new actions here
-        return List.of(new RestPutEngineAction());
+        return List.of(new ActionPlugin.ActionHandler<>(GetEngineAction.INSTANCE, TransportGetEngineAction.class),
+            new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class));
     }
 
     @Override

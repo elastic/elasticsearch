@@ -298,6 +298,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         for (boolean failRequest : List.of(true, false)) {
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, randomAlphaOfLengthBetween(1, 10));
             RestRequest request = new FakeRestRequest();
+            when(channel.request()).thenReturn(request);
             Authentication authentication = AuthenticationTestHelper.builder().build();
             doAnswer((i) -> {
                 @SuppressWarnings("unchecked")

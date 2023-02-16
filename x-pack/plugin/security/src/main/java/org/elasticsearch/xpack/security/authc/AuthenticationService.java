@@ -366,7 +366,7 @@ public class AuthenticationService {
 
     static class AuditableHttpRequest extends AuditableRequest {
 
-        private final BasicHttpRequest request;
+        final BasicHttpRequest request;
         private final String requestId;
 
         AuditableHttpRequest(

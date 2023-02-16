@@ -105,17 +105,17 @@ public class HttpHeadersAuthenticator {
         };
     }
 
-    public static ThreadContext.StoredContext extractAuthenticationContext(org.elasticsearch.http.HttpRequest request) {
+    public static ThreadContext.StoredContext extractAuthenticationContext(BasicHttpRequest request) {
         HttpHeadersWithAuthenticationContext authenticatedHeaders = unwrapHeadersAuthenticationContext(request);
         return authenticatedHeaders != null ? authenticatedHeaders.authenticatedContext.get() : null;
     }
 
-    public static Exception extractAuthenticationException(org.elasticsearch.http.HttpRequest request) {
+    public static Exception extractAuthenticationException(BasicHttpRequest request) {
         HttpHeadersWithAuthenticationContext authenticatedHeaders = unwrapHeadersAuthenticationContext(request);
         return authenticatedHeaders != null ? authenticatedHeaders.authenticationException.get() : null;
     }
 
-    private static HttpHeadersWithAuthenticationContext unwrapHeadersAuthenticationContext(org.elasticsearch.http.HttpRequest request) {
+    private static HttpHeadersWithAuthenticationContext unwrapHeadersAuthenticationContext(BasicHttpRequest request) {
         if (request instanceof Netty4HttpRequest == false) {
             return null;
         }

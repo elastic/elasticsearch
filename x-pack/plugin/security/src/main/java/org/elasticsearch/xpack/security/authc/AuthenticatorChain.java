@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -238,6 +239,12 @@ class AuthenticatorChain {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
             logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
+            throw context.getRequest().tamperedRequest();
+        }
+        // this throws if a new http request looks to be already authenticated
+        if (authentication != null
+            && (context.getRequest() instanceof AuthenticationService.AuditableHttpRequest)
+            && (((AuthenticationService.AuditableHttpRequest) context.getRequest()).request instanceof HttpRequest == false)) {
             throw context.getRequest().tamperedRequest();
         }
         return authentication;

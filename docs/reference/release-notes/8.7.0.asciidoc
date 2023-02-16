@@ -26,7 +26,8 @@ Allocation::
 * Skip `DiskThresholdMonitor` when cluster state is not recovered {es-pull}93699[#93699]
 
 Authentication::
-* -| Correctly remove domain from realm when rewriting `Authentication` for compatibility with node versions that don't support domains {es-pull}93276[#93276]
+* Correctly remove domain from realm when rewriting `Authentication` for compatibility with node versions that don't
+support domains {es-pull}93276[#93276]
 
 Authorization::
 * Fix Security's expression resolver to not remove unavailable but authorized names {es-pull}92625[#92625]
@@ -179,10 +180,10 @@ Geo::
 * Add methods to H3#hexRing to prevent allocating long arrays {es-pull}92711[#92711]
 * Add methods to prevent allocating long arrays during child navigation on H3 api {es-pull}92099[#92099]
 * Add new H3 api method #h3ToNoChildrenIntersecting {es-pull}91673[#91673]
+* In H3, compute destination point from distance and azimuth using planar 3d math" {es-pull}93084[#93084]
 * Protect H3 library against integer overflow {es-pull}92829[#92829]
 * Reduce number of object allocations in H3#h3ToGeoBoundary {es-pull}91586[#91586]
-* Speed h3 library by using `FastMath` implementation for trigonometric functions {es-pull}91839[#91839]
-* [H3] Compute destination point from distance and azimuth using planar 3d math {es-pull}93084[#93084]
+* Speed H3 library by using `FastMath` implementation for trigonometric functions {es-pull}91839[#91839]
 
 Health::
 * Expose Health Api telemetry via xpack {es-pull}91708[#91708] (issue: {es-issue}90877[#90877])

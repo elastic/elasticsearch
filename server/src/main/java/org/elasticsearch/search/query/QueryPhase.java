@@ -59,8 +59,8 @@ public class QueryPhase {
     public QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
-        if (searchContext.rankContext() != null) {
-            searchContext.rankContext().executeQuery(searchContext);
+        if (searchContext.rankShardContext() != null) {
+            searchContext.rankShardContext().executeQueries(searchContext);
         } else {
             executeInternal(searchContext);
         }

@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.rank.RRFRankContextBuilder;
+import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -53,7 +53,7 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] queryVector = { 500.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 100, 300);
         SearchResponse response = client().prepareSearch("index")
-            .setRank(new RankBuilder().toRankContext(new RRFRankContextBuilder().windowSize(100).rankConstant(1)))
+            .setRank(new RankBuilder().rankContextBuilder(new RRFRankContextBuilder().windowSize(100).rankConstant(1)))
             .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(10))
@@ -67,7 +67,7 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRRFRankSmallerThanSize() throws IOException {
-        int numShards = 1;// + randomInt(3);
+        int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -95,7 +95,7 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] queryVector = { 0.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3);
         SearchResponse response = client().prepareSearch("index")
-            .setRank(new RankBuilder().toRankContext(new RRFRankContextBuilder().windowSize(100).rankConstant(1)))
+            .setRank(new RankBuilder().rankContextBuilder(new RRFRankContextBuilder().windowSize(100).rankConstant(1)))
             //.setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.termQuery("text", "term"))

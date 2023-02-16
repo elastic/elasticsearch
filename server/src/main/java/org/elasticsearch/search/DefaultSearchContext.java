@@ -51,7 +51,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankContext;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -103,7 +103,7 @@ final class DefaultSearchContext extends SearchContext {
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
-    private RankContext rankContext;
+    private RankShardContext rankShardContext;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -257,9 +257,6 @@ final class DefaultSearchContext extends SearchContext {
             throw new UncheckedIOException(e);
         }
 
-        if (rankContext != null) {
-            rankContext.setQuery(query);
-        }
         if (query == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
@@ -392,13 +389,13 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public RankContext rankContext() {
-        return rankContext;
+    public RankShardContext rankShardContext() {
+        return rankShardContext;
     }
 
     @Override
-    public void rankContext(RankContext rankContext) {
-        this.rankContext = rankContext;
+    public void rankShardContext(RankShardContext rankShardContext) {
+        this.rankShardContext = rankShardContext;
     }
 
     @Override

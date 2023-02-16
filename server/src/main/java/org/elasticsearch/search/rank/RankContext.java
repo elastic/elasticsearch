@@ -8,25 +8,28 @@
 
 package org.elasticsearch.search.rank;
 
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
 
-public interface RankContext {
+public abstract class RankContext {
 
-    void setQuery(Query query);
+    protected final List<QueryBuilder> queryBuilders;
+    protected final int size;
+    protected final int from;
 
-    void executeQuery(SearchContext searchContext);
+    public RankContext(List<QueryBuilder> queryBuilders, int size, int from) {
+        this.queryBuilders = queryBuilders;
+        this.size = size;
+        this.from = from;
+    }
 
-    void setSizeAndFrom(int size, int from);
+    public abstract SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats);
 
-    SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats);
-
-    void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit);
+    public abstract void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit);
 }

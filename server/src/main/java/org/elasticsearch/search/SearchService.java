@@ -1168,6 +1168,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         context.from(source.from());
         context.size(source.size());
+        if (source.rank() != null) {
+            try {
+                context.rankShardContext(source.rank().rankContextBuilder().build(searchExecutionContext));
+            } catch (IOException e) {
+                throw new SearchException(shardTarget, "failed to create rank queries", e);
+            }
+        }
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
             InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
@@ -1252,9 +1259,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create SuggestionSearchContext", e);
             }
-        }
-        if (source.rank() != null) {
-            context.rankContext(source.rank().toRankContext().build());
         }
         if (source.rescores() != null) {
             try {

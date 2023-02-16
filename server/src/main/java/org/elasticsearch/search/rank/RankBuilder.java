@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,8 +35,8 @@ public class RankBuilder implements Writeable, ToXContent {
             throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + parser.currentToken() + "]");
         }
         String fieldName = parser.currentName();
-        if (RRFRankContextBuilder.RANK_NAME.getPreferredName().equals(fieldName)) {
-            rankBuilder = new RankBuilder().toRankContext(RRFRankContextBuilder.fromXContent(parser));
+        if (RRFRankContextBuilder.NAME.getPreferredName().equals(fieldName)) {
+            rankBuilder = new RankBuilder().rankContextBuilder(RRFRankContextBuilder.fromXContent(parser));
         } else {
             throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + parser.currentToken() + "]");
         }
@@ -64,7 +65,7 @@ public class RankBuilder implements Writeable, ToXContent {
     public RankBuilder(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             String rankName = in.readString();
-            if (RRFRankContextBuilder.RANK_NAME.getPreferredName().equals(rankName)) {
+            if (RRFRankContextBuilder.NAME.getPreferredName().equals(rankName)) {
                 rankContextBuilder = in.readOptionalWriteable(RRFRankContextBuilder::new);
             } else {
                 throw new IllegalStateException("unknown rank name [" + rankName + "]");
@@ -83,12 +84,12 @@ public class RankBuilder implements Writeable, ToXContent {
         }
     }
 
-    public RankBuilder toRankContext(RankContextBuilder rankContextBuilder) {
+    public RankBuilder rankContextBuilder(RankContextBuilder rankContextBuilder) {
         this.rankContextBuilder = rankContextBuilder;
         return this;
     }
 
-    public RankContextBuilder toRankContext() {
+    public RankContextBuilder rankContextBuilder() {
         return rankContextBuilder;
     }
 

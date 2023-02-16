@@ -6,12 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank;
+package org.elasticsearch.search.rank.rrf;
 
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.search.rank.RankShardResult;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +31,7 @@ public class RRFRankShardResult extends RankShardResult {
 
     @Override
     public String getName() {
-        return RRFRankContextBuilder.RANK_NAME.getPreferredName();
+        return RRFRankContextBuilder.NAME.getPreferredName();
     }
 
     public List<TopDocs> getTopDocs() {

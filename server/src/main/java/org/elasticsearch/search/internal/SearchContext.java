@@ -40,6 +40,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankContext;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -130,9 +131,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract void suggest(SuggestionSearchContext suggest);
 
-    public abstract RankContext rankContext();
+    public abstract RankShardContext rankShardContext();
 
-    public abstract void rankContext(RankContext rankContext);
+    public abstract void rankShardContext(RankShardContext rankShardContext);
 
     /**
      * @return list of all rescore contexts.  empty if there aren't any.

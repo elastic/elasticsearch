@@ -42,7 +42,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankContext;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -525,12 +525,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public RankContext rankContext() {
+    public RankShardContext rankShardContext() {
         return null;
     }
 
     @Override
-    public void rankContext(RankContext rankContext) {
+    public void rankShardContext(RankShardContext rankShardContext) {
 
     }
 

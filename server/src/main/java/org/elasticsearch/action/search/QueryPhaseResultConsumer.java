@@ -92,10 +92,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.onPartialMergeFailure = onPartialMergeFailure;
 
         SearchSourceBuilder source = request.source();
-        this.rankContext = source == null || source.rank() == null ? null : source.rank().toRankContext().build();
-        if (rankContext != null) {
-            rankContext.setSizeAndFrom(request.source().size(), request.source().from());
-        }
+        this.rankContext = source == null || source.rank() == null ? null : source.rank().rankContextBuilder().build();
         this.hasTopDocs = (source == null || source.size() != 0) && rankContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;

@@ -6,26 +6,32 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank;
+package org.elasticsearch.search.rank.rrf;
 
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.rank.RankContext;
+import org.elasticsearch.search.rank.RankContextBuilder;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class RRFRankContextBuilder extends RankContextBuilder {
 
-    public static final ParseField RANK_NAME = new ParseField("rrf");
+    public static final ParseField NAME = new ParseField("rrf");
 
     public static final int RANK_CONSTANT_DEFAULT = 20;
     public static final int WINDOW_SIZE_DEFAULT = 10;
@@ -64,14 +70,21 @@ public class RRFRankContextBuilder extends RankContextBuilder {
     public RRFRankContextBuilder() {}
 
     public RRFRankContextBuilder(StreamInput in) throws IOException {
+        super(in);
         windowSize = in.readVInt();
         rankConstant = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(windowSize);
         out.writeVInt(rankConstant);
+    }
+
+    @Override
+    public ParseField name() {
+        return NAME;
     }
 
     public RRFRankContextBuilder windowSize(int windowSize) {
@@ -93,38 +106,57 @@ public class RRFRankContextBuilder extends RankContextBuilder {
     }
 
     @Override
-    public ParseField name() {
-        return RANK_NAME;
+    public RankContextBuilder subShallowCopy() {
+        RRFRankContextBuilder rrfRankContextBuilder = new RRFRankContextBuilder();
+        rrfRankContextBuilder.windowSize = windowSize;
+        rrfRankContextBuilder.rankConstant = rankConstant;
+        return rrfRankContextBuilder;
+    }
+
+    @Override
+    public QueryBuilder searchQuery() {
+        BoolQueryBuilder searchQuery = new BoolQueryBuilder();
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            searchQuery.should(queryBuilder);
+        }
+
+        return searchQuery;
+    }
+
+    @Override
+    public RankShardContext build(SearchExecutionContext searchExecutionContext) throws IOException {
+        List<Query> queries = new ArrayList<>();
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            queries.add(queryBuilder.toQuery(searchExecutionContext));
+        }
+
+        return new RRFRankShardContext(queries, size, from, windowSize);
     }
 
     @Override
     public RankContext build() {
-        return new RRFRankContext(windowSize, rankConstant);
+        return new RRFRankContext(queryBuilders, size, from, windowSize, rankConstant);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
         RRFRankContextBuilder that = (RRFRankContextBuilder) o;
-        return rankConstant == that.rankConstant && windowSize == that.windowSize;
+        return windowSize == that.windowSize && rankConstant == that.rankConstant;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rankConstant, windowSize);
+        return Objects.hash(super.hashCode(), windowSize, rankConstant);
     }
 
     @Override
     public String toString() {
-        return toString(EMPTY_PARAMS);
-    }
-
-    public String toString(Params params) {
-        try {
-            return XContentHelper.toXContent(this, XContentType.JSON, params, true).utf8ToString();
-        } catch (IOException e) {
-            throw new ElasticsearchException(e);
-        }
+        return "RRFRankContextBuilder{" +
+            "windowSize=" + windowSize +
+            ", rankConstant=" + rankConstant +
+            '}';
     }
 }

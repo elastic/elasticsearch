@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank;
+package org.elasticsearch.search.rank.rrf;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.rank.RankResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ public class RRFRankResult extends RankResult {
         scores = new float[size];
     }
 
-    protected RRFRankResult(StreamInput in) throws IOException {
+    public RRFRankResult(StreamInput in) throws IOException {
         super(in);
         rank = in.readVInt();
         positions = in.readIntArray();

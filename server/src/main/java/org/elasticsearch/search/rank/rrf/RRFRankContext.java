@@ -6,9 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank;
+package org.elasticsearch.search.rank.rrf;
 
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -16,10 +15,9 @@ import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankContext;
+import org.elasticsearch.search.rank.RankShardResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,56 +26,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class RRFRankContext implements RankContext {
+public class RRFRankContext extends RankContext {
 
     private final int windowSize;
     private final int rankConstant;
 
-    private RRFRankQuery rrfRankQuery;
-
-    private int size;
-    private int from;
-
-    public RRFRankContext(int windowSize, int rankConstant) {
+    public RRFRankContext(List<QueryBuilder> queryBuilders, int size, int from, int windowSize, int rankConstant) {
+        super(queryBuilders, size, from);
         this.windowSize = windowSize;
         this.rankConstant = rankConstant;
-    }
-
-    @Override
-    public void setQuery(Query query) {
-        if (query instanceof RRFRankQuery rrfRankQuery) {
-            this.rrfRankQuery = rrfRankQuery;
-        }
-    }
-
-    @Override
-    public void executeQuery(SearchContext searchContext) {
-        assert rrfRankQuery != null;
-
-        try {
-            RRFRankSearchContext rrfRankSearchContext = new RRFRankSearchContext(searchContext);
-            QueryPhase.executeInternal(rrfRankSearchContext);
-
-            List<TopDocs> rrfRankResults = new ArrayList<>();
-            rrfRankSearchContext.windowSize(windowSize);
-            for (Query query : rrfRankQuery.getQueries()) {
-                rrfRankSearchContext.rrfRankQuery(query);
-                QueryPhase.executeInternal(rrfRankSearchContext);
-                rrfRankResults.add(rrfRankSearchContext.queryResult().topDocs().topDocs);
-            }
-            RankShardResult rankShardResult = new RRFRankShardResult(rrfRankResults);
-            searchContext.queryResult().setRankShardResult(rankShardResult);
-        } catch (QueryPhaseExecutionException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
-        }
-    }
-
-    @Override
-    public void setSizeAndFrom(int size, int from) {
-        this.size = size == -1 ? 10 : size;
-        this.from = from == -1 ? 0 : from;
     }
 
     @Override

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank;
+package org.elasticsearch.search.rank.rrf;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;

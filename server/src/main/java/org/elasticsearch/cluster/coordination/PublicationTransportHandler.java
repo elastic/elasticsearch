@@ -425,6 +425,7 @@ public class PublicationTransportHandler {
             Transport.Connection connection = nodeConnections.get(destination);
             if (connection == null) {
                 logger.debug("No connection to [{}] available, skipping send", destination);
+                listener.onFailure(new NodeNotConnectedException(destination, "No connection available"));
                 return;
             }
 
@@ -446,6 +447,7 @@ public class PublicationTransportHandler {
             Transport.Connection connection = nodeConnections.get(destination);
             if (connection == null) {
                 logger.debug("No connection to [{}] available, skipping send", destination);
+                listener.onFailure(new NodeNotConnectedException(destination, "No connection available"));
                 return;
             }
 

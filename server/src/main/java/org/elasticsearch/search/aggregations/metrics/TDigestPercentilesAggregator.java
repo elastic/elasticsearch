@@ -54,6 +54,6 @@ class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggregator 
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTDigestPercentiles(name, keys, new TDigestState(compression), keyed, formatter, metadata());
+        return new InternalTDigestPercentiles(name, keys, null, keyed, formatter, metadata());
     }
 }

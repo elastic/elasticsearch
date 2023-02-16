@@ -12,8 +12,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -68,7 +71,8 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    private static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+    static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
@@ -89,7 +93,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME,
             SearchTransportService.QUERY_CAN_MATCH_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
+            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
+            TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+            ResolveIndexAction.NAME,
+            FieldCapabilitiesAction.NAME,
+            FieldCapabilitiesAction.NAME + "[n]"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)
@@ -386,6 +394,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
+                            if (roleDescriptorsIntersection.isEmpty()) {
+                                throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
+                            }
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                                 new RemoteAccessHeaders(
                                     remoteAccessCredentials.credentials(),

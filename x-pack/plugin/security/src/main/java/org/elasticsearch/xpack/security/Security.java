@@ -821,7 +821,7 @@ public class Security extends Plugin
             getSslService(),
             client,
             environment,
-            (runnable -> nodeStartedListenable.addListener(ActionListener.wrap(runnable))),
+            (runnable -> nodeStartedListenable.addListener(ActionListener.running(runnable))),
             threadPool
         );
 

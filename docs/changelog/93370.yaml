@@ -7,7 +7,8 @@ issues:
 highlight:
   title: Support geo_grid ingest processor
   body: |-
-    The `geo_grid` ingest processor supports creating indexable geometries from geohash, geotile and H3 cells.
+    The <<ingest-geo-grid-processor,`geo_grid` ingest processor>> supports creating indexable geometries
+    from geohash, geotile and H3 cells.
 
     There already exists a `circle` ingest processor that creates a polygon from a point and radius definition.
     This concept is useful when there is need to use spatial operations that work with indexable geometries on

@@ -1,6 +1,5 @@
 pr: 93084
-summary: "[H3] Compute destination point from distance and azimuth using planar 3d\
-  \ math"
+summary: In H3, compute destination point from distance and azimuth using planar 3d math"
 area: Geo
 type: enhancement
 issues: []

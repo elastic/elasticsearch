@@ -240,7 +240,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         try {
             final AtomicBoolean isClosed = new AtomicBoolean();
-            channel.addCloseListener(ActionListener.wrap(() -> assertTrue(isClosed.compareAndSet(false, true))));
+            channel.addCloseListener(ActionListener.running(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
             final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
                 random(),

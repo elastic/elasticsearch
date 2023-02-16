@@ -86,7 +86,7 @@ public class TransportVersionUtils {
             place = -(place + 1);
         }
 
-        if (place <= 1) {
+        if (place < 1) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
         return ALL_VERSIONS.get(place - 1);
@@ -102,7 +102,7 @@ public class TransportVersionUtils {
             place++;
         }
 
-        if (place <= 0) {
+        if (place < 0 || place >= ALL_VERSIONS.size()) {
             throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
         }
         return ALL_VERSIONS.get(place);

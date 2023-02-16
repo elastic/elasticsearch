@@ -183,7 +183,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     }
 
                     // Finally, delete the snapshots that need to be deleted
-                    deleteSnapshots(snapshotsToBeDeleted, slmStats, ActionListener.wrap(() -> {
+                    deleteSnapshots(snapshotsToBeDeleted, slmStats, ActionListener.running(() -> {
                         updateStateWithStats(slmStats);
                         logger.info("SLM retention snapshot cleanup task complete");
                     }));

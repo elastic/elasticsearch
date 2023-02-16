@@ -65,7 +65,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     public void initFulfillingClusterClient() throws IOException {
         if (fulfillingClusterClient == null) {
             assert fulfillingCluster != null;
-            fulfillingClusterClient = buildClient(fulfillingCluster.getHttpAddresses());
+            fulfillingClusterClient = buildClient(fulfillingCluster.getHttpAddress(0));
         }
     }
 
@@ -76,7 +76,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
 
     @Override
     protected String getTestRestCluster() {
-        return queryCluster.getHttpAddresses();
+        return queryCluster.getHttpAddress(0);
     }
 
     @Override
@@ -86,22 +86,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     protected void configureRemoteClustersWithApiKey(String indicesPrivilegesJson) throws IOException {
-        // Create API key on FC
-        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity(Strings.format("""
-            {
-              "name": "remote_access_key",
-              "role_descriptors": {
-                "role": {
-                  "cluster": ["cluster:monitor/state"],
-                  "index": %s
-                }
-              }
-            }""", indicesPrivilegesJson));
-        final Response createApiKeyResponse = performRequestAgainstFulfillingCluster(createApiKeyRequest);
-        assertOK(createApiKeyResponse);
-        final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
+        final String encodedRemoteAccessApiKey = createRemoteAccessApiKey(indicesPrivilegesJson);
 
         // Update remote cluster settings on QC with the API key
         updateClusterSettings(
@@ -111,6 +96,26 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
                 .put("cluster.remote.my_remote_cluster.authorization", encodedRemoteAccessApiKey)
                 .build()
         );
+    }
+
+    protected String createRemoteAccessApiKey(String indicesPrivilegesJson) throws IOException {
+        // Create API key on FC
+        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
+        createApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "remote_access_key",
+              "role_descriptors": {
+                "role": {
+                  "cluster": ["cluster:monitor/state", "cluster:admin/remote_cluster/*"],
+                  "index": %s
+                }
+              }
+            }""", indicesPrivilegesJson));
+        final Response createApiKeyResponse = performRequestAgainstFulfillingCluster(createApiKeyRequest);
+        assertOK(createApiKeyResponse);
+        final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
+        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
+        return encodedRemoteAccessApiKey;
     }
 
     protected Response performRequestAgainstFulfillingCluster(Request request) throws IOException {

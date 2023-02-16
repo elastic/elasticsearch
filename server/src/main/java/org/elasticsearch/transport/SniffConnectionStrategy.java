@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -277,7 +278,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     final DiscoveryNode handshakeNodeWithProxy = maybeAddProxyAddress(proxyAddress, handshakeNode);
                     connectionManager.connectToRemoteClusterNode(
                         handshakeNodeWithProxy,
-                        transportService.connectionValidator(handshakeNodeWithProxy),
+                        (connection, profile, l) -> transportService.connectionValidator(handshakeNodeWithProxy)
+                            .validate(RemoteConnectionManager.wrapConnectionWithClusterAlias(connection, clusterAlias), profile, l),
                         fullConnectionStep
                     );
                 } else {
@@ -299,31 +301,53 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 }
                 final Transport.Connection connection = openConnectionStep.result();
 
-                ClusterStateRequest request = new ClusterStateRequest();
-                request.clear();
-                request.nodes(true);
                 // here we pass on the connection since we can only close it once the sendRequest returns otherwise
                 // due to the async nature (it will return before it's actually sent) this can cause the request to fail
                 // due to an already closed connection.
                 ThreadPool threadPool = transportService.getThreadPool();
                 ThreadContext threadContext = threadPool.getThreadContext();
-                TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler =
-                    new TransportService.ContextRestoreResponseHandler<>(
-                        threadContext.newRestorableContext(false),
-                        new SniffClusterStateResponseHandler(connection, listener, seedNodesSuppliers)
-                    );
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    // we stash any context here since this is an internal execution and should not leak any
-                    // existing context information.
-                    threadContext.markAsSystemContext();
-                    transportService.sendRequest(
-                        connection,
-                        ClusterStateAction.NAME,
-                        request,
-                        TransportRequestOptions.EMPTY,
-                        responseHandler
-                    );
+
+                if (RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(transportProfile)) {
+                    TransportService.ContextRestoreResponseHandler<RemoteClusterNodesAction.Response> responseHandler =
+                        new TransportService.ContextRestoreResponseHandler<>(
+                            threadContext.newRestorableContext(false),
+                            new SniffRemoteClusterNodesResponseHandler(connection, listener, seedNodesSuppliers)
+                        );
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        // we stash any context here since this is an internal execution and should not leak any
+                        // existing context information.
+                        threadContext.markAsSystemContext();
+                        transportService.sendRequest(
+                            connection,
+                            RemoteClusterNodesAction.NAME,
+                            RemoteClusterNodesAction.Request.INSTANCE,
+                            TransportRequestOptions.EMPTY,
+                            responseHandler
+                        );
+                    }
+                } else {
+                    ClusterStateRequest request = new ClusterStateRequest();
+                    request.clear();
+                    request.nodes(true);
+                    TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler =
+                        new TransportService.ContextRestoreResponseHandler<>(
+                            threadContext.newRestorableContext(false),
+                            new SniffClusterStateResponseHandler(connection, listener, seedNodesSuppliers)
+                        );
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        // we stash any context here since this is an internal execution and should not leak any
+                        // existing context information.
+                        threadContext.markAsSystemContext();
+                        transportService.sendRequest(
+                            connection,
+                            ClusterStateAction.NAME,
+                            request,
+                            TransportRequestOptions.EMPTY,
+                            responseHandler
+                        );
+                    }
                 }
+
             }, e -> {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
@@ -336,14 +360,54 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
+    private class SniffRemoteClusterNodesResponseHandler extends AbstractSniffResponseHandler<RemoteClusterNodesAction.Response> {
+        SniffRemoteClusterNodesResponseHandler(
+            Transport.Connection connection,
+            ActionListener<Void> listener,
+            Iterator<Supplier<DiscoveryNode>> seedNodes
+        ) {
+            super(connection, listener, seedNodes);
+        }
+
+        @Override
+        public RemoteClusterNodesAction.Response read(StreamInput in) throws IOException {
+            return new RemoteClusterNodesAction.Response(in);
+        }
+
+        @Override
+        public void handleResponse(RemoteClusterNodesAction.Response response) {
+            handleNodes(response.getNodes().iterator());
+        }
+    }
+
+    private class SniffClusterStateResponseHandler extends AbstractSniffResponseHandler<ClusterStateResponse> {
+        SniffClusterStateResponseHandler(
+            Transport.Connection connection,
+            ActionListener<Void> listener,
+            Iterator<Supplier<DiscoveryNode>> seedNodes
+        ) {
+            super(connection, listener, seedNodes);
+        }
+
+        @Override
+        public org.elasticsearch.action.admin.cluster.state.ClusterStateResponse read(StreamInput in) throws IOException {
+            return new org.elasticsearch.action.admin.cluster.state.ClusterStateResponse(in);
+        }
+
+        @Override
+        public void handleResponse(org.elasticsearch.action.admin.cluster.state.ClusterStateResponse response) {
+            handleNodes(response.getState().nodes().getNodes().values().iterator());
+        }
+    }
+
     /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */
-    private class SniffClusterStateResponseHandler implements TransportResponseHandler<ClusterStateResponse> {
+    private abstract class AbstractSniffResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
         private final Transport.Connection connection;
         private final ActionListener<Void> listener;
         private final Iterator<Supplier<DiscoveryNode>> seedNodes;
 
-        SniffClusterStateResponseHandler(
+        AbstractSniffResponseHandler(
             Transport.Connection connection,
             ActionListener<Void> listener,
             Iterator<Supplier<DiscoveryNode>> seedNodes
@@ -353,49 +417,36 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             this.seedNodes = seedNodes;
         }
 
-        @Override
-        public ClusterStateResponse read(StreamInput in) throws IOException {
-            return new ClusterStateResponse(in);
-        }
-
-        @Override
-        public void handleResponse(ClusterStateResponse response) {
-            handleNodes(response.getState().nodes().getNodes().values().iterator());
-        }
-
-        private void handleNodes(Iterator<DiscoveryNode> nodesIter) {
+        protected void handleNodes(Iterator<DiscoveryNode> nodesIter) {
             while (nodesIter.hasNext()) {
                 final DiscoveryNode node = nodesIter.next();
                 if (nodePredicate.test(node) && shouldOpenMoreConnections()) {
                     logger.trace("[{}] opening managed connection to node: [{}] proxy address: [{}]", clusterAlias, node, proxyAddress);
                     final DiscoveryNode nodeWithProxy = maybeAddProxyAddress(proxyAddress, node);
-                    connectionManager.connectToRemoteClusterNode(
-                        nodeWithProxy,
-                        transportService.connectionValidator(node),
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                handleNodes(nodesIter);
-                            }
+                    connectionManager.connectToRemoteClusterNode(nodeWithProxy, (connection, profile, l) -> {
+                        transportService.connectionValidator(node)
+                            .validate(RemoteConnectionManager.wrapConnectionWithClusterAlias(connection, clusterAlias), profile, l);
+                    }, new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void aVoid) {
+                            handleNodes(nodesIter);
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (e instanceof ConnectTransportException || e instanceof IllegalStateException) {
-                                    // ISE if we fail the handshake with an version incompatible node
-                                    // fair enough we can't connect just move on
-                                    logger.debug(
-                                        () -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node),
-                                        e
-                                    );
-                                    handleNodes(nodesIter);
-                                } else {
-                                    logger.warn(() -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node), e);
-                                    IOUtils.closeWhileHandlingException(connection);
-                                    collectRemoteNodes(seedNodes, listener);
-                                }
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("FAILFAIL", e);
+                            if (e instanceof ConnectTransportException || e instanceof IllegalStateException) {
+                                // ISE if we fail the handshake with an version incompatible node
+                                // fair enough we can't connect just move on
+                                logger.debug(() -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node), e);
+                                handleNodes(nodesIter);
+                            } else {
+                                logger.warn(() -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node), e);
+                                IOUtils.closeWhileHandlingException(connection);
+                                collectRemoteNodes(seedNodes, listener);
                             }
                         }
-                    );
+                    });
                     return;
                 }
             }

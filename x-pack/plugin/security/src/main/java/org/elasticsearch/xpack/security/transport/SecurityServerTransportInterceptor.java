@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
@@ -68,6 +69,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
@@ -78,6 +80,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
     static {
         final Stream<String> actions = Stream.of(
+            REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+            RemoteClusterNodesAction.NAME,
             TransportService.HANDSHAKE_ACTION_NAME,
             SearchAction.NAME,
             ClusterStateAction.NAME,
@@ -385,7 +389,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             // authentication instance
                             new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY)
                         ).writeToContext(threadContext);
-                        sender.sendRequest(connection, action, request, options, contextRestoreHandler);
+
+                        final String finalAction;
+                        if (action.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
+                            finalAction = REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
+                        } else {
+                            finalAction = action;
+                        }
+                        sender.sendRequest(connection, finalAction, request, options, contextRestoreHandler);
                     } catch (IOException e) {
                         contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                     }

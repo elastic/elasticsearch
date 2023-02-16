@@ -127,6 +127,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
+    protected final String transportProfile;
 
     RemoteConnectionStrategy(
         String clusterAlias,
@@ -139,12 +140,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.connectionManager = connectionManager;
         this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
         connectionManager.addListener(this);
+        this.transportProfile = getTransportProfile(clusterAlias, settings);
     }
 
     static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
-        final String transportProfile = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).exists(settings)
-            ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
-            : TransportSettings.DEFAULT_PROFILE;
+        final String transportProfile = getTransportProfile(clusterAlias, settings);
 
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(
@@ -166,6 +166,13 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG)
             .setTransportProfile(transportProfile);
         return builder.build();
+    }
+
+    private static String getTransportProfile(String clusterAlias, Settings settings) {
+        final String transportProfile = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).exists(settings)
+            ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+            : TransportSettings.DEFAULT_PROFILE;
+        return transportProfile;
     }
 
     static RemoteConnectionStrategy buildStrategy(

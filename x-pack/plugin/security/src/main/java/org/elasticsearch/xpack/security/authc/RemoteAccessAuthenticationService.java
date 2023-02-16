@@ -42,7 +42,7 @@ public class RemoteAccessAuthenticationService {
 
     public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
         "_cross_cluster_internal",
-        new String[] { ClusterStateAction.NAME },
+        new String[] { ClusterStateAction.NAME, "cluster:admin/remote_cluster/*" },
         null,
         null,
         null,

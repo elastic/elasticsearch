@@ -19,7 +19,7 @@ public abstract class RankShardResult implements Writeable {
     public static RankShardResult readFrom(StreamInput in) throws IOException {
         String name = in.readString();
 
-        if (RRFRankBuilderBuilder.RANK_NAME.getPreferredName().equals(name)) {
+        if (RRFRankContextBuilder.RANK_NAME.getPreferredName().equals(name)) {
             return new RRFRankShardResult(in);
         }
 

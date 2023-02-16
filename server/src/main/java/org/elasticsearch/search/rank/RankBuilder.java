@@ -34,8 +34,8 @@ public class RankBuilder implements Writeable, ToXContent {
             throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + parser.currentToken() + "]");
         }
         String fieldName = parser.currentName();
-        if (RRFRankBuilderBuilder.RANK_NAME.getPreferredName().equals(fieldName)) {
-            rankBuilder = new RankBuilder().toRankContext(RRFRankBuilderBuilder.fromXContent(parser));
+        if (RRFRankContextBuilder.RANK_NAME.getPreferredName().equals(fieldName)) {
+            rankBuilder = new RankBuilder().toRankContext(RRFRankContextBuilder.fromXContent(parser));
         } else {
             throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + parser.currentToken() + "]");
         }
@@ -64,8 +64,8 @@ public class RankBuilder implements Writeable, ToXContent {
     public RankBuilder(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             String rankName = in.readString();
-            if (RRFRankBuilderBuilder.RANK_NAME.getPreferredName().equals(rankName)) {
-                rankContextBuilder = in.readOptionalWriteable(RRFRankBuilderBuilder::new);
+            if (RRFRankContextBuilder.RANK_NAME.getPreferredName().equals(rankName)) {
+                rankContextBuilder = in.readOptionalWriteable(RRFRankContextBuilder::new);
             } else {
                 throw new IllegalStateException("unknown rank name [" + rankName + "]");
             }

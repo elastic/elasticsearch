@@ -23,7 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RRFRankBuilderBuilder extends RankContextBuilder {
+public class RRFRankContextBuilder extends RankContextBuilder {
 
     public static final ParseField RANK_NAME = new ParseField("rrf");
 
@@ -33,9 +33,9 @@ public class RRFRankBuilderBuilder extends RankContextBuilder {
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
-    private static final ConstructingObjectParser<RRFRankBuilderBuilder, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RRFRankContextBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rrf",
-        args -> new RRFRankBuilderBuilder().windowSize(args[0] == null ? WINDOW_SIZE_DEFAULT : (int) args[0])
+        args -> new RRFRankContextBuilder().windowSize(args[0] == null ? WINDOW_SIZE_DEFAULT : (int) args[0])
             .rankConstant(args[1] == null ? RANK_CONSTANT_DEFAULT : (int) args[1])
     );
 
@@ -44,7 +44,7 @@ public class RRFRankBuilderBuilder extends RankContextBuilder {
         PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
     }
 
-    public static RRFRankBuilderBuilder fromXContent(XContentParser parser) throws IOException {
+    public static RRFRankContextBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -61,9 +61,9 @@ public class RRFRankBuilderBuilder extends RankContextBuilder {
     private int windowSize;
     private int rankConstant;
 
-    public RRFRankBuilderBuilder() {}
+    public RRFRankContextBuilder() {}
 
-    public RRFRankBuilderBuilder(StreamInput in) throws IOException {
+    public RRFRankContextBuilder(StreamInput in) throws IOException {
         windowSize = in.readVInt();
         rankConstant = in.readVInt();
     }
@@ -74,7 +74,7 @@ public class RRFRankBuilderBuilder extends RankContextBuilder {
         out.writeVInt(rankConstant);
     }
 
-    public RRFRankBuilderBuilder windowSize(int windowSize) {
+    public RRFRankContextBuilder windowSize(int windowSize) {
         this.windowSize = windowSize;
         return this;
     }
@@ -83,7 +83,7 @@ public class RRFRankBuilderBuilder extends RankContextBuilder {
         return windowSize;
     }
 
-    public RRFRankBuilderBuilder rankConstant(int rankConstant) {
+    public RRFRankContextBuilder rankConstant(int rankConstant) {
         this.rankConstant = rankConstant;
         return this;
     }
@@ -106,7 +106,7 @@ public class RRFRankBuilderBuilder extends RankContextBuilder {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RRFRankBuilderBuilder that = (RRFRankBuilderBuilder) o;
+        RRFRankContextBuilder that = (RRFRankContextBuilder) o;
         return rankConstant == that.rankConstant && windowSize == that.windowSize;
     }
 

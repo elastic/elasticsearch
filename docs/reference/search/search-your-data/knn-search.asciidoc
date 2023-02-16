@@ -407,10 +407,73 @@ each score in the sum. In the example above, the scores will be calculated as
 score = 0.9 * match_score + 0.1 * knn_score
 ```
 
-The `knn` option can also be used with <<search-aggregations, `aggregations`>>. In general, {es} computes aggregations
-over all documents that match the search. So for approximate kNN search, aggregations are calculated on the top `k`
-nearest documents. If the search also includes a `query`, then aggregations are calculated on the combined set of `knn`
-and `query` matches.
+The `knn` option can also be used with <<search-aggregations, `aggregations`>>. 
+In general, {es} computes aggregations over all documents that match the search. 
+So for approximate kNN search, aggregations are calculated on the top `k` 
+nearest documents. If the search also includes a `query`, then aggregations are 
+calculated on the combined set of `knn` and `query` matches.
+
+[discrete]
+[[semantic-search]]
+==== Perform semantic search
+
+kNN search enables you to perform semantic search by using a previously deployed 
+{ml-docs}/ml-nlp-search-compare.html#ml-nlp-text-embedding[text embedding model]. 
+Instead of literal matching on search terms, semantic search retrieves results
+based on the intent and the contextual meaning of a search query.
+
+Under the hood, the text embedding NLP model generates a dense vector from the 
+input query string called `model_text` you provide. Then, it is searched 
+against an index containing dense vectors created with the same text embedding 
+{ml} model. The search results are semantically similar as learned by the model.
+
+[IMPORTANT]
+=====================
+To perform semantic search:
+
+* you need an index that contains the dense vector representation of the input 
+data to search against,
+
+* you must use the same text embedding model for search that you used to create 
+the dense vectors from the input data,
+
+* the text embedding NLP model deployment must be started.
+=====================
+
+Reference the deployed text embedding model in the `query_vector_builder` object 
+and provide the search query as `model_text`:
+
+[source,js]
+----
+(...)
+{
+  "knn": {
+    "field": "dense-vector-field",
+    "k": 10,
+    "num_candidates": 100,
+    "query_vector_builder": {
+      "text_embedding": { <1>
+        "model_id": "my-text-embedding-model", <2>
+        "model_text": "The opposite of blue" <3>
+      }
+    }
+  }
+}
+(...)
+----
+// NOTCONSOLE
+
+<1> The {nlp} task to perform. It must be `text_embedding`.
+<2> The ID of the text embedding model to use to generate the dense vectors from 
+the query string. Use the same model that generated the embeddings from the 
+input text in the index you search against.
+<3> The query string from which the model generates the dense vector 
+representation.
+
+For more information on how to deploy a trained model and use it to create text 
+embeddings, refer to this 
+{ml-docs}/ml-nlp-text-emb-vector-search-example.html[end-to-end example].
+
 
 [discrete]
 ==== Search multiple kNN fields

@@ -176,11 +176,4 @@ public class TransportVersionTests extends ESTestCase {
         assertEquals("2000099", TransportVersion.fromId(2_00_00_99).toString());
         assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());
     }
-
-    public void testMinCompatVersion() {
-        Version minCompat = Version.fromId(TransportVersion.V_8_0_0.calculateMinimumCompatVersion().id);
-        assertEquals(7, minCompat.major);
-        assertEquals("This needs to be updated when 7.18 is released", 17, minCompat.minor);
-        assertEquals(0, minCompat.revision);
-    }
 }

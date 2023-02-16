@@ -53,7 +53,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", length);
 
         final AtomicBoolean invoked = new AtomicBoolean(false);
-        final ActionListener<Void> listener = ActionListener.wrap(() -> invoked.set(true));
+        final ActionListener<Void> listener = ActionListener.running(() -> invoked.set(true));
         assertThat(invoked.get(), is(false));
 
         IllegalArgumentException e = expectThrows(

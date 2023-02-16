@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
-import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 
 public class RemoteAccessAuthenticationService {
 
@@ -87,7 +87,8 @@ public class RemoteAccessAuthenticationService {
 
         final RemoteAccessHeaders remoteAccessHeaders;
         try {
-            remoteAccessHeaders = extractRemoteAccessHeaders(threadContext);
+            apiKeyService.ensureEnabled();
+            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
             return;
@@ -104,7 +105,7 @@ public class RemoteAccessAuthenticationService {
             )
         ) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
-            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredential());
+            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredentials());
             authenticationService.authenticate(
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
@@ -122,7 +123,7 @@ public class RemoteAccessAuthenticationService {
         }
     }
 
-    private static RemoteAccessAuthentication maybeRewriteForSystemUser(RemoteAccessAuthentication remoteAccessAuthentication)
+    private static RemoteAccessAuthentication maybeRewriteForSystemUser(final RemoteAccessAuthentication remoteAccessAuthentication)
         throws IOException {
         final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
         final User user = receivedEffectiveSubject.getUser();
@@ -146,29 +147,6 @@ public class RemoteAccessAuthenticationService {
 
     public AuthenticationService getAuthenticationService() {
         return authenticationService;
-    }
-
-    private record RemoteAccessHeaders(
-        ApiKeyService.ApiKeyCredentials clusterCredential,
-        RemoteAccessAuthentication remoteAccessAuthentication
-    ) {}
-
-    private RemoteAccessHeaders extractRemoteAccessHeaders(final ThreadContext threadContext) throws IOException {
-        apiKeyService.ensureEnabled();
-        final String clusterCredentialHeader = threadContext.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
-        if (clusterCredentialHeader == null) {
-            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required");
-        }
-        final ApiKeyService.ApiKeyCredentials apiKeyCredential = apiKeyService.getCredentialsFromHeader(clusterCredentialHeader);
-        if (apiKeyCredential == null) {
-            throw new IllegalArgumentException(
-                "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential"
-            );
-        }
-        if (threadContext.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null) {
-            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
-        }
-        return new RemoteAccessHeaders(apiKeyCredential, RemoteAccessAuthentication.readFromContext(threadContext));
     }
 
     private void validate(final RemoteAccessAuthentication remoteAccessAuthentication) {

@@ -89,7 +89,7 @@ class KnnScoreDocQuery extends Query {
             @Override
             public Scorer scorer(LeafReaderContext context) {
                 // Segment starts indicate how many docs are in the segment,
-                //   upper equalling lower indicates no documents for this segment
+                // upper equalling lower indicates no documents for this segment
                 if (segmentStarts[context.ord] == segmentStarts[context.ord + 1]) {
                     return null;
                 }

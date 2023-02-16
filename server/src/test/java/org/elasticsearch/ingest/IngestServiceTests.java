@@ -1078,6 +1078,70 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
+    public void testReRouteExecutesFinalPipeline() throws Exception {
+        var reroutingProcessor = mockCompoundProcessor();
+        var finalPipelineProcessor = mockCompoundProcessor();
+        var ingestService = createWithProcessors(
+            Map.of(
+                "mock",
+                (factories, tag, description, config) -> reroutingProcessor,
+                "final",
+                (factories, tag, description, config) -> finalPipelineProcessor
+            )
+        );
+        // index.final_pipeline setting can only be applied through templates
+        var clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexTemplateMetadata.builder("a-template")
+                            .patterns(List.of("*"))
+                            .settings(Settings.builder().put("index.final_pipeline", "final-pipeline").build())
+                    )
+            )
+            .build();
+        var previousClusterState = clusterState;
+        clusterState = executePut(
+            new PutPipelineRequest("initial-pipeline", new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON),
+            clusterState
+        );
+        clusterState = executePut(
+            new PutPipelineRequest("final-pipeline", new BytesArray("{\"processors\": [{\"final\" : {}}]}"), XContentType.JSON),
+            clusterState
+        );
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        doAnswer((InvocationOnMock invocationOnMock) -> {
+            var ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
+            ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "final-index");
+            @SuppressWarnings("unchecked")
+            var handler = (BiConsumer<IngestDocument, Exception>) invocationOnMock.getArguments()[1];
+            handler.accept(ingestDocument, null);
+            return null;
+        }).when(reroutingProcessor).execute(any(), any());
+
+        var indexRequest = new IndexRequest("_index").id("_id")
+            .source(Map.of())
+            .setPipeline("initial-pipeline")
+            // final_pipeline are only taken into account from templates, but this method needs that the value be != null
+            .setFinalPipeline("_none");
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+
+        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+
+        verify(reroutingProcessor, times(1)).execute(any(), any());
+        verify(finalPipelineProcessor, times(1)).execute(any(), any());
+        verify(failureHandler, never()).accept(any(), any());
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        // pipeline and final_pipeline should be cleaned up after the pipeline was processed,
+        // otherwise the final_pipeline could be executed twice
+        assertEquals(indexRequest.getPipeline(), "_none");
+        assertEquals(indexRequest.getFinalPipeline(), "_none");
+    }
+
     public void testExecutePropagateAllMetadataUpdates() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));

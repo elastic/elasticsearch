@@ -533,6 +533,11 @@ public class SearchEngine extends Engine {
     }
 
     @Override
+    public boolean refreshNeeded() {
+        return false;
+    }
+
+    @Override
     public ShardLongFieldRange getRawFieldRange(String field) throws IOException {
         return ShardLongFieldRange.UNKNOWN;
     }

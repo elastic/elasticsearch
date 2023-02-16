@@ -1,5 +1,0 @@
-pr: 93872
-summary: Simplify `GcsProxyIntegrationTests`
-area: Snapshot/Restore
-type: bug
-issues: []

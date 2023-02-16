@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,6 +64,8 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         super(actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
     }
+
+    protected abstract void doExecute(Task task, GetEngineAction.Request request, ActionListener<GetEngineAction.Response> listener);
 
     class TransportHandler implements TransportRequestHandler<Request> {
         @Override

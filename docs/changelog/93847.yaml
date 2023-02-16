@@ -1,0 +1,5 @@
+pr: 93847
+summary: "Bug-fix: Include the `forceMerge` flag in the equals of `SearchableSnapshotAction`"
+area: ILM+SLM
+type: bug
+issues: []

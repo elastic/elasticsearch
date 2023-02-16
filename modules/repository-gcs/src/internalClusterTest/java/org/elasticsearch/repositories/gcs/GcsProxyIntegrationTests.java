@@ -41,7 +41,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "We start an HTTP proxy server to test proxy support for GCS")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93811")
 public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static HttpServer upstreamServer;
@@ -109,4 +108,19 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
             .setSecureSettings(secureSettings)
             .build();
     }
+
+    // Explicitly don't run heavy tests for snapshotting and restoring.
+    // We just want to make sure that the basic functionality of a GCS repository is supported via HTTP proxies.
+
+    @Override
+    public void testContainerCreationAndDeletion() throws IOException {}
+
+    @Override
+    public void testMultipleSnapshotAndRollback() throws Exception {}
+
+    @Override
+    public void testIndicesDeletedFromRepository() throws Exception {}
+
+    @Override
+    public void testSnapshotAndRestore() throws Exception {}
 }

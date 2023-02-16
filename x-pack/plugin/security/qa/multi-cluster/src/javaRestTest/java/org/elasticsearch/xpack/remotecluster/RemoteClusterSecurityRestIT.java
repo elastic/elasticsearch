@@ -151,7 +151,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(
                 exception.getMessage(),
-                containsString("action [indices:data/read/search] is unauthorized for user [remote_search_user] on indices [index2]")
+                containsString("action [indices:data/read/search] is unauthorized for user [test_user] on indices [index2]")
             );
 
             // Check that access is denied because of API key privileges
@@ -162,9 +162,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(exception2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(
                 exception2.getMessage(),
-                containsString(
-                    "action [indices:data/read/search] is unauthorized for user [remote_search_user] on indices [prefixed_index]"
-                )
+                containsString("action [indices:data/read/search] is unauthorized for user [test_user] on indices [prefixed_index]")
             );
 
             // Check access is denied when user has no remote indices privileges

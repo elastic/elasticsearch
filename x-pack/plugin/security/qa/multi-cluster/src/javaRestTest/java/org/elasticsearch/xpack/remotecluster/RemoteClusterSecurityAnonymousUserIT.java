@@ -109,7 +109,7 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
             assertThat(
                 e2.getMessage(),
                 containsString(
-                    "action [indices:data/read/search] is unauthorized for user [_anonymous] on indices ["
+                    "action [indices:data/read/search] is unauthorized for user [test_user] on indices ["
                         + inaccessibleIndexForAnonymous
                         + "]"
                 )

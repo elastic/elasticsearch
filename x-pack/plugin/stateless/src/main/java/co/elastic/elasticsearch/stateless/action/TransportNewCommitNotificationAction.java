@@ -50,7 +50,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
         ActionFilters actionFilters,
         IndicesService indicesService
     ) {
-        super(NAME, clusterService, transportService, actionFilters, NewCommitNotificationRequest::new, ThreadPool.Names.REFRESH);
+        super(NAME, clusterService, transportService, actionFilters, NewCommitNotificationRequest::new, ThreadPool.Names.SAME);
         this.indicesService = indicesService;
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.CompletionStatsCache;
@@ -47,12 +48,15 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -75,6 +79,8 @@ public class SearchEngine extends Engine {
     private final AtomicLong lastTranslogLocation = new AtomicLong(0);
 
     private final Map<Long, ListenableActionFuture<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
+    private final LinkedBlockingQueue<CommitNotification> commitNotifications = new LinkedBlockingQueue<>();
+    private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
 
@@ -119,19 +125,100 @@ public class SearchEngine extends Engine {
         final Map<String, StoreFileMetadata> commit,
         ActionListener<Void> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            ensureOpen();
-            directory.updateCommit(commit);
-            if (readerManager.maybeRefresh()) {
-                final ElasticsearchDirectoryReader reader = readerManager.acquire();
+        if (addOrExecuteSegmentGenerationListener(generation, listener.map(g -> null))) {
+            commitNotifications.add(new CommitNotification(primaryTerm, generation, commit));
+
+            if (pendingCommitNotifications.incrementAndGet() == 1) {
+                processCommitNotifications();
+            }
+        }
+    }
+
+    private void processCommitNotifications() {
+        var executor = engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH);
+        executor.execute(new AbstractRunnable() {
+
+            int batchSize = 0;
+
+            @Override
+            protected void doRun() throws Exception {
+                store.incRef();
                 try {
-                    this.segmentInfos = Lucene.readSegmentInfos(reader.getIndexCommit());
-                    callSegmentGenerationListeners(reader.getIndexCommit().getGeneration());
+                    ensureOpen();
+                    batchSize = pendingCommitNotifications.get();
+                    assert batchSize > 0 : batchSize;
+
+                    final SegmentInfos current = segmentInfos;
+                    CommitNotification latestCommit = null;
+                    for (int i = batchSize; i > 0; i--) {
+                        CommitNotification commit = commitNotifications.poll();
+                        assert commit != null;
+                        if (commit.generation() < current.getGeneration()) { // TODO also compare primary terms
+                            logger.trace(
+                                "notification for commit generation [{}] is older than current generation [{}], ignoring",
+                                commit.generation,
+                                current.getGeneration()
+                            );
+                            continue;
+                        }
+                        if (latestCommit == null || commit.isAfter(latestCommit)) {
+                            latestCommit = commit;
+                        }
+                    }
+                    if (latestCommit == null) {
+                        logger.trace(() -> "directory is on most recent commit generation [" + current.getGeneration() + ']');
+                        // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
+                        return;
+                    }
+
+                    final CommitNotification notification = latestCommit;
+                    logger.trace(() -> "updating directory with commit " + notification);
+                    directory.updateCommit(notification.commit);
+
+                    readerManager.maybeRefreshBlocking();
+                    var reader = readerManager.acquire();
+                    try {
+                        assert reader.getIndexCommit().getGeneration() == notification.generation
+                            : "Directory reader commit generation ["
+                                + reader.getIndexCommit().getGeneration()
+                                + "] does not match expected generation ["
+                                + notification.generation
+                                + ']';
+
+                        final SegmentInfos next = Lucene.readSegmentInfos(reader.getIndexCommit());
+                        assert current.getGeneration() < next.getGeneration()
+                            : "SegmentInfos generation ["
+                                + next.getGeneration()
+                                + "] must be higher than previous generation ["
+                                + current.getGeneration()
+                                + ']';
+
+                        segmentInfos = next;
+                        logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
+                        callSegmentGenerationListeners(reader.getIndexCommit().getGeneration());
+                    } finally {
+                        readerManager.release(reader);
+                    }
                 } finally {
-                    readerManager.release(reader);
+                    store.decRef();
                 }
             }
-            return null;
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof AlreadyClosedException == false) {
+                    failEngine("failed to refresh segments", e);
+                }
+            }
+
+            @Override
+            public void onAfter() {
+                var remaining = pendingCommitNotifications.addAndGet(-batchSize);
+                assert remaining >= 0 : remaining;
+                if (remaining > 0) {
+                    processCommitNotifications();
+                }
+            }
         });
     }
 
@@ -452,13 +539,29 @@ public class SearchEngine extends Engine {
 
     @Override
     public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        addOrExecuteSegmentGenerationListener(minGeneration, listener);
+    }
+
+    /**
+     * Registers a segment generation listener or completes it immediately. Listeners are registered for a specific {@code minGeneration}
+     * value and are completed once the shard is refreshed with a segment commit generation that is greater than or equal to that value. If
+     * the shard is already on a newer segment generation the listener is completed immediately and the method returns false. Otherwise the
+     * listener is kept around for future completion and the method returns true.
+     *
+     * @param minGeneration the minimum segment generation to listen to
+     * @param listener the listener
+     * @return true if the listener has been registered successfully, false if the listener has been executed immediately
+     *
+     * @throws AlreadyClosedException if the engine is closed
+     */
+    private boolean addOrExecuteSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
         try {
             ensureOpen();
             // check current state first - not strictly necessary, but a little more efficient than what happens next
             final long preFlightGeneration = getCurrentGeneration();
             if (preFlightGeneration >= minGeneration) {
                 listener.onResponse(preFlightGeneration);
-                return;
+                return false;
             }
 
             // register this listener before checking current state again
@@ -470,10 +573,13 @@ public class SearchEngine extends Engine {
                 final var listeners = segmentGenerationListeners.remove(minGeneration);
                 if (listeners != null) {
                     listeners.onResponse(currentGeneration);
+                    return false;
                 }
             }
+            return true;
         } catch (Exception e) {
             listener.onFailure(e);
+            return false;
         }
     }
 
@@ -509,5 +615,17 @@ public class SearchEngine extends Engine {
             }
         }
         assert segmentGenerationListeners.isEmpty();
+    }
+
+    record CommitNotification(long primaryTerm, long generation, Map<String, StoreFileMetadata> commit) {
+
+        @Override
+        public String toString() {
+            return "[" + primaryTerm + "][" + generation + ']' + commit;
+        }
+
+        public boolean isAfter(CommitNotification other) {
+            return generation > other.generation; // TODO we should also compare the primary terms to ignore old values
+        }
     }
 }

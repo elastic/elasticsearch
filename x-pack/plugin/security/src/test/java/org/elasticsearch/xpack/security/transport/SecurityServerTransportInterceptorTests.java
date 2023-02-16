@@ -957,10 +957,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .realm()
             .build();
         authentication.writeToContext(threadContext);
-        final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
-        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
-        when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(remoteClusterCredential);
+        final RemoteClusterCredentialsResolver remoteClusterAuthorizationResolver = mock(RemoteClusterCredentialsResolver.class);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
+        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
+        when(remoteClusterAuthorizationResolver.resolve(any())).thenReturn(
+            Optional.of(new RemoteClusterCredentials(remoteClusterAlias, remoteClusterCredential))
+        );
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -1027,9 +1029,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     + "] cannot be executed because it is not allowed as a cross cluster operation"
             )
         );
-        verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
+        verify(remoteClusterAuthorizationResolver, times(1)).resolve(eq(remoteClusterAlias));
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY), nullValue());
     }
 
     public void testProfileFiltersCreatedDifferentlyForDifferentTransportAndRemoteClusterSslSettings() {

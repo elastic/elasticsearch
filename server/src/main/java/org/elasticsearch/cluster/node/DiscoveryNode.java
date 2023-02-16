@@ -15,7 +15,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
@@ -45,11 +44,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * Name of the setting used to enable stateless.
      */
     public static final String STATELESS_ENABLED_SETTING_NAME = "stateless.enabled";
-    public static final Setting<Boolean> SERVERLESS_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.enabled",
-        false,
-        Setting.Property.NodeScope
-    );
 
     /**
      * Check if {@link #STATELESS_ENABLED_SETTING_NAME} is present and set to {@code true}, indicating that the node is
@@ -70,15 +64,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Check if {@link #SERVERLESS_ENABLED_SETTING} is present and set to {@code true}, indicating that the node is
-     * part of a serverless deployment. Usage of this method will be replaced with #isStateless in the future but it is useful to be able
-     * to run serverless and stateless separately while in early development.
+     * Check if the serverless feature flag is present and set to {@code true}, indicating that the node is
+     * part of a serverless deployment.
      *
-     * @param settings the node settings
-     * @return true if {@link #SERVERLESS_ENABLED_SETTING} is present and set
+     * @return true if the serverless feature flag is present and set
      */
-    public static boolean isServerless(final Settings settings) {
-        return settings.getAsBoolean(SERVERLESS_ENABLED_SETTING.getKey(), false);
+    public static boolean isServerless() {
+        return DiscoveryNodeRole.hasServerlessFeatureFlag();
     }
 
     static final String COORDINATING_ONLY = "coordinating_only";

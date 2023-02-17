@@ -8,6 +8,15 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 
@@ -16,15 +25,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -190,19 +195,20 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testGetDefaultProjectIdViaProxy() throws Exception {
         String proxyProjectId = randomAlphaOfLength(16);
-        var proxyServer = new MockHttpProxyServer((is, os) -> {
-            try (
-                var reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-                var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)
-            ) {
-                assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
-                writer.write(Strings.format("""
-                    HTTP/1.1 200 OK\r
-                    Content-Length: %s\r
-                    \r
-                    %s""", proxyProjectId.length(), proxyProjectId));
+        var proxyServer = new MockHttpProxyServer().handler(() -> new SimpleChannelInboundHandler<>() {
+            @Override
+            protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+                assertEquals("GET", request.method().name());
+                assertEquals("http://metadata.google.internal/computeMetadata/v1/project/project-id", request.uri());
+                var response = new DefaultFullHttpResponse(
+                    HttpVersion.HTTP_1_1,
+                    HttpResponseStatus.OK,
+                    Unpooled.wrappedBuffer(proxyProjectId.getBytes(StandardCharsets.UTF_8))
+                );
+                response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+                ctx.writeAndFlush(response);
             }
-        }).await();
+        });
         try (proxyServer) {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));

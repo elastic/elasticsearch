@@ -7,17 +7,22 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.DefaultProxyRoutePlanner;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 
@@ -25,19 +30,20 @@ public class MockHttpProxyServerTests extends ESTestCase {
 
     public void testProxyServerWorks() throws Exception {
         String httpBody = randomAlphaOfLength(32);
-        var proxyServer = new MockHttpProxyServer((is, os) -> {
-            try (
-                var reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-                var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)
-            ) {
-                assertEquals("GET http://googleapis.com/ HTTP/1.1", reader.readLine());
-                writer.write(Strings.format("""
-                    HTTP/1.1 200 OK\r
-                    Content-Length: %s\r
-                    \r
-                    %s""", httpBody.length(), httpBody));
+        var proxyServer = new MockHttpProxyServer().handler(() -> new SimpleChannelInboundHandler<>() {
+            @Override
+            protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+                assertEquals("GET", request.method().name());
+                assertEquals("http://googleapis.com/", request.uri());
+                var response = new DefaultFullHttpResponse(
+                    HttpVersion.HTTP_1_1,
+                    HttpResponseStatus.OK,
+                    Unpooled.wrappedBuffer(httpBody.getBytes(StandardCharsets.UTF_8))
+                );
+                response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+                ctx.writeAndFlush(response);
             }
-        }).await();
+        });
         var httpClient = HttpClients.custom()
             .setRoutePlanner(new DefaultProxyRoutePlanner(new HttpHost(InetAddress.getLoopbackAddress(), proxyServer.getPort())))
             .build();

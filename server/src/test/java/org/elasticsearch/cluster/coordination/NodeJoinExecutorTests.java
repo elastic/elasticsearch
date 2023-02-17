@@ -66,7 +66,7 @@ import static org.mockito.Mockito.when;
 
 public class NodeJoinExecutorTests extends ESTestCase {
 
-    private static final ActionListener<Void> NOT_COMPLETED_LISTENER = ActionListener.wrap(
+    private static final ActionListener<Void> NOT_COMPLETED_LISTENER = ActionListener.running(
         () -> { throw new AssertionError("should not complete publication"); }
     );
 

@@ -21,12 +21,15 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
@@ -63,14 +66,18 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static RestClient searchClient;
     private static RestClient adminSearchClient;
     private static List<HttpHost> clusterHosts;
-    private static ClientYamlTestClient searchYamlTestClient;
+    private static TestCandidateAwareClient searchYamlTestClient;
     // the remote cluster is the one we write index operations etc... to
     private static final String REMOTE_CLUSTER_NAME = "remote_cluster";
 
     private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
         .module("aggregations")
         .module("mapper-extras")
+        .module("vector-tile")
+        .module("x-pack-analytics")
         .setting("xpack.security.enabled", "false")
+        // geohex_grid requires gold license
+        .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE);
 
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
@@ -93,7 +100,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
 
     // the CCS api calls that we run against the "search" cluster in this test setup
-    private static final Set<String> CCS_APIS = Set.of(
+    static final Set<String> CCS_APIS = Set.of(
         "search",
         "field_caps",
         "msearch",
@@ -103,7 +110,9 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         "async_search.submit",
         "async_search.get",
         "async_search.status",
-        "async_search.delete"
+        "async_search.delete",
+        "open_point_in_time",
+        "close_point_in_time"
     );
 
     @Override
@@ -141,7 +150,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             final Version masterVersion = versionVersionTuple.v2();
             final String os = readOsFromNodesInfo(adminSearchClient);
 
-            searchYamlTestClient = new ClientYamlTestClient(
+            searchYamlTestClient = new TestCandidateAwareClient(
                 getRestSpec(),
                 searchClient,
                 hosts,
@@ -149,42 +158,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 masterVersion,
                 os,
                 this::getClientBuilderWithSniffedHosts
-            ) {
-                // we overwrite this method so the search client can modify the index names by prefixing them with the
-                // remote cluster name before sending the requests
-                public ClientYamlTestResponse callApi(
-                    String apiName,
-                    Map<String, String> params,
-                    HttpEntity entity,
-                    Map<String, String> headers,
-                    NodeSelector nodeSelector
-                ) throws IOException {
-                    // on request, we need to replace index specifications by prefixing the remote cluster
-                    if (apiName.equals("scroll") == false
-                        && apiName.equals("clear_scroll") == false
-                        && apiName.equals("async_search.get") == false
-                        && apiName.equals("async_search.delete") == false
-                        && apiName.equals("async_search.status") == false) {
-                        String parameterName = "index";
-                        if (apiName.equals("indices.resolve_index")) {
-                            // in this specific api, the index parameter is called "name"
-                            parameterName = "name";
-                        }
-                        String originalIndices = params.get(parameterName);
-                        String expandedIndices = REMOTE_CLUSTER_NAME + ":*";
-                        if (originalIndices != null && (originalIndices.isEmpty() == false)) {
-                            String[] indices = originalIndices.split(",");
-                            List<String> newIndices = new ArrayList<>();
-                            for (String indexName : indices) {
-                                newIndices.add(REMOTE_CLUSTER_NAME + ":" + indexName);
-                            }
-                            expandedIndices = String.join(",", newIndices);
-                        }
-                        params.put(parameterName, String.join(",", expandedIndices));
-                    }
-                    return super.callApi(apiName, params, entity, headers, nodeSelector);
-                };
-            };
+            );
 
             // check that we have an established CCS connection
             Request request = new Request("GET", "_remote/info");
@@ -198,6 +172,8 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         assert searchClient != null;
         assert adminSearchClient != null;
         assert clusterHosts != null;
+
+        searchYamlTestClient.setTestCandidate(getTestCandidate());
     }
 
     public CcsCommonYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
@@ -208,7 +184,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
      * we need to rewrite a few "match" sections in order to change the expected index name values
      * to include the remote cluster prefix
      */
-    private static ClientYamlTestCandidate rewrite(ClientYamlTestCandidate clientYamlTestCandidate) {
+    static ClientYamlTestCandidate rewrite(ClientYamlTestCandidate clientYamlTestCandidate) {
         ClientYamlTestSection testSection = clientYamlTestCandidate.getTestSection();
         List<ExecutableSection> executableSections = testSection.getExecutableSections();
         List<ExecutableSection> modifiedExecutableSections = new ArrayList<>();
@@ -244,6 +220,17 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                         if (body.containsKey("index")) {
                             String modifiedIndex = REMOTE_CLUSTER_NAME + ":" + body.get("index");
                             body.put("index", modifiedIndex);
+                        } else if (body.containsKey("query") && body.containsKey("pit")) {
+                            // search/350_point_in_time/msearch uses _index in a match query
+                            @SuppressWarnings("unchecked")
+                            final var query = (Map<String, Object>) body.get("query");
+                            if (query.containsKey("match")) {
+                                @SuppressWarnings("unchecked")
+                                final var match = (Map<String, Object>) query.get("match");
+                                if (match.containsKey("_index")) {
+                                    match.put("_index", REMOTE_CLUSTER_NAME + ":" + match.get("_index"));
+                                }
+                            }
                         }
                     }
                 }
@@ -304,6 +291,80 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             IOUtils.close(searchClient, adminSearchClient);
         } finally {
             clusterHosts = null;
+        }
+    }
+
+    static class TestCandidateAwareClient extends ClientYamlTestClient {
+        private ClientYamlTestCandidate testCandidate;
+
+        TestCandidateAwareClient(
+            ClientYamlSuiteRestSpec restSpec,
+            RestClient restClient,
+            List<HttpHost> hosts,
+            Version esVersion,
+            Version masterVersion,
+            String os,
+            CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
+        ) {
+            super(restSpec, restClient, hosts, esVersion, masterVersion, os, clientBuilderWithSniffedNodes);
+        }
+
+        public void setTestCandidate(ClientYamlTestCandidate testCandidate) {
+            this.testCandidate = testCandidate;
+        }
+
+        // we overwrite this method so the search client can modify the index names by prefixing them with the
+        // remote cluster name before sending the requests
+        public ClientYamlTestResponse callApi(
+            String apiName,
+            Map<String, String> params,
+            HttpEntity entity,
+            Map<String, String> headers,
+            NodeSelector nodeSelector
+        ) throws IOException {
+            // on request, we need to replace index specifications by prefixing the remote cluster
+            if (shouldReplaceIndexWithRemote(apiName)) {
+                String parameterName = "index";
+                if (apiName.equals("indices.resolve_index")) {
+                    // in this specific api, the index parameter is called "name"
+                    parameterName = "name";
+                }
+                String originalIndices = params.get(parameterName);
+                String expandedIndices = REMOTE_CLUSTER_NAME + ":*";
+                if (originalIndices != null && (originalIndices.isEmpty() == false)) {
+                    String[] indices = originalIndices.split(",");
+                    List<String> newIndices = new ArrayList<>();
+                    for (String indexName : indices) {
+                        newIndices.add(REMOTE_CLUSTER_NAME + ":" + indexName);
+                    }
+                    expandedIndices = String.join(",", newIndices);
+                }
+                params.put(parameterName, String.join(",", expandedIndices));
+            }
+            return super.callApi(apiName, params, entity, headers, nodeSelector);
+        }
+
+        private boolean shouldReplaceIndexWithRemote(String apiName) {
+            if (apiName.equals("scroll")
+                || apiName.equals("clear_scroll")
+                || apiName.equals("async_search.get")
+                || apiName.equals("async_search.delete")
+                || apiName.equals("async_search.status")
+                || apiName.equals("close_point_in_time")) {
+                return false;
+            }
+
+            if (apiName.equals("search") || apiName.equals("msearch") || apiName.equals("async_search.submit")) {
+                final String testCandidateTestPath = testCandidate.getTestPath();
+                if (testCandidateTestPath.equals("search/350_point_in_time/basic")
+                    || testCandidateTestPath.equals("search/350_point_in_time/point-in-time with slicing")
+                    || testCandidateTestPath.equals("search/350_point_in_time/msearch")
+                    || testCandidateTestPath.equals("search/350_point_in_time/wildcard")
+                    || testCandidateTestPath.equals("async_search/20-with-poin-in-time/Async search with point in time")) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }

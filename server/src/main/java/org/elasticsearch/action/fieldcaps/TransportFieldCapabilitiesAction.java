@@ -143,6 +143,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
             }
             indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+            }
         };
         final BiConsumer<String, Exception> handleIndexFailure = (index, error) -> {
             if (fieldCapTask.isCancelled()) {
@@ -150,6 +153,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 return;
             }
             indexFailures.collect(index, error);
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+            }
         };
         final var finishedOrCancelled = new AtomicBoolean();
         fieldCapTask.addListener(() -> {

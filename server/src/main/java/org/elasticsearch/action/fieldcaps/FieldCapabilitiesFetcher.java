@@ -117,8 +117,13 @@ class FieldCapabilitiesFetcher {
         for (String field : fieldNames) {
             MappedFieldType ft = context.getFieldType(field);
             if (filter.test(ft)) {
-                var valuesSourceType = context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH).getValuesSourceType();
-                Set<String> supportedAggregations = context.getValuesSourceRegistry().getSupportedAggregations(valuesSourceType);
+                Set<String> supportedAggregations;
+                if (ft.isAggregatable()) {
+                    var valuesSourceType = context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH).getValuesSourceType();
+                    supportedAggregations = context.getValuesSourceRegistry().getSupportedAggregations(valuesSourceType);
+                } else {
+                    supportedAggregations = Set.of();
+                }
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

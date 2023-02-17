@@ -161,29 +161,7 @@ public class ValuesSourceRegistry {
     ) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.usageService = usageService;
-
-        // First find all unique values source types:
-        Set<ValuesSourceType> supportedTypes = new HashSet<>();
-        for (var entryList : aggregatorRegistry.values()) {
-            for (var entry : entryList) {
-                supportedTypes.add(entry.getKey());
-            }
-        }
-        // Per value source type create an immutable set of supported aggregations:
-        Map<ValuesSourceType, Set<String>> supportedAggsByValueSourceType = new HashMap<>();
-        for (ValuesSourceType supportedType : supportedTypes) {
-            Set<String> supportedAggs = new HashSet<>();
-            for (var entry : aggregatorRegistry.entrySet()) {
-                for (var e : entry.getValue()) {
-                    if (supportedType == e.getKey()) {
-                        supportedAggs.add(entry.getKey().getName());
-                        break;
-                    }
-                }
-            }
-            supportedAggsByValueSourceType.put(supportedType, Set.copyOf(supportedAggs));
-        }
-        this.supportedAggsByValueSourceType = Map.copyOf(supportedAggsByValueSourceType);
+        this.supportedAggsByValueSourceType = buildSupportedAggregations(aggregatorRegistry);
     }
 
     public boolean isRegistered(RegistryKey<?> registryKey) {
@@ -220,5 +198,32 @@ public class ValuesSourceRegistry {
 
     public AggregationUsageService getUsageService() {
         return usageService;
+    }
+
+    private static Map<ValuesSourceType, Set<String>> buildSupportedAggregations(
+        Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry
+    ) {
+        // First find all unique values source types:
+        Set<ValuesSourceType> supportedTypes = new HashSet<>();
+        for (var entryList : aggregatorRegistry.values()) {
+            for (var entry : entryList) {
+                supportedTypes.add(entry.getKey());
+            }
+        }
+        // Per value source type create an immutable set of supported aggregations:
+        Map<ValuesSourceType, Set<String>> supportedAggsByValueSourceType = new HashMap<>();
+        for (var supportedType : supportedTypes) {
+            Set<String> supportedAggs = new HashSet<>();
+            for (var entry : aggregatorRegistry.entrySet()) {
+                for (var e : entry.getValue()) {
+                    if (supportedType == e.getKey()) {
+                        supportedAggs.add(entry.getKey().getName());
+                        break;
+                    }
+                }
+            }
+            supportedAggsByValueSourceType.put(supportedType, Set.copyOf(supportedAggs));
+        }
+        return Map.copyOf(supportedAggsByValueSourceType);
     }
 }

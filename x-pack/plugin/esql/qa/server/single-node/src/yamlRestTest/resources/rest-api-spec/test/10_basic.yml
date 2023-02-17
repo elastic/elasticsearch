@@ -150,3 +150,115 @@ setup:
   - match: {columns.0.type: "long"}
   - match: {values.0: [1, 1]}
 
+---
+"Test From Eval Sort Limit":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = count + 7 | sort x | limit 1'
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.6.name: "x"}
+  - match: {values.0.6: 47}
+  - length: {values: 1}
+
+---
+"Test Eval With Multiple Expressions":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time | eval x = data + 1, y = data_d + count, z = x + y | project data, x, y, z, time | limit 2'
+
+  - match: {columns.0.name: "data"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "x"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "y"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "z"}
+  - match: {columns.3.type: "double"}
+  - match: {columns.4.name: "time"}
+  - match: {columns.4.type: "long"}
+  - length: {values: 2}
+  - length: {values.0: 5}
+  - match: {values.0.0: 1}
+  - match: {values.0.1: 2}
+  - match: {values.0.2: 41.0}
+  - match: {values.0.3: 43.0}
+  - length: {values.1: 5}
+  - match: {values.1.0: 2}
+  - match: {values.1.1: 3}
+  - match: {values.1.2: 44.0}
+  - match: {values.1.3: 47.0}
+
+---
+"Test Project After TopN":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time | limit 2 | project count'
+          columnar: true
+
+  - length: {columns: 1}
+  - match: {columns.0.name: "count"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0: [40, 42]}
+
+---
+"Test Project After TopN Desc":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time desc | limit 2 | project count'
+          columnar: true
+
+  - length: {columns: 1}
+  - match: {columns.0.name: "count"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0: [46, 44]}
+
+---
+"Test TopN Project Eval":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time | limit 2 | project count | eval x = count + 1'
+          columnar: true
+
+  - length: {columns: 2}
+  - match: {columns.0.name: "count"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "x"}
+  - match: {columns.1.type: "long"}
+  - length: {values: 2}
+  - match: {values.0: [40, 42]}
+  - match: {values.1: [41, 43]}
+
+---
+"Test TopN Project Eval Project":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort time | limit 2 | project count | eval x = count + 1 | project x'
+          columnar: true
+
+  - length: {columns: 1}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "long"}
+  - length: {values: 1}
+  - match: {values.0: [41, 43]}
+
+---
+"Test Multi Limit Project":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | limit 10 | sort time | limit 1'
+
+  - length: {columns: 6}
+  - length: {values: 1}

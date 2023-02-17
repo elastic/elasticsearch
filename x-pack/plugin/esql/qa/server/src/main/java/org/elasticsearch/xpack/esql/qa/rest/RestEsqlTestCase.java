@@ -23,6 +23,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -43,6 +44,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestEsqlTestCase extends ESRestTestCase {
+
+    // Test runner will run multiple suites in parallel, with some of them requiring preserving state between
+    // tests (like EsqlSpecTestCase), so test data (like index name) needs not collide and cleanup must be done locally.
+    private static final String TEST_INDEX_NAME = "rest-esql-test";
 
     public static class RequestObjectBuilder {
         private final XContentBuilder builder;
@@ -123,9 +128,9 @@ public class RestEsqlTestCase extends ESRestTestCase {
     public void testNullInAggs() throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < 1000; i++) {
-            b.append("""
-                {"create":{"_index":"esql-index"}}
-                """);
+            b.append(String.format(Locale.ROOT, """
+                {"create":{"_index":"%s"}}
+                """, testIndexName()));
             if (i % 10 == 0) {
                 b.append(String.format(Locale.ROOT, """
                     {"group":%d}
@@ -143,14 +148,14 @@ public class RestEsqlTestCase extends ESRestTestCase {
         Response response = client().performRequest(bulk);
         assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("{\"errors\":false}"));
 
-        RequestObjectBuilder builder = new RequestObjectBuilder().query("from esql-index | stats min(value)");
+        RequestObjectBuilder builder = new RequestObjectBuilder().query(fromIndex() + " | stats min(value)");
         Map<String, Object> result = runEsql(builder.build());
         assertMap(
             result,
             matchesMap().entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
         );
 
-        builder = new RequestObjectBuilder().query("from esql-index | stats min(value) by group");
+        builder = new RequestObjectBuilder().query(fromIndex() + " | stats min(value) by group");
         result = runEsql(builder.build());
         assertMap(
             result,
@@ -164,7 +169,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(docCount);
 
         boolean columnar = randomBoolean();
-        var query = builder().query("from test | project keyword, integer");
+        var query = builder().query(fromIndex() + " | project keyword, integer");
         if (columnar || randomBoolean()) {
             query.columnar(columnar);
         }
@@ -194,27 +199,27 @@ public class RestEsqlTestCase extends ESRestTestCase {
     public void testTextMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query("from test | project keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | project keyword, integer").build();
         assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
     }
 
     public void testCSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query("from test | project keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | project keyword, integer").build();
         assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
     }
 
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query("from test | project keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | project keyword, integer").build();
         assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
     }
 
     public void testCSVNoHeaderMode() throws IOException {
         bulkLoadTestData(1);
-        var builder = builder().query("from test | project keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | project keyword, integer").build();
         Request request = prepareRequest();
         String mediaType = attachBody(builder, request);
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -325,7 +330,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static void bulkLoadTestData(int count) throws IOException {
-        Request request = new Request("PUT", "/test");
+        Request request = new Request("PUT", "/" + testIndexName());
         request.setJsonEntity("""
             {
               "mappings": {
@@ -342,7 +347,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         if (count > 0) {
-            request = new Request("POST", "/test/_bulk");
+            request = new Request("POST", "/" + testIndexName() + "/_bulk");
             request.addParameter("refresh", "true");
             StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < count; i++) {
@@ -358,5 +363,28 @@ public class RestEsqlTestCase extends ESRestTestCase {
 
     private static RequestObjectBuilder builder() throws IOException {
         return new RequestObjectBuilder();
+    }
+
+    @After
+    public void wipeTestData() throws IOException {
+        try {
+            var response = client().performRequest(new Request("DELETE", "/" + testIndexName()));
+            assertEquals(200, response.getStatusLine().getStatusCode());
+        } catch (ResponseException re) {
+            assertEquals(404, re.getResponse().getStatusLine().getStatusCode());
+        }
+    }
+
+    protected static String testIndexName() {
+        return TEST_INDEX_NAME;
+    }
+
+    protected static String fromIndex() {
+        return "from " + testIndexName();
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 }

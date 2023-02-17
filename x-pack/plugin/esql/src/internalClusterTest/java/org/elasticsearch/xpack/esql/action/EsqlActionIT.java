@@ -333,38 +333,6 @@ public class EsqlActionIT extends ESIntegTestCase {
         }
     }
 
-    public void testMedian() {
-        for (String field : List.of("count", "count_d")) {
-            EsqlQueryResponse results = run("from test | stats med=median(" + field + ")");
-            assertEquals(results.columns(), List.of(new ColumnInfo("med", "double")));
-            assertEquals(results.values(), List.of(List.of(43.0)));
-        }
-    }
-
-    public void testGroupingMedian() {
-        for (String field : List.of("count", "count_d")) {
-            EsqlQueryResponse results = run("from test | stats med=median(" + field + ") by color | sort med");
-            assertEquals(results.columns(), List.of(new ColumnInfo("med", "double"), new ColumnInfo("color", "keyword")));
-            assertEquals(results.values(), List.of(List.of(42.0, "blue"), List.of(43.0, "red"), List.of(44.0, "green")));
-        }
-    }
-
-    public void testMedianAbsoluteDeviation() {
-        for (String field : List.of("count", "count_d")) {
-            EsqlQueryResponse results = run("from test | stats mad=median_absolute_deviation(" + field + ")");
-            assertEquals(results.columns(), List.of(new ColumnInfo("mad", "double")));
-            assertEquals(results.values(), List.of(List.of(2.0)));
-        }
-    }
-
-    public void testGroupingMedianAbsoluteDeviation() {
-        for (String field : List.of("count", "count_d")) {
-            EsqlQueryResponse results = run("from test | stats mad=median_absolute_deviation(" + field + ") by color | sort color");
-            assertEquals(results.columns(), List.of(new ColumnInfo("mad", "double"), new ColumnInfo("color", "keyword")));
-            assertEquals(results.values(), List.of(List.of(0.0, "blue"), List.of(0.0, "green"), List.of(3.0, "red")));
-        }
-    }
-
     public void testFromStatsMultipleAggs() {
         EsqlQueryResponse results = run(
             "from test | stats a=avg(count), mi=min(count), ma=max(count), s=sum(count), c=count(count) by color"
@@ -414,31 +382,6 @@ public class EsqlActionIT extends ESIntegTestCase {
                 List.of(1L, 44L, epoch + 18)
             )
         );
-    }
-
-    public void testFromEvalSortLimit() {
-        EsqlQueryResponse results = run("from test | eval x = count + 7 | sort x | limit 1");
-        logger.info(results);
-        // there are no shard, segment, doc_id
-        assertThat(
-            results.columns().stream().map(ColumnInfo::name).toList(),
-            contains("color", "count", "count_d", "data", "data_d", "time", "x")
-        );
-        var values = results.values();
-        Assert.assertEquals(1, values.size());
-        var row = values.get(0);
-        logger.info(row);
-        // x is the last one
-        var position = results.columns().size() - 1;
-        assertEquals(47, (long) row.get(position));
-    }
-
-    public void testFromStatsEval() {
-        EsqlQueryResponse results = run("from test | stats avg_count = avg(count) | eval x = avg_count + 7");
-        logger.info(results);
-        Assert.assertEquals(1, results.values().size());
-        assertEquals(2, results.values().get(0).size());
-        assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
     }
 
     public void testFromStatsProjectGroup() {
@@ -621,12 +564,6 @@ public class EsqlActionIT extends ESIntegTestCase {
         client().prepareBulk().add(new DeleteRequest("test").id("no_count")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         results = run("from test");
         Assert.assertEquals(40, results.values().size());
-    }
-
-    public void testStatsWhere() {
-        EsqlQueryResponse results = run("from test | stats x = avg(count) | where x > 100");
-        logger.info(results);
-        Assert.assertEquals(0, results.values().size());
     }
 
     public void testMultiConditionalWhere() {
@@ -834,41 +771,6 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
     }
 
-    public void testEvalWithNull() {
-        EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | sort nullsum | limit 1");
-        logger.info(results);
-        Assert.assertEquals(7, results.columns().size());
-        Assert.assertEquals(1, results.values().size());
-        assertEquals("nullsum", results.columns().get(6).name());
-        assertEquals("double", results.columns().get(6).type());
-        assertEquals(7, results.values().get(0).size());
-        assertNull(results.values().get(0).get(6));
-    }
-
-    public void testEvalRowWithNull() {
-        EsqlQueryResponse results = run("row a = 1, b = 2, c = null | eval z = c + b + a");
-        logger.info(results);
-        assertEquals(4, results.columns().size());
-        assertEquals(1, results.values().size());
-        assertEquals(4, results.values().get(0).size());
-
-        // assert column metadata
-        assertEquals("a", results.columns().get(0).name());
-        assertEquals("integer", results.columns().get(0).type());
-        assertEquals("b", results.columns().get(1).name());
-        assertEquals("integer", results.columns().get(1).type());
-        assertEquals("c", results.columns().get(2).name());
-        assertEquals("null", results.columns().get(2).type());
-        assertEquals("z", results.columns().get(3).name());
-        assertEquals("integer", results.columns().get(3).type());
-
-        // assert values
-        assertEquals(1, results.values().get(0).get(0));
-        assertEquals(2, results.values().get(0).get(1));
-        assertNull(results.values().get(0).get(2));
-        assertNull(results.values().get(0).get(3));
-    }
-
     public void testEvalWithNullAndAvg() {
         EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | stats avg(nullsum)");
         logger.info(results);
@@ -880,46 +782,11 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(Double.NaN, results.values().get(0).get(0));
     }
 
-    public void testEvalWithNullAndCount() {
-        EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | stats count(nullsum)");
-        logger.info(results);
-        Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(1, results.values().size());
-        assertEquals("count(nullsum)", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        assertEquals(1, results.values().get(0).size());
-        assertEquals(0L, results.values().get(0).get(0));
-    }
-
     public void testFromStatsLimit() {
         EsqlQueryResponse results = run("from test | stats ac = avg(count) by data | limit 1");
         logger.info(results);
         assertThat(results.columns(), contains(new ColumnInfo("ac", "double"), new ColumnInfo("data", "long")));
         assertThat(results.values(), contains(anyOf(contains(42.0, 1L), contains(44.0, 2L))));
-    }
-
-    public void testRowStateSumWithNull() {
-        EsqlQueryResponse results = run("row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn)");
-        logger.info(results);
-        assertEquals(4, results.columns().size());
-        assertEquals(1, results.values().size());
-        assertEquals(4, results.values().get(0).size());
-
-        // assert column metadata
-        assertEquals("sum(l)", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        assertEquals("sum(d)", results.columns().get(1).name());
-        assertEquals("double", results.columns().get(1).type());
-        assertEquals("sum(ln)", results.columns().get(2).name());
-        assertEquals("long", results.columns().get(2).type());
-        assertEquals("sum(dn)", results.columns().get(3).name());
-        assertEquals("double", results.columns().get(3).type());
-
-        // assert values
-        assertEquals(1L, results.values().get(0).get(0));
-        assertEquals(1D, results.values().get(0).get(1));
-        assertEquals(0L, results.values().get(0).get(2));
-        assertEquals(0D, results.values().get(0).get(3));
     }
 
     public void testFromLimit() {
@@ -981,87 +848,6 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(1, results.values().size());
         assertEquals(5L, results.values().get(0).get(0));
         assertEquals(40000L, results.values().get(0).get(1));
-    }
-
-    public void testEvalWithMultipleExpressions() {
-        EsqlQueryResponse results = run(
-            "from test | sort time | eval x = data + 1, y = data_d + count, z = x + y | project data, x, y, z, time | limit 2"
-        );
-        logger.info(results);
-        assertThat(
-            results.columns(),
-            contains(
-                new ColumnInfo("data", "long"),
-                new ColumnInfo("x", "long"),
-                new ColumnInfo("y", "double"),
-                new ColumnInfo("z", "double"),
-                new ColumnInfo("time", "long")
-            )
-        );
-        List<List<Object>> values = results.values();
-
-        assertEquals(5, values.get(0).size());
-        assertEquals(1L, values.get(0).get(0));
-        assertEquals(2L, values.get(0).get(1));
-        assertEquals(41D, values.get(0).get(2));
-        assertEquals(43D, values.get(0).get(3));
-
-        assertEquals(5, values.get(1).size());
-        assertEquals(2L, values.get(1).get(0));
-        assertEquals(3L, values.get(1).get(1));
-        assertEquals(44D, values.get(1).get(2));
-        assertEquals(47D, values.get(1).get(3));
-    }
-
-    public void testProjectAfterTopN() {
-        EsqlQueryResponse results = run("from test | sort time | limit 2 | project count");
-        logger.info(results);
-        assertEquals(1, results.columns().size());
-        assertEquals(new ColumnInfo("count", "long"), results.columns().get(0));
-        assertEquals(2, results.values().size());
-        assertEquals(40L, results.values().get(0).get(0));
-        assertEquals(42L, results.values().get(1).get(0));
-    }
-
-    public void testProjectAfterTopNDesc() {
-        EsqlQueryResponse results = run("from test | sort time desc | limit 2 | project count");
-        logger.info(results);
-        assertEquals(1, results.columns().size());
-        assertEquals(new ColumnInfo("count", "long"), results.columns().get(0));
-        assertEquals(2, results.values().size());
-        assertEquals(46L, results.values().get(0).get(0));
-        assertEquals(44L, results.values().get(1).get(0));
-    }
-
-    public void testTopNProjectEval() {
-        EsqlQueryResponse results = run("from test | sort time | limit 2 | project count | eval x = count + 1");
-        logger.info(results);
-        assertEquals(2, results.columns().size());
-        assertEquals(new ColumnInfo("count", "long"), results.columns().get(0));
-        assertEquals(new ColumnInfo("x", "long"), results.columns().get(1));
-        assertEquals(2, results.values().size());
-        assertEquals(40L, results.values().get(0).get(0));
-        assertEquals(41L, results.values().get(0).get(1));
-        assertEquals(42L, results.values().get(1).get(0));
-        assertEquals(43L, results.values().get(1).get(1));
-    }
-
-    public void testTopNProjectEvalProject() {
-        EsqlQueryResponse results = run("from test | sort time | limit 2 | project count | eval x = count + 1 | project x");
-        logger.info(results);
-        assertEquals(1, results.columns().size());
-        assertEquals(new ColumnInfo("x", "long"), results.columns().get(0));
-        assertEquals(2, results.values().size());
-        assertEquals(41L, results.values().get(0).get(0));
-        assertEquals(43L, results.values().get(1).get(0));
-    }
-
-    public void testMultiLimitProject() {
-        EsqlQueryResponse results = run("from test | limit 10 | sort time | limit 1");
-        logger.info(results);
-        assertEquals(1, results.values().size());
-        assertEquals(6, results.columns().size());
-        // assertEquals("green", results.values().get(0).get(0));
     }
 
     public void testEmptyIndex() {

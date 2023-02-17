@@ -252,3 +252,204 @@ setup:
   - match: {values.0: [42.0, 44.0]}
   - match: {values.1: ["blue", "green"]}
 
+---
+"Test Median On Long":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats med=median(count)'
+          columnar: true
+
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {values.0.0: 43.0}
+
+---
+"Test Median On Double":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats med=median(count_d)'
+          columnar: true
+
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {values.0.0: 43.0}
+
+---
+"Test Grouping Median On Long":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats med=median(count) by color | sort med'
+          columnar: true
+
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: [42.0, 43.0, 44.0]}
+  - match: {values.1: ["blue", "red", "green"]}
+
+---
+"Test Grouping Median On Double":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats med=median(count_d) by color | sort med'
+          columnar: true
+
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: [42.0, 43.0, 44.0]}
+  - match: {values.1: ["blue", "red", "green"]}
+
+---
+"Test Median Absolute Deviation On Long":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats med=median_absolute_deviation(count)'
+          columnar: true
+
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {values.0.0: 2.0}
+
+---
+"Test Median Absolute Deviation On Double":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats med=median_absolute_deviation(count_d)'
+          columnar: true
+
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {values.0.0: 2.0}
+
+---
+"Test Grouping Median Absolute Deviation On Long":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats med=median_absolute_deviation(count) by color | sort color'
+          columnar: true
+
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: [0.0, 0.0, 3.0]}
+  - match: {values.1: ["blue", "green", "red"]}
+
+---
+"Test Grouping Median Absolute Deviation On Double":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats med=median_absolute_deviation(count_d) by color | sort color'
+          columnar: true
+
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: [0.0, 0.0, 3.0]}
+  - match: {values.1: ["blue", "green", "red"]}
+
+---
+"Test From Stats Eval":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats avg_count = avg(count) | eval x = avg_count + 7'
+
+  - length: {values: 1}
+  - length: {values.0: 2}
+  - match: {values.0.1: 50.0}
+
+---
+"Test Stats Where":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats x = avg(count) | where x > 100'
+
+  - length: {values: 0}
+
+---
+"Test Eval With Null":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval nullsum = count_d + null | sort nullsum | limit 1'
+
+  - length: {columns: 7}
+  - length: {values: 1}
+  - match: {columns.6.name: "nullsum"}
+  - match: {columns.6.type: "double"}
+  - match: {values.0.6: null}
+
+---
+"Test Eval Row With Null":
+  - do:
+      esql.query:
+        body:
+          query: 'row a = 1, b = 2, c = null | eval z = c + b + a'
+
+  - length: {columns: 4}
+  - length: {values: 1}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "a"}
+  - match: {columns.0.type: "integer"}
+  - match: {columns.1.name: "b"}
+  - match: {columns.1.type: "integer"}
+  - match: {columns.2.name: "c"}
+  - match: {columns.2.type: "null"}
+  - match: {columns.3.name: "z"}
+  - match: {columns.3.type: "integer"}
+  - match: {values.0.0: 1}
+  - match: {values.0.1: 2}
+  - match: {values.0.2: null}
+  - match: {values.0.3: null}
+
+---
+"Test Eval With Null And Count":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval nullsum = count_d + null | stats count(nullsum)'
+
+  - length: {columns: 1}
+  - length: {values: 1}
+  - match: {columns.0.name: "count(nullsum)"}
+  - match: {columns.0.type: "long"}
+  - length: {values.0: 1}
+  - match: {values.0.0: 0}
+
+---
+"Test Eval With Multiple Expressions":
+  - do:
+      esql.query:
+        body:
+          query: 'row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn)'
+
+  - length: {columns: 4}
+  - length: {values: 1}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "sum(l)"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "sum(d)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(ln)"}
+  - match: {columns.2.type: "long"}
+  - match: {columns.3.name: "sum(dn)"}
+  - match: {columns.3.type: "double"}
+  - match: {values.0.0: 1}
+  - match: {values.0.1: 1}
+  - match: {values.0.2: 0}
+  - match: {values.0.3: 0}
+

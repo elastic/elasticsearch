@@ -1,9 +1,11 @@
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  clusterModules project(xpackModule('esql'))
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('wildcard'))
 }
 
 restResources {

@@ -29,9 +29,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < 1000; i++) {
             b.append(String.format(Locale.ROOT, """
-                {"create":{"_index":"esql-index"}}
+                {"create":{"_index":"%s"}}
                 {"@timestamp":"2020-12-12","test":"value%s","value":%d}
-                """, i, i));
+                """, testIndexName(), i, i));
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
@@ -40,7 +40,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Response response = client().performRequest(bulk);
         Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
-        RequestObjectBuilder builder = new RequestObjectBuilder().query("from esql-index | stats avg(value)");
+        RequestObjectBuilder builder = new RequestObjectBuilder().query(fromIndex() + " | stats avg(value)");
         if (Build.CURRENT.isSnapshot()) {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }

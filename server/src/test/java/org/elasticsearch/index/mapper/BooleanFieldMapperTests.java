@@ -203,8 +203,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(exampleMalformedValue("a").errorMatches("Failed to parse value [a] as only [true] or [false] are allowed."));
+    }
+
+    @Override
     protected boolean supportsIgnoreMalformed() {
-        return false;
+        return true;
     }
 
     @Override

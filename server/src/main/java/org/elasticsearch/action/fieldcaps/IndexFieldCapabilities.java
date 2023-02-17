@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Describes the capabilities of a field in a single index.
@@ -33,14 +34,16 @@ public class IndexFieldCapabilities implements Writeable {
     private final boolean isAggregatable;
     private final boolean isDimension;
     private final TimeSeriesParams.MetricType metricType;
+    private final Set<String> supportedAggregations;
     private final Map<String, String> meta;
 
     /**
-     * @param name The name of the field.
-     * @param type The type associated with the field.
-     * @param isSearchable Whether this field is indexed for search.
-     * @param isAggregatable Whether this field can be aggregated on.
-     * @param meta Metadata about the field.
+     * @param name                  The name of the field.
+     * @param type                  The type associated with the field.
+     * @param isSearchable          Whether this field is indexed for search.
+     * @param isAggregatable        Whether this field can be aggregated on.
+     * @param supportedAggregations
+     * @param meta                  Metadata about the field.
      */
     IndexFieldCapabilities(
         String name,
@@ -50,6 +53,7 @@ public class IndexFieldCapabilities implements Writeable {
         boolean isAggregatable,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
+        Set<String> supportedAggregations,
         Map<String, String> meta
     ) {
         this.name = name;
@@ -59,6 +63,7 @@ public class IndexFieldCapabilities implements Writeable {
         this.isAggregatable = isAggregatable;
         this.isDimension = isDimension;
         this.metricType = metricType;
+        this.supportedAggregations = Objects.requireNonNull(supportedAggregations);
         this.meta = meta;
     }
 
@@ -75,6 +80,11 @@ public class IndexFieldCapabilities implements Writeable {
             this.isDimension = false;
             this.metricType = null;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            this.supportedAggregations = in.readSet(StreamInput::readString);
+        } else {
+            this.supportedAggregations = Set.of();
+        }
         this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
@@ -88,6 +98,9 @@ public class IndexFieldCapabilities implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeCollection(supportedAggregations, StreamOutput::writeString);
         }
         out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
     }
@@ -124,6 +137,10 @@ public class IndexFieldCapabilities implements Writeable {
         return meta;
     }
 
+    public Set<String> getSupportedAggregations() {
+        return supportedAggregations;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -136,11 +153,22 @@ public class IndexFieldCapabilities implements Writeable {
             && Objects.equals(metricType, that.metricType)
             && Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
+            && Objects.equals(supportedAggregations, that.supportedAggregations)
             && Objects.equals(meta, that.meta);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, isMetadatafield, isSearchable, isAggregatable, isDimension, metricType, meta);
+        return Objects.hash(
+            name,
+            type,
+            isMetadatafield,
+            isSearchable,
+            isAggregatable,
+            isDimension,
+            metricType,
+            supportedAggregations,
+            meta
+        );
     }
 }

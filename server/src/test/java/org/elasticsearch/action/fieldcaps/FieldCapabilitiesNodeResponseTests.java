@@ -189,9 +189,9 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     null,
                     Map.of(
                         "red_field",
-                        new IndexFieldCapabilities("red_field", "text", false, true, false, false, null, Map.of()),
+                        new IndexFieldCapabilities("red_field", "text", false, true, false, false, null, Set.of(), Map.of()),
                         "blue_field",
-                        new IndexFieldCapabilities("blue_field", "long", false, true, true, false, null, Map.of())
+                        new IndexFieldCapabilities("blue_field", "long", false, true, true, false, null, Set.of(), Map.of())
                     ),
                     true
                 ),
@@ -201,9 +201,9 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     null,
                     Map.of(
                         "yellow_field",
-                        new IndexFieldCapabilities("yellow_field", "keyword", false, true, true, false, null, Map.of()),
+                        new IndexFieldCapabilities("yellow_field", "keyword", false, true, true, false, null, Set.of(), Map.of()),
                         "_seq_no",
-                        new IndexFieldCapabilities("_seq_no", "long", true, true, true, false, null, Map.of())
+                        new IndexFieldCapabilities("_seq_no", "long", true, true, true, false, null, Set.of(), Map.of())
                     ),
                     true
                 )

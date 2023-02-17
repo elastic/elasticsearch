@@ -14,9 +14,11 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to functions for building aggregation components.  DO NOT
@@ -150,7 +152,8 @@ public class ValuesSourceRegistry {
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
-    private Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
+    private final Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
+    private final Map<ValuesSourceType, Set<String>> supportedAggsByValueSourceType;
 
     public ValuesSourceRegistry(
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry,
@@ -158,6 +161,29 @@ public class ValuesSourceRegistry {
     ) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.usageService = usageService;
+
+        // First find all unique values source types:
+        Set<ValuesSourceType> supportedTypes = new HashSet<>();
+        for (var entryList : aggregatorRegistry.values()) {
+            for (var entry : entryList) {
+                supportedTypes.add(entry.getKey());
+            }
+        }
+        // Per value source type create an immutable set of supported aggregations:
+        Map<ValuesSourceType, Set<String>> supportedAggsByValueSourceType = new HashMap<>();
+        for (ValuesSourceType supportedType : supportedTypes) {
+            Set<String> supportedAggs = new HashSet<>();
+            for (var entry : aggregatorRegistry.entrySet()) {
+                for (var e : entry.getValue()) {
+                    if (supportedType == e.getKey()) {
+                        supportedAggs.add(entry.getKey().getName());
+                        break;
+                    }
+                }
+            }
+            supportedAggsByValueSourceType.put(supportedType, Set.copyOf(supportedAggs));
+        }
+        this.supportedAggsByValueSourceType = Map.copyOf(supportedAggsByValueSourceType);
     }
 
     public boolean isRegistered(RegistryKey<?> registryKey) {
@@ -186,6 +212,10 @@ public class ValuesSourceRegistry {
         throw new AggregationExecutionException(
             "Unregistered Aggregation [" + (registryKey != null ? registryKey.getName() : "unknown aggregation") + "]"
         );
+    }
+
+    public Set<String> getSupportedAggregations(ValuesSourceType valuesSourceType) {
+        return supportedAggsByValueSourceType.getOrDefault(valuesSourceType, Set.of());
     }
 
     public AggregationUsageService getUsageService() {

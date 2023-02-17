@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSerializingTestCase<FieldCapabilitiesResponse> {
@@ -153,7 +154,22 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
         titleCapabilities.put(
             "text",
-            new FieldCapabilities("title", "text", false, true, false, false, null, null, null, null, null, null, Collections.emptyMap())
+            new FieldCapabilities(
+                "title",
+                "text",
+                false,
+                true,
+                false,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Collections.emptyMap(),
+                Set.of()
+            )
         );
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
@@ -172,7 +188,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                 new String[] { "index1" },
                 new String[] { "index4" },
                 null,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                Set.of()
             )
         );
         ratingCapabilities.put(
@@ -190,7 +207,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                 null,
                 null,
                 null,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                Set.of()
             )
         );
 

@@ -117,6 +117,8 @@ class FieldCapabilitiesFetcher {
         for (String field : fieldNames) {
             MappedFieldType ft = context.getFieldType(field);
             if (filter.test(ft)) {
+                var valuesSourceType = context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH).getValuesSourceType();
+                Set<String> supportedAggregations = context.getValuesSourceRegistry().getSupportedAggregations(valuesSourceType);
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -125,6 +127,7 @@ class FieldCapabilitiesFetcher {
                     ft.isAggregatable(),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
+                    supportedAggregations,
                     ft.meta()
                 );
                 responseMap.put(field, fieldCap);
@@ -155,6 +158,7 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
+                            Set.of(),
                             Collections.emptyMap()
                         );
                         responseMap.put(parentField, fieldCap);

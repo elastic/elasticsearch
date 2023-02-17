@@ -37,6 +37,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 metricType,
+                randomSet(0, 150, () -> randomAlphaOfLength(8)),
                 meta
             );
             fieldCaps.put(field, fieldCap);

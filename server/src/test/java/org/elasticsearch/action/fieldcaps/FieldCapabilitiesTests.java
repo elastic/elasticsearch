@@ -49,9 +49,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
     public void testBuilder() {
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, false, false, null, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, null, Collections.emptyMap());
-        builder.add(new String[] { "index3" }, false, true, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, true, false, false, null, Map.of(), Set.of());
+        builder.add(new String[] { "index2" }, false, true, false, false, null, Map.of(), Set.of());
+        builder.add(new String[] { "index3" }, false, true, false, false, null, Map.of(), Set.of());
 
         {
             FieldCapabilities cap1 = builder.build(false);
@@ -79,9 +79,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, false, true, true, null, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index3" }, false, false, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, false, true, true, null, Map.of(), Set.of());
+        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.COUNTER, Map.of(), Set.of());
+        builder.add(new String[] { "index3" }, false, false, false, false, null, Map.of(), Set.of());
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
@@ -108,9 +108,27 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of(), Set.of());
+        builder.add(
+            new String[] { "index2" },
+            false,
+            true,
+            true,
+            true,
+            TimeSeriesParams.MetricType.COUNTER,
+            Map.of("foo", "bar"),
+            Set.of()
+        );
+        builder.add(
+            new String[] { "index3" },
+            false,
+            true,
+            true,
+            true,
+            TimeSeriesParams.MetricType.COUNTER,
+            Map.of("foo", "quux"),
+            Set.of()
+        );
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -137,9 +155,18 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of(), Set.of());
+        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"), Set.of());
+        builder.add(
+            new String[] { "index3" },
+            false,
+            true,
+            true,
+            true,
+            TimeSeriesParams.MetricType.COUNTER,
+            Map.of("foo", "quux"),
+            Set.of()
+        );
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -189,7 +216,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             if (isDimension == false) {
                 nonDimensionIndices.addAll(Arrays.asList(groupIndices));
             }
-            builder.add(groupIndices, false, searchable, aggregatable, isDimension, null, Map.of());
+            builder.add(groupIndices, false, searchable, aggregatable, isDimension, null, Map.of(), Set.of());
             i += bulkSize;
         }
         boolean withIndices = randomBoolean();
@@ -240,7 +267,16 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         TimeSeriesParams.MetricType metric = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         for (String index : indices) {
-            builder.add(new String[] { index }, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), metric, Map.of());
+            builder.add(
+                new String[] { index },
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                metric,
+                Map.of(),
+                Set.of()
+            );
         }
         FieldCapabilities fieldCaps = builder.build(randomBoolean());
         assertThat(fieldCaps.getMetricType(), equalTo(metric));
@@ -264,7 +300,8 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 metricTypes.get(index),
-                Map.of()
+                Map.of(),
+                Set.of()
             );
         }
         FieldCapabilities fieldCaps = builder.build(randomBoolean());
@@ -291,7 +328,8 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 randomFrom(TimeSeriesParams.MetricType.values()),
-                Map.of()
+                Map.of(),
+                Set.of()
             );
         }
         final String outOfOrderIndex = randomBoolean() ? "abc" : "index-" + randomIntBetween(1, numIndex);
@@ -303,7 +341,8 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 randomFrom(TimeSeriesParams.MetricType.values()),
-                Map.of()
+                Map.of(),
+                Set.of()
             );
         });
         assertThat(error.getMessage(), containsString("indices aren't sorted"));
@@ -367,7 +406,8 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             nonAggregatableIndices,
             nonDimensionIndices,
             metricConflictsIndices,
-            meta
+            meta,
+            Set.of()
         );
     }
 
@@ -514,7 +554,8 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             nonAggregatableIndices,
             nonDimensionIndices,
             metricConflictsIndices,
-            meta
+            meta,
+            Set.of()
         );
     }
 }

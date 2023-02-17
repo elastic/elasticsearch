@@ -378,7 +378,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 fieldCap.isAggregatable(),
                 fieldCap.isDimension(),
                 fieldCap.getMetricType(),
-                fieldCap.meta()
+                fieldCap.meta(),
+                fieldCap.getSupportedAggregations()
             );
         }
     }

@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.core.scheduler;
+package org.elasticsearch.common.scheduler;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.common.scheduler.SchedulerEngine.ActiveSchedule;
+import org.elasticsearch.common.scheduler.SchedulerEngine.Job;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.ActiveSchedule;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Job;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;

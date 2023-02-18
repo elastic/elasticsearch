@@ -106,8 +106,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
     }
 
     private ConstantScoreWeight getStandardWeight(ScoreMode scoreMode, float boost) {
-        final GeometryDocValueReader reader = new GeometryDocValueReader();
-        final Component2DVisitor visitor = Component2DVisitor.getVisitor(create(geometries), relation, encoder);
+        final Component2D component2D = create(geometries);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -132,6 +131,8 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         if (values == null) {
                             return null;
                         }
+                        final GeometryDocValueReader reader = new GeometryDocValueReader();
+                        final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation, encoder);
                         final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
                             @Override
                             public boolean matches() throws IOException {
@@ -168,11 +169,6 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
         for (GEOMETRY geometry : geometries) {
             add(components2D, geometry);
         }
-        final GeometryDocValueReader reader = new GeometryDocValueReader();
-        final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
-        for (int i = 0; i < components2D.size(); i++) {
-            visitors[i] = Component2DVisitor.getVisitor(components2D.get(i), relation, encoder);
-        }
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -197,6 +193,11 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         if (values == null) {
                             return null;
                         }
+                        final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
+                        for (int i = 0; i < components2D.size(); i++) {
+                            visitors[i] = Component2DVisitor.getVisitor(components2D.get(i), relation, encoder);
+                        }
+                        final GeometryDocValueReader reader = new GeometryDocValueReader();
                         final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
 
                             @Override

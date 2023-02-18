@@ -106,6 +106,8 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
     }
 
     private ConstantScoreWeight getStandardWeight(ScoreMode scoreMode, float boost) {
+        final GeometryDocValueReader reader = new GeometryDocValueReader();
+        final Component2DVisitor visitor = Component2DVisitor.getVisitor(create(geometries), relation, encoder);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -130,8 +132,6 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         if (values == null) {
                             return null;
                         }
-                        final GeometryDocValueReader reader = new GeometryDocValueReader();
-                        final Component2DVisitor visitor = Component2DVisitor.getVisitor(create(geometries), relation, encoder);
                         final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
                             @Override
                             public boolean matches() throws IOException {
@@ -164,6 +164,15 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
     }
 
     private ConstantScoreWeight getContainsWeight(ScoreMode scoreMode, float boost) {
+        final List<Component2D> components2D = new ArrayList<>(geometries.length);
+        for (GEOMETRY geometry : geometries) {
+            add(components2D, geometry);
+        }
+        final GeometryDocValueReader reader = new GeometryDocValueReader();
+        final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
+        for (int i = 0; i < components2D.size(); i++) {
+            visitors[i] = Component2DVisitor.getVisitor(components2D.get(i), relation, encoder);
+        }
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -176,25 +185,17 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
             }
 
             @Override
-            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) {
                 final Weight weight = this;
-                final BinaryDocValues values = context.reader().getBinaryDocValues(field);
-                if (values == null) {
-                    return null;
-                }
                 // implement ScorerSupplier, since we do some expensive stuff to make a scorer
                 return new ScorerSupplier() {
 
                     @Override
-                    public Scorer get(long leadCost) {
-                        final List<Component2D> components2D = new ArrayList<>(geometries.length);
-                        for (GEOMETRY geometry : geometries) {
-                            add(components2D, geometry);
-                        }
-                        final GeometryDocValueReader reader = new GeometryDocValueReader();
-                        final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
-                        for (int i = 0; i < components2D.size(); i++) {
-                            visitors[i] = Component2DVisitor.getVisitor(components2D.get(i), relation, encoder);
+                    public Scorer get(long leadCost) throws IOException {
+                        // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
+                        final BinaryDocValues values = context.reader().getBinaryDocValues(field);
+                        if (values == null) {
+                            return null;
                         }
                         final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
 
@@ -221,7 +222,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
 
                     @Override
                     public long cost() {
-                        return values.cost();
+                        return context.reader().maxDoc();
                     }
                 };
             }

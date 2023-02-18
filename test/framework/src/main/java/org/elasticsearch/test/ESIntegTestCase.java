@@ -2272,7 +2272,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *  After the cluster is stopped, there are a few netty threads that can linger, so we make sure we don't leak any tasks on them.
      */
     static void awaitGlobalNettyThreadsFinish() throws Exception {
-        // Don't use GlobalEventExecutor#awaitInactivity. It will waste up to 1s for every call and we expect no tasks queue in it.
+        // Don't use GlobalEventExecutor#awaitInactivity. It will waste up to 1s for every call and we expect no tasks queued for it
+        // except for the odd scheduled shutdown task.
         assertBusy(() -> assertEquals(0, GlobalEventExecutor.INSTANCE.pendingTasks()));
         try {
             ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);

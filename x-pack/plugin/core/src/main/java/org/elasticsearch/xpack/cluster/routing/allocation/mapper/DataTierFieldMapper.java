@@ -51,6 +51,12 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isAggregatable() {
+            // Doesn't support field data (yet) and therefor attempting to aggregate on field of this field type fail
+            return false;
+        }
+
+        @Override
         protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             if (caseInsensitive) {
                 pattern = Strings.toLowercaseAscii(pattern);

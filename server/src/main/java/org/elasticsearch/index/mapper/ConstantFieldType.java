@@ -35,11 +35,6 @@ public abstract class ConstantFieldType extends MappedFieldType {
         assert isSearchable();
     }
 
-    @Override
-    public final boolean isAggregatable() {
-        return true;
-    }
-
     /**
      * Return whether the constant value of this field matches the provided {@code pattern}
      * as documented in {@link Regex#simpleMatch}.

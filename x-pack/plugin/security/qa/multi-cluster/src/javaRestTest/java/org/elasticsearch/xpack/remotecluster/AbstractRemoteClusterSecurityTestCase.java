@@ -106,7 +106,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
               "name": "remote_access_key",
               "role_descriptors": {
                 "role": {
-                  "cluster": ["cluster:monitor/state", "cluster:admin/remote_cluster/*"],
+                  "cluster": ["cluster:admin/remote_cluster/*"],
                   "index": %s
                 }
               }

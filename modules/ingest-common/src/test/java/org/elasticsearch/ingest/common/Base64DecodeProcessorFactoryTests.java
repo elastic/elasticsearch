@@ -30,13 +30,14 @@ public class Base64DecodeProcessorFactoryTests extends ESTestCase {
         assertThat(base64DecodeProcessor.isIgnoreMissing(), is(false));
         assertThat(base64DecodeProcessor.isSkipFailure(), is(false));
     }
+
     public void testFactoryWithAssignedValues() throws Exception {
         Base64DecodeProcessor.Factory factory = new Base64DecodeProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "input.field");
         config.put("target_field", "output.field");
         config.put("is_padded", false);
-        config.put("ignore_failure", true);
+        config.put("skip_failure", true);
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
         Base64DecodeProcessor base64DecodeProcessor = factory.create(null, processorTag, null, config);

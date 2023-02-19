@@ -39,14 +39,15 @@ public class Base64DecodeProcessorTests extends ESTestCase {
         Object dirtyValue = 1123;
         String targetFieldName = randomAlphaOfLength(10);
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, dirtyValue);
-        Processor processor = new Base64DecodeProcessor(randomAlphaOfLength(10), null, fieldName, targetFieldName,false, false);
+        Processor processor = new Base64DecodeProcessor(randomAlphaOfLength(10), null, fieldName, targetFieldName, false, false);
 
         try {
             processor.execute(ingestDocument);
         } catch (IllegalArgumentException e) {
             assertThat(
                 e.getMessage(),
-                equalTo("Field [" + fieldName + "] cannot be processed due to invalid value type: " + dirtyValue.getClass().getName()));
+                equalTo("Field [" + fieldName + "] cannot be processed due to invalid value type: " + dirtyValue.getClass().getName())
+            );
         }
     }
 
@@ -56,7 +57,7 @@ public class Base64DecodeProcessorTests extends ESTestCase {
         List<String> actualList = new ArrayList<>(randomLength);
         List<String> expectedList = new ArrayList<>(randomLength);
 
-        for(int i = 0; i < randomLength; i++) {
+        for (int i = 0; i < randomLength; i++) {
             String str = randomAlphaOfLength(10);
             expectedList.add(str);
             actualList.add(Base64.getEncoder().encodeToString(str.getBytes(StandardCharsets.UTF_8)));

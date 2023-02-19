@@ -13,6 +13,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -31,18 +32,12 @@ public final class Base64DecodeProcessor extends AbstractProcessor {
     private final boolean skipFailure;
     private final boolean ignoreMissing;
 
-    Base64DecodeProcessor(
-        String tag,
-        String description,
-        String field,
-        String targetField,
-        boolean skipFailure,
-        boolean ignoreMissing) {
-            super(tag, description);
-            this.field = field;
-            this.targetField = targetField;
-            this.ignoreMissing = ignoreMissing;
-            this.skipFailure = skipFailure;
+    Base64DecodeProcessor(String tag, String description, String field, String targetField, boolean skipFailure, boolean ignoreMissing) {
+        super(tag, description);
+        this.field = field;
+        this.targetField = targetField;
+        this.ignoreMissing = ignoreMissing;
+        this.skipFailure = skipFailure;
     }
 
     public String getField() {
@@ -77,7 +72,7 @@ public final class Base64DecodeProcessor extends AbstractProcessor {
             for (Object value : list) {
                 if (value instanceof String == false && skipFailure) {
                     continue;
-                } else if (value instanceof String == false ){
+                } else if (value instanceof String == false) {
                     throw new IllegalArgumentException("Cannot read non string value [ " + value + " ] of field [" + field + "]");
                 }
                 newList.add(decode(value.toString()));
@@ -95,7 +90,7 @@ public final class Base64DecodeProcessor extends AbstractProcessor {
     }
 
     private String decode(String encoded) {
-        return new String(Base64.getDecoder().decode(encoded));
+        return new String(Base64.getDecoder().decode(encoded), StandardCharsets.UTF_8);
     }
 
     @Override

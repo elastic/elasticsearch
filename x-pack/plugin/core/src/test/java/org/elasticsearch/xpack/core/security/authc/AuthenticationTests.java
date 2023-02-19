@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -36,6 +37,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthenticationTests.randomRoleDescriptorsIntersection;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -130,14 +132,128 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
             randomApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
         );
+    }
 
-        // No resource sharing for remote access authentication for now
-        final RemoteAccessAuthentication randomRemoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
-        final Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder()
-            .remoteAccess(apiKeyId1, randomRemoteAccessAuthentication)
+    public void testRemoteAccessCanAccessResourceOf() throws IOException {
+        final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
+        final RemoteAccessAuthentication remoteAccessAuthentication1 = randomValueOtherThanMany(
+            ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()),
+            () -> AuthenticationTestHelper.randomRemoteAccessAuthentication()
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(apiKeyId1, remoteAccessAuthentication1)
             .build(false);
-        assertCannotAccessResources(remoteAccessAuthentication, remoteAccessAuthentication);
-        assertCannotAccessResources(remoteAccessAuthentication, randomRemoteAccessAuthentication.getAuthentication());
+
+        // 1. Same remote access authentication, allow access (this is only scenario resource share is allowed)
+        assertCanAccessResources(authentication, authentication);
+
+        // 2. The remote access authentication is not the same as its nested QC user authentication
+        // This also covers the case where FC happens to have a user that looks the same as the QC user
+        assertCannotAccessResources(authentication, remoteAccessAuthentication1.getAuthentication());
+        assertThat(
+            remoteAccessAuthentication1.getAuthentication(),
+            is(authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY))
+        );
+
+        // 3. The same API key can be used with the REST interface
+        assertCannotAccessResources(authentication, AuthenticationTestHelper.builder().apiKey(apiKeyId1).build());
+
+        // 4. The same QC user can use a different remote access API key
+        final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
+        assertCannotAccessResources(
+            authentication,
+            AuthenticationTestHelper.builder().remoteAccess(apiKeyId2, remoteAccessAuthentication1).build(false)
+        );
+
+        // 5. The same API key but for a different QC user base on its own canAccessResourcesOf
+        final RemoteAccessAuthentication remoteAccessAuthentication2 = randomValueOtherThanMany(
+            ra -> remoteAccessAuthentication1.getAuthentication().canAccessResourcesOf(ra.getAuthentication()),
+            AuthenticationTestHelper::randomRemoteAccessAuthentication
+        );
+        assertCannotAccessResources(
+            authentication,
+            AuthenticationTestHelper.builder().remoteAccess(apiKeyId1, remoteAccessAuthentication2).build(false)
+        );
+
+        // 6. Allow access if QC authentication is a run-as equivalent
+        final Authentication qcAuthentication1 = remoteAccessAuthentication1.getAuthentication();
+        final Authentication qcAuthentication2;
+        if (qcAuthentication1.isRunAs()) {
+            qcAuthentication2 = Authentication.newRealmAuthentication(
+                qcAuthentication1.getEffectiveSubject().getUser(),
+                qcAuthentication1.getEffectiveSubject().getRealm()
+            );
+        } else {
+            qcAuthentication2 = AuthenticationTestHelper.builder()
+                .runAs()
+                .user(qcAuthentication1.getEffectiveSubject().getUser())
+                .realmRef(qcAuthentication1.getEffectiveSubject().getRealm())
+                .build();
+        }
+        // random the role descriptor intersection because it does not matter for resource sharing check
+        final Authentication authentication2 = AuthenticationTestHelper.builder()
+            .remoteAccess(apiKeyId1, new RemoteAccessAuthentication(qcAuthentication2, randomRoleDescriptorsIntersection()))
+            .build(false);
+        assertCanAccessResources(authentication, authentication2);
+
+        // 7. QC username variation
+        final String qcUsername1 = qcAuthentication1.getEffectiveSubject().getUser().principal();
+        assertCannotAccessResources(
+            authentication,
+            AuthenticationTestHelper.builder()
+                .remoteAccess(
+                    apiKeyId1,
+                    new RemoteAccessAuthentication(
+                        AuthenticationTestHelper.builder()
+                            .user(randomValueOtherThanMany(u -> u.principal().equals(qcUsername1), AuthenticationTests::randomUser))
+                            .realmRef(qcAuthentication1.getEffectiveSubject().getRealm())
+                            .build(),
+                        randomRoleDescriptorsIntersection()
+                    )
+                )
+                .build(false)
+        );
+
+        // 8. QC user realm variations
+        final RealmRef realm1 = qcAuthentication1.getEffectiveSubject().getRealm();
+        final Authentication authenticationWithSameQcUserDifferentRealm;
+        final CheckedFunction<RealmRef, Authentication, IOException> authenticationForRealm = realmRef -> AuthenticationTestHelper.builder()
+            .remoteAccess(
+                apiKeyId1,
+                new RemoteAccessAuthentication(
+                    AuthenticationTestHelper.builder().user(qcAuthentication1.getEffectiveSubject().getUser()).realmRef(realmRef).build(),
+                    randomRoleDescriptorsIntersection()
+                )
+            )
+            .build(false);
+        switch (randomIntBetween(0, 2)) {
+            case 0: // change name
+                authenticationWithSameQcUserDifferentRealm = authenticationForRealm.apply(
+                    mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), null)
+                );
+                if (realmIsSingleton(realm1)) {
+                    assertCanAccessResources(authentication, authenticationWithSameQcUserDifferentRealm);
+                } else {
+                    assertCannotAccessResources(authentication, authenticationWithSameQcUserDifferentRealm);
+                }
+                break;
+            case 1: // change type
+                authenticationWithSameQcUserDifferentRealm = authenticationForRealm.apply(
+                    mutateRealm(realm1, null, randomAlphaOfLengthBetween(3, 8))
+                );
+                assertCannotAccessResources(authentication, authenticationWithSameQcUserDifferentRealm);
+                break;
+            case 2: // both
+                authenticationWithSameQcUserDifferentRealm = authenticationForRealm.apply(
+                    mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
+                );
+                assertCannotAccessResources(authentication, authenticationWithSameQcUserDifferentRealm);
+                break;
+            default:
+                assert false : "Case number out of range";
+        }
+
+        // TODO: Add more tests for API keys when they work as QC subject
     }
 
     public void testTokenAccessResourceOf() {
@@ -476,12 +592,20 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication().encode())
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication())
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
             hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthentication.getRoleDescriptorsBytesList())
         );
+
+        // Serialization round-trip
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            authentication.writeTo(out);
+            final StreamInput in = out.bytes().streamInput();
+            final Authentication deserialized = new Authentication(in);
+            assertThat(deserialized, equalTo(authentication));
+        }
     }
 
     public void testSupportsRunAs() {
@@ -650,9 +774,9 @@ public class AuthenticationTests extends ESTestCase {
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
-        final Authentication innerActualAuthentication = AuthenticationContextSerializer.decode(
-            (String) actual.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-        );
+        final Authentication innerActualAuthentication = (Authentication) actual.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
         assertThat(innerActualAuthentication, equalTo(innerAuthentication.maybeRewriteForOlderVersion(maybeOldVersion)));
     }
 
@@ -672,9 +796,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication
         );
 
-        final Authentication innerRewritten = AuthenticationContextSerializer.decode(
-            (String) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-        );
+        final Authentication innerRewritten = (Authentication) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
         assertThat(innerRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(olderVersion)));
     }
 

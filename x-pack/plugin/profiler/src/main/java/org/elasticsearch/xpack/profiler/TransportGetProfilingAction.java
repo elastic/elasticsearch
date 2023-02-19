@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -93,30 +92,24 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             .setSize(0)
             .setQuery(request.getQuery())
             .setTrackTotalHits(true)
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    long sampleCount = searchResponse.getHits().getTotalHits().value;
-                    EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
-                    log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
-                    searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
+            .execute(ActionListener.wrap(searchResponse -> {
+                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
+                log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
+            }, e -> {
+                // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
+                // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
+                // fail instead of prematurely checking for existence in all cases.
+                if (e instanceof IndexNotFoundException) {
+                    String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
+                    EventsIndex fullIndex = EventsIndex.FULL_INDEX;
+                    log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
+                    searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
+                } else {
+                    submitListener.onFailure(e);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
-                    // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
-                    // fail instead of prematurely checking for existence in all cases.
-                    if (e instanceof IndexNotFoundException) {
-                        String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
-                        EventsIndex fullIndex = EventsIndex.FULL_INDEX;
-                        log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
-                        searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
-                    } else {
-                        submitListener.onFailure(e);
-                    }
-                }
-            });
+            }));
     }
 
     private void searchEventGroupByStackTrace(
@@ -141,38 +134,30 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"))
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    Sum totalCountAgg = searchResponse.getAggregations().get("total_count");
-                    long totalCount = Math.round(totalCountAgg.value());
-                    Resampler resampler = new Resampler(request, eventsIndex.getSampleRate(), totalCount);
-                    StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
-                    // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
-                    // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
-                    // needed to load it.
-                    Map<String, Integer> stackTraceEvents = new TreeMap<>();
-                    for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
-                        Sum count = bucket.getAggregations().get("count");
-                        int finalCount = resampler.adjustSampleCount((int) count.value());
-                        if (finalCount > 0) {
-                            stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
-                        }
-                    }
-                    log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
-                    if (stackTraceEvents.isEmpty() == false) {
-                        responseBuilder.setStackTraceEvents(stackTraceEvents);
-                        retrieveStackTraces(client, responseBuilder, submitListener);
-                    } else {
-                        submitListener.onResponse(responseBuilder.build());
+            .execute(ActionListener.wrap(searchResponse -> {
+                Sum totalCountAgg = searchResponse.getAggregations().get("total_count");
+                long totalCount = Math.round(totalCountAgg.value());
+                Resampler resampler = new Resampler(request, eventsIndex.getSampleRate(), totalCount);
+                StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
+                // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
+                // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
+                // needed to load it.
+                Map<String, Integer> stackTraceEvents = new TreeMap<>();
+                for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
+                    Sum count = bucket.getAggregations().get("count");
+                    int finalCount = resampler.adjustSampleCount((int) count.value());
+                    if (finalCount > 0) {
+                        stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
                     }
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
+                log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                if (stackTraceEvents.isEmpty() == false) {
+                    responseBuilder.setStackTraceEvents(stackTraceEvents);
+                    retrieveStackTraces(client, responseBuilder, submitListener);
+                } else {
+                    submitListener.onResponse(responseBuilder.build());
                 }
-            });
+            }, submitListener::onFailure));
     }
 
     private void retrieveStackTraces(
@@ -184,17 +169,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
         StackTraceHandler handler = new StackTraceHandler(client, responseBuilder, submitListener, eventIds.size(), slicedEventIds.size());
         for (List<String> slice : slicedEventIds) {
-            client.prepareMultiGet().setRealtime(realtime).addIds("profiling-stacktraces", slice).execute(new ActionListener<>() {
-                @Override
-                public void onResponse(MultiGetResponse multiGetItemResponses) {
-                    handler.onResponse(multiGetItemResponses);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
-                }
-            });
+            client.prepareMultiGet()
+                .setRealtime(realtime)
+                .addIds("profiling-stacktraces", slice)
+                .execute(ActionListener.wrap(handler::onResponse, submitListener::onFailure));
         }
     }
 
@@ -291,17 +269,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
             for (List<String> slice : slicedStackFrameIds) {
-                client.prepareMultiGet().addIds("profiling-stackframes", slice).setRealtime(realtime).execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(MultiGetResponse multiGetItemResponses) {
-                        handler.onStackFramesResponse(multiGetItemResponses);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        submitListener.onFailure(e);
-                    }
-                });
+                client.prepareMultiGet()
+                    .addIds("profiling-stackframes", slice)
+                    .setRealtime(realtime)
+                    .execute(ActionListener.wrap(handler::onStackFramesResponse, submitListener::onFailure));
             }
         }
         // no data dependency - we can do this concurrently
@@ -309,17 +280,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
             for (List<String> slice : slicedExecutableIds) {
-                client.prepareMultiGet().addIds("profiling-executables", slice).setRealtime(realtime).execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(MultiGetResponse multiGetItemResponses) {
-                        handler.onExecutableDetailsResponse(multiGetItemResponses);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        submitListener.onFailure(e);
-                    }
-                });
+                client.prepareMultiGet()
+                    .addIds("profiling-executables", slice)
+                    .setRealtime(realtime)
+                    .execute(ActionListener.wrap(handler::onExecutableDetailsResponse, submitListener::onFailure));
             }
         }
     }

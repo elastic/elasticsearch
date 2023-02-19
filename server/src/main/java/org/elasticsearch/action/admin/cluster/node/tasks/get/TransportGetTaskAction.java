@@ -177,7 +177,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                         requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                         ThreadPool.Names.SAME
                     );
-                    future.addListener(ActionListener.wrap(failByTimeout::cancel));
+                    future.addListener(ActionListener.running(failByTimeout::cancel));
                 }
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);

@@ -30,6 +30,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+/**
+ * Plugin encapsulating Data Lifecycle Management Service.
+ */
 public class DataLifecycle extends Plugin implements ActionPlugin {
 
     private final Settings settings;

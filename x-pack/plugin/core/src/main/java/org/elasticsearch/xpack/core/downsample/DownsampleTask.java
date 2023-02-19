@@ -17,33 +17,29 @@ import java.util.Map;
  * which drives the indexing, and periodically updates it's parent PersistentTask with the indexing's current position.
  */
 public class DownsampleTask extends CancellableTask {
-    private String rollupIndex;
-    private DownsampleConfig config;
+    private final String downsampleIndex;
+    private final DownsampleConfig config;
 
     DownsampleTask(
         long id,
         String type,
         String action,
         TaskId parentTask,
-        String rollupIndex,
+        String downsampleIndex,
         DownsampleConfig config,
         Map<String, String> headers
     ) {
-        super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, headers);
-        this.rollupIndex = rollupIndex;
+        super(id, type, action, RollupField.NAME + "_" + downsampleIndex, parentTask, headers);
+        this.downsampleIndex = downsampleIndex;
         this.config = config;
     }
 
-    public String getRollupIndex() {
-        return rollupIndex;
+    public String getDownsampleIndex() {
+        return downsampleIndex;
     }
 
     public DownsampleConfig config() {
         return config;
     }
 
-    @Override
-    public void onCancelled() {
-        // TODO(talevy): make things cancellable
-    }
 }

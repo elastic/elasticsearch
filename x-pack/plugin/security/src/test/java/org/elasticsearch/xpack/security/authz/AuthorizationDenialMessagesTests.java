@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -204,6 +205,69 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
                     " with effective roles [%s] (assigned roles [%s] were not found)",
                     Strings.collectionToCommaDelimitedString(effectiveRoleNames.stream().sorted().toList()),
                     Strings.collectionToCommaDelimitedString(unfoundedRoleNames.stream().sorted().toList())
+                )
+            )
+        );
+    }
+
+    public void testSuccessfulAuthenticationDescription() {
+        final Authentication authentication1 = AuthenticationTestHelper.builder().realm().build(false);
+        assertThat(
+            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication1, null),
+            equalTo(
+                Strings.format(
+                    "user [%s] with assigned roles [%s]",
+                    authentication1.getEffectiveSubject().getUser().principal(),
+                    Strings.arrayToCommaDelimitedString(authentication1.getEffectiveSubject().getUser().roles())
+                )
+            )
+        );
+
+        final Authentication authentication2 = AuthenticationTestHelper.builder().realm().runAs().build();
+        assertThat(
+            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication2, null),
+            equalTo(
+                Strings.format(
+                    "user [%s] run as [%s] with assigned roles [%s]",
+                    authentication2.getAuthenticatingSubject().getUser().principal(),
+                    authentication2.getEffectiveSubject().getUser().principal(),
+                    Strings.arrayToCommaDelimitedString(authentication2.getEffectiveSubject().getUser().roles())
+                )
+            )
+        );
+
+        final Authentication authentication3 = AuthenticationTestHelper.builder().apiKey().build();
+        assertThat(
+            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication3, null),
+            equalTo(
+                Strings.format(
+                    "API key id [%s] of user [%s]",
+                    authentication3.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
+                    authentication3.getEffectiveSubject().getUser().principal()
+                )
+            )
+        );
+
+        final Authentication authentication4 = AuthenticationTestHelper.builder().serviceAccount().build();
+        assertThat(
+            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication4, null),
+            equalTo(Strings.format("service account [%s]", authentication4.getEffectiveSubject().getUser().principal()))
+        );
+    }
+
+    public void testRemoteAccessDenied() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        final String clusterAlias = randomAlphaOfLengthBetween(5, 12);
+        assertThat(
+            AuthorizationDenialMessages.remoteActionDenied(authentication, null, action, clusterAlias),
+            equalTo(
+                Strings.format(
+                    "action [%s] towards remote cluster [%s] is unauthorized for %s"
+                        + " because no remote indices privileges apply for the target cluster",
+                    action,
+                    clusterAlias,
+                    AuthorizationDenialMessages.successfulAuthenticationDescription(authentication, null)
                 )
             )
         );

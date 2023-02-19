@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -70,6 +71,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     static final TimeValue DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET = TimeValue.timeValueMinutes(5);
 
+    private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
     private final ThreadPool threadPool;
 
     private final RerouteService rerouteService;
@@ -87,10 +89,12 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         final Settings settings,
         final RerouteService rerouteService,
         final ClusterService clusterService,
+        final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         final ThreadPool threadPool
     ) {
         this.rerouteService = rerouteService;
         this.clusterService = clusterService;
+        this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
         this.threadPool = threadPool;
         this.expectedDataNodes = EXPECTED_DATA_NODES_SETTING.get(settings);
 
@@ -214,7 +218,9 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 logger.debug("cluster is already recovered");
                 return currentState;
             }
-            return ClusterStateUpdaters.removeStateNotRecoveredBlock(ClusterStateUpdaters.updateRoutingTable(currentState));
+            return ClusterStateUpdaters.removeStateNotRecoveredBlock(
+                ClusterStateUpdaters.updateRoutingTable(currentState, shardRoutingRoleStrategy)
+            );
         }
 
         @Override
@@ -222,7 +228,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             logger.info("recovered [{}] indices into cluster_state", newState.metadata().indices().size());
             // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
             // not-recovered state, that we again do another state recovery.
-            rerouteService.reroute("state recovered", Priority.NORMAL, ActionListener.wrap(GatewayService.this::resetRecoveredFlags));
+            rerouteService.reroute("state recovered", Priority.NORMAL, ActionListener.running(GatewayService.this::resetRecoveredFlags));
         }
 
         @Override

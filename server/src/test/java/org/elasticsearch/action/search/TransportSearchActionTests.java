@@ -1051,7 +1051,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
                 source.pointInTimeBuilder(null);
-                source.knnSearch(null);
+                source.knnSearch(List.of());
                 CollapseBuilder collapse = source.collapse();
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());
@@ -1065,7 +1065,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50)));
             searchRequest.source(source);
 
             searchRequest.setCcsMinimizeRoundtrips(true);
@@ -1080,7 +1080,7 @@ public class TransportSearchActionTests extends ESTestCase {
             // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50)));
             searchRequest.source(source);
 
             TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
@@ -1430,7 +1430,7 @@ public class TransportSearchActionTests extends ESTestCase {
             searchRequest.source(new SearchSourceBuilder().query(new DummyQueryBuilder() {
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {
-                    throw new IllegalArgumentException("This query isn't serializable to nodes before " + Version.CURRENT);
+                    throw new IllegalArgumentException("Not serializable to " + Version.CURRENT);
                 }
             }));
             NodeClient client = new NodeClient(settings, threadPool);
@@ -1473,7 +1473,7 @@ public class TransportSearchActionTests extends ESTestCase {
                         containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
                     );
                     assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-                    assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+                    assertEquals("Not serializable to " + Version.CURRENT, ex.getCause().getMessage());
                     latch.countDown();
                 }
             });

@@ -1,0 +1,5 @@
+pr: 85791
+summary: Fixes CORS headers needed by Elastic clients
+area: Infra/REST API
+type: bug
+issues: []

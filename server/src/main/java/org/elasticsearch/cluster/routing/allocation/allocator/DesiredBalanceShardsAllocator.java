@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -79,7 +78,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     public DesiredBalanceShardsAllocator(
-        Settings settings,
         ClusterSettings clusterSettings,
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
@@ -90,7 +88,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             delegateAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(settings, clusterSettings, threadPool, delegateAllocator),
+            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
             reconciler
         );
     }
@@ -333,13 +331,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             var oldAssignment = old.getAssignment(shardId);
             var updatedAssignment = updated.getAssignment(shardId);
             if (Objects.equals(oldAssignment, updatedAssignment) == false) {
-                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
+                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
             }
         }
         for (ShardId shardId : diff) {
             var oldAssignment = old.getAssignment(shardId);
             var updatedAssignment = updated.getAssignment(shardId);
-            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
+            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
     }

@@ -48,6 +48,11 @@ public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyper
         return createRandom();
     }
 
+    @Override
+    protected Hyperparameters mutateInstance(Hyperparameters instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Hyperparameters createRandom() {
         return new Hyperparameters(
             randomDouble(),

@@ -270,58 +270,45 @@ public abstract class TransportWriteAction<
             ReplicaRequest request,
             @Nullable Response finalResponse,
             @Nullable Location location,
-            @Nullable Exception operationFailure,
             IndexShard primary,
             Logger logger
         ) {
-            this(request, finalResponse, location, operationFailure, primary, logger, null);
+            this(request, finalResponse, location, primary, logger, null);
         }
 
         public WritePrimaryResult(
             ReplicaRequest request,
             @Nullable Response finalResponse,
             @Nullable Location location,
-            @Nullable Exception operationFailure,
             IndexShard primary,
             Logger logger,
             @Nullable Consumer<Runnable> postWriteAction
         ) {
-            super(request, finalResponse, operationFailure);
+            super(request, finalResponse);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
             this.postWriteAction = postWriteAction;
-            assert location == null || operationFailure == null
-                : "expected either failure to be null or translog location to be null, "
-                    + "but found: ["
-                    + location
-                    + "] translog location and ["
-                    + operationFailure
-                    + "] failure";
         }
 
         @Override
         public void runPostReplicationActions(ActionListener<Void> listener) {
-            if (finalFailure != null) {
-                listener.onFailure(finalFailure);
-            } else {
-                /*
-                 * We call this after replication because this might wait for a refresh and that can take a while.
-                 * This way we wait for the refresh in parallel on the primary and on the replica.
-                 */
-                new AsyncAfterWriteAction(primary, replicaRequest, location, new RespondingWriteResult() {
-                    @Override
-                    public void onSuccess(boolean forcedRefresh) {
-                        finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
-                        listener.onResponse(null);
-                    }
+            /*
+             * We call this after replication because this might wait for a refresh and that can take a while.
+             * This way we wait for the refresh in parallel on the primary and on the replica.
+             */
+            new AsyncAfterWriteAction(primary, replicaRequest(), location, new RespondingWriteResult() {
+                @Override
+                public void onSuccess(boolean forcedRefresh) {
+                    replicationResponse.setForcedRefresh(forcedRefresh);
+                    listener.onResponse(null);
+                }
 
-                    @Override
-                    public void onFailure(Exception ex) {
-                        listener.onFailure(ex);
-                    }
-                }, logger, postWriteAction).run();
-            }
+                @Override
+                public void onFailure(Exception ex) {
+                    listener.onFailure(ex);
+                }
+            }, logger, postWriteAction).run();
         }
     }
 

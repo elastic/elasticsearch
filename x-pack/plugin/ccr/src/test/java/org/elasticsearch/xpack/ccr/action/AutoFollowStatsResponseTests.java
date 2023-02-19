@@ -7,16 +7,12 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
-import java.io.IOException;
-
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowStatsTests.randomReadExceptions;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowStatsTests.randomTrackingClusters;
 import static org.elasticsearch.xpack.ccr.action.StatsResponsesTests.createStatsResponse;
@@ -41,18 +37,18 @@ public class AutoFollowStatsResponseTests extends AbstractWireSerializingTestCas
         return new CcrStatsAction.Response(autoFollowStats, statsResponse);
     }
 
-    public void testChunking() throws IOException {
-        final var instance = createTestInstance();
-        int chunkCount = 0;
-        try (var builder = jsonBuilder()) {
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-        } // closing the builder verifies that the XContent is well-formed
+    @Override
+    protected CcrStatsAction.Response mutateInstance(CcrStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 
-        var indexCount = instance.getFollowStats().getStatsResponses().stream().map(s -> s.status().followerIndex()).distinct().count();
-        assertEquals(instance.getFollowStats().getStatsResponses().size() + indexCount * 2 + 4, chunkCount);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createTestInstance(),
+            instance -> Math.toIntExact(
+                2 * instance.getFollowStats().getStatsResponses().stream().map(s -> s.status().followerIndex()).distinct().count()
+                    + instance.getFollowStats().getStatsResponses().size() + 4
+            )
+        );
     }
 }

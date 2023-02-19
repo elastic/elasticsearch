@@ -105,39 +105,31 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     }
 
     private void notifyListenerDirectly(ActionListener<V> listener) {
-        try {
-            // call get in a non-blocking fashion as we could be on a network thread
-            // or another thread like the scheduler, which we should never block!
-            assert done;
-            V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
-            listener.onResponse(value);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        // call get in a non-blocking fashion as we could be on a network thread
+        // or another thread like the scheduler, which we should never block!
+        assert done;
+        ActionListener.completeWith(listener, () -> FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS));
     }
 
     private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
-        try {
-            executorService.execute(new Runnable() {
-                @Override
-                public void run() {
-                    notifyListenerDirectly(listener);
-                }
+        ActionListener.run(listener, l -> executorService.execute(new Runnable() {
+            @Override
+            public void run() {
+                notifyListenerDirectly(l);
+            }
 
-                @Override
-                public String toString() {
-                    return "ListenableFuture notification";
-                }
-            });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            @Override
+            public String toString() {
+                return "ListenableFuture notification";
+            }
+        }));
     }
 
     @Override
     public void onResponse(V v) {
         final boolean set = set(v);
         if (set == false) {
+            assert false;
             throw new IllegalStateException("did not set value, value or exception already set?");
         }
     }
@@ -146,6 +138,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     public void onFailure(Exception e) {
         final boolean set = setException(e);
         if (set == false) {
+            assert false;
             throw new IllegalStateException("did not set exception, value already set or exception already set?");
         }
     }

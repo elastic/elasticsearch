@@ -53,7 +53,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -211,14 +211,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     };
                 };
             }
-            SourceLookup sourceLookup = searchExecutionContext.lookup().source();
             ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
+            SourceProvider sourceProvider = searchExecutionContext.lookup();
             return context -> {
                 valueFetcher.setNextReader(context);
                 return docID -> {
                     try {
-                        sourceLookup.setSegmentAndDocument(context, docID);
-                        return valueFetcher.fetchValues(sourceLookup, docID, new ArrayList<>());
+                        return valueFetcher.fetchValues(sourceProvider.getSource(context, docID), docID, new ArrayList<>());
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -338,7 +337,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
-                fieldDataContext.lookupSupplier().get().source(),
+                fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );
         }

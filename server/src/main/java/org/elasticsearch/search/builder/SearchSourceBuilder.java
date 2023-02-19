@@ -9,7 +9,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,6 +50,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -130,7 +131,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private QueryBuilder postQueryBuilder;
 
-    private KnnSearchBuilder knnSearch;
+    private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
 
     private int from = -1;
 
@@ -239,17 +240,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
         trackTotalHitsUpTo = in.readOptionalInt();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             runtimeMappings = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            knnSearch = in.readOptionalWriteable(KnnSearchBuilder::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (in.getTransportVersion().before(TransportVersion.V_8_7_0)) {
+                KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
+                knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
+            } else {
+                knnSearch = in.readList(KnnSearchBuilder::new);
+            }
         }
     }
 
@@ -302,24 +308,35 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeList(fetchFields);
             }
             out.writeOptionalWriteable(pointInTimeBuilder);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             out.writeGenericMap(runtimeMappings);
         } else {
             if (false == runtimeMappings.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
+                    "Versions before 7110099 don't support [runtime_mappings] and search was sent to [" + out.getTransportVersion() + "]"
                 );
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-            out.writeOptionalWriteable(knnSearch);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_8_7_0)) {
+                if (knnSearch.size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Versions before 8070099 don't support multiple [knn] search clauses and search was sent to ["
+                            + out.getTransportVersion()
+                            + "]"
+                    );
+                }
+                out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
+            } else {
+                out.writeCollection(knnSearch);
+            }
         }
     }
 
@@ -361,16 +378,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Defines a kNN search. If a query is also provided, the kNN hits
      * are combined with the query hits.
      */
-    public SearchSourceBuilder knnSearch(KnnSearchBuilder knnSearch) {
-        this.knnSearch = knnSearch;
+    public SearchSourceBuilder knnSearch(List<KnnSearchBuilder> knnSearch) {
+        this.knnSearch = Objects.requireNonNull(knnSearch);
         return this;
     }
 
     /**
      * An optional kNN search definition.
      */
-    public KnnSearchBuilder knnSearch() {
-        return knnSearch;
+    public List<KnnSearchBuilder> knnSearch() {
+        return Collections.unmodifiableList(knnSearch);
     }
 
     /**
@@ -986,7 +1003,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @return true if the source only has suggest
      */
     public boolean isSuggestOnly() {
-        return suggestBuilder != null && queryBuilder == null && knnSearch == null && aggregations == null;
+        return suggestBuilder != null && queryBuilder == null && knnSearch.isEmpty() && aggregations == null;
     }
 
     /**
@@ -1039,10 +1056,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (this.postQueryBuilder != null) {
             postQueryBuilder = this.postQueryBuilder.rewrite(context);
         }
-        KnnSearchBuilder knnSearch = null;
-        if (this.knnSearch != null) {
-            knnSearch = this.knnSearch.rewrite(context);
-        }
+        List<KnnSearchBuilder> knnSearch = Rewriteable.rewrite(this.knnSearch, context);
         AggregatorFactories.Builder aggregations = null;
         if (this.aggregations != null) {
             aggregations = this.aggregations.rewrite(context);
@@ -1092,7 +1106,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private SearchSourceBuilder shallowCopy(
         QueryBuilder queryBuilder,
         QueryBuilder postQueryBuilder,
-        KnnSearchBuilder knnSearch,
+        List<KnnSearchBuilder> knnSearch,
         AggregatorFactories.Builder aggregations,
         SliceBuilder slice,
         List<SortBuilder<?>> sorts,
@@ -1243,7 +1257,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
                     searchUsage.trackSectionUsage(POST_FILTER_FIELD.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    knnSearch = KnnSearchBuilder.fromXContent(parser);
+                    knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
@@ -1420,6 +1434,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (SEARCH_AFTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
                     searchUsage.trackSectionUsage(SEARCH_AFTER.getPreferredName());
+                } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    knnSearch = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            knnSearch.add(KnnSearchBuilder.fromXContent(parser));
+                        } else {
+                            throw new XContentParseException(
+                                parser.getTokenLocation(),
+                                "malformed knn format, within the knn search array only objects are allowed; found " + token
+                            );
+                        }
+                    }
+                    searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -1469,10 +1496,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(POST_FILTER_FIELD.getPreferredName(), postQueryBuilder);
         }
 
-        if (knnSearch != null) {
-            builder.startObject(KNN_FIELD.getPreferredName());
-            knnSearch.toXContent(builder, params);
-            builder.endObject();
+        if (knnSearch.isEmpty() == false) {
+            builder.startArray(KNN_FIELD.getPreferredName());
+            for (KnnSearchBuilder knnSearchBuilder : knnSearch) {
+                builder.startObject();
+                knnSearchBuilder.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
         }
 
         if (minScore != null) {

@@ -51,6 +51,11 @@ public class ValidationLossTests extends AbstractBWCSerializationTestCase<Valida
         return createRandom();
     }
 
+    @Override
+    protected ValidationLoss mutateInstance(ValidationLoss instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static ValidationLoss createRandom() {
         return new ValidationLoss(randomAlphaOfLength(10), randomList(5, FoldValuesTests::createRandom));
     }

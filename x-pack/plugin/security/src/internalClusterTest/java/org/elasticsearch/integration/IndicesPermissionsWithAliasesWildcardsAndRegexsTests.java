@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -55,7 +56,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     @Override
     protected String configRoles() {
-        return formatted("""
+        return Strings.format("""
             %s
             role1:
               cluster: [ all ]

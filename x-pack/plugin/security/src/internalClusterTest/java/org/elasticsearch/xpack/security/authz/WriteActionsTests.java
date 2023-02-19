@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.rest.RestStatus;
@@ -33,7 +34,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return formatted("""
+        return Strings.format("""
             %s:
               cluster: [ ALL ]
               indices:

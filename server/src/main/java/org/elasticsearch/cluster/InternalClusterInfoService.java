@@ -385,7 +385,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private class RefreshScheduler {
 
         ActionListener<ClusterInfo> getListener() {
-            return ActionListener.wrap(() -> {
+            return ActionListener.running(() -> {
                 if (shouldRefresh()) {
                     threadPool.scheduleUnlessShuttingDown(updateFrequency, ThreadPool.Names.SAME, () -> {
                         if (shouldRefresh()) {

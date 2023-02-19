@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
@@ -166,20 +167,68 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 )
             );
 
+            // Check access is denied when user has no remote indices privileges
+            final var putLocalSearchRoleRequest = new Request("PUT", "/_security/role/local_search");
+            putLocalSearchRoleRequest.setJsonEntity(Strings.format("""
+                {
+                  "indices": [
+                    {
+                      "names": ["local_index"],
+                      "privileges": ["read"]
+                    }
+                  ]%s
+                }""", randomBoolean() ? "" : """
+                ,
+                "remote_indices": [
+                   {
+                     "names": ["*"],
+                     "privileges": ["read", "read_cross_cluster"],
+                     "clusters": ["other_remote_*"]
+                   }
+                 ]"""));
+            assertOK(adminClient().performRequest(putLocalSearchRoleRequest));
+            final var putlocalSearchUserRequest = new Request("PUT", "/_security/user/local_search_user");
+            putlocalSearchUserRequest.setJsonEntity("""
+                {
+                  "password": "x-pack-test-password",
+                  "roles" : ["local_search"]
+                }""");
+            assertOK(adminClient().performRequest(putlocalSearchUserRequest));
+            final ResponseException exception3 = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithLocalSearchUser(
+                    new Request("GET", "/" + randomFrom("my_remote_cluster:*", "*:*", "*,*:*", "my_*:*,local_index") + "/_search")
+                )
+            );
+            assertThat(exception3.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                exception3.getMessage(),
+                containsString(
+                    "action [indices:data/read/search] towards remote cluster [my_remote_cluster]"
+                        + " is unauthorized for user [local_search_user] with effective roles [local_search]"
+                        + " because no remote indices privileges apply for the target cluster"
+                )
+            );
+
             // Check that authentication fails if we use a non-existent API key
             updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.authorization", randomEncodedApiKey()).build());
-            final ResponseException exception3 = expectThrows(
+            final ResponseException exception4 = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithRemoteAccessUser(new Request("GET", "/my_remote_cluster:index1/_search"))
             );
-            assertThat(exception3.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(exception3.getMessage(), containsString("unable to authenticate user"));
-            assertThat(exception3.getMessage(), containsString("unable to find apikey"));
+            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(exception4.getMessage(), containsString("unable to authenticate user"));
+            assertThat(exception4.getMessage(), containsString("unable to find apikey"));
         }
     }
 
     private Response performRequestWithRemoteAccessUser(final Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_SEARCH_USER, PASS)));
+        return client().performRequest(request);
+    }
+
+    private Response performRequestWithLocalSearchUser(final Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("local_search_user", PASS)));
         return client().performRequest(request);
     }
 

@@ -574,4 +574,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         configureClient(builder, restClientSettings());
         return builder;
     }
+
+    public ClientYamlTestCandidate getTestCandidate() {
+        return testCandidate;
+    }
 }

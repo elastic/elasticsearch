@@ -33,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -47,8 +48,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -356,10 +359,15 @@ public class FileSettingsServiceTests extends ESTestCase {
         doThrow(new IOException("can't register")).doThrow(new IOException("can't register - attempt 2"))
             .doAnswer(i -> newWatchKey)
             .when(mockedPath)
-            .register(any(), any());
+            .register(
+                any(),
+                eq(StandardWatchEventKinds.ENTRY_MODIFY),
+                eq(StandardWatchEventKinds.ENTRY_CREATE),
+                eq(StandardWatchEventKinds.ENTRY_DELETE)
+            );
 
         var result = service.enableSettingsWatcher(prevWatchKey, mockedPath);
-        assertNotNull(result);
+        assertThat(result, sameInstance(newWatchKey));
         assertTrue(result != prevWatchKey);
 
         verify(service, times(2)).retryDelayMillis(anyInt());

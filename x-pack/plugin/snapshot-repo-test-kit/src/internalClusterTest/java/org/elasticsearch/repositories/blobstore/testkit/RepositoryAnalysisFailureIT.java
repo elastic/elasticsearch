@@ -537,6 +537,12 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
         }
+
+        @Override
+        public long compareAndExchangeRegister(String key, long expected, long updated) {
+            assert false : "should not have been called";
+            throw new UnsupportedOperationException();
+        }
     }
 
 }

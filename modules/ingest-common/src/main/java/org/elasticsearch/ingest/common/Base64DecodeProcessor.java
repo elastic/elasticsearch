@@ -28,21 +28,21 @@ public final class Base64DecodeProcessor extends AbstractProcessor {
 
     private final String field;
     private final String targetField;
+    private final boolean skipFailure;
     private final boolean ignoreMissing;
-    private final boolean ignoreFailure;
 
     Base64DecodeProcessor(
         String tag,
         String description,
         String field,
         String targetField,
-        boolean ignoreFailure,
+        boolean skipFailure,
         boolean ignoreMissing) {
             super(tag, description);
             this.field = field;
             this.targetField = targetField;
             this.ignoreMissing = ignoreMissing;
-            this.ignoreFailure = ignoreFailure;
+            this.skipFailure = skipFailure;
     }
 
     public String getField() {
@@ -53,8 +53,8 @@ public final class Base64DecodeProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    public boolean isIgnoreFailure() {
-        return ignoreFailure;
+    public boolean isSkipFailure() {
+        return skipFailure;
     }
 
     public boolean isIgnoreMissing() {
@@ -75,7 +75,7 @@ public final class Base64DecodeProcessor extends AbstractProcessor {
         if (originalValue instanceof List<?> list) {
             List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
-                if (value instanceof String == false && ignoreFailure) {
+                if (value instanceof String == false && skipFailure) {
                     continue;
                 } else if (value instanceof String == false ){
                     throw new IllegalArgumentException("Cannot read non string value [ " + value + " ] of field [" + field + "]");
@@ -112,10 +112,10 @@ public final class Base64DecodeProcessor extends AbstractProcessor {
             Map<String, Object> config
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_failure", false);
-            return new Base64DecodeProcessor(processorTag, description, field, targetField, ignoreMissing, ignoreFailure);
+            boolean skipFailure = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "skip_failure", false);
+            return new Base64DecodeProcessor(processorTag, description, field, targetField, ignoreMissing, skipFailure);
         }
     }
 }

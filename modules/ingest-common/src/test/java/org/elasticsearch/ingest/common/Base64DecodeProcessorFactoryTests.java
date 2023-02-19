@@ -28,7 +28,7 @@ public class Base64DecodeProcessorFactoryTests extends ESTestCase {
         assertThat(base64DecodeProcessor.getField(), equalTo("input.field"));
         assertThat(base64DecodeProcessor.getTargetField(), equalTo("output.field"));
         assertThat(base64DecodeProcessor.isIgnoreMissing(), is(false));
-        assertThat(base64DecodeProcessor.isIgnoreFailure(), is(false));
+        assertThat(base64DecodeProcessor.isSkipFailure(), is(false));
     }
     public void testFactoryWithAssignedValues() throws Exception {
         Base64DecodeProcessor.Factory factory = new Base64DecodeProcessor.Factory();
@@ -44,6 +44,6 @@ public class Base64DecodeProcessorFactoryTests extends ESTestCase {
         assertThat(base64DecodeProcessor.getField(), equalTo("input.field"));
         assertThat(base64DecodeProcessor.getTargetField(), equalTo("output.field"));
         assertThat(base64DecodeProcessor.isIgnoreMissing(), is(true));
-        assertThat(base64DecodeProcessor.isIgnoreFailure(), is(true));
+        assertThat(base64DecodeProcessor.isSkipFailure(), is(true));
     }
 }

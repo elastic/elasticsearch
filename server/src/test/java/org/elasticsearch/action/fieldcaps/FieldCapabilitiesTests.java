@@ -407,7 +407,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             nonDimensionIndices,
             metricConflictsIndices,
             meta,
-            Set.of()
+            randomSet(0, 5, () -> randomAlphaOfLength(8))
         );
     }
 
@@ -555,7 +555,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             nonDimensionIndices,
             metricConflictsIndices,
             meta,
-            Set.of()
+            instance.getSupportedAggregations()
         );
     }
 }

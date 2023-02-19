@@ -19,6 +19,12 @@ import java.util.function.Predicate;
 
 public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
+    // Note: side effect of loading field data:
+    static final String EXPECTED_WARNING_ID_FIELD =
+        "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
+            + "If you require sorting or aggregating on this field you should also include the id in the "
+            + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
+
     public void testExcludeNestedFields() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : {
@@ -48,6 +54,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNotNull(response.get("field4"));
         assertNull(response.get("field2"));
         assertNull(response.get("field2.field3"));
+        assertWarnings(EXPECTED_WARNING_ID_FIELD);
     }
 
     public void testMetadataFilters() throws IOException {
@@ -83,6 +90,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             assertNull(response.get("_index"));
             assertNotNull(response.get("field1"));
         }
+        assertWarnings(EXPECTED_WARNING_ID_FIELD);
     }
 
     public void testExcludeMultifields() throws IOException {
@@ -116,6 +124,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNotNull(response.get("field2"));
         assertNotNull(response.get("field2.keyword"));
         assertNotNull(response.get("_index"));
+        assertWarnings(EXPECTED_WARNING_ID_FIELD);
     }
 
     public void testDontIncludeParentInfo() throws IOException {
@@ -143,6 +152,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNotNull(response.get("parent.field1"));
         assertNotNull(response.get("parent.field2"));
         assertNull(response.get("parent"));
+        assertWarnings(EXPECTED_WARNING_ID_FIELD);
     }
 
     public void testSecurityFilter() throws IOException {
@@ -185,6 +195,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             assertNull(response.get("forbidden"));
             assertNull(response.get("_index"));     // -metadata filter applies on top
         }
+        assertWarnings(EXPECTED_WARNING_ID_FIELD);
     }
 
     public void testFieldTypeFiltering() throws IOException {

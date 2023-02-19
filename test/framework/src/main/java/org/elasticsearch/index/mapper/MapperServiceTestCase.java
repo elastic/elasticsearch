@@ -59,6 +59,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -655,7 +656,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             null,
             null,
             () -> true,
-            null,
+            new ValuesSourceRegistry(Map.of(), new AggregationUsageService.Builder().build()),
             Collections.emptyMap()
         );
     }

@@ -99,7 +99,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_8_2_0,
+            TransportVersion.V_8_8_0,
             TransportVersion.CURRENT
         );
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);

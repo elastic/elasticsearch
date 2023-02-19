@@ -112,7 +112,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                     "aggregatable": true,
                     "time_series_dimension": true,
                     "indices": [ "index3", "index4" ],
-                    "non_searchable_indices": [ "index4" ]
+                    "non_searchable_indices": [ "index4" ],
+                    "supported_aggregations": []
                   },
                   "long": {
                     "type": "long",
@@ -122,7 +123,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                     "time_series_metric": "counter",
                     "indices": [ "index1", "index2" ],
                     "non_aggregatable_indices": [ "index1" ],
-                    "non_dimension_indices": [ "index4" ]
+                    "non_dimension_indices": [ "index4" ],
+                    "supported_aggregations": []
                   }
                 },
                 "title": {
@@ -130,7 +132,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                     "type": "text",
                     "metadata_field": false,
                     "searchable": true,
-                    "aggregatable": false
+                    "aggregatable": false,
+                    "supported_aggregations": []
                   }
                 }
               },

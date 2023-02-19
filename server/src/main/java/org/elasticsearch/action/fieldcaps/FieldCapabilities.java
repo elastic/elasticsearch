@@ -58,7 +58,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
     private static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("metric_conflicts_indices");
     private static final ParseField META_FIELD = new ParseField("meta");
-
     private static final ParseField SUPPORTED_AGGREGATIONS = new ParseField("supported_aggregations");
 
     private final String name;
@@ -211,7 +210,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         List<String> nonAggregatableIndices,
         List<String> nonDimensionIndices,
         List<String> metricConflictsIndices,
-        Map<String, Set<String>> meta
+        Map<String, Set<String>> meta,
+        List<String> supportedAggregations
     ) {
         this(
             name,
@@ -227,7 +227,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             nonDimensionIndices != null ? nonDimensionIndices.toArray(new String[0]) : null,
             metricConflictsIndices != null ? metricConflictsIndices.toArray(new String[0]) : null,
             meta != null ? meta : Collections.emptyMap(),
-            Set.of()
+            supportedAggregations != null ? new HashSet<>(supportedAggregations) : Set.of()
         );
     }
 
@@ -323,9 +323,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
             builder.endObject();
         }
-        if (isAggregatable) {
-            builder.array(SUPPORTED_AGGREGATIONS.getPreferredName(), supportedAggregations);
+        builder.startArray(SUPPORTED_AGGREGATIONS.getPreferredName());
+        for (String supportedAggregation : supportedAggregations) {
+            builder.value(supportedAggregation);
         }
+        builder.endArray();
         builder.endObject();
         return builder;
     }
@@ -359,6 +361,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             (p, context) -> p.map(HashMap::new, v -> Set.copyOf(v.list())),
             META_FIELD
         );
+        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), SUPPORTED_AGGREGATIONS);
         PARSER = parser.build();
     }
 
@@ -454,6 +457,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      */
     public Map<String, Set<String>> meta() {
         return meta;
+    }
+
+    public Set<String> getSupportedAggregations() {
+        return supportedAggregations;
     }
 
     @Override

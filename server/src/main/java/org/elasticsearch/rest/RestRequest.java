@@ -228,6 +228,18 @@ public class RestRequest implements ToXContent.Params {
         );
     }
 
+    public enum Method {
+        GET,
+        POST,
+        PUT,
+        DELETE,
+        OPTIONS,
+        HEAD,
+        PATCH,
+        TRACE,
+        CONNECT
+    }
+
     /**
      * Returns the HTTP method used in the REST request.
      *
@@ -598,18 +610,6 @@ public class RestRequest implements ToXContent.Params {
      */
     public RestApiVersion getRestApiVersion() {
         return restApiVersion;
-    }
-
-    public enum Method {
-        GET,
-        POST,
-        PUT,
-        DELETE,
-        OPTIONS,
-        HEAD,
-        PATCH,
-        TRACE,
-        CONNECT
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

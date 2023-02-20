@@ -61,7 +61,6 @@ import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -78,9 +77,6 @@ import java.util.stream.Stream;
  * - {@link #getPersistedLocalCheckpoint()}
  */
 public class SearchEngine extends Engine {
-
-    private final AtomicLong lastSeqNo = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-    private final AtomicLong lastTranslogLocation = new AtomicLong(0);
 
     private final Map<Long, ListenableActionFuture<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
     private final LinkedBlockingQueue<CommitNotification> commitNotifications = new LinkedBlockingQueue<>();
@@ -242,37 +238,17 @@ public class SearchEngine extends Engine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
-        IndexResult result = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), true, index.id()) {
-            @Override
-            public Translog.Location getTranslogLocation() {
-                return new Translog.Location(0, lastTranslogLocation.incrementAndGet(), 1);
-            }
-        };
-        this.lastSeqNo.accumulateAndGet(index.seqNo(), Math::max);
-        return result;
+        throw unsupportedException();
     }
 
     @Override
     public DeleteResult delete(Delete delete) {
-        DeleteResult result = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true, delete.id()) {
-            @Override
-            public Translog.Location getTranslogLocation() {
-                return new Translog.Location(0, lastTranslogLocation.incrementAndGet(), 1);
-            }
-        };
-        this.lastSeqNo.accumulateAndGet(delete.seqNo(), Math::max);
-        return result;
+        throw unsupportedException();
     }
 
     @Override
     public NoOpResult noOp(NoOp noOp) {
-        // TODO when removing this NoOpResult constructor won't require to be public anymore
-        return new NoOpResult(noOp.primaryTerm(), noOp.seqNo()) {
-            @Override
-            public Translog.Location getTranslogLocation() {
-                return new Translog.Location(0, lastTranslogLocation.incrementAndGet(), 1);
-            }
-        };
+        throw unsupportedException();
     }
 
     @Override
@@ -287,7 +263,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
-        return new Translog.Location(0, lastTranslogLocation.get(), 0);
+        return new Translog.Location(0L, 0L, 0);
     }
 
     private SequenceNumbers.CommitInfo getSequenceNumbersCommitInfo() {
@@ -296,26 +272,22 @@ public class SearchEngine extends Engine {
 
     @Override
     public long getMaxSeqNo() {
-        // TODO: Integrate properly
-        return lastSeqNo.get();
+        throw unsupportedException();
     }
 
     @Override
     public long getProcessedLocalCheckpoint() {
-        // TODO: Integrate properly
-        return lastSeqNo.get();
+        throw unsupportedException();
     }
 
     @Override
     public long getPersistedLocalCheckpoint() {
-        // TODO: Integrate properly
-        return lastSeqNo.get();
+        throw unsupportedException();
     }
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
-        // TODO: Integrate properly
-        return lastSeqNo.get();
+        throw unsupportedException();
     }
 
     @Override
@@ -647,6 +619,11 @@ public class SearchEngine extends Engine {
             }
         }
         assert segmentGenerationListeners.isEmpty();
+    }
+
+    private static UnsupportedOperationException unsupportedException() {
+        assert false : "this operation is not supported and should have not be called";
+        return new UnsupportedOperationException("Search engine does not support this operation");
     }
 
     record CommitNotification(long primaryTerm, long generation, Map<String, StoreFileMetadata> commit) {

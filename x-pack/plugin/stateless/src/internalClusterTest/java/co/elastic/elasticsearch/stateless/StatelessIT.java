@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessIT extends AbstractStatelessIntegTestCase {
 
@@ -265,6 +266,84 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             assertNotNull(bigArrays);
             assertNotNull(bigArrays.breakerService());
         });
+    }
+
+    public void testIndicesSegments() {
+        startMasterOnlyNode();
+        final int numberOfShards = randomIntBetween(1, 3);
+        startIndexNodes(numberOfShards);
+        final int numberOfReplicas = randomIntBetween(0, 3);
+        startSearchNodes(numberOfReplicas);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        final int iters = randomIntBetween(0, 5);
+        for (int i = 0; i < iters; i++) {
+            indexDocs(indexName, randomIntBetween(1, 100));
+            flush(indexName);
+        }
+        if (iters > 0 || randomBoolean()) {
+            refresh(indexName);
+        }
+
+        var indicesSegments = client().admin().indices().prepareSegments(indexName).get();
+        assertThat(indicesSegments.getSuccessfulShards(), equalTo(numberOfShards + numberOfShards * numberOfReplicas));
+        assertThat(indicesSegments.getShardFailures().length, equalTo(0));
+        assertThat(indicesSegments.getIndices().size(), equalTo(1));
+
+        var indices = indicesSegments.getIndices().get(indexName);
+        assertThat(indices, notNullValue());
+        assertThat(indices.getShards().size(), equalTo(numberOfShards));
+
+        var index = resolveIndex(indexName);
+        for (int shard = 0; shard < numberOfShards; shard++) {
+            var shardSegments = indices.getShards().get(shard);
+            assertThat(shardSegments, notNullValue());
+            assertThat(shardSegments.shards(), notNullValue());
+            assertThat(shardSegments.shards().length, equalTo(1 + numberOfReplicas));
+            var shardId = new ShardId(index, shard);
+            assertThat(shardSegments.shardId(), equalTo(shardId));
+
+            var indexShard = Arrays.stream(shardSegments.shards())
+                .filter(segments -> segments.getShardRouting().isPromotableToPrimary())
+                .findAny()
+                .orElseThrow(() -> new AssertionError("no index shard found for " + shardId));
+            assertThat(indexShard, notNullValue());
+
+            var searchShards = Arrays.stream(shardSegments.shards()).filter(segments -> segments.getShardRouting().isSearchable()).toList();
+            assertThat(searchShards.size(), equalTo(numberOfReplicas));
+
+            for (var searchShard : searchShards) {
+                assertThat(searchShard.getNumberOfSearch(), equalTo(indexShard.getNumberOfSearch()));
+                assertThat(searchShard.getNumberOfCommitted(), equalTo(indexShard.getNumberOfCommitted()));
+                assertThat(searchShard.getSegments().size(), equalTo(indexShard.getSegments().size()));
+
+                for (var indexShardSegment : indexShard.getSegments()) {
+                    var searchShardSegment = searchShard.getSegments()
+                        .stream()
+                        .filter(segment -> segment.getName().equals(indexShardSegment.getName()))
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("search shard has no corresponding segment " + indexShardSegment.getName()));
+                    assertThat(searchShardSegment.getGeneration(), equalTo(indexShardSegment.getGeneration()));
+                    assertThat(searchShardSegment.isCommitted(), equalTo(indexShardSegment.isCommitted()));
+                    assertThat(searchShardSegment.getNumDocs(), equalTo(indexShardSegment.getNumDocs()));
+                    assertThat(searchShardSegment.getDeletedDocs(), equalTo(indexShardSegment.getDeletedDocs()));
+                    assertThat(searchShardSegment.getSize(), equalTo(indexShardSegment.getSize()));
+                    assertThat(searchShardSegment.getVersion(), equalTo(indexShardSegment.getVersion()));
+                    assertThat(searchShardSegment.getMergeId(), equalTo(indexShardSegment.getMergeId()));
+                    assertThat(searchShardSegment.getAttributes(), equalTo(indexShardSegment.getAttributes()));
+                    assertThat(searchShardSegment.getSegmentSort(), equalTo(indexShardSegment.getSegmentSort()));
+                }
+            }
+        }
     }
 
     private static void indexDocuments(String indexName) {

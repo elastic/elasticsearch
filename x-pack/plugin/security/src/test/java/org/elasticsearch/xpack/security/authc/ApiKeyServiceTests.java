@@ -2040,7 +2040,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minNodeVersion = randomFrom(
             Version.getDeclaredVersions(Version.class)
                 .stream()
-                .filter(v -> v.transportVersion.before(RoleDescriptor.VERSION_REMOTE_INDICES))
+                .filter(v -> v.transportVersion.before(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES))
                 .map(v -> v.transportVersion)
                 .toList()
         );
@@ -2073,7 +2073,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minNodeVersion = randomFrom(
             Version.getDeclaredVersions(Version.class)
                 .stream()
-                .filter(v -> v.transportVersion.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES))
+                .filter(v -> v.transportVersion.onOrAfter(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES))
                 .map(v -> v.transportVersion)
                 .toList()
         );

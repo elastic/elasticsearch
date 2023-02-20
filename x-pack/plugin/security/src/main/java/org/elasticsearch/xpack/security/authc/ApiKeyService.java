@@ -302,7 +302,7 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final TransportVersion version = getMinNodeTransportVersion();
-            if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+            if (version.before(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalStateException(
@@ -413,7 +413,7 @@ public class ApiKeyService {
         }
 
         final TransportVersion version = getMinNodeTransportVersion();
-        if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+        if (version.before(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalStateException(
@@ -526,7 +526,7 @@ public class ApiKeyService {
         final TransportVersion version,
         final String... apiKeyIds
     ) {
-        if (version.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+        if (version.before(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES)) {
             final Set<String> affectedRoles = new LinkedHashSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {

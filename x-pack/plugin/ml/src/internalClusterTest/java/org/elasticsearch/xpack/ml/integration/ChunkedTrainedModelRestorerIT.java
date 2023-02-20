@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
@@ -51,7 +52,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         putModelDefinitions(expectedDocs, InferenceIndexConstants.LATEST_INDEX_NAME, 0);
 
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
-            modelId,
+            new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME, modelId),
             client(),
             client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
             xContentRegistry()
@@ -87,7 +88,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         putModelDefinitions(expectedDocs, InferenceIndexConstants.LATEST_INDEX_NAME, 0);
 
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
-            modelId,
+            new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME, modelId),
             client(),
             client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
             xContentRegistry()
@@ -152,13 +153,12 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         putModelDefinitions(expectedDocs.subList(splitPoint, numDocs), index2, splitPoint);
 
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
-            modelId,
+            new IndexLocation("foo-*", modelId),
             client(),
             client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
             xContentRegistry()
         );
         restorer.setSearchSize(10);
-        restorer.setSearchIndex("foo-*");
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);

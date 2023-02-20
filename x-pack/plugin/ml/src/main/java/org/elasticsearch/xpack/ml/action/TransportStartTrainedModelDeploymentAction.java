@@ -236,12 +236,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
     private void getModelBytes(TrainedModelConfig trainedModelConfig, ActionListener<Long> listener) {
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
-            trainedModelConfig.getModelId(),
+            trainedModelConfig.getIndexLocation(),
             client,
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
             xContentRegistry
         );
-        restorer.setSearchIndex(trainedModelConfig.getLocation().getResourceName());
         restorer.setSearchSize(1);
         restorer.restoreModelDefinition(doc -> {
             // The in-memory size of the model was found to be approximately equal
@@ -310,7 +309,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             listener.onResponse(null);
             return;
         }
-        final String modelId = config.getModelId();
+
+        IndexLocation indexLocation = (IndexLocation) config.getLocation();
+        final String modelId = indexLocation.getModelId() == null ? config.getModelId() : indexLocation.getModelId();
         final String[] requiredSourceFields = new String[] {
             TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName(),
             TrainedModelDefinitionDoc.DOC_NUM.getPreferredName(),

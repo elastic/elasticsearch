@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
@@ -183,10 +184,26 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             trainedModelConfig.setModelSize(config.getModelDefinition().ramBytesUsed())
                 .setEstimatedOperations(config.getModelDefinition().getTrainedModel().estimatedNumOperations());
         } else {
-            // Set default location for the given model type.
-            trainedModelConfig.setLocation(
-                Optional.ofNullable(config.getModelType()).orElse(TrainedModelType.TREE_ENSEMBLE).getDefaultLocation(config.getModelId())
-            );
+            if (config.getLocation() != null && config.getLocation()instanceof IndexLocation indexLocation) {
+                // refers to another model definition
+                if (indexLocation.getModelId() == null) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException("If an index location is specified it must contain a [model_id]")
+                    );
+                    return;
+                }
+
+                trainedModelConfig.setLocation(
+                    new IndexLocation(InferenceIndexConstants.nativeDefinitionStore(), indexLocation.getModelId())
+                );
+            } else {
+                // Set default location for the given model type.
+                trainedModelConfig.setLocation(
+                    Optional.ofNullable(config.getModelType())
+                        .orElse(TrainedModelType.TREE_ENSEMBLE)
+                        .getDefaultLocation(config.getModelId())
+                );
+            }
         }
 
         if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {

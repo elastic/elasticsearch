@@ -64,7 +64,7 @@ public enum TrainedModelType {
     public TrainedModelLocation getDefaultLocation(String modelId) {
         return switch (this) {
             case TREE_ENSEMBLE, LANG_IDENT -> new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME);
-            case PYTORCH -> new IndexLocation(InferenceIndexConstants.nativeDefinitionStore());
+            case PYTORCH -> IndexLocation.forDefaultIndex(modelId);
         };
     }
 }

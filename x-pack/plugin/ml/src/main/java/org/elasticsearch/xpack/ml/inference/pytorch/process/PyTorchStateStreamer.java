@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 
@@ -65,29 +66,32 @@ public class PyTorchStateStreamer {
      * First writes the size of the model so the native process can
      * allocate memory then writes the chunks of binary state.
      *
-     * @param modelId  The model to write
-     * @param index    The index to search for the model
+     * @param indexLocation Model Id and index name
      * @param restoreStream The stream to write to
      * @param listener  error and success listener
      */
-    public void writeStateToStream(String modelId, String index, OutputStream restoreStream, ActionListener<Boolean> listener) {
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, executorService, xContentRegistry);
-        restorer.setSearchIndex(index);
+    public void writeStateToStream(IndexLocation indexLocation, OutputStream restoreStream, ActionListener<Boolean> listener) {
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(indexLocation, client, executorService, xContentRegistry);
         restorer.setSearchSize(1);
         restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), success -> {
-            logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+            logger.debug(
+                "model [{}] state restored in [{}] documents from index [{}]",
+                indexLocation.getModelId(),
+                restorer.getNumDocsWritten(),
+                indexLocation.getIndexName()
+            );
 
             if (success) {
                 if (modelBytesWritten.get() != modelSize) {
                     logger.error(
                         "model [{}] restored state size [{}] does not equal the expected model size [{}]",
-                        modelId,
+                        indexLocation.getModelId(),
                         modelBytesWritten,
                         modelSize
                     );
                 }
             } else {
-                logger.info("[{}] loading model state cancelled", modelId);
+                logger.info("[{}] loading model state cancelled", indexLocation.getModelId());
             }
             listener.onResponse(success);
         }, listener::onFailure);

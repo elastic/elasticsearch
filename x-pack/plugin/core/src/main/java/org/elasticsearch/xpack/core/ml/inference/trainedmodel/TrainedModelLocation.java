@@ -12,5 +12,5 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 public interface TrainedModelLocation extends NamedXContentObject, NamedWriteable {
 
-    String getResourceName();
+    String getLocationName();
 }

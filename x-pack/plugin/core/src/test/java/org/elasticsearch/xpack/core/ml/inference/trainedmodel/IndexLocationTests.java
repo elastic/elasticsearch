@@ -18,7 +18,11 @@ public class IndexLocationTests extends AbstractXContentSerializingTestCase<Inde
     private final boolean lenient = randomBoolean();
 
     public static IndexLocation randomInstance() {
-        return new IndexLocation(randomAlphaOfLength(7));
+        if (randomBoolean()) {
+            return new IndexLocation(randomAlphaOfLength(7));
+        } else {
+            return new IndexLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
+        }
     }
 
     @Override
@@ -38,7 +42,8 @@ public class IndexLocationTests extends AbstractXContentSerializingTestCase<Inde
 
     @Override
     protected IndexLocation mutateInstance(IndexLocation instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        var id = instance.getModelId() == null ? null : instance.getModelId()  + "foo";
+        return new IndexLocation(instance.getIndexName() + "bar", id);
     }
 
     @Override

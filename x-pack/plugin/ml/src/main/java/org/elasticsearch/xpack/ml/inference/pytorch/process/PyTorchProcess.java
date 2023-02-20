@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
@@ -22,12 +23,11 @@ public interface PyTorchProcess extends NativeProcess {
 
     /**
      * Load the model into the process
-     * @param modelId the model id
-     * @param index the index where the model is stored
+     * @param indexLocation the index where the model is stored and model id
      * @param stateStreamer the pytorch state streamer
      * @param listener a listener that gets notified when the loading has completed
      */
-    void loadModel(String modelId, String index, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener);
+    void loadModel(IndexLocation indexLocation, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener);
 
     /**
      * @return stream of pytorch results

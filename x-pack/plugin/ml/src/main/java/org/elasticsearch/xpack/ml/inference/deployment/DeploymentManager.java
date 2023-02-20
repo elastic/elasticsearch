@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -166,10 +165,14 @@ public class DeploymentManager {
             TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
             processContext.modelInput.set(modelConfig.getInput());
 
+            logger.warn("loaded config " + modelConfig);
+
             if (modelConfig.getInferenceConfig()instanceof NlpConfig nlpConfig) {
                 task.init(nlpConfig);
 
-                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
+                var resourceLocation = modelConfig.getIndexLocation();
+
+                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), resourceLocation.getModelId());
                 executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchVocabResponse -> {
                     if (searchVocabResponse.getHits().getHits().length == 0) {
                         failedDeploymentListener.onFailure(
@@ -177,7 +180,7 @@ public class DeploymentManager {
                                 Messages.getMessage(
                                     Messages.VOCABULARY_NOT_FOUND,
                                     task.getModelId(),
-                                    VocabularyConfig.docId(modelConfig.getModelId())
+                                    VocabularyConfig.docId(resourceLocation.getModelId())
                                 )
                             )
                         );
@@ -191,7 +194,7 @@ public class DeploymentManager {
                     // here, we are being called back on the searching thread, which MAY be a network thread
                     // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                     // executor.
-                    executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
+                    executorServiceForDeployment.execute(() -> processContext.startAndLoad(resourceLocation, modelLoadedListener));
                 }, failedDeploymentListener::onFailure));
             } else {
                 failedDeploymentListener.onFailure(
@@ -406,7 +409,7 @@ public class DeploymentManager {
             return resultProcessor;
         }
 
-        synchronized void startAndLoad(TrainedModelLocation modelLocation, ActionListener<Boolean> loadedListener) {
+        synchronized void startAndLoad(IndexLocation modelLocation, ActionListener<Boolean> loadedListener) {
             assert Thread.currentThread().getName().contains(UTILITY_THREAD_POOL_NAME)
                 : format("Must execute from [%s] but thread is [%s]", UTILITY_THREAD_POOL_NAME, Thread.currentThread().getName());
 
@@ -477,29 +480,26 @@ public class DeploymentManager {
             task.setFailed("inference process crashed due to reason [" + reason + "]");
         }
 
-        void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {
+        void loadModel(IndexLocation indexLocation, ActionListener<Boolean> listener) {
             if (isStopped) {
                 listener.onFailure(new IllegalArgumentException("Process has stopped, model loading canceled"));
                 return;
             }
-            if (modelLocation instanceof IndexLocation indexLocation) {
-                // Loading the model happens on the inference thread pool but when we get the callback
-                // we need to return to the utility thread pool to avoid leaking the thread we used.
-                process.get()
-                    .loadModel(
-                        task.getModelId(),
-                        indexLocation.getIndexName(),
-                        stateStreamer,
-                        ActionListener.wrap(
-                            r -> executorServiceForDeployment.submit(() -> listener.onResponse(r)),
-                            e -> executorServiceForDeployment.submit(() -> listener.onFailure(e))
-                        )
-                    );
-            } else {
-                listener.onFailure(
-                    new IllegalStateException("unsupported trained model location [" + modelLocation.getClass().getSimpleName() + "]")
-                );
+            if (indexLocation == null) {
+                listener.onFailure(new IllegalStateException("missing trained model location"));
             }
+
+            // Loading the model happens on the inference thread pool but when we get the callback
+            // we need to return to the utility thread pool to avoid leaking the thread we used.
+            process.get()
+                .loadModel(
+                    indexLocation,
+                    stateStreamer,
+                    ActionListener.wrap(
+                        r -> executorServiceForDeployment.submit(() -> listener.onResponse(r)),
+                        e -> executorServiceForDeployment.submit(() -> listener.onFailure(e))
+                    )
+                );
         }
 
         // accessor used for mocking in tests

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,9 +32,10 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
         ConstructingObjectParser<IndexLocation, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new IndexLocation((String) a[0])
+            a -> new IndexLocation((String) a[0], (String) a[1])
         );
-        parser.declareString(ConstructingObjectParser.constructorArg(), NAME);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), NAME);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TrainedModelConfig.MODEL_ID);
         return parser;
     }
 
@@ -43,29 +47,56 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
         return LENIENT_PARSER.parse(parser, null);
     }
 
+    public static IndexLocation forDefaultIndex(String modelId) {
+        return new IndexLocation(InferenceIndexConstants.nativeDefinitionStore(), modelId);
+    }
+
     private final String indexName;
+    private final String modelId;
 
     public IndexLocation(String indexName) {
         this.indexName = Objects.requireNonNull(indexName);
+        this.modelId = null;
+    }
+
+    public IndexLocation(String indexName, String modelId) {
+        this.indexName = indexName;
+        this.modelId = modelId;
     }
 
     public IndexLocation(StreamInput in) throws IOException {
         this.indexName = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            this.modelId = in.readOptionalString();
+        } else {
+            this.modelId = null;
+        }
     }
 
     public String getIndexName() {
         return indexName;
     }
 
+    public String getModelId() {
+        return modelId;
+    }
+
     @Override
-    public String getResourceName() {
+    public String getLocationName() {
         return getIndexName();
+    }
+
+    public boolean isIndexAndModelIdDefined() {
+        return modelId != null && indexName != null;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME.getPreferredName(), indexName);
+        if (modelId != null) {
+            builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
+        }
         builder.endObject();
         return builder;
     }
@@ -73,6 +104,9 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeOptionalString(modelId);
+        }
     }
 
     @Override
@@ -94,11 +128,11 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
             return false;
         }
         IndexLocation that = (IndexLocation) o;
-        return Objects.equals(indexName, that.indexName);
+        return Objects.equals(indexName, that.indexName) && Objects.equals(modelId, that.modelId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName);
+        return Objects.hash(indexName, modelId);
     }
 }

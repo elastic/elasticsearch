@@ -379,3 +379,114 @@ setup:
         model_alias: "pytorch"
         model_id: "another_test_model"
         reassign: true
+
+---
+"Test 2 deployments with the same model definition":
+  - skip:
+      features: allowed_warnings
+  - do:
+      ml.put_trained_model:
+        model_id: model-for-ingest
+        body: >
+          {
+            "description": "model used in an ingest pipeline",
+            "model_type": "pytorch",
+            "inference_config": {
+              "pass_through": {
+                "tokenization": {
+                  "bert": {
+                    "with_special_tokens": false
+                  }
+                }
+              }
+            },
+            "location": {
+              "index": {
+                "model_id": "test_model"
+              }
+            }
+          }
+
+  - do:
+      ml.put_trained_model:
+        model_id: model-for-search
+        body: >
+          {
+            "description": "model used at search",
+            "model_type": "pytorch",
+            "inference_config": {
+              "pass_through": {
+                "tokenization": {
+                  "bert": {
+                    "with_special_tokens": false
+                  }
+                }
+              }
+            },
+            "location": {
+              "index": {
+                "model_id": "test_model"
+              }
+            }
+          }
+  - do:
+      ml.get_trained_models:
+        model_id: model-for-ingest
+  - match: { trained_model_configs.0.location.index.model_id: test_model }
+
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: model-for-ingest
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: model-for-search
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: model-for-ingest
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: model-for-ingest
+        body: >
+          {
+            "docs": [
+              { "input": "these are" }
+            ]
+          }
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: model-for-search
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: model-for-ingest
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_count: 2 }
+  - do:
+      ml.get_trained_models_stats:
+        model_id: model-for-search
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_count: 1 }

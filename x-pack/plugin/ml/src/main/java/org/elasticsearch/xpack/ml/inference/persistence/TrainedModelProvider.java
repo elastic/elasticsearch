@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
@@ -520,7 +521,7 @@ public class TrainedModelProvider {
 
         List<TrainedModelDefinitionDoc> docs = new ArrayList<>();
         ChunkedTrainedModelRestorer modelRestorer = new ChunkedTrainedModelRestorer(
-            modelId,
+            new IndexLocation(InferenceIndexConstants.INDEX_PATTERN, modelId),
             client,
             client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
             xContentRegistry

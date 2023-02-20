@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModelLocation;
@@ -344,6 +345,19 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     @Nullable
     public TrainedModelLocation getLocation() {
         return location;
+    }
+
+    @Nullable
+    public IndexLocation getIndexLocation() {
+        if (location instanceof IndexLocation indexLocation) {
+            if (indexLocation.isIndexAndModelIdDefined()) {
+                return indexLocation;
+            } else {
+                return new IndexLocation(indexLocation.getIndexName(), modelId);
+            }
+        } else {
+            return null;
+        }
     }
 
     public TrainedModelInput getInput() {
@@ -822,7 +836,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createTime, CREATE_TIME.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
-                validationException = checkIllegalSetting(location, LOCATION.getPreferredName(), validationException);
+
+                if (location != null) {
+                    if (location instanceof IndexLocation indexLocation) {
+                        validationException = checkIllegalSetting(indexLocation.getIndexName(), "location index name", validationException);
+                    }
+                }
+
                 if (metadata != null) {
                     validationException = checkIllegalSetting(
                         metadata.get(TOTAL_FEATURE_IMPORTANCE),

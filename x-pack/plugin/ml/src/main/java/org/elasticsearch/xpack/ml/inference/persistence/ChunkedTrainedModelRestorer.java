@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -62,21 +63,20 @@ public class ChunkedTrainedModelRestorer {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
     private final ExecutorService executorService;
-    private final String modelId;
-    private String index = InferenceIndexConstants.INDEX_PATTERN;
+    private final IndexLocation indexLocation;
     private int searchSize = 10;
     private int numDocsWritten = 0;
 
     public ChunkedTrainedModelRestorer(
-        String modelId,
+        IndexLocation indexLocation,
         Client client,
         ExecutorService executorService,
         NamedXContentRegistry xContentRegistry
     ) {
+        this.indexLocation = indexLocation;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.executorService = executorService;
         this.xContentRegistry = xContentRegistry;
-        this.modelId = modelId;
     }
 
     public void setSearchSize(int searchSize) {
@@ -87,10 +87,6 @@ public class ChunkedTrainedModelRestorer {
             throw new IllegalArgumentException("search size [" + searchSize + "] must be greater than 0");
         }
         this.searchSize = searchSize;
-    }
-
-    public void setSearchIndex(String indexNameOrPattern) {
-        this.index = indexNameOrPattern;
     }
 
     public int getNumDocsWritten() {
@@ -122,8 +118,8 @@ public class ChunkedTrainedModelRestorer {
         Consumer<Exception> errorConsumer
     ) {
 
-        logger.debug("[{}] restoring model", modelId);
-        SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize, null);
+        logger.debug("[{}] restoring model definition", indexLocation.getModelId());
+        SearchRequest searchRequest = buildSearch(client, indexLocation.getModelId(), indexLocation.getIndexName(), searchSize, null);
         executorService.execute(() -> doSearch(searchRequest, modelConsumer, successConsumer, errorConsumer));
     }
 
@@ -144,7 +140,9 @@ public class ChunkedTrainedModelRestorer {
                 );
             SearchResponse searchResponse = client.search(searchRequest).actionGet();
             if (searchResponse.getHits().getHits().length == 0) {
-                errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                errorConsumer.accept(
+                    new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, indexLocation.getModelId()))
+                );
                 return;
             }
 
@@ -155,11 +153,11 @@ public class ChunkedTrainedModelRestorer {
             // this many docs so far.
             int lastNum = numDocsWritten - 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
-                logger.debug(() -> format("[%s] Restoring model definition doc with id [%s]", modelId, hit.getId()));
+                logger.debug(() -> format("[%s] Restoring model definition doc with id [%s]", indexLocation.getModelId(), hit.getId()));
                 try {
                     TrainedModelDefinitionDoc doc = parseModelDefinitionDocLenientlyFromSource(
                         hit.getSourceRef(),
-                        modelId,
+                        indexLocation.getModelId(),
                         xContentRegistry
                     );
                     lastNum = doc.getDocNum();
@@ -172,7 +170,7 @@ public class ChunkedTrainedModelRestorer {
                     }
 
                 } catch (IOException e) {
-                    logger.error(() -> "[" + modelId + "] error writing model definition", e);
+                    logger.error(() -> "[" + indexLocation.getModelId() + "] error parsing model definition", e);
                     errorConsumer.accept(e);
                     return;
                 }
@@ -188,25 +186,27 @@ public class ChunkedTrainedModelRestorer {
             } else {
                 // search again with after
                 SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length - 1);
-                SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
+                SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, indexLocation, searchSize);
                 searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
                 executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
             }
         } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                errorConsumer.accept(
+                    new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, indexLocation.getModelId()))
+                );
             } else {
                 errorConsumer.accept(e);
             }
         }
     }
 
-    private static SearchRequestBuilder buildSearchBuilder(Client client, String modelId, String index, int searchSize) {
-        return client.prepareSearch(index)
+    private static SearchRequestBuilder buildSearchBuilder(Client client, IndexLocation indexLocation, int searchSize) {
+        return client.prepareSearch(indexLocation.getIndexName())
             .setQuery(
                 QueryBuilders.constantScoreQuery(
                     QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+                        .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), indexLocation.getModelId()))
                         .filter(
                             QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME)
                         )
@@ -223,7 +223,7 @@ public class ChunkedTrainedModelRestorer {
     }
 
     public static SearchRequest buildSearch(Client client, String modelId, String index, int searchSize, @Nullable TaskId parentTaskId) {
-        SearchRequest searchRequest = buildSearchBuilder(client, modelId, index, searchSize).request();
+        SearchRequest searchRequest = buildSearchBuilder(client, new IndexLocation(index, modelId), searchSize).request();
         if (parentTaskId != null) {
             searchRequest.setParentTask(parentTaskId);
         }

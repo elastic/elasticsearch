@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.NativeController;
@@ -56,8 +57,8 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
     }
 
     @Override
-    public void loadModel(String modelId, String index, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener) {
-        stateStreamer.writeStateToStream(modelId, index, processRestoreStream(), listener);
+    public void loadModel(IndexLocation indexLocation, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener) {
+        stateStreamer.writeStateToStream(indexLocation, processRestoreStream(), listener);
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -58,7 +59,11 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         AtomicReference<Boolean> onSuccess = new AtomicReference<>();
         AtomicReference<Exception> onFailure = new AtomicReference<>();
         blockingCall(
-            listener -> stateStreamer.writeStateToStream(modelId, InferenceIndexConstants.LATEST_INDEX_NAME, outputStream, listener),
+            listener -> stateStreamer.writeStateToStream(
+                new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME, modelId),
+                outputStream,
+                listener
+            ),
             onSuccess,
             onFailure
         );

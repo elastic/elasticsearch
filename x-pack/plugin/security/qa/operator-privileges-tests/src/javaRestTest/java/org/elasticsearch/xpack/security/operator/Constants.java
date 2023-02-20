@@ -48,6 +48,7 @@ public class Constants {
         "cluster:admin/persistent/start",
         "cluster:admin/persistent/update_status",
         "cluster:admin/reindex/rethrottle",
+        "cluster:admin/remote_cluster/nodes",
         "cluster:admin/repository/_cleanup",
         "cluster:admin/repository/delete",
         "cluster:admin/repository/get",

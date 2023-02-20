@@ -204,7 +204,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
               "name": "remote_access_key",
               "role_descriptors": {
                 "role": {
-                  "cluster": ["cluster:monitor/state"],
+                  "cluster": ["cluster:admin/remote_cluster/*"],
                   "index": [
                     {
                       "names": ["*"],

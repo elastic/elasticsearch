@@ -22,14 +22,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 /**
  * Merges terms and stats from multiple TermEnum classes
  * This does a merge sort, by term text.
- * Adapted from Lucene's MultiTermsEnum and differs in that:
- * 1) Only next(), term() and docFreq() methods are supported
- * 2) Doc counts are longs not ints.
+ * Adapted from Lucene's MultiTermsEnum and differs in that
+ * only next() and term() are supported.
  */
 public final class MultiShardTermsEnum {
 
@@ -40,25 +41,42 @@ public final class MultiShardTermsEnum {
     private BytesRef current;
     private Function<Object, Object> termsDecoder;
 
+    private record ShardTermsEnum(TermsEnum termsEnum, Function<Object, Object> termsDecoder) {};
+
+    public static class Builder {
+
+        private final List<ShardTermsEnum> shardTermsEnums = new ArrayList<>();
+
+        void add(TermsEnum termsEnum, Function<Object, Object> termsDecoder) {
+            this.shardTermsEnums.add(new ShardTermsEnum(termsEnum, termsDecoder));
+        }
+
+        MultiShardTermsEnum build() throws IOException {
+            return new MultiShardTermsEnum(shardTermsEnums);
+        }
+
+        int size() {
+            return shardTermsEnums.size();
+        }
+    }
+
     /**
-     * Sole constructor.
-     *
      * @param enums TermsEnums from shards which we should merge
      * @throws IOException Errors accessing data
      **/
-    public MultiShardTermsEnum(TransportTermsEnumAction.ShardTermsEnum[] enums) throws IOException {
-        queue = new TermMergeQueue(enums.length);
-        top = new TermsEnumWithCurrent[enums.length];
+    private MultiShardTermsEnum(List<ShardTermsEnum> enums) throws IOException {
+        queue = new TermMergeQueue(enums.size());
+        top = new TermsEnumWithCurrent[enums.size()];
         numTop = 0;
         queue.clear();
-        for (int i = 0; i < enums.length; i++) {
-            final TermsEnum termsEnum = enums[i].termsEnum();
+        for (ShardTermsEnum shardEnum : enums) {
+            final TermsEnum termsEnum = shardEnum.termsEnum();
             final BytesRef term = termsEnum.next();
             if (term != null) {
                 final TermsEnumWithCurrent entry = new TermsEnumWithCurrent();
                 entry.current = term;
                 entry.termsEnum = termsEnum;
-                entry.termsDecoder = enums[i].termsDecoder();
+                entry.termsDecoder = shardEnum.termsDecoder();
                 queue.add(entry);
             } else {
                 // field has no terms
@@ -104,9 +122,9 @@ public final class MultiShardTermsEnum {
         return current;
     }
 
-    static final class TermsEnumWithCurrent {
-        public Function<Object, Object> termsDecoder;
-        TermsEnum termsEnum;
+    private static final class TermsEnumWithCurrent {
+        private Function<Object, Object> termsDecoder;
+        private TermsEnum termsEnum;
         private BytesRef current;
     }
 

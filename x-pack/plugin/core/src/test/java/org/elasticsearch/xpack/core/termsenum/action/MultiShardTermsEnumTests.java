@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -73,30 +74,23 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                 a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
                 CompiledAutomaton automaton = new CompiledAutomaton(a);
 
-                ArrayList<TransportTermsEnumAction.ShardTermsEnum> termsEnums = new ArrayList<>();
+                MultiShardTermsEnum.Builder builder = new MultiShardTermsEnum.Builder();
                 for (DirectoryReader reader : readers) {
                     Terms terms = MultiTerms.getTerms(reader, fieldName);
-                    TransportTermsEnumAction.ShardTermsEnum te = new TransportTermsEnumAction.ShardTermsEnum(
-                        automaton.getTermsEnum(terms),
-                        o -> ((BytesRef) o).utf8ToString()
-                    );
+                    TermsEnum te = automaton.getTermsEnum(terms);
                     if (randomBoolean()) {
                         // Simulate fields like constant-keyword which use a SimpleTermCountEnum to present results
                         // rather than the raw TermsEnum from Lucene.
                         ArrayList<String> termCounts = new ArrayList<>();
-                        while (te.termsEnum().next() != null) {
-                            termCounts.add(te.termsEnum().term().utf8ToString());
+                        while (te.next() != null) {
+                            termCounts.add(te.term().utf8ToString());
                         }
-                        TransportTermsEnumAction.ShardTermsEnum simpleEnum = new TransportTermsEnumAction.ShardTermsEnum(
-                            new SimpleTermCountEnum(termCounts.toArray(new String[0])),
-                            o -> ((BytesRef) o).utf8ToString()
-                        );
-                        termsEnums.add(simpleEnum);
+                        builder.add(new SimpleTermCountEnum(termCounts.toArray(new String[0])), o -> ((BytesRef) o).utf8ToString());
                     } else {
-                        termsEnums.add(te);
+                        builder.add(te, o -> ((BytesRef) o).utf8ToString());
                     }
                 }
-                MultiShardTermsEnum mte = new MultiShardTermsEnum(termsEnums.toArray(new TransportTermsEnumAction.ShardTermsEnum[0]));
+                MultiShardTermsEnum mte = builder.build();
                 Set<String> expecteds = new HashSet<>();
 
                 for (String term : globalTermCounts) {

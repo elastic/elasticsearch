@@ -79,7 +79,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Function;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 import static org.elasticsearch.core.Strings.format;
@@ -322,8 +321,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return ans;
     }
 
-    record ShardTermsEnum(TermsEnum termsEnum, Function<Object, Object> termsDecoder) {};
-
     protected NodeTermsEnumResponse dataNodeOperation(NodeTermsEnumRequest request, Task task) throws IOException {
         List<String> termsList = new ArrayList<>();
         String error = null;
@@ -331,9 +328,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         long timeout_millis = request.timeout();
         long scheduledEnd = request.nodeStartedTimeMillis() + timeout_millis;
 
-        ArrayList<ShardTermsEnum> shardTermsEnums = new ArrayList<>();
         ArrayList<Closeable> openedResources = new ArrayList<>();
         try {
+            MultiShardTermsEnum.Builder teBuilder = new MultiShardTermsEnum.Builder();
             for (ShardId shardId : request.shardIds()) {
                 // Check we haven't just arrived on a node and time is up already.
                 if (System.currentTimeMillis() > scheduledEnd) {
@@ -361,15 +358,15 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                         request.searchAfter()
                     );
                     if (terms != null) {
-                        shardTermsEnums.add(new ShardTermsEnum(terms, mappedFieldType::valueForDisplay));
+                        teBuilder.add(terms, mappedFieldType::valueForDisplay);
                     }
                 }
             }
-            if (shardTermsEnums.size() == 0) {
+            if (teBuilder.size() == 0) {
                 // No term enums available
                 return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
             }
-            MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new ShardTermsEnum[0]));
+            MultiShardTermsEnum te = teBuilder.build();
 
             int shard_size = request.size();
             // All the above prep might take a while - do a timer check now before we continue further.

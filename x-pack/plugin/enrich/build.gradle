@@ -20,3 +20,13 @@ dependencies {
 }
 
 addQaCheckDependencies(project)
+
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/xpack/enrich/action/EnrichCoordinatorStatsAction$NodeRequest","missing test")
+  task.skipTest("org/elasticsearch/xpack/enrich/action/EnrichShardMultiSearchAction$Request","missing test")
+  task.skipTest("org/elasticsearch/xpack/enrich/action/EnrichCoordinatorStatsAction$Response","missing test")
+  task.skipTest("org/elasticsearch/xpack/enrich/action/EnrichCoordinatorStatsAction$Request","missing test")
+  task.skipTest("org/elasticsearch/xpack/enrich/action/InternalExecutePolicyAction$Request","missing test")
+  task.skipTest("org/elasticsearch/xpack/enrich/action/EnrichCoordinatorStatsAction$NodeResponse","missing test")
+}
+

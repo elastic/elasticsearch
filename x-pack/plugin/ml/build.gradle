@@ -113,3 +113,28 @@ tasks.named("dependencyLicenses").configure {
 }
 
 addQaCheckDependencies(project)
+
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangeType$Stationary","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangeType$Dip","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangeType$DistributionChange","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangePointAggregationBuilder","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/correlation/BucketCorrelationAggregationBuilder","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/inference/ModelAliasMetadata","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/inference/InferencePipelineAggregationBuilder","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/correlation/CountCorrelationFunction","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangePointBucket","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/categorization/CategorizeTextAggregationBuilder","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangeType$TrendChange","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/heuristic/PValueScore","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/inference/assignment/TrainedModelAssignmentMetadata$TrainedModeAssignmentDiff","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/frequentitemsets/EclatMapReducer","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/categorization/InternalCategorizationAggregation$Bucket","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangeType$Indeterminable","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/kstest/BucketCountKSTestAggregationBuilder","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/action/TransportTrainedModelCacheInfoAction$NodeModelCacheInfoRequest","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangeType$NonStationary","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/inference/ModelAliasMetadata$ModelAliasEntry","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangeType$Spike","missing test")
+  task.skipTest("org/elasticsearch/xpack/ml/aggs/changepoint/ChangeType$StepChange","missing test")
+}

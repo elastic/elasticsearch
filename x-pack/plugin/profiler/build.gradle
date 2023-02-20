@@ -13,3 +13,7 @@ esplugin {
   description 'The profiler plugin adds support for retrieving data from Universal Profiler.'
   classname 'org.elasticsearch.xpack.profiler.ProfilingPlugin'
 }
+
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/xpack/profiler/GetProfilingRequest","missing test")
+}

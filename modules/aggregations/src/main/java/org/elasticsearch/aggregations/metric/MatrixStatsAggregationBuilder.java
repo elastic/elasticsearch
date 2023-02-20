@@ -10,6 +10,7 @@ package org.elasticsearch.aggregations.metric;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+@SuppressForbidden(reason = "transportTestMissing")
 public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
 

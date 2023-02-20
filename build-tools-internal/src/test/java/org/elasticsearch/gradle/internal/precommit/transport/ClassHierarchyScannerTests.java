@@ -18,7 +18,10 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.objectweb.asm.ClassReader;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
+import java.net.URL;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -26,6 +29,20 @@ import java.util.stream.Stream;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class ClassHierarchyScannerTests {
+
+    @Test
+    public void xxx() throws IOException {
+        URL resource = this.getClass().getResource("/dir/test.json");
+        System.out.println(resource);
+        FileReader fileReader = new FileReader(resource.getPath());
+        BufferedReader bufferedReader = new BufferedReader(fileReader);
+        String line;
+        while ((line = bufferedReader.readLine()) != null) {
+            System.out.println(line);
+        }
+
+    }
+
     @Test
     public void testFindOneFile() throws IOException {
         ClassHierarchyScanner scanner = new ClassHierarchyScanner();

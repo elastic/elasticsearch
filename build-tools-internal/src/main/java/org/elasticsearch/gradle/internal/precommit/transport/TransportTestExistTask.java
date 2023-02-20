@@ -17,6 +17,7 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
@@ -28,10 +29,12 @@ import org.objectweb.asm.ClassReader;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -50,6 +53,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     private FileCollection testSources;
     private Configuration compileClasspath;
     private Configuration testClasspath;
+    Set<String> skipClasses = new HashSet<>();
 
     @Inject
     public TransportTestExistTask(ObjectFactory objectFactory) {
@@ -69,6 +73,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             parameters.getTestSources().setFrom(testSources);
             parameters.getCompileClasspath().setFrom(compileClasspath);
             parameters.getTestClasspath().setFrom(testClasspath);
+            parameters.getSkipClasses().set(skipClasses);
         });
     }
 
@@ -88,6 +93,14 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         this.testClasspath = testClasspath;
     }
 
+    public void setSkipClass(String className, String reason) {
+        skipClasses.add(classNameToPath(className));
+    }
+
+    private String classNameToPath(String className) {
+        return className.replace('.', File.separatorChar);
+    }
+
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
 
         private final Logger logger = Logging.getLogger(TransportTestExistTask.class);
@@ -105,13 +118,14 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             Set<File> testClasses = getParameters().getTestSources().getFiles();
             Set<File> compileClassPath = getParameters().getCompileClasspath().getFiles();
             Set<File> testClassPath = getParameters().getTestClasspath().getFiles();
+            Set<String> skipClasses = getParameters().getSkipClasses().get();
 
             // this is always run.. should be cached?
             ClassHierarchyScanner compileClassPathScanner = new ClassHierarchyScanner();
             ClassReaders.forEach(compileClassPath, cr -> cr.accept(compileClassPathScanner, ClassReader.SKIP_CODE));
 
             ClassHierarchyScanner transportClassesScanner = new ClassHierarchyScanner();
-            ClassReaders.forEach(mainClasses, cr -> cr.accept(transportClassesScanner, ClassReader.SKIP_CODE));
+            ClassReaders.forEach(mainClasses, cr -> { cr.accept(transportClassesScanner, ClassReader.SKIP_CODE); });
 
             String writeableClassName = "org/elasticsearch/common/io/stream/Writeable";
             Map<String, String> subclassesOfWriteable = compileClassPathScanner.allFoundSubclasses(
@@ -130,13 +144,24 @@ public abstract class TransportTestExistTask extends PrecommitTask {
                 Map.of(transportTestCase, transportTestCase)
             );
             Set<String> transportTestClasses = transportTestsScanner.getConcreteSubclasses(subclassesOfTransportTestCase);
+            System.out.println(transportTestClasses);
+            System.out.println(skipClasses);
+            transportClasses.removeAll(skipClasses);
+            System.out.println(transportTestClasses);
 
             List<String> classesWithoutTests = new ArrayList<>();
             for (String transportClass : transportClasses) {
                 findTest(transportClass, transportTestClasses, classesWithoutTests);
             }
             if (classesWithoutTests.size() > 0) {
-                throw new GradleException("Missing tests for classes " + classesWithoutTests);
+                throw new GradleException(
+                    "Missing tests for classes\n"
+                        + "tasks.named(\"transportTestExistCheck\").configure { task ->\n"
+                        + classesWithoutTests.stream()
+                            .map(s -> "task.skipTest(\"" + s + "\",\"missing test\")")
+                            .collect(Collectors.joining("\n"))
+                        + "\n}"
+                );
             }
         }
 
@@ -161,6 +186,8 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         ConfigurableFileCollection getCompileClasspath();
 
         ConfigurableFileCollection getTestClasspath();
+
+        SetProperty<String> getSkipClasses();
     }
 
 }

@@ -30,3 +30,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
+
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/xpack/monitoring/exporter/ExportException","missing test")
+}

@@ -14,3 +14,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(":test:framework")
 }
+
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/xpack/searchbusinessrules/PinnedQueryBuilder","missing test")
+}

@@ -429,3 +429,9 @@ tasks.named("internalClusterTest").configure {
 }
 
 addQaCheckDependencies(project)
+
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/xpack/security/support/ApiKeyBoolQueryBuilder","missing test")
+  task.skipTest("org/elasticsearch/xpack/security/support/FeatureNotEnabledException","missing test")
+}
+

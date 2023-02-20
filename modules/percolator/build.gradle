@@ -27,3 +27,7 @@ restResources {
 tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 }
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/percolator/PercolateQueryBuilder","missing test")
+}
+

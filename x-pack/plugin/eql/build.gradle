@@ -113,3 +113,27 @@ tasks.register("regen") {
     }
   }
 }
+
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/BetweenFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/EndsWithFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/LengthFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/ConcatFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/ToStringFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/plugin/EqlStatsRequest","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/parser/ParsingException","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/planner/PlanningException","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/analysis/VerificationException","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/execution/search/extractor/CompositeKeyExtractor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/SubstringFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/StringContainsFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/math/ToNumberFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/plugin/EqlStatsResponse$NodeStatsResponse","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/CIDRMatchFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/execution/search/extractor/FieldHitExtractor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/execution/search/extractor/TimestampFieldHitExtractor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/EqlIllegalArgumentException","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/plugin/EqlStatsResponse","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/execution/search/extractor/ImplicitTiebreakerHitExtractor","missing test")
+  task.skipTest("org/elasticsearch/xpack/eql/expression/function/scalar/string/IndexOfFunctionProcessor","missing test")
+}

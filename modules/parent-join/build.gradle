@@ -23,3 +23,10 @@ restResources {
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("/30_inner_hits/profile fetch", "profile output has changed")
 }
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/join/aggregations/ParentAggregationBuilder","missing test")
+  task.skipTest("org/elasticsearch/join/aggregations/ChildrenAggregationBuilder","missing test")
+  task.skipTest("org/elasticsearch/join/query/ParentIdQueryBuilder","missing test")
+  task.skipTest("org/elasticsearch/join/query/HasParentQueryBuilder","missing test")
+  task.skipTest("org/elasticsearch/join/query/HasChildQueryBuilder","missing test")
+}

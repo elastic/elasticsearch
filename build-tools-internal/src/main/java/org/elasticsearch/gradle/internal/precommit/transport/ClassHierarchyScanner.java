@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.precommit.transport;
 
 import org.objectweb.asm.ClassVisitor;
 
+import java.io.File;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -31,7 +32,7 @@ public class ClassHierarchyScanner extends ClassVisitor {
     }
 
     private String classNameToPath(String className) {
-        return className.replace('.', '/');
+        return className.replace('.', File.separatorChar);
     }
 
     @Override

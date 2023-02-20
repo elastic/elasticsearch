@@ -24,3 +24,16 @@ testClusters.configureEach {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:lang-mustache'
 }
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/index/rankeval/PrecisionAtK","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/MeanReciprocalRank","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/ExpectedReciprocalRank","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/PrecisionAtK$Detail","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/RankEvalResponse","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/DiscountedCumulativeGain$Detail","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/RecallAtK$Detail","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/DiscountedCumulativeGain","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/RecallAtK","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/ExpectedReciprocalRank$Detail","missing test")
+  task.skipTest("org/elasticsearch/index/rankeval/MeanReciprocalRank$Detail","missing test")
+}

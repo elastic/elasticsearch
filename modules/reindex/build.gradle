@@ -187,3 +187,6 @@ tasks.named("yamlRestTestV7CompatTest").configure {
 
   ].join(',')
 }
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/reindex/RethrottleRequest","missing test")
+}

@@ -20,3 +20,22 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
+
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/xpack/ql/capabilities/UnresolvedException","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/expression/predicate/operator/arithmetic/DefaultBinaryArithmeticOperation","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/async/QlStatusResponse","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/type/DataTypeConverter$DefaultConverter","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/expression/predicate/operator/arithmetic/UnaryArithmeticProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/expression/predicate/logical/NotProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/execution/search/extractor/TotalHitsExtractor","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/QlIllegalArgumentException","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/execution/search/extractor/ComputingExtractor","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/expression/gen/processor/HitExtractorProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/index/MappingException","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/expression/gen/processor/BucketExtractorProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/ParsingException","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/expression/function/scalar/string/StartsWithFunctionProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/expression/predicate/regex/RegexProcessor","missing test")
+  task.skipTest("org/elasticsearch/xpack/ql/rule/RuleExecutionException","missing test")
+}

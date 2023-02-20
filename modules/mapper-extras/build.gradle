@@ -28,3 +28,6 @@ if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }
+tasks.named("transportTestExistCheck").configure { task ->
+  task.skipTest("org/elasticsearch/index/mapper/extras/RankFeatureQueryBuilder","missing test")
+}

@@ -143,6 +143,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.transportProfile = getTransportProfile(clusterAlias, settings);
     }
 
+    public String getTransportProfile() {
+        return transportProfile;
+    }
+
     static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
         final String transportProfile = getTransportProfile(clusterAlias, settings);
 

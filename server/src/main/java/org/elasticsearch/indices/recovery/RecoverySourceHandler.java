@@ -79,7 +79,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -200,12 +199,7 @@ public class RecoverySourceHandler {
                 retentionLeaseRef.set(
                     shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting))
                 );
-            },
-                shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ",
-                shard,
-                cancellableThreads,
-                logger
-            );
+            }, shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ", shard, cancellableThreads);
             final Closeable retentionLock = shard.acquireHistoryRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
@@ -292,7 +286,7 @@ public class RecoverySourceHandler {
                             logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
                             deleteRetentionLeaseStep.onResponse(null);
                         }
-                    }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
+                    }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads);
 
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
@@ -323,8 +317,7 @@ public class RecoverySourceHandler {
                     () -> shard.initiateTracking(request.targetAllocationId()),
                     shardId + " initiating tracking of " + request.targetAllocationId(),
                     shard,
-                    cancellableThreads,
-                    logger
+                    cancellableThreads
                 );
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
@@ -405,28 +398,12 @@ public class RecoverySourceHandler {
         CancellableThreads.Interruptible runnable,
         String reason,
         IndexShard primary,
-        CancellableThreads cancellableThreads,
-        Logger logger
+        CancellableThreads cancellableThreads
     ) {
         cancellableThreads.execute(() -> {
-            CompletableFuture<Releasable> permit = new CompletableFuture<>();
-
-            // this wrapping looks unnecessary necessary, see #93290; TODO remove it
-            final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    if (permit.complete(releasable) == false) {
-                        releasable.close();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    permit.completeExceptionally(e);
-                }
-            };
-            primary.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME, reason);
-            try (Releasable ignored = FutureUtils.get(permit)) {
+            final var permit = new ListenableActionFuture<Releasable>();
+            primary.acquirePrimaryOperationPermit(permit, ThreadPool.Names.SAME, reason);
+            try (var ignored = FutureUtils.get(permit)) {
                 // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
                 // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
                 if (primary.isRelocatedPrimary()) {
@@ -434,15 +411,8 @@ public class RecoverySourceHandler {
                 }
                 runnable.run();
             } finally {
-                // just in case we got an exception (likely interrupted) while waiting for the get
-                permit.whenComplete((r, e) -> {
-                    if (r != null) {
-                        r.close();
-                    }
-                    if (e != null) {
-                        logger.trace("suppressing exception on completion (it was already bubbled up or the operation was aborted)", e);
-                    }
-                });
+                // add a listener to release the permit because we might have been interrupted while waiting (double-releasing is ok)
+                permit.addListener(ActionListener.wrap(Releasable::close, e -> {}));
             }
         });
     }
@@ -1010,7 +980,7 @@ public class RecoverySourceHandler {
                 addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
             }
-        }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
+        }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads);
     }
 
     boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
@@ -1251,8 +1221,7 @@ public class RecoverySourceHandler {
             () -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
             shardId + " marking " + request.targetAllocationId() + " as in sync",
             shard,
-            cancellableThreads,
-            logger
+            cancellableThreads
         );
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
@@ -1263,8 +1232,7 @@ public class RecoverySourceHandler {
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                 shardId + " updating " + request.targetAllocationId() + "'s global checkpoint",
                 shard,
-                cancellableThreads,
-                logger
+                cancellableThreads
             );
 
             if (request.isPrimaryRelocation()) {

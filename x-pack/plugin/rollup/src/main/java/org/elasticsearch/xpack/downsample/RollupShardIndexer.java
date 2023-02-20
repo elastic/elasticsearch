@@ -187,9 +187,7 @@ class RollupShardIndexer {
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                 task.addNumIndexed(request.numberOfActions());
                 if (response.hasFailures()) {
-                    List<BulkItemResponse> failedItems = Arrays.stream(response.getItems())
-                        .filter(BulkItemResponse::isFailed)
-                        .toList();
+                    List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
                     task.addNumFailed(failedItems.size());
 
                     Map<String, String> failures = failedItems.stream()

@@ -34,7 +34,7 @@ public class FakeRestRequest extends RestRequest {
     public FakeRestRequest() {
         this(
             XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-            new FakeHttpRequest(RestRequest.Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
+            new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
             new HashMap<>(),
             new FakeHttpChannel(null)
         );
@@ -198,7 +198,7 @@ public class FakeRestRequest extends RestRequest {
 
         private String path = "/";
 
-        private Method method = RestRequest.Method.GET;
+        private Method method = Method.GET;
 
         private InetSocketAddress address = null;
 

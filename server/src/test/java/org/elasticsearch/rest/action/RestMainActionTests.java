@@ -42,7 +42,7 @@ public class RestMainActionTests extends ESTestCase {
         RestRequest restRequest = new FakeRestRequest() {
             @Override
             public Method method() {
-                return RestRequest.Method.HEAD;
+                return Method.HEAD;
             }
         };
 

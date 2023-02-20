@@ -560,7 +560,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void stopInternal() {}
-
             }
         ) {
 

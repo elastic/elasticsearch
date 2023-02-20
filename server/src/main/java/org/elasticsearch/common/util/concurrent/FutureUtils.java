@@ -61,6 +61,7 @@ public class FutureUtils {
      * @return the value of the future
      */
     public static <T> T get(Future<T> future, long timeout, TimeUnit unit) {
+        final boolean reinstateInterrupt = timeout == 0 && Thread.interrupted();
         try {
             return future.get(timeout, unit);
         } catch (TimeoutException e) {
@@ -70,6 +71,10 @@ public class FutureUtils {
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw FutureUtils.rethrowExecutionException(e);
+        } finally {
+            if (reinstateInterrupt) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

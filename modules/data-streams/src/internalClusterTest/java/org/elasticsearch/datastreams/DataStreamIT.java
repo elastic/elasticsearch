@@ -1305,7 +1305,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
-        assertThat(metricsFooDataStream.getLifecycle(), is(lifecycle));
+        assertThat(metricsFooDataStream.getDataStream().getLifecycle(), is(lifecycle));
     }
 
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
@@ -1802,7 +1802,8 @@ public class DataStreamIT extends ESIntegTestCase {
                         original.isReplicated(),
                         original.isSystem(),
                         original.isAllowCustomRouting(),
-                        original.getIndexMode()
+                        original.getIndexMode(),
+                        original.getLifecycle()
                     );
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)

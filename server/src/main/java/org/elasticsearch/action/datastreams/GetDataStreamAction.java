@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -142,23 +141,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final String ilmPolicyName;
             @Nullable
             private final TimeSeries timeSeries;
-            @Nullable
-            private final DataLifecycle lifecycle;
 
             public DataStreamInfo(
                 DataStream dataStream,
                 ClusterHealthStatus dataStreamStatus,
                 @Nullable String indexTemplate,
                 @Nullable String ilmPolicyName,
-                @Nullable TimeSeries timeSeries,
-                @Nullable DataLifecycle lifecycle
+                @Nullable TimeSeries timeSeries
             ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
                 this.timeSeries = timeSeries;
-                this.lifecycle = lifecycle;
             }
 
             DataStreamInfo(StreamInput in) throws IOException {
@@ -167,10 +162,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
-                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
-                        ? in.readOptionalWriteable(DataLifecycle::new)
-                        : null
+                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
                 );
             }
 
@@ -197,11 +189,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return timeSeries;
             }
 
-            @Nullable
-            public DataLifecycle getLifecycle() {
-                return lifecycle;
-            }
-
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
@@ -210,9 +197,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalString(ilmPolicyName);
                 if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                    out.writeOptionalWriteable(lifecycle);
                 }
             }
 
@@ -230,8 +214,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (indexTemplate != null) {
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
                 }
-                if (lifecycle != null) {
-                    builder.field(LIFECYCLE_FIELD.getPreferredName(), lifecycle);
+                if (dataStream.getLifecycle() != null) {
+                    builder.field(LIFECYCLE_FIELD.getPreferredName(), dataStream.getLifecycle());
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -267,13 +251,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && dataStreamStatus == that.dataStreamStatus
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
-                    && Objects.equals(timeSeries, that.timeSeries)
-                    && Objects.equals(lifecycle, that.lifecycle);
+                    && Objects.equals(timeSeries, that.timeSeries);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries, lifecycle);
+                return Objects.hash(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries);
             }
         }
 

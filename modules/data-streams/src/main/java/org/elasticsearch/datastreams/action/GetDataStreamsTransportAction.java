@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -92,8 +91,6 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         for (DataStream dataStream : dataStreams) {
             final String indexTemplate;
             String ilmPolicyName = null;
-            DataLifecycle lifecycle = null;
-
             if (dataStream.isSystem()) {
                 SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
                 indexTemplate = dataStreamDescriptor != null ? dataStreamDescriptor.getDataStreamName() : null;
@@ -103,17 +100,12 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                         dataStreamDescriptor.getComponentTemplates()
                     );
                     ilmPolicyName = settings.get("index.lifecycle.name");
-                    lifecycle = MetadataIndexTemplateService.resolveLifecycle(
-                        dataStreamDescriptor.getComposableIndexTemplate(),
-                        dataStreamDescriptor.getComponentTemplates()
-                    );
                 }
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
                 if (indexTemplate != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
                     ilmPolicyName = settings.get("index.lifecycle.name");
-                    lifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), indexTemplate);
                 } else {
                     LOGGER.warn(
                         "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"
@@ -169,8 +161,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                     streamHealth.getStatus(),
                     indexTemplate,
                     ilmPolicyName,
-                    timeSeries,
-                    lifecycle
+                    timeSeries
                 )
             );
         }

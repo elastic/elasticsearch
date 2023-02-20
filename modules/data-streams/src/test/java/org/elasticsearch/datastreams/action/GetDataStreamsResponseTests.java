@@ -9,10 +9,8 @@ package org.elasticsearch.datastreams.action;
 
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -51,18 +49,14 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         var indexTemplate = instance.getIndexTemplate();
         var ilmPolicyName = instance.getIlmPolicy();
         var timeSeries = instance.getTimeSeries();
-        var lifecycle = instance.getLifecycle();
-        switch (randomIntBetween(0, 5)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> dataStream = DataStreamTestHelper.randomInstance();
             case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
             case 2 -> indexTemplate = randomBoolean() && indexTemplate != null ? null : randomAlphaOfLengthBetween(2, 10);
             case 3 -> ilmPolicyName = randomBoolean() && ilmPolicyName != null ? null : randomAlphaOfLengthBetween(2, 10);
             case 4 -> timeSeries = randomBoolean() && timeSeries != null ? null : new Response.TimeSeries(generateRandomTimeSeries());
-            case 5 -> lifecycle = randomBoolean() && lifecycle != null
-                ? null
-                : new DataLifecycle(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
         }
-        return new Response.DataStreamInfo(dataStream, status, indexTemplate, ilmPolicyName, timeSeries, lifecycle);
+        return new Response.DataStreamInfo(dataStream, status, indexTemplate, ilmPolicyName, timeSeries);
     }
 
     private List<Tuple<Instant, Instant>> generateRandomTimeSeries() {
@@ -81,8 +75,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             ClusterHealthStatus.GREEN,
             randomAlphaOfLengthBetween(2, 10),
             randomAlphaOfLengthBetween(2, 10),
-            timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
-            randomBoolean() ? null : new DataLifecycle(TimeValue.timeValueMillis(randomMillisUpToYear9999()))
+            timeSeries != null ? new Response.TimeSeries(timeSeries) : null
         );
     }
 }

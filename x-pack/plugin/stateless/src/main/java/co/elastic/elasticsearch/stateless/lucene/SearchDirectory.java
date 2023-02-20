@@ -36,6 +36,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
@@ -126,7 +127,11 @@ public class SearchDirectory extends BaseDirectory {
         if (current.isEmpty()) {
             return EMPTY_COMMIT_DIRECTORY.fileLength(name);
         }
-        return current.get(name);
+        Long length = current.get(name);
+        if (length == null) {
+            throw new FileNotFoundException(name);
+        }
+        return length;
     }
 
     @Override

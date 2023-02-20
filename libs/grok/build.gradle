@@ -7,7 +7,7 @@
  */
 
 dependencies {
-  api 'org.jruby.joni:joni:2.1.29'
+  api 'io.github.blindspot-security:joni:2.5.8'
   // joni dependencies:
   api 'org.jruby.jcodings:jcodings:1.0.44'
 

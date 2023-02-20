@@ -798,7 +798,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
         try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads, logger);
+            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads);
         } catch (CancellableThreads.ExecutionCancelledException e) {
             // expected.
         }

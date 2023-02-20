@@ -42,7 +42,7 @@ public class IndexLocationTests extends AbstractXContentSerializingTestCase<Inde
 
     @Override
     protected IndexLocation mutateInstance(IndexLocation instance) {
-        var id = instance.getModelId() == null ? null : instance.getModelId()  + "foo";
+        var id = instance.getModelId() == null ? null : instance.getModelId() + "foo";
         return new IndexLocation(instance.getIndexName() + "bar", id);
     }
 

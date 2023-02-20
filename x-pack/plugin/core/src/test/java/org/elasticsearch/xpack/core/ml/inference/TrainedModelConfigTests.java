@@ -72,8 +72,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     public static TrainedModelConfig.Builder createTestInstance(String modelId, boolean lenient) {
 
         InferenceConfig[] inferenceConfigs = lenient ?
-            // Because of vocab config validations on parse, only test on lenient
-            new InferenceConfig[]{
+        // Because of vocab config validations on parse, only test on lenient
+            new InferenceConfig[] {
                 ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig(),
                 NerConfigTests.createRandom(),
@@ -82,10 +82,10 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 FillMaskConfigTests.createRandom(),
                 TextEmbeddingConfigTests.createRandom(),
                 QuestionAnsweringConfigTests.createRandom(),
-                TextSimilarityConfigTests.createRandom()}
-            : new InferenceConfig[]{
-            ClassificationConfigTests.randomClassificationConfig(),
-            RegressionConfigTests.randomRegressionConfig()};
+                TextSimilarityConfigTests.createRandom() }
+            : new InferenceConfig[] {
+                ClassificationConfigTests.randomClassificationConfig(),
+                RegressionConfigTests.randomRegressionConfig() };
         List<String> tags = Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false));
         return TrainedModelConfig.builder()
             .setInput(TrainedModelInputTests.createRandomInput())
@@ -184,8 +184,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomBoolean()
                 ? null
                 : Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
+                    .limit(randomIntBetween(1, 10))
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null
         );
@@ -233,8 +233,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomBoolean()
                 ? null
                 : Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
+                    .limit(randomIntBetween(1, 10))
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null
         );
@@ -367,14 +367,14 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     public void testSerializationWithCompressedLazyDefinition() throws IOException {
         xContentTester(this::createParser, () -> {
-                try {
-                    BytesReference bytes = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
-                    return createTestInstance(randomAlphaOfLength(10), lenient).setDefinitionFromBytes(bytes).build();
-                } catch (IOException ex) {
-                    fail(ex.getMessage());
-                    return null;
-                }
-            },
+            try {
+                BytesReference bytes = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
+                return createTestInstance(randomAlphaOfLength(10), lenient).setDefinitionFromBytes(bytes).build();
+            } catch (IOException ex) {
+                fail(ex.getMessage());
+                return null;
+            }
+        },
             new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "false")),
             (p) -> TrainedModelConfig.fromXContent(p, true).build()
         ).numberOfTestRuns(NUMBER_OF_TEST_RUNS)
@@ -401,11 +401,11 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
             builder.setModelType(null);
             builder.setLocation(null);
-        } else if (version.before(Version.V_8_7_0) && instance.getLocation() != null) {
+        } else if (version.before(TransportVersion.V_8_7_0) && instance.getLocation() != null) {
             // take the model id out of the location
             builder.setLocation(new IndexLocation(((IndexLocation) instance.getLocation()).getIndexName()));
         }
-        if (instance.getInferenceConfig() instanceof NlpConfig nlpConfig) {
+        if (instance.getInferenceConfig()instanceof NlpConfig nlpConfig) {
             builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
         }
 

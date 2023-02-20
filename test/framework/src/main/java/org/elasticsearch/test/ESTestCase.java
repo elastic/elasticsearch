@@ -1483,20 +1483,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
-     */
-    @Deprecated
-    public static <T extends Writeable> T copyWriteable(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Writeable.Reader<T> reader,
-        Version version
-    ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, version.transportVersion);
-    }
-
-    /**
-     * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
      * a {@link TransportVersion} argument which will be used to write and read back the object.
      */
     public static <T extends Writeable> T copyWriteable(
@@ -1522,22 +1508,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
-     * @return
-     */
-    @SuppressWarnings("unchecked")
-    @Deprecated
-    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Class<C> categoryClass,
-        Version version
-    ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, version.transportVersion);
-    }
-
-    /**
-     * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
      * a {@link TransportVersion} argument which will be used to write and read back the object.
      * @return
      */
@@ -1555,17 +1525,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             in -> in.readNamedWriteable(categoryClass),
             version
         );
-    }
-
-    @Deprecated
-    protected static <T> T copyInstance(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Writeable.Writer<T> writer,
-        Writeable.Reader<T> reader,
-        Version version
-    ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, writer, reader, version.transportVersion);
     }
 
     protected static <T> T copyInstance(

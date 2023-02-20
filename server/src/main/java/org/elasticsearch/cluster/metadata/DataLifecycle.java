@@ -67,7 +67,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public DataLifecycle(long timeInMills) {
-        this.dataRetention = TimeValue.timeValueMillis(timeInMills);
+        this(TimeValue.timeValueMillis(timeInMills));
     }
 
     @Nullable
@@ -94,8 +94,15 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         out.writeOptionalTimeValue(dataRetention);
     }
 
-    public DataLifecycle(StreamInput in) throws IOException {
+    private DataLifecycle(StreamInput in) throws IOException {
         dataRetention = in.readOptionalTimeValue();
+    }
+
+    // In case of a cluster in which the flag is partially enabled, we need to ensure that the communication between the nodes will
+    // always work. That's why when dealing with StreamInput/StreamOutput we always read/write. We reset to null if the flag is disabled.
+    public static DataLifecycle read(StreamInput in) throws IOException {
+        DataLifecycle lifecycle = in.readOptionalWriteable(DataLifecycle::new);
+        return DataLifecycle.isEnabled() ? lifecycle : null;
     }
 
     public static Diff<DataLifecycle> readDiffFrom(StreamInput in) throws IOException {

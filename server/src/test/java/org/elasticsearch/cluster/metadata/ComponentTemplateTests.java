@@ -54,8 +54,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return randomInstance(true);
     }
 
-    // In many cases the index template is used with indices
-    // Adding lifecycle would render it invalid that's why we
+    // In many cases the index template is used with indices adding lifecycle would render it invalid that's why we
     // do not always want to randomly add a lifecycle.
     public static ComponentTemplate randomInstance() {
         return randomInstance(false);

@@ -18,7 +18,7 @@ public class DataLifecycleSerializationTests extends AbstractXContentSerializing
 
     @Override
     protected Writeable.Reader<DataLifecycle> instanceReader() {
-        return DataLifecycle::new;
+        return DataLifecycle::read;
     }
 
     @Override

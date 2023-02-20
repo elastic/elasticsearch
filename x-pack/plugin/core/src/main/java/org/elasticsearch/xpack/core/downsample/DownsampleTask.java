@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.downsample;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 
 import java.util.Map;
 
@@ -17,40 +16,30 @@ import java.util.Map;
  * This class contains the high-level logic that drives the rollup job. The allocated task contains transient state
  * which drives the indexing, and periodically updates it's parent PersistentTask with the indexing's current position.
  */
-public class RollupTask extends CancellableTask {
-    private String rollupIndex;
-    private DownsampleConfig config;
-    private RollupJobStatus status;
+public class DownsampleTask extends CancellableTask {
+    private final String downsampleIndex;
+    private final DownsampleConfig config;
 
-    RollupTask(
+    DownsampleTask(
         long id,
         String type,
         String action,
         TaskId parentTask,
-        String rollupIndex,
+        String downsampleIndex,
         DownsampleConfig config,
         Map<String, String> headers
     ) {
-        super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, headers);
-        this.rollupIndex = rollupIndex;
+        super(id, type, action, RollupField.NAME + "_" + downsampleIndex, parentTask, headers);
+        this.downsampleIndex = downsampleIndex;
         this.config = config;
     }
 
-    public String getRollupIndex() {
-        return rollupIndex;
+    public String getDownsampleIndex() {
+        return downsampleIndex;
     }
 
     public DownsampleConfig config() {
         return config;
     }
 
-    @Override
-    public Status getStatus() {
-        return status;
-    }
-
-    @Override
-    public void onCancelled() {
-        // TODO(talevy): make things cancellable
-    }
 }

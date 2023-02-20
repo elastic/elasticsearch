@@ -102,14 +102,6 @@ public final class MultiShardTermsEnum {
         return current;
     }
 
-    public long docFreq() throws IOException {
-        long sum = 0;
-        for (int i = 0; i < numTop; i++) {
-            sum += top[i].enumContext.termsEnum().docFreq();
-        }
-        return sum;
-    }
-
     static final class TermsEnumWithCurrent {
         TermsEnumResult enumContext;
         private BytesRef current;

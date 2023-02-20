@@ -35,9 +35,9 @@ class MockHttpProxyServer implements Closeable {
     private ChannelFuture channelFuture;
     private InetSocketAddress socketAddress;
 
-    MockHttpProxyServer handler(Supplier<SimpleChannelInboundHandler<FullHttpRequest>> handler) throws IOException {
+    MockHttpProxyServer handler(Supplier<SimpleChannelInboundHandler<FullHttpRequest>> handler) {
         try {
-            ServerBootstrap b = new ServerBootstrap().group(bossGroup, workerGroup)
+            channelFuture = new ServerBootstrap().group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
@@ -47,13 +47,15 @@ class MockHttpProxyServer implements Closeable {
                             .addLast(new HttpObjectAggregator(Integer.MAX_VALUE))
                             .addLast(handler.get());
                     }
-                });
-            channelFuture = b.bind(0).sync();
-            socketAddress = (InetSocketAddress) channelFuture.channel().localAddress();
-            return this;
-        } catch (Exception e) {
+                })
+                .bind(0)
+                .sync();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+        socketAddress = (InetSocketAddress) channelFuture.channel().localAddress();
+        return this;
     }
 
     int getPort() {

@@ -40,7 +40,7 @@ class WebProxyServer extends MockHttpProxyServer {
 
     private final EventLoopGroup group = new NioEventLoopGroup(1);
 
-    WebProxyServer(String upstreamHost, int upstreamPort) throws IOException {
+    WebProxyServer(String upstreamHost, int upstreamPort) {
         String upstreamHostPort = "http://" + upstreamHost + ":" + upstreamPort;
         handler(() -> new SimpleChannelInboundHandler<FullHttpRequest>() {
 

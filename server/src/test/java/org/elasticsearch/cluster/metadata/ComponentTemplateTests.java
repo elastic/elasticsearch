@@ -15,7 +15,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
@@ -120,7 +119,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     private static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+        return new DataLifecycle(randomMillisUpToYear9999());
     }
 
     private static Map<String, Object> randomMeta() {

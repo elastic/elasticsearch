@@ -66,6 +66,10 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         this.dataRetention = dataRetention;
     }
 
+    public DataLifecycle(long timeInMills) {
+        this.dataRetention = TimeValue.timeValueMillis(timeInMills);
+    }
+
     @Nullable
     public TimeValue getDataRetention() {
         return dataRetention;

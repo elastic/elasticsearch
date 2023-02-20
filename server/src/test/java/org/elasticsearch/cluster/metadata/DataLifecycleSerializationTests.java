@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -27,16 +26,16 @@ public class DataLifecycleSerializationTests extends AbstractXContentSerializing
         if (randomBoolean()) {
             return new DataLifecycle();
         } else {
-            return new DataLifecycle(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+            return new DataLifecycle(randomMillisUpToYear9999());
         }
     }
 
     @Override
     protected DataLifecycle mutateInstance(DataLifecycle instance) throws IOException {
         if (instance.getDataRetention() == null) {
-            return new DataLifecycle(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+            return new DataLifecycle(randomMillisUpToYear9999());
         }
-        return new DataLifecycle(TimeValue.timeValueMillis(instance.getDataRetention().millis() + randomMillisUpToYear9999()));
+        return new DataLifecycle(instance.getDataRetention().millis() + randomMillisUpToYear9999());
     }
 
     @Override

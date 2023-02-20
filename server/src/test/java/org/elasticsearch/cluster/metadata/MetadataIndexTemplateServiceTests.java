@@ -1736,7 +1736,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
 
         ComponentTemplate ct = new ComponentTemplate(
-            new Template(null, null, null, new DataLifecycle(TimeValue.timeValueDays(1))),
+            new Template(null, null, null, new DataLifecycle(randomMillisUpToYear9999())),
             null,
             null
         );

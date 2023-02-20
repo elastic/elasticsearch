@@ -231,9 +231,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
                 }
                 if (lifecycle != null) {
-                    builder.startObject(LIFECYCLE_FIELD.getPreferredName());
-                    lifecycle.toXContent(builder, params);
-                    builder.endObject();
+                    builder.field(LIFECYCLE_FIELD.getPreferredName(), lifecycle);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);

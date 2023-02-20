@@ -42,9 +42,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         if (instance.getDataStreams().isEmpty()) {
             return new Response(List.of(generateRandomDataStreamInfo()));
         }
-        return new Response(
-            instance.getDataStreams().stream().map(this::mutateInstance).toList()
-        );
+        return new Response(instance.getDataStreams().stream().map(this::mutateInstance).toList());
     }
 
     private Response.DataStreamInfo mutateInstance(Response.DataStreamInfo instance) {
@@ -79,12 +77,12 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
     private Response.DataStreamInfo generateRandomDataStreamInfo() {
         List<Tuple<Instant, Instant>> timeSeries = randomBoolean() ? generateRandomTimeSeries() : null;
         return new Response.DataStreamInfo(
-                DataStreamTestHelper.randomInstance(),
-                ClusterHealthStatus.GREEN,
-                randomAlphaOfLengthBetween(2, 10),
-                randomAlphaOfLengthBetween(2, 10),
-                timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
-                randomBoolean() ? null : new DataLifecycle(TimeValue.timeValueMillis(randomMillisUpToYear9999()))
+            DataStreamTestHelper.randomInstance(),
+            ClusterHealthStatus.GREEN,
+            randomAlphaOfLengthBetween(2, 10),
+            randomAlphaOfLengthBetween(2, 10),
+            timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
+            randomBoolean() ? null : new DataLifecycle(TimeValue.timeValueMillis(randomMillisUpToYear9999()))
         );
     }
 }

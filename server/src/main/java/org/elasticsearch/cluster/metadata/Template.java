@@ -238,9 +238,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             builder.endObject();
         }
         if (this.lifecycle != null) {
-            builder.startObject(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params);
-            builder.endObject();
+            builder.field(LIFECYCLE.getPreferredName(), lifecycle);
         }
         builder.endObject();
         return builder;

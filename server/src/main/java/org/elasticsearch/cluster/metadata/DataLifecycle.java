@@ -18,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,7 +28,7 @@ import java.util.Objects;
 /**
  * Holds the Data Lifecycle Management metadata that are configuring how a data stream is managed.
  */
-public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentFragment {
+public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentObject {
 
     private static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.dlm_feature_flag_enabled"));
 
@@ -104,9 +104,11 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentF
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (dataRetention != null) {
             builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());
         }
+        builder.endObject();
         return builder;
     }
 

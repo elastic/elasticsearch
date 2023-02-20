@@ -230,7 +230,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public void testStatelessShardsSupportGet() {
+    public void testStatelessRealTimeGet() {
         // Currently this test depends on routing requests to indexing shards. However, eventually these
         // requests will route to search shards and fall back to indexing shards in certain circumstances.
         startIndexNodes(numShards);
@@ -251,7 +251,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         var bulkRequest = client().prepareBulk();
         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
-        bulkRequest.setRefreshPolicy(IMMEDIATE); // to ensure search shards are up-to-date
         BulkResponse response = bulkRequest.get();
         assertNoFailures(response);
         String id = response.getItems()[0].getResponse().getId();

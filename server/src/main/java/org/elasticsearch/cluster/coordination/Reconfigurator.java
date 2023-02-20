@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -137,6 +138,10 @@ public class Reconfigurator {
             // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.
             return currentConfig;
         }
+    }
+
+    public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
+        return clusterState;
     }
 
     record VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig)

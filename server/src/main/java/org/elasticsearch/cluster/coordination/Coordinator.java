@@ -199,7 +199,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         RerouteService rerouteService,
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        Reconfigurator reconfigurator
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -220,7 +221,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             rerouteService,
             nodeHealthService,
             joinReasonService,
-            circuitBreakerService
+            circuitBreakerService,
+            reconfigurator::maybeReconfigureAfterNewMasterIsElected
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -272,7 +274,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.nodeLeftExecutor = new NodeLeftExecutor(allocationService);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
-        this.reconfigurator = new Reconfigurator(settings, clusterSettings);
+        this.reconfigurator = reconfigurator;
         this.clusterBootstrapService = new ClusterBootstrapService(
             settings,
             transportService,

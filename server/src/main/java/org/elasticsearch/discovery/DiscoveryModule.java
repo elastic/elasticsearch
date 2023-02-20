@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -194,7 +195,8 @@ public class DiscoveryModule {
                 rerouteService,
                 electionStrategy,
                 nodeHealthService,
-                circuitBreakerService
+                circuitBreakerService,
+                new Reconfigurator(settings, clusterSettings)
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

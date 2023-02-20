@@ -227,7 +227,8 @@ public class NodeJoinTests extends ESTestCase {
             (s, p, r) -> {},
             ElectionStrategy.DEFAULT_INSTANCE,
             nodeHealthService,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new Reconfigurator(Settings.EMPTY, clusterSettings)
         );
         transportService.start();
         transportService.acceptIncomingRequests();

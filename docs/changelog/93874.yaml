@@ -1,0 +1,6 @@
+pr: 93874
+summary: "Translation of README on spanish"
+area: Docs
+type: Docs
+issues:
+ - 93722

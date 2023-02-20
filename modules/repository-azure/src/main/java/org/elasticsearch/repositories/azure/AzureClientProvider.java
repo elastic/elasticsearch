@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories.azure;
 
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -45,6 +44,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.IOException;
 import java.net.URL;
@@ -141,22 +141,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
             .build();
 
-        ByteBufAllocator pooledByteBufAllocator = createByteBufAllocator();
-
         // Just to verify that this executor exists
         threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
-        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, pooledByteBufAllocator);
-    }
-
-    private static ByteBufAllocator createByteBufAllocator() {
-        int nHeapArena = 1;
-        int pageSize = PooledByteBufAllocator.defaultPageSize();
-        int maxOrder = PooledByteBufAllocator.defaultMaxOrder();
-        int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();
-        int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
-        int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
-
-        return new PooledByteBufAllocator(false, nHeapArena, 0, pageSize, maxOrder, tinyCacheSize, smallCacheSize, normalCacheSize, false);
+        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, NettyAllocator.getAllocator());
     }
 
     AzureBlobServiceClient createClient(

@@ -143,7 +143,7 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
             for (int i = between(0, 5); i > 0; i--) {
                 var expectedVal = new Object();
                 var delayedListener = listener.delay(
-                    ActionListener.releaseAfter(ActionListener.wrap(Assert::fail).delegateFailure((l, val) -> {
+                    ActionListener.releaseAfter(ActionListener.running(Assert::fail).delegateFailure((l, val) -> {
                         assertSame(expectedVal, val);
                         assertEquals(expectedRequestHeader, context.getHeader(requestHeaderName));
                         assertEquals(List.of(expectedResponseHeader), context.getResponseHeaders().get(responseHeaderName));

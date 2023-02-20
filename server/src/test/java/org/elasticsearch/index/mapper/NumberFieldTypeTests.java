@@ -127,7 +127,20 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, false, true, null, Collections.emptyMap(), null, false, null);
+        return new NumberFieldType(
+            "field",
+            NumberType.LONG,
+            false,
+            false,
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null
+        );
     }
 
     public void testTermQuery() {

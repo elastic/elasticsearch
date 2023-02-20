@@ -67,7 +67,7 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         assertThat(actual.getMessage(), equalTo("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"));
     }
 
-    private RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {
+    public static RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {
         return new RoleDescriptorsIntersection(randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1))));
     }
 }

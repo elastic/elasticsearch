@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
@@ -52,8 +53,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -428,7 +432,30 @@ public class SearchEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
-        return null;
+        ensureOpen();
+        final SegmentInfos current = this.segmentInfos;
+        if (current.size() > 0) {
+            final Set<Segment> segments = new TreeSet<>(Comparator.comparingLong(Segment::getGeneration));
+            for (SegmentCommitInfo info : current) {
+                final Segment segment = new Segment(info.info.name);
+                segment.search = true;
+                segment.committed = true;
+                segment.delDocCount = info.getDelCount() + info.getSoftDelCount();
+                segment.docCount = info.info.maxDoc() - segment.delDocCount;
+                segment.version = info.info.getVersion();
+                segment.compound = info.info.getUseCompoundFile();
+                segment.segmentSort = info.info.getIndexSort();
+                segment.attributes = info.info.getAttributes();
+                try {
+                    segment.sizeInBytes = info.sizeInBytes();
+                } catch (IOException e) {
+                    logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
+                }
+                segments.add(segment);
+            }
+            return segments.stream().toList();
+        }
+        return List.of();
     }
 
     @Override

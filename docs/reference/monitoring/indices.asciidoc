@@ -15,7 +15,7 @@ GET /_index_template/.monitoring-es-mb*
 By default, the template configures one shard and one replica for the
 monitoring indices. To override the default settings, add your own template:
 
-. Set the `index` patterns to match existing `.monitoring-{product}-8-*` indices.
+. Set `index_patterns` to match existing `.monitoring-{product}-8-*` indices.
 . Set the template `order` to `1`. This ensures your template is
 applied after the default template, which has an order of 0.
 . Specify the `number_of_shards` and/or `number_of_replicas` in the `settings`

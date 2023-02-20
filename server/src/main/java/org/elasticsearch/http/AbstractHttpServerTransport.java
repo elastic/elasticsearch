@@ -332,7 +332,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         refCounted.incRef();
-        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+        httpChannel.addCloseListener(ActionListener.running(() -> {
             httpChannels.remove(httpChannel);
             refCounted.decRef();
         }));
@@ -502,7 +502,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
         if (HttpUtils.shouldCloseConnection(request)) {
-            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
+            return ActionListener.running(() -> CloseableChannel.closeChannel(httpChannel));
         } else {
             return ActionListener.noop();
         }

@@ -311,12 +311,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnumResult getTerms(
-            boolean caseInsensitive,
-            String string,
-            SearchExecutionContext queryShardContext,
-            String searchAfter
-        ) throws IOException {
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
@@ -337,9 +333,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (searchAfter != null) {
                 BytesRef searchAfterWithFieldName = new BytesRef(key + FlattenedFieldParser.SEPARATOR + searchAfter);
                 TermsEnum seekedEnum = terms.intersect(automaton, searchAfterWithFieldName);
-                return new TermsEnumResult(new TranslatingTermsEnum(seekedEnum), BytesRef::utf8ToString);
+                return new TranslatingTermsEnum(seekedEnum);
             } else {
-                return new TermsEnumResult(new TranslatingTermsEnum(automaton.getTermsEnum(terms)), BytesRef::utf8ToString);
+                return new TranslatingTermsEnum(automaton.getTermsEnum(terms));
             }
         }
 

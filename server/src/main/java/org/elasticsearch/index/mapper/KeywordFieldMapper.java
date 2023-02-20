@@ -528,12 +528,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnumResult getTerms(
-            boolean caseInsensitive,
-            String string,
-            SearchExecutionContext queryShardContext,
-            String searchAfter
-        ) throws IOException {
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
 
             Terms terms = null;
@@ -559,9 +555,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (searchAfter != null) {
                     result = new SearchAfterTermsEnum(result, searchBytes);
                 }
-                return new TermsEnumResult(result, BytesRef::utf8ToString);
+                return result;
             }
-            return new TermsEnumResult(terms.intersect(automaton, searchBytes), BytesRef::utf8ToString);
+            return terms.intersect(automaton, searchBytes);
         }
 
         /**

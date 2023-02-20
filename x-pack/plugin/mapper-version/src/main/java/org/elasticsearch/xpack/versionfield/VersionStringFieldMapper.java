@@ -59,14 +59,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
@@ -319,12 +317,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnumResult getTerms(
-            boolean caseInsensitive,
-            String string,
-            SearchExecutionContext queryShardContext,
-            String searchAfter
-        ) throws IOException {
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
 
             Terms terms = MultiTerms.getTerms(reader, name());
@@ -341,31 +335,10 @@ public class VersionStringFieldMapper extends FieldMapper {
                 if (searchAfter != null) {
                     result = new SearchAfterTermsEnum(result, searchBytes);
                 }
-                return new TermsEnumResult(result, TERMS_DECODER);
+                return result;
             }
-            return new TermsEnumResult(terms.intersect(prefixAutomaton, searchBytes), TERMS_DECODER);
+            return terms.intersect(prefixAutomaton, searchBytes);
         }
-
-        private static final Function<BytesRef, String> TERMS_DECODER = version -> {
-            int inputPos = version.offset;
-            int resultPos = 0;
-            byte[] result = new byte[version.length];
-            while (inputPos < version.offset + version.length) {
-                byte inputByte = version.bytes[inputPos];
-                if (inputByte == VersionEncoder.NUMERIC_MARKER_BYTE) {
-                    // need to skip this byte
-                    inputPos++;
-                    // this should always be a length encoding, which is skipped by increasing inputPos at the end of the loop
-                    assert version.bytes[inputPos] < 0;
-                } else if (inputByte != VersionEncoder.PRERELEASE_SEPARATOR_BYTE
-                    && inputByte != VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE) {
-                        result[resultPos] = inputByte;
-                        resultPos++;
-                    }
-                inputPos++;
-            }
-            return new String(result, 0, resultPos, StandardCharsets.UTF_8);
-        };
     }
 
     private final FieldType fieldType;

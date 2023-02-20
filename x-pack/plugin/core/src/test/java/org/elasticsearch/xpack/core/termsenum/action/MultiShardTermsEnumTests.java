@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termsenum;
+package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -25,10 +25,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.mapper.MappedFieldType.TermsEnumResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.termsenum.action.MultiShardTermsEnum;
-import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -76,10 +73,13 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                 a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
                 CompiledAutomaton automaton = new CompiledAutomaton(a);
 
-                ArrayList<TermsEnumResult> termsEnums = new ArrayList<>();
+                ArrayList<TransportTermsEnumAction.ShardTermsEnum> termsEnums = new ArrayList<>();
                 for (DirectoryReader reader : readers) {
                     Terms terms = MultiTerms.getTerms(reader, fieldName);
-                    TermsEnumResult te = new TermsEnumResult(automaton.getTermsEnum(terms), BytesRef::utf8ToString);
+                    TransportTermsEnumAction.ShardTermsEnum te = new TransportTermsEnumAction.ShardTermsEnum(
+                        automaton.getTermsEnum(terms),
+                        o -> ((BytesRef) o).utf8ToString()
+                    );
                     if (randomBoolean()) {
                         // Simulate fields like constant-keyword which use a SimpleTermCountEnum to present results
                         // rather than the raw TermsEnum from Lucene.
@@ -87,16 +87,16 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                         while (te.termsEnum().next() != null) {
                             termCounts.add(te.termsEnum().term().utf8ToString());
                         }
-                        TermsEnumResult simpleEnum = new TermsEnumResult(
+                        TransportTermsEnumAction.ShardTermsEnum simpleEnum = new TransportTermsEnumAction.ShardTermsEnum(
                             new SimpleTermCountEnum(termCounts.toArray(new String[0])),
-                            BytesRef::utf8ToString
+                            o -> ((BytesRef) o).utf8ToString()
                         );
                         termsEnums.add(simpleEnum);
                     } else {
                         termsEnums.add(te);
                     }
                 }
-                MultiShardTermsEnum mte = new MultiShardTermsEnum(termsEnums.toArray(new TermsEnumResult[0]));
+                MultiShardTermsEnum mte = new MultiShardTermsEnum(termsEnums.toArray(new TransportTermsEnumAction.ShardTermsEnum[0]));
                 Set<String> expecteds = new HashSet<>();
 
                 for (String term : globalTermCounts) {

@@ -1610,7 +1610,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value2, equalTo(2));
             Version1Response response = new Version1Response(1, 2);
             channel.sendResponse(response);
-            assertEquals(version1.transportVersion, channel.getVersion());
+            // channel versions don't make sense on DirectResponseChannel
+            assertThat(channel, instanceOf(TaskTransportChannel.class));
+            assertThat(((TaskTransportChannel) channel).getChannel(), instanceOf(TransportService.DirectResponseChannel.class));
         });
 
         Version1Request version1Request = new Version1Request();
@@ -1650,7 +1652,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
-            assertEquals(version0.transportVersion, channel.getVersion());
+            // channel versions don't make sense on DirectResponseChannel
+            assertThat(channel, instanceOf(TaskTransportChannel.class));
+            assertThat(((TaskTransportChannel) channel).getChannel(), instanceOf(TransportService.DirectResponseChannel.class));
         });
 
         Version0Request version0Request = new Version0Request();

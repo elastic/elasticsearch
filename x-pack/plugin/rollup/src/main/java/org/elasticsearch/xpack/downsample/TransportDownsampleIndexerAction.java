@@ -28,7 +28,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
@@ -42,18 +42,18 @@ import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
  *
  * TODO: Enforce that we don't retry on another replica if we throw an error after sending some buckets.
  */
-public class TransportRollupIndexerAction extends TransportBroadcastAction<
-    RollupIndexerAction.Request,
-    RollupIndexerAction.Response,
-    RollupIndexerAction.ShardRollupRequest,
-    RollupIndexerAction.ShardRollupResponse> {
+public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
+    DownsampleIndexerAction.Request,
+    DownsampleIndexerAction.Response,
+    DownsampleIndexerAction.ShardDownsampleRequest,
+    DownsampleIndexerAction.ShardDownsampleResponse> {
 
     private final Client client;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
     @Inject
-    public TransportRollupIndexerAction(
+    public TransportDownsampleIndexerAction(
         Client client,
         ClusterService clusterService,
         TransportService transportService,
@@ -62,13 +62,13 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            RollupIndexerAction.NAME,
+            DownsampleIndexerAction.NAME,
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
-            RollupIndexerAction.Request::new,
-            RollupIndexerAction.ShardRollupRequest::new,
+            DownsampleIndexerAction.Request::new,
+            DownsampleIndexerAction.ShardDownsampleRequest::new,
             TASK_THREAD_POOL_NAME
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
@@ -79,7 +79,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     @Override
     protected GroupShardsIterator<ShardIterator> shards(
         ClusterState clusterState,
-        RollupIndexerAction.Request request,
+        DownsampleIndexerAction.Request request,
         String[] concreteIndices
     ) {
         if (concreteIndices.length > 1) {
@@ -98,32 +98,42 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, RollupIndexerAction.Request request) {
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, DownsampleIndexerAction.Request request) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, RollupIndexerAction.Request request, String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(
+        ClusterState state,
+        DownsampleIndexerAction.Request request,
+        String[] concreteIndices
+    ) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 
     @Override
-    protected void doExecute(Task task, RollupIndexerAction.Request request, ActionListener<RollupIndexerAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        DownsampleIndexerAction.Request request,
+        ActionListener<DownsampleIndexerAction.Response> listener
+    ) {
         new Async(task, request, listener).start();
     }
 
     @Override
-    protected RollupIndexerAction.ShardRollupRequest newShardRequest(
+    protected DownsampleIndexerAction.ShardDownsampleRequest newShardRequest(
         int numShards,
         ShardRouting shard,
-        RollupIndexerAction.Request request
+        DownsampleIndexerAction.Request request
     ) {
-        return new RollupIndexerAction.ShardRollupRequest(shard.shardId(), request);
+        return new DownsampleIndexerAction.ShardDownsampleRequest(shard.shardId(), request);
     }
 
     @Override
-    protected RollupIndexerAction.ShardRollupResponse shardOperation(RollupIndexerAction.ShardRollupRequest request, Task task)
-        throws IOException {
+    protected DownsampleIndexerAction.ShardDownsampleResponse shardOperation(
+        DownsampleIndexerAction.ShardDownsampleRequest request,
+        Task task
+    ) throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
         RollupShardIndexer indexer = new RollupShardIndexer(
             (RollupShardTask) task,
@@ -140,13 +150,13 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected RollupIndexerAction.ShardRollupResponse readShardResponse(StreamInput in) throws IOException {
-        return new RollupIndexerAction.ShardRollupResponse(in);
+    protected DownsampleIndexerAction.ShardDownsampleResponse readShardResponse(StreamInput in) throws IOException {
+        return new DownsampleIndexerAction.ShardDownsampleResponse(in);
     }
 
     @Override
-    protected RollupIndexerAction.Response newResponse(
-        RollupIndexerAction.Request request,
+    protected DownsampleIndexerAction.Response newResponse(
+        DownsampleIndexerAction.Request request,
         AtomicReferenceArray<?> shardsResponses,
         ClusterState clusterState
     ) {
@@ -156,7 +166,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
                 throw new ElasticsearchException("missing shard");
-            } else if (shardResponse instanceof RollupIndexerAction.ShardRollupResponse r) {
+            } else if (shardResponse instanceof DownsampleIndexerAction.ShardDownsampleResponse r) {
                 successfulShards++;
                 numIndexed += r.getNumIndexed();
             } else if (shardResponse instanceof Exception e) {
@@ -166,14 +176,14 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
                 throw new IllegalStateException("unknown response [" + shardResponse + "]");
             }
         }
-        return new RollupIndexerAction.Response(true, shardsResponses.length(), successfulShards, 0, numIndexed);
+        return new DownsampleIndexerAction.Response(true, shardsResponses.length(), successfulShards, 0, numIndexed);
     }
 
     private class Async extends AsyncBroadcastAction {
-        private final RollupIndexerAction.Request request;
-        private final ActionListener<RollupIndexerAction.Response> listener;
+        private final DownsampleIndexerAction.Request request;
+        private final ActionListener<DownsampleIndexerAction.Response> listener;
 
-        protected Async(Task task, RollupIndexerAction.Request request, ActionListener<RollupIndexerAction.Response> listener) {
+        protected Async(Task task, DownsampleIndexerAction.Request request, ActionListener<DownsampleIndexerAction.Response> listener) {
             super(task, request, listener);
             this.request = request;
             this.listener = listener;
@@ -182,7 +192,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         @Override
         protected void finishHim() {
             try {
-                RollupIndexerAction.Response resp = newResponse(request, shardsResponses, clusterService.state());
+                DownsampleIndexerAction.Response resp = newResponse(request, shardsResponses, clusterService.state());
                 listener.onResponse(resp);
             } catch (Exception e) {
                 listener.onFailure(e);

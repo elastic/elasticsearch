@@ -11,7 +11,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public interface RollupFieldSerializer {
+public interface DownsampleFieldSerializer {
 
     /**
      * Serialize the downsampled value of the field.

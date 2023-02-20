@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,7 +32,7 @@ public class DataCountsTests extends AbstractBWCSerializationTestCase<DataCounts
     }
 
     @Override
-    protected DataCounts mutateInstanceForVersion(DataCounts instance, Version version) {
+    protected DataCounts mutateInstanceForVersion(DataCounts instance, TransportVersion version) {
         return instance;
     }
 

@@ -149,37 +149,26 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         doTest(arr, expectedNumBytes);
     }
 
-    public void test40BitsPerValue() throws IOException {
+    public void testBitsPerValueFullRange() throws IOException {
         final Random random = new Random(17);
         long[] arr = new long[blockSize];
-        for (int i = 0; i < blockSize; ++i) {
-            arr[i] = random.nextLong(1L << 32, 1L << 40);
+        long constant = 1;
+        for (int bitsPerValue = 0; bitsPerValue <= 64; bitsPerValue++) {
+            for (int i = 0; i < blockSize; ++i) {
+                if (bitsPerValue == 0) {
+                    arr[i] = constant;
+                } else {
+                    arr[i] = random.nextLong(0, bitsPerValue <= 62 ? 1L << bitsPerValue : Long.MAX_VALUE);
+                }
+            }
+            long actualBitsPerValue = DocValuesForUtil.roundBits(bitsPerValue);
+            int actualTokenBytes = bitsPerValue < 16 ? 1 : 2;
+            final long expectedNumBytes = bitsPerValue == 0
+                ? 2
+                : actualTokenBytes // token
+                    + (blockSize * actualBitsPerValue) / Byte.SIZE; // data
+            doTest(arr, expectedNumBytes);
         }
-        final long expectedNumBytes = 2 // token (2 bytes)
-            + (blockSize * 40) / Byte.SIZE; // data
-        doTest(arr, expectedNumBytes);
-    }
-
-    public void test48BitsPerValue() throws IOException {
-        final Random random = new Random(17);
-        long[] arr = new long[blockSize];
-        for (int i = 0; i < blockSize; ++i) {
-            arr[i] = random.nextLong(1L << 40, 1L << 48);
-        }
-        final long expectedNumBytes = 2 // token (2 bytes)
-            + (blockSize * 48) / Byte.SIZE; // data
-        doTest(arr, expectedNumBytes);
-    }
-
-    public void test56BitsPerValue() throws IOException {
-        final Random random = new Random(13);
-        long[] arr = new long[blockSize];
-        for (int i = 0; i < blockSize; ++i) {
-            arr[i] = random.nextLong(1L << 48, 1L << 56);
-        }
-        final long expectedNumBytes = 2 // token (2 bytes)
-            + (blockSize * 56) / Byte.SIZE; // data
-        doTest(arr, expectedNumBytes);
     }
 
     private void doTest(long[] arr, long expectedNumBytes) throws IOException {

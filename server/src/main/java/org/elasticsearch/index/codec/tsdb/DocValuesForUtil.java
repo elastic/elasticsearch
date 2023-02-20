@@ -41,6 +41,8 @@ public class DocValuesForUtil {
             return BITS_IN_SIX_BYTES;
         } else if (bitsPerValue > BITS_IN_SIX_BYTES && bitsPerValue <= BITS_IN_SEVEN_BYTES) {
             return BITS_IN_SEVEN_BYTES;
+        } else if (bitsPerValue > BITS_IN_SEVEN_BYTES) {
+            return Long.BYTES * Byte.SIZE;
         }
         return bitsPerValue;
     }

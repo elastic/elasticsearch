@@ -94,7 +94,8 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         out.writeOptionalTimeValue(dataRetention);
     }
 
-    private DataLifecycle(StreamInput in) throws IOException {
+    // Visible for testing
+    protected DataLifecycle(StreamInput in) throws IOException {
         dataRetention = in.readOptionalTimeValue();
     }
 

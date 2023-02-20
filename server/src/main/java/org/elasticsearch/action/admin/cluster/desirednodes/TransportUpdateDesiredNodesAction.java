@@ -95,7 +95,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     @Override
     protected void doExecute(Task task, UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener) {
         final var minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        if (request.isCompatibleWithVersion(minNodeVersion.transportVersion) == false) {
+        if (request.isCompatibleWithVersion(minNodeVersion) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "Unable to use processor ranges, floating-point (with greater precision) processors "

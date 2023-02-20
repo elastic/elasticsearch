@@ -80,7 +80,7 @@ class KnnScoreDocQuery extends Query {
 
             @Override
             public Explanation explain(LeafReaderContext context, int doc) {
-                int found = Arrays.binarySearch(docs, doc);
+                int found = Arrays.binarySearch(docs, doc + context.docBase);
                 if (found < 0) {
                     return Explanation.noMatch("not in top k documents");
                 }

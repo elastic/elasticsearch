@@ -331,7 +331,8 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         for (int i = 0; i < docsToIndex; i++) {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
-        boolean bulkRefreshes = true;
+        // Refresh via the bulk request or a follow-up Refresh API call
+        boolean bulkRefreshes = randomBoolean();
         if (bulkRefreshes) {
             bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
         }

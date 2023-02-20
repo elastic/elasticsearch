@@ -25,6 +25,9 @@ We have fixed this issue in {es} 7.15.1 and later versions. For more details,
 see {es-pull}78404[#78404].
 // end::ccs-agg-mem-known-issue[]
 
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
 [[enhancement-7.14.2]]
 [float]
 === Enhancements
@@ -63,6 +66,8 @@ Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
 include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[enhancement-7.14.1]]
 [float]
@@ -168,6 +173,8 @@ include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
 
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[breaking-7.14.0]]
 [float]

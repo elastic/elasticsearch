@@ -690,7 +690,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void mutateCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
-        switch (randomIntBetween(1, 17)) {
+        switch (randomIntBetween(1, 16)) {
             case 1:
                 highlightBuilder.preTags(randomStringArray(4, 6));
                 break;
@@ -725,19 +725,18 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));
                 break;
             case 10:
-            case 11:
                 highlightBuilder.boundaryMaxScan(randomIntBetween(11, 20));
                 break;
-            case 12:
+            case 11:
                 highlightBuilder.boundaryChars(randomAlphaOfLengthBetween(11, 20).toCharArray());
                 break;
-            case 13:
+            case 12:
                 highlightBuilder.noMatchSize(randomIntBetween(11, 20));
                 break;
-            case 14:
+            case 13:
                 highlightBuilder.phraseLimit(randomIntBetween(11, 20));
                 break;
-            case 15:
+            case 14:
                 int items = 6;
                 Map<String, Object> options = Maps.newMapWithExpectedSize(items);
                 for (int i = 0; i < items; i++) {
@@ -745,10 +744,10 @@ public class HighlightBuilderTests extends ESTestCase {
                 }
                 highlightBuilder.options(options);
                 break;
-            case 16:
+            case 15:
                 highlightBuilder.requireFieldMatch(toggleOrSet(highlightBuilder.requireFieldMatch()));
                 break;
-            case 17:
+            case 16:
                 highlightBuilder.maxAnalyzedOffset(
                     randomValueOtherThan(highlightBuilder.maxAnalyzedOffset(), () -> randomIntBetween(1, 100))
                 );

@@ -142,7 +142,7 @@ public class EnrichPolicyExecutor {
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(taskId);
         getTaskRequest.setWaitForCompletion(true);
-        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(policyLock::close));
+        client.admin().cluster().getTask(getTaskRequest, ActionListener.running(policyLock::close));
     }
 
     private Runnable createPolicyRunner(

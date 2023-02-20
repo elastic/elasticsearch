@@ -18,19 +18,9 @@ import java.util.Arrays;
 
 public class ES87TSDBDocValuesEncoder {
     private final DocValuesForUtil forUtil;
-    private final int blockSize;
 
     public ES87TSDBDocValuesEncoder() {
-        this(ES87TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE);
-    }
-
-    public ES87TSDBDocValuesEncoder(int blockSize) {
-        this.blockSize = blockSize;
-        this.forUtil = new DocValuesForUtil(blockSize);
-    }
-
-    public int getBlockSize() {
-        return blockSize;
+        this.forUtil = new DocValuesForUtil();
     }
 
     /**
@@ -40,7 +30,7 @@ public class ES87TSDBDocValuesEncoder {
     private void deltaEncode(int token, int tokenBits, long[] in, DataOutput out) throws IOException {
         int gts = 0;
         int lts = 0;
-        for (int i = 1; i < blockSize; ++i) {
+        for (int i = 1; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             if (in[i] > in[i - 1]) {
                 gts++;
             } else if (in[i] < in[i - 1]) {
@@ -51,7 +41,7 @@ public class ES87TSDBDocValuesEncoder {
         final boolean doDeltaCompression = (gts == 0 && lts >= 2) || (lts == 0 && gts >= 2);
         long first = 0;
         if (doDeltaCompression) {
-            for (int i = blockSize - 1; i > 0; --i) {
+            for (int i = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - 1; i > 0; --i) {
                 in[i] -= in[i - 1];
             }
             // Avoid setting in[0] to 0 in case there is a minimum interval between
@@ -87,7 +77,7 @@ public class ES87TSDBDocValuesEncoder {
         }
 
         if (min != 0) {
-            for (int i = 0; i < blockSize; ++i) {
+            for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
                 in[i] -= min;
             }
             token = (token << 1) | 0x01;
@@ -115,7 +105,7 @@ public class ES87TSDBDocValuesEncoder {
         }
         final boolean doGcdCompression = Long.compareUnsigned(gcd, 1) > 0;
         if (doGcdCompression) {
-            for (int i = 0; i < blockSize; ++i) {
+            for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
                 in[i] /= gcd;
             }
             token = (token << 1) | 0x01;
@@ -147,14 +137,14 @@ public class ES87TSDBDocValuesEncoder {
      * Encode the given longs using a combination of delta-coding, GCD factorization and bit packing.
      */
     void encode(long[] in, DataOutput out) throws IOException {
-        assert in.length == blockSize;
+        assert in.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 
         deltaEncode(0, 0, in, out);
     }
 
     /** Decode longs that have been encoded with {@link #encode}. */
     void decode(DataInput in, long[] out) throws IOException {
-        assert out.length == blockSize : out.length;
+        assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;
 
         final int token = in.readVInt();
         final int bitsPerValue = token >>> 3;
@@ -192,20 +182,20 @@ public class ES87TSDBDocValuesEncoder {
 
     // this loop should auto-vectorize
     private void mul(long[] arr, long m) {
-        for (int i = 0; i < blockSize; ++i) {
+        for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] *= m;
         }
     }
 
     // this loop should auto-vectorize
     private void add(long[] arr, long min) {
-        for (int i = 0; i < blockSize; ++i) {
+        for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] += min;
         }
     }
 
     private void deltaDecode(long[] arr) {
-        for (int i = 1; i < blockSize; ++i) {
+        for (int i = 1; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] += arr[i - 1];
         }
     }

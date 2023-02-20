@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -27,10 +28,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Assert;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,6 +48,8 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -54,6 +60,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @Experimental
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -857,6 +864,81 @@ public class EsqlActionIT extends ESIntegTestCase {
         EsqlQueryResponse results = run("from test_empty");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("k", "keyword"), new ColumnInfo("v", "long"))));
         assertThat(results.values(), empty());
+    }
+
+    public void testReturnNoNestedDocuments() throws IOException {
+        String indexName = "test_nested_docs";
+        int docsCount = randomIntBetween(50, 100);
+        int valuesGreaterThanFifty = 0;
+        /*
+        "nested":{
+            "type": "nested",
+            "properties":{
+                "foo": {
+                    "type":"long"
+                }
+            }
+         },
+         "data": {
+            "type": "integer"
+         }
+         */
+        ElasticsearchAssertions.assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("nested")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("foo")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .startObject("data")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        for (int i = 0; i < docsCount; i++) {
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
+            int randomValue = randomIntBetween(0, 100);
+            valuesGreaterThanFifty = valuesGreaterThanFifty + (randomValue >= 50 ? 1 : 0);
+            jsonBuilder.startObject().field("data", randomValue).startArray("nested");
+            for (int j = 0; j < randomIntBetween(1, 5); j++) {
+                // nested values are all greater than any non-nested values found in the "data" long field
+                jsonBuilder.startObject().field("foo", randomIntBetween(1000, 10000)).endObject();
+            }
+            jsonBuilder.endArray().endObject();
+            bulkBuilder.add(new IndexRequest(indexName).id(Integer.toString(i)).source(jsonBuilder));
+        }
+        bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        ensureYellow(indexName);
+
+        // simple query
+        assertNoNestedDocuments("from " + indexName, docsCount, 0L, 100L);
+        // simple query with filter that gets pushed to ES
+        assertNoNestedDocuments("from " + indexName + " | where data >= 50", valuesGreaterThanFifty, 50L, 100L);
+    }
+
+    private void assertNoNestedDocuments(String query, int docsCount, long minValue, long maxValue) {
+        EsqlQueryResponse results = run(query);
+        assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
+        assertThat(results.values().size(), is(docsCount));
+        for (List<Object> row : results.values()) {
+            assertThat(row.size(), is(1));
+            // check that all the values returned are the regular ones
+            assertThat((Long) row.get(0), allOf(greaterThanOrEqualTo(minValue), lessThanOrEqualTo(maxValue)));
+        }
     }
 
     static EsqlQueryResponse run(String esqlCommands) {

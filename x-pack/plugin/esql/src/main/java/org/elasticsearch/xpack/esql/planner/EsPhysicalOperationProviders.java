@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.ElementType;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
@@ -74,9 +78,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))
             .map(SearchContext::getSearchExecutionContext)
             .toList();
-        LuceneSourceOperatorFactory operatorFactory = new LuceneSourceOperatorFactory(
-            matchedSearchContexts,
-            ctx -> ctx.toQuery(esQueryExec.query()).query(),
+        LuceneSourceOperatorFactory operatorFactory = new LuceneSourceOperatorFactory(matchedSearchContexts, ctx -> {
+            Query query = ctx.toQuery(esQueryExec.query()).query();
+            // filter out nested documents
+            return new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+                .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
+                .build();
+        },
             context.dataPartitioning(),
             context.taskConcurrency(),
             esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT

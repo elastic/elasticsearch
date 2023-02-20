@@ -220,14 +220,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         var requestPipeline = indexRequest.getPipeline();
-
-        var pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, clusterMetadata, epochMillis).or(
-            () -> resolvePipelinesFromIndexTemplates(indexRequest, clusterMetadata)
-        ).orElse(Pipelines.NO_PIPELINES_DEFINED);
-
+        var pipelines = resolvePipelines(originalRequest, indexRequest, clusterMetadata, epochMillis);
         indexRequest.setPipeline(pipelines.defaultPipeline);
         indexRequest.setFinalPipeline(pipelines.finalPipeline);
 
+        // The pipeline coming as part the requests always has priority over the derived one
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         }
@@ -243,6 +240,21 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
          * pipeline parameter too.
          */
         indexRequest.isPipelineResolved(true);
+    }
+
+    private Pipelines resolvePipelines(IndexRequest indexRequest, Metadata metadata) {
+        return resolvePipelines(null, indexRequest, metadata, System.currentTimeMillis());
+    }
+
+    private static Pipelines resolvePipelines(
+        DocWriteRequest<?> originalRequest,
+        IndexRequest indexRequest,
+        Metadata clusterMetadata,
+        long epochMillis
+    ) {
+        return resolvePipelinesFromMetadata(originalRequest, indexRequest, clusterMetadata, epochMillis).or(
+            () -> resolvePipelinesFromIndexTemplates(indexRequest, clusterMetadata)
+        ).orElse(Pipelines.NO_PIPELINES_DEFINED);
     }
 
     public ClusterService getClusterService() {
@@ -657,6 +669,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
                         boolean hasFinalPipeline = true;
                         final List<String> pipelines;
+
                         if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
                             && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
                             pipelines = List.of(pipelineId, finalPipelineId);
@@ -791,10 +804,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
                         return; // document failed!
                     } else {
-                        indexRequest.isPipelineResolved(false);
-                        resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                            newPipelineIds = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                        var pipelines = resolvePipelines(indexRequest, state.metadata());
+                        if (pipelines.hasFinalPipeline()) {
+                            newPipelineIds = List.of(pipelines.finalPipeline).iterator();
                             newHasFinalPipeline = true;
                         } else {
                             newPipelineIds = Collections.emptyIterator();
@@ -1263,6 +1275,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         public Pipelines {
             defaultPipeline = Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME);
             finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
+        }
+
+        public boolean hasDefaultPipeline() {
+            return NOOP_PIPELINE_NAME.equals(defaultPipeline) == false;
+        }
+
+        public boolean hasFinalPipeline() {
+            return NOOP_PIPELINE_NAME.equals(finalPipeline) == false;
         }
     }
 }

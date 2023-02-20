@@ -2300,6 +2300,23 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testPipelinesRecord() {
+        {
+            var pipelines = new IngestService.Pipelines("default", "final");
+            assertEquals(pipelines.defaultPipeline(), "default");
+            assertEquals(pipelines.finalPipeline(), "final");
+            assertTrue(pipelines.hasDefaultPipeline());
+            assertTrue(pipelines.hasFinalPipeline());
+        }
+        {
+            var pipelines = new IngestService.Pipelines(null, null);
+            assertEquals(pipelines.defaultPipeline(), NOOP_PIPELINE_NAME);
+            assertEquals(pipelines.finalPipeline(), NOOP_PIPELINE_NAME);
+            assertFalse(pipelines.hasDefaultPipeline());
+            assertFalse(pipelines.hasFinalPipeline());
+        }
+    }
+
     private static Tuple<String, Object> randomMapEntry() {
         return tuple(randomAlphaOfLength(5), randomObject());
     }

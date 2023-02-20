@@ -221,9 +221,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         var requestPipeline = indexRequest.getPipeline();
 
-        var pipelines = findPipelinesFromMetadata(originalRequest, indexRequest, clusterMetadata, epochMillis)
-            .or(() -> findPipelinesFromIndexTemplates(indexRequest, clusterMetadata))
-            .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        var pipelines = findPipelinesFromMetadata(originalRequest, indexRequest, clusterMetadata, epochMillis).or(
+            () -> findPipelinesFromIndexTemplates(indexRequest, clusterMetadata)
+        ).orElse(Pipelines.NO_PIPELINES_DEFINED);
 
         indexRequest.setPipeline(pipelines.defaultPipeline);
         indexRequest.setFinalPipeline(pipelines.finalPipeline);

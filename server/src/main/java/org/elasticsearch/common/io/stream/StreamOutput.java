@@ -983,16 +983,33 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeException(Throwable throwable) throws IOException {
-        writeException(throwable, throwable, 0);
+        writeException(throwable, throwable);
     }
 
-    private void writeException(Throwable rootException, Throwable throwable, int nestedLevel) throws IOException {
+    private static final ThreadLocal<Integer> CURRENT_NESTED_LEVEL = ThreadLocal.withInitial(() -> 0);
+
+    private void writeException(Throwable rootException, Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
-        } else if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
-            assert failOnTooManyNestedExceptions(rootException);
-            writeException(new IllegalStateException("too many nested exceptions"));
-        } else {
+            return;
+        }
+
+        int nestedLevel = CURRENT_NESTED_LEVEL.get();
+        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            // need to reset the nesting level to write this exception out without hitting the recursive check,
+            // then reset the counter again
+            CURRENT_NESTED_LEVEL.set(0);
+            try {
+                assert failOnTooManyNestedExceptions(rootException);
+                writeException(new IllegalStateException("too many nested exceptions"));
+                return;
+            } finally {
+                CURRENT_NESTED_LEVEL.set(nestedLevel);
+            }
+        }
+
+        CURRENT_NESTED_LEVEL.set(nestedLevel + 1);
+        try {
             writeBoolean(true);
             boolean writeCause = true;
             boolean writeMessage = true;
@@ -1099,9 +1116,11 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(throwable.getMessage());
             }
             if (writeCause) {
-                writeException(rootException, throwable.getCause(), nestedLevel + 1);
+                writeException(rootException, throwable.getCause());
             }
-            ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
+            ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t));
+        } finally {
+            CURRENT_NESTED_LEVEL.set(CURRENT_NESTED_LEVEL.get() - 1);
         }
     }
 

@@ -970,4 +970,30 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(newEx.getMessage(), equalTo("disk broken"));
         assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
     }
+
+    public void testWriteCircularReferenceSuppressedException() throws IOException {
+        IOException rootEx = new IOException("disk broken");
+        AlreadyClosedException ace = new AlreadyClosedException("closed");
+        rootEx.addSuppressed(ace);
+        ace.addSuppressed(rootEx); // circular reference, only through suppression
+
+        BytesStreamOutput testOut = new BytesStreamOutput();
+        AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(rootEx));
+        assertThat(error.getMessage(), containsString("too many nested exceptions"));
+        assertThat(error.getCause(), equalTo(rootEx));
+
+        BytesStreamOutput prodOut = new BytesStreamOutput() {
+            @Override
+            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+                assertThat(throwable, sameInstance(rootEx));
+                return true;
+            }
+        };
+        prodOut.writeException(rootEx);
+        StreamInput in = prodOut.bytes().streamInput();
+        Exception newEx = in.readException();
+        assertThat(newEx, instanceOf(IOException.class));
+        assertThat(newEx.getMessage(), equalTo("disk broken"));
+        assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
+    }
 }

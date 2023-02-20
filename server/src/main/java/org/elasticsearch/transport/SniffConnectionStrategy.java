@@ -390,12 +390,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
 
         @Override
-        public org.elasticsearch.action.admin.cluster.state.ClusterStateResponse read(StreamInput in) throws IOException {
-            return new org.elasticsearch.action.admin.cluster.state.ClusterStateResponse(in);
+        public ClusterStateResponse read(StreamInput in) throws IOException {
+            return new ClusterStateResponse(in);
         }
 
         @Override
-        public void handleResponse(org.elasticsearch.action.admin.cluster.state.ClusterStateResponse response) {
+        public void handleResponse(ClusterStateResponse response) {
             handleNodes(response.getState().nodes().getNodes().values().iterator());
         }
     }

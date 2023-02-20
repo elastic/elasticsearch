@@ -201,15 +201,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
      * @param clusterMetadata Cluster metadata from where the pipeline information could be derived.
      */
-    public static void updateIndexRequestWithPipelines(
+    public static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata clusterMetadata
     ) {
-        updateIndexRequestWithPipelines(originalRequest, indexRequest, clusterMetadata, System.currentTimeMillis());
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, clusterMetadata, System.currentTimeMillis());
     }
 
-    static void updateIndexRequestWithPipelines(
+    static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata clusterMetadata,
@@ -792,7 +792,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     } else {
                         indexRequest.isPipelineResolved(false);
-                        updateIndexRequestWithPipelines(null, indexRequest, state.metadata());
+                        resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
                         if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
                             newPipelineIds = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
                             newHasFinalPipeline = true;

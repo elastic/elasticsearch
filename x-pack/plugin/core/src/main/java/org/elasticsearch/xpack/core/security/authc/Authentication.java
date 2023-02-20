@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
@@ -1154,15 +1155,29 @@ public final class Authentication implements ToXContentObject {
         if (roleDescriptorsBytes == null) {
             return null;
         }
-        Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes).entrySet().stream().map(entry -> {
-            if (entry.getValue() instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> roleDescriptor = (Map<String, Object>) entry.getValue();
-                roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName());
-            }
-            return entry;
-        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
+
+        final AtomicBoolean removedAtLeastOne = new AtomicBoolean(false);
+        final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes).entrySet()
+            .stream()
+            .map(entry -> {
+                if (entry.getValue() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> roleDescriptor = (Map<String, Object>) entry.getValue();
+                    boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName()) != null;
+                    if (removed) {
+                        removedAtLeastOne.set(true);
+                    }
+                }
+                return entry;
+            })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        if (removedAtLeastOne.get()) {
+            return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
+        } else {
+            // No need to serialize if we did not remove anything.
+            return roleDescriptorsBytes;
+        }
     }
 
     static boolean equivalentRealms(String name1, String type1, String name2, String type2) {

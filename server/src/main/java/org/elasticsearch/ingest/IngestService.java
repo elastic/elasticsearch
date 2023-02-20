@@ -221,8 +221,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         var requestPipeline = indexRequest.getPipeline();
 
-        var pipelines = findPipelinesFromMetadata(originalRequest, indexRequest, clusterMetadata, epochMillis).or(
-            () -> findPipelinesFromIndexTemplates(indexRequest, clusterMetadata)
+        var pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, clusterMetadata, epochMillis).or(
+            () -> resolvePipelinesFromIndexTemplates(indexRequest, clusterMetadata)
         ).orElse(Pipelines.NO_PIPELINES_DEFINED);
 
         indexRequest.setPipeline(pipelines.defaultPipeline);
@@ -1160,7 +1160,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private static Optional<Pipelines> findPipelinesFromMetadata(
+    private static Optional<Pipelines> resolvePipelinesFromMetadata(
         DocWriteRequest<?> originalRequest,
         IndexRequest indexRequest,
         Metadata clusterMetadata,
@@ -1206,7 +1206,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
     }
 
-    private static Optional<Pipelines> findPipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata clusterMetadata) {
+    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata clusterMetadata) {
         String defaultPipeline = null;
         String finalPipeline = null;
 

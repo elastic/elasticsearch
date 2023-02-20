@@ -150,16 +150,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 ClusterHealthStatus dataStreamStatus,
                 @Nullable String indexTemplate,
                 @Nullable String ilmPolicyName,
-                @Nullable TimeSeries timeSeries
-            ) {
-                this(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries, null);
-            }
-
-            public DataStreamInfo(
-                DataStream dataStream,
-                ClusterHealthStatus dataStreamStatus,
-                @Nullable String indexTemplate,
-                @Nullable String ilmPolicyName,
                 @Nullable TimeSeries timeSeries,
                 @Nullable DataLifecycle lifecycle
             ) {

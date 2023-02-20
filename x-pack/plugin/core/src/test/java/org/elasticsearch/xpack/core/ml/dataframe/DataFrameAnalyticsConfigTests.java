@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -101,7 +102,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
+    protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, TransportVersion version) {
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance).setSource(
             DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version)
         ).setDest(DataFrameAnalyticsDestTests.mutateForVersion(instance.getDest(), version));

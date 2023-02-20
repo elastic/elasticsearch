@@ -227,13 +227,13 @@ public class ClusterConnectionManager implements ConnectionManager {
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                conn.addCloseListener(ActionListener.running(() -> {
                                     connectedNodes.remove(node, conn);
                                     connectionListener.onNodeDisconnected(node, conn);
                                     managerRefs.decRef();
                                 }));
 
-                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                conn.addCloseListener(ActionListener.running(() -> {
                                     if (connectingRefCounter.hasReferences() == false) {
                                         logger.trace("connection manager shut down, closing transport connection to [{}]", node);
                                     } else if (conn.hasReferences()) {
@@ -366,7 +366,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             try {
                 connectionListener.onConnectionOpened(connection);
             } finally {
-                connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
+                connection.addCloseListener(ActionListener.running(() -> connectionListener.onConnectionClosed(connection)));
             }
             if (connection.isClosed()) {
                 throw new ConnectTransportException(node, "a channel closed while connecting");

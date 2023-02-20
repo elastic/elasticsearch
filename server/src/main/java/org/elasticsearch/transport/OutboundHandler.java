@@ -185,7 +185,7 @@ final class OutboundHandler {
                 release.close();
             }
         }
-        internalSend(channel, message, networkMessage, ActionListener.wrap(release::close));
+        internalSend(channel, message, networkMessage, ActionListener.running(release::close));
     }
 
     private void internalSend(

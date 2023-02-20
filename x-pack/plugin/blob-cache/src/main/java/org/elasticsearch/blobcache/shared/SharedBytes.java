@@ -10,6 +10,7 @@ package org.elasticsearch.blobcache.shared;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -162,6 +163,47 @@ public class SharedBytes extends AbstractRefCounted {
         assert byteBuffer.hasRemaining() == false;
         byteBuffer.clear();
         return written;
+    }
+
+    /**
+     * Read {@code length} bytes from given shared bytes at given {@code channelPos} into {@code byteBufferReference} at given
+     * {@code relativePos}.
+     * @param fc shared bytes channel to read from
+     * @param channelPos position in {@code fc} to read from
+     * @param relativePos position in {@code byteBufferReference}
+     * @param length number of bytes to read
+     * @param byteBufferReference buffer reference
+     * @param cacheFile cache file reference used for exception messages only
+     * @return number of bytes read
+     * @throws IOException on failure
+     */
+    public static int readCacheFile(
+        final IO fc,
+        long channelPos,
+        long relativePos,
+        long length,
+        final ByteBufferReference byteBufferReference,
+        Object cacheFile
+    ) throws IOException {
+        if (length == 0L) {
+            return 0;
+        }
+        final int bytesRead;
+        final ByteBuffer dup = byteBufferReference.tryAcquire(Math.toIntExact(relativePos), Math.toIntExact(length));
+        if (dup != null) {
+            try {
+                bytesRead = fc.read(dup, channelPos);
+                if (bytesRead == -1) {
+                    BlobCacheUtils.throwEOF(channelPos, dup.remaining(), cacheFile);
+                }
+            } finally {
+                byteBufferReference.release();
+            }
+        } else {
+            // return fake response
+            return Math.toIntExact(length);
+        }
+        return bytesRead;
     }
 
     @Override

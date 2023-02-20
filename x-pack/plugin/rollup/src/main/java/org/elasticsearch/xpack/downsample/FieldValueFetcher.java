@@ -27,7 +27,7 @@ class FieldValueFetcher {
 
     private final MappedFieldType fieldType;
     private final IndexFieldData<?> fieldData;
-    private final AbstractRollupFieldProducer rollupFieldProducer;
+    private final AbstractDownsampleFieldProducer rollupFieldProducer;
 
     protected FieldValueFetcher(MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         this.fieldType = fieldType;
@@ -48,11 +48,11 @@ class FieldValueFetcher {
         return fieldData.load(context).getFormattedValues(format);
     }
 
-    public AbstractRollupFieldProducer rollupFieldProducer() {
+    public AbstractDownsampleFieldProducer rollupFieldProducer() {
         return rollupFieldProducer;
     }
 
-    private AbstractRollupFieldProducer createRollupFieldProducer() {
+    private AbstractDownsampleFieldProducer createRollupFieldProducer() {
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(name());

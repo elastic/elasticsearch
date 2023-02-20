@@ -32,18 +32,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
+public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
 
     @Override
-    public RollupStep createRandomInstance() {
+    public DownsampleStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        return new RollupStep(stepKey, nextStepKey, client, fixedInterval);
+        return new DownsampleStep(stepKey, nextStepKey, client, fixedInterval);
     }
 
     @Override
-    public RollupStep mutateInstance(RollupStep instance) {
+    public DownsampleStep mutateInstance(DownsampleStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         DateHistogramInterval fixedInterval = instance.getFixedInterval();
@@ -55,15 +55,15 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new RollupStep(key, nextKey, instance.getClient(), fixedInterval);
+        return new DownsampleStep(key, nextKey, instance.getClient(), fixedInterval);
     }
 
     @Override
-    public RollupStep copyInstance(RollupStep instance) {
-        return new RollupStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getFixedInterval());
+    public DownsampleStep copyInstance(DownsampleStep instance) {
+        return new DownsampleStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getFixedInterval());
     }
 
-    private IndexMetadata getIndexMetadata(String index, String lifecycleName, RollupStep step) {
+    private IndexMetadata getIndexMetadata(String index, String lifecycleName, DownsampleStep step) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
         lifecycleState.setAction(step.getKey().action());
@@ -87,7 +87,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
     public void testPerformAction() throws Exception {
         String lifecycleName = randomAlphaOfLength(5);
-        RollupStep step = createRandomInstance();
+        DownsampleStep step = createRandomInstance();
         String index = randomAlphaOfLength(5);
 
         IndexMetadata indexMetadata = getIndexMetadata(index, lifecycleName, step);
@@ -99,7 +99,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
     public void testPerformActionFailureInvalidExecutionState() {
         String lifecycleName = randomAlphaOfLength(5);
-        RollupStep step = createRandomInstance();
+        DownsampleStep step = createRandomInstance();
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
@@ -134,7 +134,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     }
 
     public void testPerformActionOnDataStream() throws Exception {
-        RollupStep step = createRandomInstance();
+        DownsampleStep step = createRandomInstance();
         String lifecycleName = randomAlphaOfLength(5);
         String dataStreamName = "test-datastream";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -154,7 +154,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     public void testPerformActionCompletedRollupIndexExists() {
         String sourceIndexName = randomAlphaOfLength(10);
         String lifecycleName = randomAlphaOfLength(5);
-        RollupStep step = createRandomInstance();
+        DownsampleStep step = createRandomInstance();
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
@@ -204,7 +204,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     public void testPerformActionRollupInProgressIndexExists() {
         String sourceIndexName = randomAlphaOfLength(10);
         String lifecycleName = randomAlphaOfLength(5);
-        RollupStep step = createRandomInstance();
+        DownsampleStep step = createRandomInstance();
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());

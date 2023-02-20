@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
@@ -629,6 +630,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                         @Override
                         public DiscoveryNode getNode() {
                             return node;
+                        }
+
+                        @Override
+                        public TransportVersion getTransportVersion() {
+                            return TransportVersion.CURRENT;
                         }
 
                         @Override

@@ -120,6 +120,11 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
+        }
+
+        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
             sendLocalRequest(requestId, action, request, options);
         }
@@ -1519,11 +1524,6 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public String getChannelType() {
             return "direct";
-        }
-
-        @Override
-        public TransportVersion getVersion() {
-            return localNode.getVersion().transportVersion;
         }
 
         @Override

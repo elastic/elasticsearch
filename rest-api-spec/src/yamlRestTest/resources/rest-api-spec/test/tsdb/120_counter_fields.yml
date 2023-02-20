@@ -1,7 +1,7 @@
 ---
 "avg aggregation on counter field":
   - skip:
-      version: " - 8.7.99"
+      version: " - 8.6.99"
       reason: "counter field support added in 8.7"
 
   - do:

@@ -53,7 +53,7 @@ public class ThrottledIterator<T> implements Releasable {
         }
     }
 
-    private final RefCounted throttleRefs;
+    private final RefCounted refs; // one ref for each running item, plus one for the iterator if incomplete
     private final Iterator<T> iterator;
     private final BiConsumer<Releasable, T> itemConsumer;
     private final Semaphore permits;
@@ -73,7 +73,7 @@ public class ThrottledIterator<T> implements Releasable {
         }
         this.permits = new Semaphore(maxConcurrency);
         this.onItemCompletion = Objects.requireNonNull(onItemCompletion);
-        this.throttleRefs = AbstractRefCounted.of(onCompletion);
+        this.refs = AbstractRefCounted.of(onCompletion);
     }
 
     private void run() {
@@ -88,7 +88,6 @@ public class ThrottledIterator<T> implements Releasable {
                 }
             }
             try (var itemRefs = new ItemRefCounted()) {
-                // TODO simplify, there's always exactly two refs?
                 itemRefs.incRef();
                 itemConsumer.accept(Releasables.releaseOnce(itemRefs::decRef), item);
             } catch (Exception e) {
@@ -100,7 +99,7 @@ public class ThrottledIterator<T> implements Releasable {
 
     @Override
     public void close() {
-        throttleRefs.decRef();
+        refs.decRef();
     }
 
     // A RefCounted for a single item, including protection against calling back into run() if it's created and closed within a single
@@ -109,7 +108,7 @@ public class ThrottledIterator<T> implements Releasable {
         private boolean isRecursive = true;
 
         ItemRefCounted() {
-            throttleRefs.incRef();
+            refs.incRef();
         }
 
         @Override
@@ -132,7 +131,7 @@ public class ThrottledIterator<T> implements Releasable {
                         run();
                     }
                 } finally {
-                    throttleRefs.decRef();
+                    refs.decRef();
                 }
             }
         }

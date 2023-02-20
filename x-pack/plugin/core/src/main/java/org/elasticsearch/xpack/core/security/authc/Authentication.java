@@ -115,10 +115,12 @@ public final class Authentication implements ToXContentObject {
     }
 
     private Authentication(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type) {
-        this.effectiveSubject = effectiveSubject;
-        this.authenticatingSubject = authenticatingSubject;
-        this.type = type;
-        assertInternalConsistency();
+        this.effectiveSubject = Objects.requireNonNull(effectiveSubject, "effective subject cannot be null");
+        this.authenticatingSubject = Objects.requireNonNull(authenticatingSubject, "authenticating subject cannot be null");
+        this.type = Objects.requireNonNull(type, "authentication type cannot be null");
+        if (Assertions.ENABLED) {
+            checkInternalConsistency();
+        }
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -172,7 +174,9 @@ public final class Authentication implements ToXContentObject {
         } else {
             authenticatingSubject = effectiveSubject = new Subject(outerUser, authenticatedBy, version, metadata);
         }
-        assertInternalConsistency();
+        if (Assertions.ENABLED) {
+            checkInternalConsistency();
+        }
     }
 
     /**
@@ -708,45 +712,135 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
-    private void assertInternalConsistency() {
-        if (false == Assertions.ENABLED) {
-            return;
+    public void checkInternalConsistency() {
+        // Version consistency
+        if (false == effectiveSubject.getTransportVersion().equals(authenticatingSubject.getTransportVersion())) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "inconsistent versions between effective subject [%s] and authenticating subject [{}]",
+                    effectiveSubject.getTransportVersion(),
+                    authenticatingSubject.getTransportVersion()
+                )
+            );
         }
 
-        assert effectiveSubject != null;
-        assert authenticatingSubject != null;
-        assert type != null;
-        assert effectiveSubject.getTransportVersion().equals(authenticatingSubject.getTransportVersion());
+        // authentication and subject type consistency
+        if (isAuthenticatedAnonymously()) {
+            if (isRunAs()) {
+                throw new IllegalArgumentException("anonymous authentication cannot have run-as");
+            }
+            if (isAssignedToDomain()) {
+                throw new IllegalArgumentException("anonymous authentication cannot have domain");
+            }
+        }
 
-        if (isRunAs()) {
-            assert authenticatingSubject != effectiveSubject : "isRunAs logic does not hold";
-            assert false == User.isInternal(effectiveSubject.getUser()) && false == User.isInternal(authenticatingSubject.getUser())
-                : "internal users cannot participate in run-as";
+        if (isAuthenticatedInternally()) {
+            if (isRunAs()) {
+                throw new IllegalArgumentException("internal authentication cannot have run-as");
+            }
+            if (isAssignedToDomain()) {
+                throw new IllegalArgumentException("internal authentication cannot have domain");
+            }
+            if (false == User.isInternal(getEffectiveSubject().getUser())) {
+                throw new IllegalArgumentException("internal authentication must have internal user");
+            }
         } else {
-            assert authenticatingSubject == effectiveSubject : "isRunAs logic does not hold";
+            if (User.isInternal(authenticatingSubject.getUser())) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "authenticating internal user [%s] found for non-internal authentication",
+                        authenticatingSubject.getUser().principal()
+                    )
+                );
+            }
+            if (User.isInternal(effectiveSubject.getUser())) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "effective internal user [%s] found for non-internal authentication",
+                        effectiveSubject.getUser().principal()
+                    )
+                );
+            }
         }
 
-        // Assert API key metadata
-        assert (false == (isAuthenticatedAsApiKey() || isRemoteAccess()))
-            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
-            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
+        if (isAuthenticatedWithServiceAccount()) {
+            if (isRunAs()) {
+                throw new IllegalArgumentException("service account authentication cannot have run-as");
+            }
+            if (isAssignedToDomain()) {
+                throw new IllegalArgumentException("service account authentication cannot have domain");
+            }
+            if (effectiveSubject.getUser().roles().length != 0) {
+                throw new IllegalArgumentException("user associated to a service account authentication must have no role");
+            }
+        }
+
+        if (isAuthenticatedAsApiKey()) {
+            if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
+                throw new IllegalArgumentException(
+                    "API key authentication requires metadata to contain API key id, and the value must be non-null"
+                );
+            }
+        }
+
+        if (isApiKey()) {
+            if (isRunAs()) {
+                throw new IllegalArgumentException("API key authentication cannot have run-as");
+            }
+            if (isAssignedToDomain()) {
+                throw new IllegalArgumentException("API key authentication cannot have domain");
+            }
+            if (effectiveSubject.getUser().roles().length != 0) {
+                throw new IllegalArgumentException("user associated to an API key authentication must have no role");
+            }
+        }
 
         if (isRemoteAccess()) {
-            assert getAuthenticatingSubject().getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY) != null
-                : "Remote access authentication requires metadata to contain a serialized remote access authentication, "
-                    + "and the value must be non-null.";
-            assert getAuthenticatingSubject().getMetadata().get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) != null
-                : "Remote access authentication requires metadata to contain a serialized remote access role descriptors, "
-                    + "and the value must be non-null.";
+            if (isRunAs()) {
+                throw new IllegalArgumentException("Remote access authentication cannot have run-as");
+            }
+            if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
+                throw new IllegalArgumentException(
+                    "Remote access authentication requires metadata to contain API key id, and the value must be non-null"
+                );
+            }
+            if (authenticatingSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY) == null) {
+                throw new IllegalArgumentException(
+                    "Remote access authentication requires metadata to contain a serialized remote access authentication, "
+                        + "and the value must be non-null"
+                );
+            }
+            if (authenticatingSubject.getMetadata().get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
+                throw new IllegalArgumentException(
+                    "Remote access authentication requires metadata to contain a serialized remote access role descriptors, "
+                        + "and the value must be non-null"
+                );
+            }
+            if (isAssignedToDomain()) {
+                throw new IllegalArgumentException("remote access authentication cannot have domain");
+            }
+            if (effectiveSubject.getUser().roles().length != 0) {
+                throw new IllegalArgumentException("user associated to a remote access authentication must have no role");
+            }
         }
 
-        // Assert domain assignment
-        if (isAssignedToDomain()) {
-            assert false == isApiKey();
-            assert false == isRemoteAccess();
-            assert false == isServiceAccount();
-            assert false == isAuthenticatedAnonymously();
-            assert false == isAuthenticatedInternally();
+        // Run-as consistency
+        if (isRunAs()) {
+            if (authenticatingSubject == effectiveSubject) {
+                throw new IllegalArgumentException("run-as authentication must have different authenticating and effective subjects");
+            }
+            if (type != AuthenticationType.REALM && type != AuthenticationType.API_KEY && type != AuthenticationType.TOKEN) {
+                throw new IllegalArgumentException(Strings.format("authentication type [%s] does not support run-as", type));
+            }
+            if (Subject.Type.USER != effectiveSubject.getType()) {
+                throw new IllegalArgumentException(
+                    Strings.format("subject type [%s] cannot be the run-as user", effectiveSubject.getType())
+                );
+            }
+        } else {
+            if (authenticatingSubject != effectiveSubject) {
+                throw new IllegalArgumentException("authentication is not run-as but has different authenticating and effective subjects");
+            }
         }
     }
 
@@ -952,7 +1046,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(internalUser, authenticatedBy, version, Map.of()),
             AuthenticationType.INTERNAL
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -963,7 +1056,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(fallbackUser, authenticatedBy, TransportVersion.CURRENT, Map.of()),
             Authentication.AuthenticationType.INTERNAL
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -973,7 +1065,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(anonymousUser, authenticatedBy, TransportVersion.CURRENT, Map.of()),
             Authentication.AuthenticationType.ANONYMOUS
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -984,7 +1075,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(serviceAccountUser, authenticatedBy, TransportVersion.CURRENT, metadata),
             AuthenticationType.TOKEN
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -1011,7 +1101,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(apiKeyUser, authenticatedBy, TransportVersion.CURRENT, authResult.getMetadata()),
             AuthenticationType.API_KEY
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -1039,7 +1128,6 @@ public final class Authentication implements ToXContentObject {
             ),
             getAuthenticationType()
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -1165,7 +1253,8 @@ public final class Authentication implements ToXContentObject {
             final User user = readUserWithoutTrailingBoolean(input);
             if (false == User.isInternal(user)) {
                 boolean hasInnerUser = input.readBoolean();
-                assert false == hasInnerUser : "no inner user is possible, otherwise use UserTuple.readFrom";
+                assert false == hasInnerUser : "inner user is not allowed";
+                throw new IllegalStateException("inner user is not allowed");
             }
             return user;
         }

@@ -303,6 +303,7 @@ public final class Authentication implements ToXContentObject {
      * authenticating using the token credential.
      */
     public Authentication token() {
+        assert false == isAuthenticatedInternally();
         assert false == isServiceAccount();
         assert false == isRemoteAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
@@ -391,10 +392,6 @@ public final class Authentication implements ToXContentObject {
             return null;
         }
         return getEffectiveSubject().getRealm().getDomain();
-    }
-
-    public boolean isAuthenticatedWithServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType());
     }
 
     /**
@@ -725,12 +722,44 @@ public final class Authentication implements ToXContentObject {
         }
 
         // authentication and subject type consistency
+        checkInternalConsistencyForAuthenticationType();
+        checkInternalConsistencyForSubjectType();
+
+        // Extra run-as consistency
+        if (isRunAs()) {
+            if (authenticatingSubject == effectiveSubject) {
+                throw new IllegalArgumentException("run-as authentication must have different authenticating and effective subjects");
+            }
+            if (type != AuthenticationType.REALM && type != AuthenticationType.API_KEY && type != AuthenticationType.TOKEN) {
+                throw new IllegalArgumentException(Strings.format("authentication type [%s] does not support run-as", type));
+            }
+            if (Subject.Type.USER != effectiveSubject.getType()) {
+                throw new IllegalArgumentException(
+                    Strings.format("subject type [%s] cannot be the run-as user", effectiveSubject.getType())
+                );
+            }
+            if (false == effectiveSubject.getMetadata().isEmpty()) {
+                throw new IllegalArgumentException("effective subject of a run-as authentication must have empty metadata");
+            }
+            assert false == hasSyntheticRealmNameOrType(getEffectiveSubject().getRealm()) : "run-as user cannot be from a synthetic realm";
+        } else {
+            if (authenticatingSubject != effectiveSubject) {
+                throw new IllegalArgumentException("authentication is not run-as but has different authenticating and effective subjects");
+            }
+        }
+    }
+
+    private void checkInternalConsistencyForAuthenticationType() {
         if (isAuthenticatedAnonymously()) {
             if (isRunAs()) {
                 throw new IllegalArgumentException("anonymous authentication cannot have run-as");
             }
             if (isAssignedToDomain()) {
                 throw new IllegalArgumentException("anonymous authentication cannot have domain");
+            }
+            final RealmRef realm = authenticatingSubject.getRealm();
+            if (false == realm.isAnonymousRealm()) {
+                throw new IllegalArgumentException(Strings.format("invalid realm [%s] for anonymous authentication", realm));
             }
         }
 
@@ -743,6 +772,10 @@ public final class Authentication implements ToXContentObject {
             }
             if (false == User.isInternal(getEffectiveSubject().getUser())) {
                 throw new IllegalArgumentException("internal authentication must have internal user");
+            }
+            final RealmRef realm = authenticatingSubject.getRealm();
+            if (false == realm.isFallbackRealm() && false == realm.isAttachRealm()) {
+                throw new IllegalArgumentException(Strings.format("invalid realm [%s] for internal authentication", realm));
             }
         } else {
             if (User.isInternal(authenticatingSubject.getUser())) {
@@ -763,7 +796,23 @@ public final class Authentication implements ToXContentObject {
             }
         }
 
-        if (isAuthenticatedWithServiceAccount()) {
+        if (type == AuthenticationType.API_KEY) {
+            final RealmRef realm = authenticatingSubject.getRealm();
+            if (false == realm.isApiKeyRealm() && false == realm.isRemoteAccessRealm()) {
+                throw new IllegalArgumentException(Strings.format("invalid realm [%s] for API key authentication", realm));
+            }
+            if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
+                throw new IllegalArgumentException(
+                    "API key authentication requires metadata to contain API key id, and the value must be non-null"
+                );
+            }
+        }
+
+        // nothing really to check for realm and token authentication types
+    }
+
+    private void checkInternalConsistencyForSubjectType() {
+        if (isServiceAccount()) {
             if (isRunAs()) {
                 throw new IllegalArgumentException("service account authentication cannot have run-as");
             }
@@ -773,6 +822,13 @@ public final class Authentication implements ToXContentObject {
             if (effectiveSubject.getUser().roles().length != 0) {
                 throw new IllegalArgumentException("user associated to a service account authentication must have no role");
             }
+            if (type != AuthenticationType.TOKEN) {
+                throw new IllegalArgumentException("service account authentication must have token authentication type");
+            }
+            final RealmRef realm = effectiveSubject.getRealm();
+            if (false == realm.isServiceAccountRealm()) {
+                throw new IllegalArgumentException(Strings.format("invalid realm [%s] for service account authentication", realm));
+            }
         }
 
         if (isAuthenticatedAsApiKey()) {
@@ -781,17 +837,18 @@ public final class Authentication implements ToXContentObject {
                     "API key authentication requires metadata to contain API key id, and the value must be non-null"
                 );
             }
+            if (authenticatingSubject.getUser().roles().length != 0) {
+                throw new IllegalArgumentException("user associated to an API key authentication must have no role");
+            }
         }
 
         if (isApiKey()) {
+            assert isAuthenticatedAsApiKey();
             if (isRunAs()) {
                 throw new IllegalArgumentException("API key authentication cannot have run-as");
             }
             if (isAssignedToDomain()) {
                 throw new IllegalArgumentException("API key authentication cannot have domain");
-            }
-            if (effectiveSubject.getUser().roles().length != 0) {
-                throw new IllegalArgumentException("user associated to an API key authentication must have no role");
             }
         }
 
@@ -799,49 +856,32 @@ public final class Authentication implements ToXContentObject {
             if (isRunAs()) {
                 throw new IllegalArgumentException("Remote access authentication cannot have run-as");
             }
-            if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
+            if (effectiveSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
                 throw new IllegalArgumentException(
                     "Remote access authentication requires metadata to contain API key id, and the value must be non-null"
                 );
             }
-            if (authenticatingSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY) == null) {
+            if (effectiveSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
                     "Remote access authentication requires metadata to contain a serialized remote access authentication, "
                         + "and the value must be non-null"
                 );
             }
-            if (authenticatingSubject.getMetadata().get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
+            if (effectiveSubject.getMetadata().get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
                 throw new IllegalArgumentException(
                     "Remote access authentication requires metadata to contain a serialized remote access role descriptors, "
                         + "and the value must be non-null"
                 );
             }
-            if (isAssignedToDomain()) {
-                throw new IllegalArgumentException("remote access authentication cannot have domain");
-            }
             if (effectiveSubject.getUser().roles().length != 0) {
                 throw new IllegalArgumentException("user associated to a remote access authentication must have no role");
             }
+            if (isAssignedToDomain()) {
+                throw new IllegalArgumentException("remote access authentication cannot have domain");
+            }
         }
 
-        // Run-as consistency
-        if (isRunAs()) {
-            if (authenticatingSubject == effectiveSubject) {
-                throw new IllegalArgumentException("run-as authentication must have different authenticating and effective subjects");
-            }
-            if (type != AuthenticationType.REALM && type != AuthenticationType.API_KEY && type != AuthenticationType.TOKEN) {
-                throw new IllegalArgumentException(Strings.format("authentication type [%s] does not support run-as", type));
-            }
-            if (Subject.Type.USER != effectiveSubject.getType()) {
-                throw new IllegalArgumentException(
-                    Strings.format("subject type [%s] cannot be the run-as user", effectiveSubject.getType())
-                );
-            }
-        } else {
-            if (authenticatingSubject != effectiveSubject) {
-                throw new IllegalArgumentException("authentication is not run-as but has different authenticating and effective subjects");
-            }
-        }
+        // Not much to check for users
     }
 
     private boolean hasSyntheticRealmNameOrType(@Nullable RealmRef realmRef) {
@@ -986,6 +1026,30 @@ public final class Authentication implements ToXContentObject {
             } else {
                 return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
             }
+        }
+
+        private boolean isFallbackRealm() {
+            return FALLBACK_REALM_NAME.equals(name) && FALLBACK_REALM_TYPE.equals(type);
+        }
+
+        private boolean isAttachRealm() {
+            return ATTACH_REALM_NAME.equals(name) && ATTACH_REALM_TYPE.equals(type);
+        }
+
+        private boolean isAnonymousRealm() {
+            return ANONYMOUS_REALM_NAME.equals(name) && ANONYMOUS_REALM_TYPE.equals(type);
+        }
+
+        private boolean isApiKeyRealm() {
+            return API_KEY_REALM_NAME.equals(name) && API_KEY_REALM_TYPE.equals(type);
+        }
+
+        private boolean isServiceAccountRealm() {
+            return ServiceAccountSettings.REALM_NAME.equals(name) && ServiceAccountSettings.REALM_TYPE.equals(type);
+        }
+
+        private boolean isRemoteAccessRealm() {
+            return REMOTE_ACCESS_REALM_NAME.equals(name) && REMOTE_ACCESS_REALM_TYPE.equals(type);
         }
 
         static RealmRef newInternalAttachRealmRef(String nodeName) {
@@ -1254,7 +1318,9 @@ public final class Authentication implements ToXContentObject {
             if (false == User.isInternal(user)) {
                 boolean hasInnerUser = input.readBoolean();
                 assert false == hasInnerUser : "inner user is not allowed";
-                throw new IllegalStateException("inner user is not allowed");
+                if (hasInnerUser) {
+                    throw new IllegalStateException("inner user is not allowed");
+                }
             }
             return user;
         }

@@ -105,7 +105,7 @@ class AuthorizationDenialMessages {
     }
 
     private static String authenticatedUserDescription(Authentication authentication) {
-        String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
+        String userText = (authentication.isServiceAccount() ? "service account" : "user")
             + " ["
             + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";

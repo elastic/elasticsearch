@@ -349,10 +349,8 @@ public class AuthenticationTests extends ESTestCase {
 
         if (isServiceAccount) {
             assertThat(authentication.isServiceAccount(), is(true));
-            assertThat(authentication.isAuthenticatedWithServiceAccount(), is(true));
         } else {
             assertThat(authentication.isServiceAccount(), is(false));
-            assertThat(authentication.isAuthenticatedWithServiceAccount(), is(false));
         }
     }
 
@@ -631,9 +629,8 @@ public class AuthenticationTests extends ESTestCase {
         // Service account cannot run-as
         assertThat(AuthenticationTestHelper.builder().serviceAccount().build().supportsRunAs(anonymousUser), is(false));
 
-        // Neither internal user nor its token can run-as
+        // internal user cannot run-as
         assertThat(AuthenticationTestHelper.builder().internal().build().supportsRunAs(anonymousUser), is(false));
-        assertThat(AuthenticationTestHelper.builder().internal().build().token().supportsRunAs(anonymousUser), is(false));
 
         // Neither anonymous user nor its token can run-as
         assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().supportsRunAs(anonymousUser), is(false));

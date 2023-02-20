@@ -49,6 +49,11 @@ public class TimingStatsTests extends AbstractBWCSerializationTestCase<TimingSta
         return createRandom();
     }
 
+    @Override
+    protected TimingStats mutateInstance(TimingStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static TimingStats createRandom() {
         return new TimingStats(TimeValue.timeValueMillis(randomNonNegativeLong()));
     }

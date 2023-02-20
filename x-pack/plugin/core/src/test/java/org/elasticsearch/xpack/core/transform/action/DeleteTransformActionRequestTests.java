@@ -12,8 +12,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
 
-import java.io.IOException;
-
 public class DeleteTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
@@ -26,7 +24,7 @@ public class DeleteTransformActionRequestTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         boolean force = instance.isForce();
         TimeValue timeout = instance.timeout();

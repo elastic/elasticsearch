@@ -1797,7 +1797,6 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testSearchEmptyDoc() {
-        assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}", XContentType.JSON));
         client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
         refresh();

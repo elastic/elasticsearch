@@ -33,6 +33,11 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
     }
 
     @Override
+    protected BinaryMathProcessor mutateInstance(BinaryMathProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<BinaryMathProcessor> instanceReader() {
         return BinaryMathProcessor::new;
     }

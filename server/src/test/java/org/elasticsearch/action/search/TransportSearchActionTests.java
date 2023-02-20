@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -360,6 +361,11 @@ public class TransportSearchActionTests extends ESTestCase {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.CURRENT;
             }
 
             @Override
@@ -1430,7 +1436,7 @@ public class TransportSearchActionTests extends ESTestCase {
             searchRequest.source(new SearchSourceBuilder().query(new DummyQueryBuilder() {
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {
-                    throw new IllegalArgumentException("This query isn't serializable to nodes before " + Version.CURRENT);
+                    throw new IllegalArgumentException("Not serializable to " + Version.CURRENT);
                 }
             }));
             NodeClient client = new NodeClient(settings, threadPool);
@@ -1473,7 +1479,7 @@ public class TransportSearchActionTests extends ESTestCase {
                         containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
                     );
                     assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-                    assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+                    assertEquals("Not serializable to " + Version.CURRENT, ex.getCause().getMessage());
                     latch.countDown();
                 }
             });

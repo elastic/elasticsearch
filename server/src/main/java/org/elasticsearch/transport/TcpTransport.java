@@ -83,8 +83,8 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
@@ -403,7 +403,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                final TcpChannel channel = initiateChannel(node);
+                final TcpChannel channel = initiateChannel(node, connectionProfile);
                 if (logger.isTraceEnabled()) {
                     channel.addConnectListener(new ChannelOpenTraceLogger(channel));
                 }
@@ -423,7 +423,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             node,
             connectionProfile,
             channels,
-            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener, false)
+            new ThreadedActionListener<>(threadPool.generic(), listener)
         );
 
         for (TcpChannel channel : channels) {
@@ -760,7 +760,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     outboundHandler.sendBytes(
                         channel,
                         new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)),
-                        ActionListener.wrap(() -> CloseableChannel.closeChannel(channel))
+                        ActionListener.running(() -> CloseableChannel.closeChannel(channel))
                     );
                     closeChannel = false;
                 }
@@ -791,7 +791,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         assert addedOnThisCall : "Channel should only be added to accepted channel set once";
         // Mark the channel init time
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
+        channel.addCloseListener(ActionListener.running(() -> acceptedChannels.remove(channel)));
         logger.trace(() -> format("Tcp transport channel accepted: %s", channel));
     }
 
@@ -807,10 +807,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * Initiate a single tcp socket channel.
      *
      * @param node for the initiated connection
+     * @param connectionProfile the connection profile to use when connecting to the node
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 
     /**
      * Called to tear down internal resources
@@ -1018,6 +1019,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public static Set<ProfileSettings> getProfileSettings(Settings settings) {
         HashSet<ProfileSettings> profiles = new HashSet<>();
+        // Process remote cluster port first so that errors are consistently reported if there
+        // is direct usage of the _remote_cluster profile
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
+            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
+        }
         boolean isDefaultSet = false;
         for (String profile : settings.getGroups("transport.profiles.", true).keySet()) {
             profiles.add(new ProfileSettings(settings, profile));
@@ -1027,9 +1033,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         if (isDefaultSet == false) {
             profiles.add(new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE));
-        }
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
-            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
         }
         // Add the remote access profile
         return Collections.unmodifiableSet(profiles);
@@ -1124,7 +1127,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time
                             ch.getChannelStats().markAccessed(relativeMillisTime);
-                            ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
+                            ch.addCloseListener(ActionListener.running(nodeChannels::close));
                         });
                         keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                         nodeChannels.addCloseListener(new ChannelCloseLogger(node, connectionId, relativeMillisTime));

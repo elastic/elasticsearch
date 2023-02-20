@@ -10,6 +10,8 @@ package org.elasticsearch.search.fieldcaps;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -37,6 +40,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -51,6 +55,8 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -118,6 +124,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .endObject()
             .startObject("playlist")
             .field("type", "text")
+            .field("store", true)
             .endObject()
             .startObject("some_dimension")
             .field("type", "keyword")
@@ -666,50 +673,64 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(resp.getField("extra_field").get("integer").isAggregatable());
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction:TRACE",
+        reason = "verify the log output on cancelled"
+    )
     public void testCancel() throws Exception {
-        BlockingOnRewriteQueryBuilder.blockOnRewrite();
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
-        Request restRequest = new Request("POST", "/_field_caps?fields=*");
-        restRequest.setEntity(new StringEntity("""
-                  {
-                    "index_filter": {
-                        "blocking_query": {}
-                     }
-                  }
-            """, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
-        Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
-        logger.info("--> waiting for field-caps tasks to be started");
-        assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
-                .get()
-                .getTasks();
-            assertThat(tasks.size(), greaterThanOrEqualTo(2));
-            for (TaskInfo task : tasks) {
-                assertTrue(task.cancellable());
-                assertFalse(task.cancelled());
-            }
-        }, 30, TimeUnit.SECONDS);
-
-        cancellable.cancel();
-        logger.info("--> waiting for field-caps tasks to be cancelled");
-        assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
-                .get()
-                .getTasks();
-            for (TaskInfo task : tasks) {
-                assertTrue(task.cancellable());
-                assertTrue(task.cancelled());
-            }
-        }, 30, TimeUnit.SECONDS);
-
-        BlockingOnRewriteQueryBuilder.unblockOnRewrite();
-        expectThrows(CancellationException.class, future::actionGet);
+        MockLogAppender logAppender = new MockLogAppender();
+        try (Releasable ignored = logAppender.capturing(TransportFieldCapabilitiesAction.class)) {
+            logAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "clear resources",
+                    TransportFieldCapabilitiesAction.class.getCanonicalName(),
+                    Level.TRACE,
+                    "clear index responses on cancellation"
+                )
+            );
+            BlockingOnRewriteQueryBuilder.blockOnRewrite();
+            PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+            Request restRequest = new Request("POST", "/_field_caps?fields=*");
+            restRequest.setEntity(new StringEntity("""
+                      {
+                        "index_filter": {
+                            "blocking_query": {}
+                         }
+                      }
+                """, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
+            Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
+            logger.info("--> waiting for field-caps tasks to be started");
+            assertBusy(() -> {
+                List<TaskInfo> tasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                    .get()
+                    .getTasks();
+                assertThat(tasks.size(), greaterThanOrEqualTo(2));
+                for (TaskInfo task : tasks) {
+                    assertTrue(task.cancellable());
+                    assertFalse(task.cancelled());
+                }
+            }, 30, TimeUnit.SECONDS);
+            cancellable.cancel();
+            assertBusy(logAppender::assertAllExpectationsMatched);
+            logger.info("--> waiting for field-caps tasks to be cancelled");
+            assertBusy(() -> {
+                List<TaskInfo> tasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                    .get()
+                    .getTasks();
+                for (TaskInfo task : tasks) {
+                    assertTrue(task.cancellable());
+                    assertTrue(task.cancelled());
+                }
+            }, 30, TimeUnit.SECONDS);
+            BlockingOnRewriteQueryBuilder.unblockOnRewrite();
+            expectThrows(CancellationException.class, future::actionGet);
+        }
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
@@ -845,7 +866,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-            throw new UnsupportedOperationException();
+            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    BytesRef ref = (BytesRef) value;
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                }
+            };
         }
 
         private static final TypeParser PARSER = new FixedTypeParser(c -> new TestMetadataMapper());

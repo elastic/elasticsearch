@@ -32,4 +32,9 @@ public class TransformHealthIssueTests extends AbstractWireSerializingTestCase<T
     protected TransformHealthIssue createTestInstance() {
         return randomTransformHealthIssue();
     }
+
+    @Override
+    protected TransformHealthIssue mutateInstance(TransformHealthIssue instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

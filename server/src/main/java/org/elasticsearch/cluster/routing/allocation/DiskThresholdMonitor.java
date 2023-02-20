@@ -33,12 +33,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -123,6 +125,12 @@ public class DiskThresholdMonitor {
     }
 
     public void onNewInfo(ClusterInfo info) {
+        final ClusterState state = clusterStateSupplier.get();
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            logger.debug("skipping monitor as the cluster state is not recovered yet");
+            return;
+        }
+
         // TODO find a better way to limit concurrent updates (and potential associated reroutes) while allowing tests to ensure that
         // all ClusterInfo updates are processed and never ignored
         if (checkInProgress.compareAndSet(false, true) == false) {
@@ -166,7 +174,6 @@ public class DiskThresholdMonitor {
             lastNodes = Collections.unmodifiableSet(nodes);
         }
 
-        final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToMarkReadOnly = new HashSet<>();
         RoutingNodes routingNodes = state.getRoutingNodes();
         Set<String> indicesNotToAutoRelease = new HashSet<>();
@@ -370,6 +377,7 @@ public class DiskThresholdMonitor {
                 .stream()
                 .filter(meta -> meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
                 .flatMap(meta -> Stream.of(meta.getNodeId(), nodeNameToId.get(meta.getTargetNodeName())))
+                .filter(Objects::nonNull)  // The REPLACE target node might not still be in RoutingNodes
                 .collect(Collectors.toSet());
 
             // Generate a set of all the indices that exist on either the target or source of a node replacement

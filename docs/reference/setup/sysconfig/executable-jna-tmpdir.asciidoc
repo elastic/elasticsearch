@@ -34,9 +34,8 @@ instance:
 export ES_TMPDIR=/usr/share/elasticsearch/tmp
 --------------------------------------------
 
-* If you are using `systemd` to run {es} as a service, using the `systemctl`
-command, add the following line to the `[Service]` section of your
-`elasticsearch.service` unit file:
+* If you are using `systemd` to run {es} as a service, add the following
+line to the `[Service]` section in a <<systemd,service override file>>:
 +
 [source,text]
 --------------------------------------------

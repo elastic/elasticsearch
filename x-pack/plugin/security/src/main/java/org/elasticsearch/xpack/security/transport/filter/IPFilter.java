@@ -38,9 +38,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class IPFilter {
@@ -94,7 +94,7 @@ public class IPFilter {
     );
 
     public static final Setting<List<String>> REMOTE_CLUSTER_FILTER_ALLOW_SETTING = Setting.listSetting(
-        REMOTE_CLUSTER_PREFIX + "filter.allow", // Note these do not use the `xpack` prefix
+        setting(REMOTE_CLUSTER_PREFIX + "filter.allow"),
         TRANSPORT_FILTER_ALLOW_SETTING,
         Function.identity(),
         TRANSPORT_FILTER_ALLOW_SETTING::get,
@@ -104,7 +104,7 @@ public class IPFilter {
     );
 
     public static final Setting<List<String>> REMOTE_CLUSTER_FILTER_DENY_SETTING = Setting.listSetting(
-        REMOTE_CLUSTER_PREFIX + "filter.deny", // Note these do not use the `xpack` prefix
+        setting(REMOTE_CLUSTER_PREFIX + "filter.deny"),
         TRANSPORT_FILTER_DENY_SETTING,
         Function.identity(),
         TRANSPORT_FILTER_DENY_SETTING::get,
@@ -230,13 +230,14 @@ public class IPFilter {
             .stream()
             .filter(k -> TransportSettings.DEFAULT_PROFILE.equals(k) == false) // exclude default profile -- it's handled differently
             .collect(Collectors.toCollection(HashSet::new));
+        assert false == profiles.contains(REMOTE_CLUSTER_PROFILE);
         for (String profile : profiles) {
             Setting<List<String>> allowSetting = PROFILE_FILTER_ALLOW_SETTING.getConcreteSettingForNamespace(profile);
             profileAllowRules.put(profile, allowSetting.get(settings));
             Setting<List<String>> denySetting = PROFILE_FILTER_DENY_SETTING.getConcreteSettingForNamespace(profile);
             profileDenyRules.put(profile, denySetting.get(settings));
         }
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
             logger.debug(
                 "Remote access is enabled, populating filters for profile [{}] with contents of [{}] and [{}]",
                 REMOTE_CLUSTER_PROFILE,

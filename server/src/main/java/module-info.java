@@ -15,6 +15,7 @@ module org.elasticsearch.server {
     requires java.sql;
     requires java.management;
     requires jdk.unsupported;
+    requires java.net.http; // required by ingest-geoip's dependency maxmind.geoip2 https://github.com/elastic/elasticsearch/issues/93553
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
@@ -138,6 +139,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support;
     exports org.elasticsearch.action.support.broadcast;
     exports org.elasticsearch.action.support.broadcast.node;
+    exports org.elasticsearch.action.support.broadcast.unpromotable;
     exports org.elasticsearch.action.support.master;
     exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
@@ -204,6 +206,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.path;
     exports org.elasticsearch.common.recycler;
     exports org.elasticsearch.common.regex;
+    exports org.elasticsearch.common.scheduler;
     exports org.elasticsearch.common.settings;
     exports org.elasticsearch.common.text;
     exports org.elasticsearch.common.time;
@@ -371,6 +374,9 @@ module org.elasticsearch.server {
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 
-    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+    provides org.apache.lucene.codecs.PostingsFormat
+        with
+            org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
+            org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
 }

@@ -290,7 +290,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         DateHistogramInterval interval,
         ZoneId zone
     ) {
-        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.FixedInterval(interval), zone);
+        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.FixedInterval(interval), zone, null);
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(
@@ -298,7 +298,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         DateHistogramInterval interval,
         ZoneId zone
     ) {
-        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.CalendarInterval(interval), zone);
+        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.CalendarInterval(interval), zone, null);
     }
 
     /**

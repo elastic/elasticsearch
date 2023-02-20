@@ -286,13 +286,7 @@ public class RecoverySourceHandler {
                             // new one later on in the recovery.
                             shard.removePeerRecoveryRetentionLease(
                                 request.targetNode().getId(),
-                                new ThreadedActionListener<>(
-                                    logger,
-                                    shard.getThreadPool(),
-                                    ThreadPool.Names.GENERIC,
-                                    deleteRetentionLeaseStep,
-                                    false
-                                )
+                                new ThreadedActionListener<>(shard.getThreadPool().generic(), deleteRetentionLeaseStep)
                             );
                         } catch (RetentionLeaseNotFoundException e) {
                             logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
@@ -416,6 +410,8 @@ public class RecoverySourceHandler {
     ) {
         cancellableThreads.execute(() -> {
             CompletableFuture<Releasable> permit = new CompletableFuture<>();
+
+            // this wrapping looks unnecessary necessary, see #93290; TODO remove it
             final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -640,13 +636,13 @@ public class RecoverySourceHandler {
             for (StoreFileMetadata md : shardRecoveryPlan.getSourceFilesToRecover()) {
                 if (request.metadataSnapshot().fileMetadataMap().containsKey(md.name())) {
                     logger.trace(
-                        "recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        "recovery [phase1]: recovering [{}] from peer, exists in local store but is different: remote [{}], local [{}]",
                         md.name(),
                         request.metadataSnapshot().fileMetadataMap().get(md.name()),
                         md
                     );
                 } else {
-                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                    logger.trace("recovery [phase1]: recovering [{}] from peer, does not exist in remote", md.name());
                 }
             }
 
@@ -654,20 +650,33 @@ public class RecoverySourceHandler {
                 final StoreFileMetadata md = fileInfo.metadata();
                 if (request.metadataSnapshot().fileMetadataMap().containsKey(md.name())) {
                     logger.trace(
-                        "recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        "recovery [phase1]: recovering [{}] from snapshot, exists in local store but is different: remote [{}], local [{}]",
                         md.name(),
                         request.metadataSnapshot().fileMetadataMap().get(md.name()),
                         md
                     );
                 } else {
-                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                    logger.trace("recovery [phase1]: recovering [{}] from snapshot, does not exist in remote", md.name());
                 }
             }
 
             logger.trace(
-                "recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
-                filesToRecoverNames.size(),
+                """
+                    recovery [phase1]: total_size[{}], \
+                    recovering_files [{}] with total_size [{}] from peer, \
+                    recovering_files [{}] with total_size [{}] from snapshot, \
+                    reusing_files [{}] with total_size [{}]""",
                 ByteSizeValue.ofBytes(totalSize),
+                shardRecoveryPlan.getSourceFilesToRecover().size(),
+                ByteSizeValue.ofBytes(shardRecoveryPlan.getSourceFilesToRecover().stream().mapToLong(StoreFileMetadata::length).sum()),
+                shardRecoveryPlan.getSnapshotFilesToRecover().size(),
+                ByteSizeValue.ofBytes(
+                    shardRecoveryPlan.getSnapshotFilesToRecover()
+                        .getSnapshotFiles()
+                        .stream()
+                        .mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length)
+                        .sum()
+                ),
                 phase1ExistingFileNames.size(),
                 ByteSizeValue.ofBytes(existingTotalSize)
             );
@@ -958,7 +967,7 @@ public class RecoverySourceHandler {
             // to notify the listener about the cancellation
             final CountDown pendingRequestsCountDown = new CountDown(pendingRequests.size());
             for (ListenableFuture<Void> outstandingFuture : pendingRequests) {
-                outstandingFuture.addListener(ActionListener.wrap(() -> {
+                outstandingFuture.addListener(ActionListener.running(() -> {
                     if (pendingRequestsCountDown.countDown()) {
                         listener.onFailure(e);
                     }
@@ -981,7 +990,7 @@ public class RecoverySourceHandler {
                 final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
                 final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
-                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
+                    new ThreadedActionListener<>(shard.getThreadPool().generic(), cloneRetentionLeaseStep)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
                 cloneRetentionLeaseStep.addListener(listener.map(rr -> clonedLease));
@@ -996,7 +1005,7 @@ public class RecoverySourceHandler {
                 final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
                     estimatedGlobalCheckpoint,
-                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
+                    new ThreadedActionListener<>(shard.getThreadPool().generic(), addRetentionLeaseStep)
                 );
                 addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);

@@ -607,4 +607,19 @@ class S3BlobContainer extends AbstractBlobContainer {
             return Tuple.tuple(parts + 1, remaining);
         }
     }
+
+    @Override
+    public long compareAndExchangeRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    @Override
+    public boolean compareAndSetRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    @Override
+    public long getRegister(String key) throws IOException {
+        throw new UnsupportedOperationException(); // TODO
+    }
 }

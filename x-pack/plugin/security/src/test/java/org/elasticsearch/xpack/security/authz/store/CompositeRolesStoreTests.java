@@ -10,12 +10,14 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
@@ -31,6 +33,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -46,7 +50,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
@@ -64,6 +68,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -101,6 +106,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.BaseMatcher;
@@ -1846,7 +1852,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
+        final TransportVersion version = randomFrom(
+            TransportVersion.CURRENT,
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
+        );
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -1863,7 +1872,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
 
-        if (version == Version.CURRENT) {
+        if (version == TransportVersion.CURRENT) {
             verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         } else {
             verify(apiKeyService, times(1)).parseRoleDescriptors(anyString(), anyMap(), any());
@@ -1926,7 +1935,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
+        final TransportVersion version = randomFrom(
+            TransportVersion.CURRENT,
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
+        );
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -1944,7 +1956,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = roleFuture.actionGet();
         assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, AuthenticationTestHelper.builder().build()), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        if (version == Version.CURRENT) {
+        if (version == TransportVersion.CURRENT) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
                 (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
@@ -1969,6 +1981,153 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
         assertThat(role.names().length, is(1));
         assertThat(role.names()[0], containsString("user_role_"));
+    }
+
+    public void testGetRoleForRemoteAccessAuthentication() throws Exception {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+        ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(SECURITY_ENABLED_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
+        final ApiKeyService apiKeyService = spy(
+            new ApiKeyService(
+                SECURITY_ENABLED_SETTINGS,
+                Clock.systemUTC(),
+                mock(Client.class),
+                mock(SecurityIndexManager.class),
+                clusterService,
+                mock(CacheInvalidatorRegistry.class),
+                mock(ThreadPool.class)
+            )
+        );
+        final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            listener.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), anyActionListener());
+
+        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            fileRolesStore,
+            nativeRolesStore,
+            reservedRolesStore,
+            nativePrivStore,
+            null,
+            apiKeyService,
+            null,
+            null,
+            effectiveRoleDescriptors::set
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final TransportVersion version = TransportVersion.CURRENT;
+        final String apiKeyRoleName = "user_role_" + randomAlphaOfLength(4);
+        final Authentication apiKeyAuthentication = createApiKeyAuthentication(
+            apiKeyService,
+            randomValueOtherThanMany(
+                authc -> authc.getAuthenticationType() == AuthenticationType.API_KEY,
+                () -> AuthenticationTestHelper.builder().build()
+            ),
+            Collections.singleton(
+                new RoleDescriptor(
+                    apiKeyRoleName,
+                    null,
+                    new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index*").privileges("all").build() },
+                    null
+                )
+            ),
+            null,
+            version
+        );
+        final boolean emptyRemoteRole = randomBoolean();
+        Authentication authentication = apiKeyAuthentication.toRemoteAccess(
+            AuthenticationTestHelper.randomRemoteAccessAuthentication(
+                emptyRemoteRole
+                    ? RoleDescriptorsIntersection.EMPTY
+                    : new RoleDescriptorsIntersection(
+                        new RoleDescriptor(
+                            RBACEngine.REMOTE_USER_ROLE_NAME,
+                            null,
+                            new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+            )
+        );
+
+        // Randomly serialize and deserialize the authentication object to simulate authentication getting sent across nodes
+        if (randomBoolean()) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                authentication.writeTo(out);
+                final StreamInput in = out.bytes().streamInput();
+                authentication = new Authentication(in);
+            }
+        }
+
+        final PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
+        final Role role = roleFuture.actionGet();
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+
+        verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
+        assertThat(role.names().length, is(1));
+        assertThat(role.names()[0], equalTo(apiKeyRoleName));
+
+        // Smoke-test for authorization
+        final Metadata indexMetadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("index1")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    )
+            )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    )
+            )
+            .build();
+        final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
+        assertThat(
+            role.authorize(SearchAction.NAME, Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            is(false == emptyRemoteRole)
+        );
+        assertThat(
+            role.authorize(CreateIndexAction.NAME, Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            is(false)
+        );
+        assertThat(
+            role.authorize(SearchAction.NAME, Sets.newHashSet("index2"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            is(false)
+        );
     }
 
     public void testGetRolesForRunAs() {

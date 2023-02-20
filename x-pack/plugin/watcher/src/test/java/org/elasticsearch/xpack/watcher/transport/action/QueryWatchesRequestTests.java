@@ -68,6 +68,11 @@ public class QueryWatchesRequestTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
+    protected QueryWatchesAction.Request mutateInstance(QueryWatchesAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());

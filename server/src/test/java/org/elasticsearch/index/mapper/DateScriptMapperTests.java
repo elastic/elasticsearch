@@ -74,11 +74,9 @@ public class DateScriptMapperTests extends MapperScriptTestCase<DateFieldScript.
 
     @Override
     protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("LongPoint <field:1516729294000>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:1516729294000>", fields[1].toString());
-        assertEquals("LongPoint <field:1516729295000>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:1516729295000>", fields[3].toString());
+        assertEquals(2, fields.length);
+        assertEquals("LongField <field:1516729294000>", fields[0].toString());
+        assertEquals("LongField <field:1516729295000>", fields[1].toString());
     }
 
     @Override

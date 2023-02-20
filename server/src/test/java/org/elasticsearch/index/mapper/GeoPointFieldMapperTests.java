@@ -85,6 +85,47 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertAggregatableConsistency(mapperService.fieldType("field"));
     }
 
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        GeoPointFieldMapper.GeoPointFieldType ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("position", GeoPointFieldMapper.GeoPointFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "gauge");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [gauge] for field [time_series_metric] - accepted values are [position]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "counter");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [counter] for field [time_series_metric] - accepted values are [position]")
+            );
+        }
+    }
+
+    public final void testPositionMetricType() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "position");
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
     public void testGeoHashValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", stringEncode(1.3, 1.2))));

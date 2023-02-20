@@ -25,7 +25,8 @@ public final class TimeSeriesParams {
 
     public enum MetricType {
         GAUGE(new String[] { "max", "min", "value_count", "sum" }),
-        COUNTER(new String[] { "last_value" });
+        COUNTER(new String[] { "last_value" }),
+        POSITION(new String[] { "last_value", "geo_line" });
 
         private final String[] supportedAggs;
 

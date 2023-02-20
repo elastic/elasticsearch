@@ -28,6 +28,7 @@ import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherMultiGeoPointIndexFieldData;
@@ -66,7 +67,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     public static final String CONTENT_TYPE = "geo_point";
 
     private static Builder builder(FieldMapper in) {
-        return ((GeoPointFieldMapper) in).builder;
+        return toType(in).builder;
+    }
+
+    private static GeoPointFieldMapper toType(FieldMapper in) {
+        return (GeoPointFieldMapper) in;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -74,7 +79,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         final Parameter<Explicit<Boolean>> ignoreMalformed;
         final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
         final Parameter<GeoPoint> nullValue;
-        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        final Parameter<Boolean> indexed;
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
         private final Parameter<Script> script = Parameter.scriptParam(m -> builder(m).script.get());
@@ -83,8 +88,16 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         private final ScriptCompiler scriptCompiler;
         private final Version indexCreatedVersion;
+        private final Parameter<TimeSeriesParams.MetricType> metric;  // either null, or POSITION if this is a time series metric
+        private final IndexMode indexMode;  // either STANDARD or TIME_SERIES
 
-        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+        public Builder(
+            String name,
+            ScriptCompiler scriptCompiler,
+            boolean ignoreMalformedByDefault,
+            Version indexCreatedVersion,
+            IndexMode mode
+        ) {
             super(name);
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.nullValue = nullValueParam(
@@ -96,7 +109,24 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.script.precludesParameters(nullValue, ignoreMalformed, ignoreZValue);
+            this.indexMode = mode;
+            this.indexed = Parameter.indexParam(
+                m -> toType(m).indexed,
+                () -> indexMode != IndexMode.TIME_SERIES || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION
+            );
             addScriptValidation(script, indexed, hasDocValues);
+
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.POSITION).addValidator(v -> {
+                if (v != null && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException(
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                    );
+                }
+            });
+        }
+
+        private Parameter<TimeSeriesParams.MetricType> getMetric() {
+            return metric;
         }
 
         @Override
@@ -110,7 +140,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 nullValue,
                 script,
                 onScriptError,
-                meta };
+                meta,
+                metric };
         }
 
         public Builder docValues(boolean hasDocValues) {
@@ -164,7 +195,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 hasDocValues.get(),
                 geoParser,
                 scriptValues(),
-                meta.get()
+                meta.get(),
+                metric.get()
             );
             if (this.script.get() == null) {
                 return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), geoParser, this);
@@ -177,13 +209,23 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
 
     public static TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
+        (n, c) -> new Builder(
+            n,
+            c.scriptCompiler(),
+            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
+            c.indexVersionCreated(),
+            c.getIndexSettings().getMode()
+        ),
         MINIMUM_COMPATIBILITY_VERSION
     );
 
     private final Builder builder;
     private final FieldValues<GeoPoint> scriptValues;
     private final Version indexCreatedVersion;
+    /** The metric type (gauge, counter, summary) if  field is a time series metric */
+    private final TimeSeriesParams.MetricType metricType;
+    private final IndexMode indexMode;
+    private final boolean indexed;
 
     public GeoPointFieldMapper(
         String simpleName,
@@ -206,6 +248,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         this.builder = builder;
         this.scriptValues = null;
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.metricType = builder.metric.get();
+        this.indexMode = builder.indexMode;
+        this.indexed = builder.indexed.get();
     }
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType, Parser<GeoPoint> parser, Builder builder) {
@@ -213,12 +258,20 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         this.builder = builder;
         this.scriptValues = builder.scriptValues();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.metricType = builder.metric.get();
+        this.indexMode = builder.indexMode;
+        this.indexed = builder.indexed.get();
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.scriptCompiler, builder.ignoreMalformed.getDefaultValue().value(), indexCreatedVersion)
-            .init(this);
+        return new Builder(
+            simpleName(),
+            builder.scriptCompiler,
+            builder.ignoreMalformed.getDefaultValue().value(),
+            indexCreatedVersion,
+            indexMode
+        ).init(this);
     }
 
     @Override
@@ -291,6 +344,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
+        private final TimeSeriesParams.MetricType metricType;
 
         public static final GeoFormatterFactory<GeoPoint> GEO_FORMATTER_FACTORY = new GeoFormatterFactory<>(
             List.of(new SimpleVectorTileFormatter())
@@ -305,15 +359,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             boolean hasDocValues,
             Parser<GeoPoint> parser,
             FieldValues<GeoPoint> scriptValues,
-            Map<String, String> meta
+            Map<String, String> meta,
+            TimeSeriesParams.MetricType metricType
         ) {
             super(name, indexed, stored, hasDocValues, parser, meta);
             this.scriptValues = scriptValues;
+            this.metricType = metricType;
         }
 
         // only used in test
         public GeoPointFieldType(String name) {
-            this(name, true, false, true, null, null, Collections.emptyMap());
+            this(name, true, false, true, null, null, Collections.emptyMap(), null);
         }
 
         @Override
@@ -427,6 +483,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     pivotDouble
                 );
             }
+        }
+
+        /**
+         * If field is a time series metric field, returns its metric type
+         * @return the metric type or null
+         */
+        @Override
+        public TimeSeriesParams.MetricType getMetricType() {
+            return metricType;
         }
     }
 

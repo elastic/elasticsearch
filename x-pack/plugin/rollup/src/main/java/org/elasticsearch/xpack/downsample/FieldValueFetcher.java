@@ -57,6 +57,8 @@ class FieldValueFetcher {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(name());
                 case COUNTER -> new MetricFieldProducer.CounterMetricFieldProducer(name());
+                // TODO: Support POSITION in downsampling
+                case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             };
         } else {
             // If field is not a metric, we downsample it as a label

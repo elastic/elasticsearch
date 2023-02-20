@@ -155,7 +155,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 null
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, Version.CURRENT).docValues(docValues)
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, Version.CURRENT, null).docValues(docValues)
                 .build(context)
                 .fieldType();
         } else if (type.equals("binary")) {

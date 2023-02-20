@@ -137,7 +137,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
-        this.lifecycle = lifecycle;
+        this.lifecycle = DataLifecycle.isEnabled() ? lifecycle : null;
         assert assertConsistent(this.indices);
     }
 
@@ -714,7 +714,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode != null) {
             builder.field(INDEX_MODE.getPreferredName(), indexMode);
         }
-        if (DataLifecycle.isEnabled() && lifecycle != null) {
+        if (lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName(), lifecycle);
         }
         builder.endObject();

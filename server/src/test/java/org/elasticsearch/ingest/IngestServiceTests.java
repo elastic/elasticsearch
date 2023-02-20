@@ -1884,18 +1884,18 @@ public class IngestServiceTests extends ESTestCase {
         verifyNoInteractions(mockedRequest, mockedMetadata);
     }
 
-    public void testIndexRequestHasAPipeline() {
+    public void testHasAPipeline() {
         var indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline(NOOP_PIPELINE_NAME);
-        assertFalse(IngestService.indexRequestHasPipeline(indexRequest));
+        assertFalse(IngestService.hasPipeline(indexRequest));
 
         indexRequest = new IndexRequest("idx").setPipeline("some-pipeline").setFinalPipeline(NOOP_PIPELINE_NAME);
-        assertTrue(IngestService.indexRequestHasPipeline(indexRequest));
+        assertTrue(IngestService.hasPipeline(indexRequest));
 
         indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline("some-final-pipeline");
-        assertTrue(IngestService.indexRequestHasPipeline(indexRequest));
+        assertTrue(IngestService.hasPipeline(indexRequest));
 
         indexRequest = new IndexRequest("idx").setPipeline("some-pipeline").setFinalPipeline("some-final-pipeline");
-        assertTrue(IngestService.indexRequestHasPipeline(indexRequest));
+        assertTrue(IngestService.hasPipeline(indexRequest));
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {

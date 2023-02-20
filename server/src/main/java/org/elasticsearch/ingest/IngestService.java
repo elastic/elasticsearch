@@ -1240,7 +1240,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return indexMetadata;
     }
 
-    public static boolean indexRequestHasPipeline(IndexRequest indexRequest) {
+    public static boolean hasPipeline(IndexRequest indexRequest) {
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }

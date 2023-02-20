@@ -214,7 +214,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assertFalse("boolean doesn't support ignore_malformed", ignoreMalformed);
+        assumeFalse("boolean doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();
 
@@ -252,8 +252,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                     new SyntheticSourceInvalidExample(
                         equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
                         b -> b.field("type", "boolean").field("doc_values", false)
+                    ),
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [boolean] doesn't support synthetic source because it ignores malformed values"),
+                        b -> b.field("type", "boolean").field("ignore_malformed", true)
                     )
-                // If boolean had ignore_malformed we'd fail to index here
                 );
             }
         };

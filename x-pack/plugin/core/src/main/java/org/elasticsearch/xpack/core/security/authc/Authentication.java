@@ -109,7 +109,7 @@ public final class Authentication implements ToXContentObject {
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
-    public static final TransportVersion VERSION_API_KEYS_WITH_REMOTE_INDICES = RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES;
+    public static final TransportVersion VERSION_API_KEYS_WITH_REMOTE_INDICES = TransportVersion.V_8_8_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;

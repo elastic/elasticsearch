@@ -960,7 +960,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
         for (int i = 0; i < applicationPrivileges.length; i++) {
             final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.builder();
-            builder.application(randomAlphaOfLengthBetween(5, 12) + (randomBoolean() ? "*" : ""));
+            builder.application("app" + randomAlphaOfLengthBetween(5, 12) + (randomBoolean() ? "*" : ""));
             if (randomBoolean()) {
                 builder.privileges("*");
             } else {

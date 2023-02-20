@@ -194,6 +194,8 @@ public class ApiKeyService {
         Property.NodeScope
     );
 
+    public static final TransportVersion VERSION_REMOTE_INDICES_SUPPORTED = TransportVersion.V_8_8_0;
+
     private final Clock clock;
     private final Client client;
     private final SecurityIndexManager securityIndex;
@@ -302,12 +304,12 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final TransportVersion version = getMinNodeTransportVersion();
-            if (version.before(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+            if (version.before(VERSION_REMOTE_INDICES_SUPPORTED) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalStateException(
                         "all nodes must have version ["
-                            + RoleDescriptor.VERSION_REMOTE_INDICES
+                            + VERSION_REMOTE_INDICES_SUPPORTED
                             + "] or higher to support remote indices privileges for API keys"
                     )
                 );
@@ -413,12 +415,12 @@ public class ApiKeyService {
         }
 
         final TransportVersion version = getMinNodeTransportVersion();
-        if (version.before(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+        if (version.before(VERSION_REMOTE_INDICES_SUPPORTED) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalStateException(
                     "all nodes must have version ["
-                        + RoleDescriptor.VERSION_REMOTE_INDICES
+                        + VERSION_REMOTE_INDICES_SUPPORTED
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -526,7 +528,7 @@ public class ApiKeyService {
         final TransportVersion version,
         final String... apiKeyIds
     ) {
-        if (version.before(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES)) {
+        if (version.before(VERSION_REMOTE_INDICES_SUPPORTED)) {
             final Set<String> affectedRoles = new LinkedHashSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {

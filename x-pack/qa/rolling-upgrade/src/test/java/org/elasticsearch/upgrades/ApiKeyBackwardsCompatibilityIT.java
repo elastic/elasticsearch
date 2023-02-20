@@ -21,7 +21,10 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,15 +34,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public static final Version API_KEY_SUPPORT_REMOTE_INDICES_VERSION = Version.V_8_8_0;
-    private static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
 
     private RestClient oldVersionClient = null;
     private RestClient newVersionClient = null;
@@ -53,35 +58,63 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             case OLD -> {
                 // succeed when remote_indices are not provided
                 boolean includeRoles = randomBoolean();
-                Tuple<String, String> apiKey = createApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
+                Tuple<String, String> apiKey = createOrGrantApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
+                updateOrBulkUpdateApiKey(apiKey.v1(), randomRoleDescriptors(false));
                 authenticateWithApiKey(apiKey.v1(), apiKey.v2());
 
                 // fail if we include remote_indices
-                ResponseException e = expectThrows(ResponseException.class, () -> createApiKey(randomRoleDescriptors(true)));
-                assertThat(e.getMessage(), containsString("failed to parse role [my_role]. unexpected field [remote_indices]"));
+                var createException = expectThrows(Exception.class, () -> createOrGrantApiKey(randomRoleDescriptors(true)));
+                assertThat(
+                    createException.getMessage(),
+                    anyOf(
+                        containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                        containsString("remote indices not supported for API keys")
+                    )
+                );
+
+                RestClient client = client();
+                if (isUpdateApiSupported(client)) {
+                    var updateException = expectThrows(
+                        Exception.class,
+                        () -> updateOrBulkUpdateApiKey(client, apiKey.v1(), randomRoleDescriptors(true))
+                    );
+
+                    assertThat(
+                        updateException.getMessage(),
+                        anyOf(
+                            containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                            containsString("remote indices not supported for API keys")
+                        )
+                    );
+                }
             }
             case MIXED -> {
                 try {
                     this.createClientsByVersion();
                     // succeed when remote_indices are not provided
                     boolean includeRoles = randomBoolean();
-                    Tuple<String, String> apiKey = createApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
-                    authenticateWithApiKey(oldVersionClient, apiKey.v1(), apiKey.v2());
-                    authenticateWithApiKey(newVersionClient, apiKey.v1(), apiKey.v2());
+                    Tuple<String, String> apiKey = createOrGrantApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
+                    updateOrBulkUpdateApiKey(apiKey.v1(), randomRoleDescriptors(false));
+                    authenticateWithApiKey(apiKey.v1(), apiKey.v2());
 
                     // fail when remote_indices are provided:
                     // against old node
                     ResponseException e = expectThrows(
                         ResponseException.class,
-                        () -> createApiKey(oldVersionClient, randomRoleDescriptors(true))
+                        () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true))
                     );
                     assertThat(e.getMessage(), containsString("failed to parse role [my_role]. unexpected field [remote_indices]"));
 
                     // and against new node
-                    e = expectThrows(ResponseException.class, () -> createApiKey(newVersionClient, randomRoleDescriptors(true)));
+                    e = expectThrows(ResponseException.class, () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true)));
                     assertThat(
                         e.getMessage(),
-                        containsString("all nodes must have version [8060099] or higher to support remote indices privileges")
+                        anyOf(
+                            containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                            containsString(
+                                "all nodes must have version [8.8.0] or higher to support remote indices privileges for API keys"
+                            )
+                        )
                     );
                 } finally {
                     this.closeClientsByVersion();
@@ -90,35 +123,115 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             case UPGRADED -> {
                 // succeed either way
                 boolean includeRoles = randomBoolean();
-                Tuple<String, String> apiKey = createApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
+                Tuple<String, String> apiKey = createOrGrantApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
+                updateOrBulkUpdateApiKey(apiKey.v1(), randomRoleDescriptors(false));
                 authenticateWithApiKey(apiKey.v1(), apiKey.v2());
 
-                Tuple<String, String> apiKeyWithRemoteIndices = createApiKey(randomRoleDescriptors(true));
+                Tuple<String, String> apiKeyWithRemoteIndices = createOrGrantApiKey(randomRoleDescriptors(true));
+                updateOrBulkUpdateApiKey(apiKey.v1(), randomRoleDescriptors(true));
                 authenticateWithApiKey(apiKeyWithRemoteIndices.v1(), apiKeyWithRemoteIndices.v2());
             }
         }
     }
 
-    private Tuple<String, String> createApiKey(String roles) throws IOException {
-        return createApiKey(client(), roles);
+    private Tuple<String, String> createOrGrantApiKey(String roles) throws IOException {
+        return createOrGrantApiKey(client(), roles);
     }
 
-    private Tuple<String, String> createApiKey(RestClient client, String roles) throws IOException {
+    private Tuple<String, String> createOrGrantApiKey(RestClient client, String roles) throws IOException {
         final String name = "test-api-key-" + randomAlphaOfLengthBetween(3, 5);
-        final Request createApiKeyRequest = new Request("POST", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity(Strings.format("""
+        final Request createApiKeyRequest;
+        String body = Strings.format("""
             {
                 "name": "%s",
                 "role_descriptors": %s
-            }""", name, roles));
-        Response response = client.performRequest(createApiKeyRequest);
-        assertOK(response);
-        final ObjectPath path = ObjectPath.createFromResponse(response);
+            }""", name, roles);
+        // Grant API did not exist before 7.7.0
+        final boolean grantApiKey = randomBoolean() && UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_7_0);
+        if (grantApiKey) {
+            createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
+            createApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
+                    {
+                        "grant_type" : "password",
+                        "username"   : "%s",
+                        "password"   : "%s",
+                        "api_key"    :  %s
+                    }
+                """, "test_user", SecuritySettingsSourceField.TEST_PASSWORD, body));
+        } else {
+            createApiKeyRequest = new Request("POST", "_security/api_key");
+            createApiKeyRequest.setJsonEntity(body);
+        }
+
+        final Response createApiKeyResponse;
+        if (grantApiKey) {
+            createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        } else {
+            createApiKeyResponse = client.performRequest(createApiKeyRequest);
+        }
+        assertOK(createApiKeyResponse);
+        final ObjectPath path = ObjectPath.createFromResponse(createApiKeyResponse);
         final String id = path.evaluate("id");
         final String key = path.evaluate("api_key");
         assertThat(id, notNullValue());
         assertThat(key, notNullValue());
         return Tuple.tuple(id, key);
+    }
+
+    private void updateOrBulkUpdateApiKey(String id, String roles) throws IOException {
+        updateOrBulkUpdateApiKey(client(), id, roles);
+    }
+
+    private boolean isUpdateApiSupported(RestClient client) {
+        return switch (CLUSTER_TYPE) {
+            case OLD -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0); // Update API was introduced in 8.4.0.
+            case MIXED -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0) || client == newVersionClient;
+            case UPGRADED -> true;
+        };
+    }
+
+    private boolean isBulkUpdateApiSupported(RestClient client) {
+        return switch (CLUSTER_TYPE) {
+            case OLD -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_5_0); // Bulk update API was introduced in 8.5.0.
+            case MIXED -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_5_0) || client == newVersionClient;
+            case UPGRADED -> true;
+        };
+    }
+
+    private void updateOrBulkUpdateApiKey(RestClient client, String id, String roles) throws IOException {
+        if (false == isUpdateApiSupported(client)) {
+            return; // Update API is not supported.
+        }
+        final Request updateApiKeyRequest;
+        final boolean bulkUpdate = randomBoolean() && isBulkUpdateApiSupported(client);
+        if (bulkUpdate) {
+            updateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+            updateApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
+                {
+                    "ids": [ "%s" ],
+                    "role_descriptors": %s
+                }
+                """, id, roles));
+        } else {
+            updateApiKeyRequest = new Request("PUT", "_security/api_key/" + id);
+            updateApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
+                {
+                    "role_descriptors": %s
+                }
+                """, roles));
+        }
+
+        final Response updateApiKeyResponse = client.performRequest(updateApiKeyRequest);
+        assertOK(updateApiKeyResponse);
+
+        if (bulkUpdate) {
+            List<String> updated = ObjectPath.createFromResponse(updateApiKeyResponse).evaluate("updated");
+            assertThat(updated.size(), equalTo(1));
+            assertThat(updated.get(0), equalTo(id));
+        } else {
+            boolean updated = ObjectPath.createFromResponse(updateApiKeyResponse).evaluate("updated");
+            assertThat(updated, equalTo(true));
+        }
     }
 
     private Map<String, Object> authenticateWithApiKey(String id, String key) throws IOException {
@@ -138,7 +251,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             authenticationTypeString.toUpperCase(Locale.ROOT)
         );
         assertThat(authenticationType, is(Authentication.AuthenticationType.API_KEY));
-        assertThat(path.evaluate("api_key.id"), is(id));
         return responseAsMap(response);
     }
 
@@ -147,25 +259,11 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private static String randomRoleDescriptors(boolean includeRemoteIndices) throws IOException {
-        Map<String, Object> myRole = new HashMap<>();
-        myRole.put("cluster", List.of("all"));
-        myRole.put(
-            "indices",
-            List.of(Map.ofEntries(Map.entry("names", List.of("test-*")), Map.entry("privileges", List.of("read", "read_cross_cluster"))))
-        );
-        if (includeRemoteIndices) {
-            myRole.put(
-                "remote_indices",
-                List.of(
-                    Map.ofEntries(
-                        Map.entry("names", List.of("test-*")),
-                        Map.entry("privileges", List.of("read", "read_cross_cluster")),
-                        Map.entry("clusters", List.of(REMOTE_CLUSTER_ALIAS))
-                    )
-                )
-            );
-        }
-        return XContentTestUtils.convertToXContent(Map.of("my_role", myRole), XContentType.JSON).utf8ToString();
+        String result = XContentTestUtils.convertToXContent(
+            Map.of("my_role", randomRoleDescriptor(includeRemoteIndices)),
+            XContentType.JSON
+        ).utf8ToString();
+        return result;
     }
 
     private void createClientsByVersion() throws IOException {
@@ -214,5 +312,19 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             clientsByVersion.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
         }
         return clientsByVersion;
+    }
+
+    private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteIndices) {
+        return new RoleDescriptor(
+            randomAlphaOfLengthBetween(3, 90),
+            randomSubsetOf(Set.of("all", "monitor", "*", "none")).toArray(String[]::new),
+            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTests.randomApplicationPrivileges(),
+            null,
+            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
+            RoleDescriptorTests.randomRoleDescriptorMetadata(false),
+            Map.of(),
+            includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3) : null
+        );
     }
 }

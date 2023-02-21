@@ -1,0 +1,5 @@
+pr: 85931
+summary: Invoke default pipeline of new index
+area: Ingest Node
+type: enhancement
+issues: []

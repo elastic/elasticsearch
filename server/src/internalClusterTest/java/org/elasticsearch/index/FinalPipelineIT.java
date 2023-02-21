@@ -158,7 +158,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         assertEquals(true, target.getHits().getAt(0).getSourceAsMap().get("final"));
     }
 
-    public void testDefaultPipelineOfNewDestinationIsInvoked() {
+    public void testDefaultPipelineOfNewDestinationIsNotInvoked() {
         Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
         createIndex("index", settings);
 

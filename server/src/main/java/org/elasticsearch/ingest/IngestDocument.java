@@ -907,7 +907,7 @@ public final class IngestDocument {
 
     public void redirect(String destIndex) {
         getMetadata().setIndex(destIndex);
-        this.invokeDefaultPipelineOfDestination = true;
+        invokeDefaultPipelineOfDestination = true;
     }
 
     public boolean isInvokeDefaultPipelineOfDestination() {

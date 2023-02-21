@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -916,8 +917,10 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRemoveRemoteIndicesFromRoleDescriptors() {
-        final BytesReference roleWithoutRemoteIndices = new BytesArray("""
-            {"user_role":{"cluster":["all"]}}""");
+        final boolean includeClusterPrivileges = randomBoolean();
+        final BytesReference roleWithoutRemoteIndices = new BytesArray(Strings.format("""
+            {"user_role":{%s}}""", includeClusterPrivileges ? """
+            "cluster":["all"]""" : ""));
 
         // role without remote indices should stay the same
         assertThat(
@@ -928,10 +931,11 @@ public class AuthenticationTests extends ESTestCase {
         // role with remote indices should be filtered
         assertThat(
             roleWithoutRemoteIndices.toBytesRef(),
-            equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(new BytesArray("""
-                {"user_role":{"cluster":["all"],
+            equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(new BytesArray(Strings.format("""
+                {"user_role":{%s
                 "remote_indices":{"names":["logs-*"],"privileges":["read"],"clusters":["my_cluster*","other_cluster"]}}
-                }""")).toBytesRef())
+                }""", includeClusterPrivileges ? """
+                "cluster":["all"],""" : ""))).toBytesRef())
         );
 
         // check null value

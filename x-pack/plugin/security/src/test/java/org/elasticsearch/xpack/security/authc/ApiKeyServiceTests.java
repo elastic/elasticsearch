@@ -2040,7 +2040,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minNodeVersion = randomFrom(
             Version.getDeclaredVersions(Version.class)
                 .stream()
-                .filter(v -> v.transportVersion.before(ApiKeyService.VERSION_REMOTE_INDICES_SUPPORTED))
+                .filter(v -> v.transportVersion.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
                 .map(v -> v.transportVersion)
                 .toList()
         );
@@ -2057,9 +2057,9 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
             assertWarnings(
-                "Removed API key's remote indices privileges from role(s) "
+                "Removed API key's remote indices privileges from role(s) ["
                     + Arrays.stream(userRoleNamesWithRemoteIndicesPrivileges).collect(Collectors.toSet())
-                    + ". Remote indices are not supported by all nodes in the cluster. "
+                    + "]. Remote indices are not supported by all nodes in the cluster. "
                     + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
             );
         }
@@ -2073,7 +2073,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minNodeVersion = randomFrom(
             Version.getDeclaredVersions(Version.class)
                 .stream()
-                .filter(v -> v.transportVersion.onOrAfter(ApiKeyService.VERSION_REMOTE_INDICES_SUPPORTED))
+                .filter(v -> v.transportVersion.onOrAfter(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
                 .map(v -> v.transportVersion)
                 .toList()
         );

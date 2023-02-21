@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -329,9 +328,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         long timeout_millis = request.timeout();
         long scheduledEnd = request.nodeStartedTimeMillis() + timeout_millis;
 
-        ArrayList<TermsEnum> shardTermsEnums = new ArrayList<>();
         ArrayList<Closeable> openedResources = new ArrayList<>();
         try {
+            MultiShardTermsEnum.Builder teBuilder = new MultiShardTermsEnum.Builder();
             for (ShardId shardId : request.shardIds()) {
                 // Check we haven't just arrived on a node and time is up already.
                 if (System.currentTimeMillis() > scheduledEnd) {
@@ -359,15 +358,15 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                         request.searchAfter()
                     );
                     if (terms != null) {
-                        shardTermsEnums.add(terms);
+                        teBuilder.add(terms, mappedFieldType::valueForDisplay);
                     }
                 }
             }
-            if (shardTermsEnums.size() == 0) {
+            if (teBuilder.size() == 0) {
                 // No term enums available
                 return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
             }
-            MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new TermsEnum[0]));
+            MultiShardTermsEnum te = teBuilder.build();
 
             int shard_size = request.size();
             // All the above prep might take a while - do a timer check now before we continue further.
@@ -387,8 +386,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     }
                     termCount = 0;
                 }
-                BytesRef bytes = te.term();
-                termsList.add(bytes.utf8ToString());
+                termsList.add(te.decodedTerm());
                 if (termsList.size() >= shard_size) {
                     break;
                 }

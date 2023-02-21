@@ -21,7 +21,7 @@ import java.io.IOException;
 public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
     public static final GetEngineAction INSTANCE = new GetEngineAction();
-    public static final String NAME = "cluster:admin/engine/get"; // TODO verify this
+    public static final String NAME = "cluster:admin/engine/get";
 
     private GetEngineAction() {
         super(NAME, GetEngineAction.Response::new);

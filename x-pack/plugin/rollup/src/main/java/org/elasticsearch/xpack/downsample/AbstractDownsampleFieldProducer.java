@@ -14,12 +14,12 @@ import java.io.IOException;
 /**
  * Base class that reads fields from the source index and produces their downsampled values
  */
-abstract class AbstractRollupFieldProducer implements RollupFieldSerializer {
+abstract class AbstractDownsampleFieldProducer implements DownsampleFieldSerializer {
 
     private final String name;
     protected boolean isEmpty;
 
-    AbstractRollupFieldProducer(String name) {
+    AbstractDownsampleFieldProducer(String name) {
         this.name = name;
         this.isEmpty = true;
     }

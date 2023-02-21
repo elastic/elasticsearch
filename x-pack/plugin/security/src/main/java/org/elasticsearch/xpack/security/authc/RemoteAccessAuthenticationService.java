@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_
 
 public class RemoteAccessAuthenticationService {
 
-    public static final TransportVersion VERSION_REMOTE_ACCESS_AUTHENTICATION = TransportVersion.V_8_8_0;
+    public static final Version VERSION_REMOTE_ACCESS_AUTHENTICATION = Version.V_8_8_0;
 
     public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
         "_cross_cluster_internal",
@@ -71,8 +71,7 @@ public class RemoteAccessAuthenticationService {
         final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
         final ThreadContext threadContext = authcContext.getThreadContext();
 
-        // TODO revisit this once Node's Version is refactored
-        if (getMinNodeTransportVersion().before(VERSION_REMOTE_ACCESS_AUTHENTICATION)) {
+        if (getMinNodeVersion().before(VERSION_REMOTE_ACCESS_AUTHENTICATION)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
@@ -180,8 +179,8 @@ public class RemoteAccessAuthenticationService {
         }
     }
 
-    private TransportVersion getMinNodeTransportVersion() {
-        return clusterService.state().nodes().getMinNodeVersion().transportVersion;
+    private Version getMinNodeVersion() {
+        return clusterService.state().nodes().getMinNodeVersion();
     }
 
     private static void withRequestProcessingFailure(

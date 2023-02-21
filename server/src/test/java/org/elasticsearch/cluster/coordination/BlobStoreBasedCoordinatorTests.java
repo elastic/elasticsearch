@@ -112,6 +112,9 @@ public class BlobStoreBasedCoordinatorTests extends CoordinatorTests {
                                 .lastAcceptedConfiguration(
                                     new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
                                 )
+                                .lastCommittedConfiguration(
+                                    new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
+                                )
                                 .build()
                         )
                 )
@@ -213,7 +216,6 @@ public class BlobStoreBasedCoordinatorTests extends CoordinatorTests {
         void writeClusterState(ClusterState state) {
             final var newPersistedState = new PersistentClusterState(currentTerm, state.version(), state.metadata());
             if (blobStore.compareAndSetClusterState(latestPersistedState, newPersistedState) == false) {
-                latestPersistedState = blobStore.readClusterState();
                 throw new RuntimeException("Conflicting cluster state update");
             }
             latestPersistedState = newPersistedState;

@@ -265,7 +265,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             AuthorizationDenialMessages.successfulAuthenticationDescription(authentication5, null),
             equalTo(
                 Strings.format(
-                    "remote %s authenticated by API key id [%s] of user [%s] for remote access",
+                    "%s authenticated by API key id [%s] of user [%s] on remote cluster",
                     AuthorizationDenialMessages.successfulAuthenticationDescription(innerAuthentication, null),
                     authentication5.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
                     authentication5.getEffectiveSubject().getUser().principal()

@@ -120,11 +120,10 @@ class AuthorizationDenialMessages {
                     .getMetadata()
                     .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
                 assert remoteAccessAuthentication != null : "remote access authentication must be present in the metadata";
-                userText = "remote "
-                    + successfulAuthenticationDescription(remoteAccessAuthentication, null)
+                userText = successfulAuthenticationDescription(remoteAccessAuthentication, null)
                     + " authenticated by "
                     + userText
-                    + " for remote access";
+                    + " on remote cluster";
             }
         }
         return userText;

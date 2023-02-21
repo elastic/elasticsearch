@@ -21,7 +21,7 @@ public class RestGetEngineAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_engine";
+        return "get_engine_action";
     }
 
     @Override
@@ -32,6 +32,6 @@ public class RestGetEngineAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         GetEngineAction.Request request = new GetEngineAction.Request(restRequest.param("engine_id"));
-        return channel -> client.execute(GetEngineAction.INSTANCE, request, new RestToXContentListener<GetEngineAction.Response>(channel));
+        return channel -> client.execute(GetEngineAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -57,7 +57,6 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         private final String[] indices;
         private final String analyticsCollectionName; // TODO should this be optional?
 
-
         public Response(StreamInput in) throws IOException {
             super(in);
             this.engineId = in.readString();

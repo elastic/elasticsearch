@@ -10,31 +10,19 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ENGINE_ORIGIN;
-
 public class TransportGetEngineAction extends HandledTransportAction<GetEngineAction.Request, GetEngineAction.Response> {
-
-    private final Client client;
 
     private final EngineIndexService engineIndexService;
 
     @Inject
-    public TransportGetEngineAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client,
-        EngineIndexService engineIndexService
-    ) {
+    public TransportGetEngineAction(TransportService transportService, ActionFilters actionFilters, EngineIndexService engineIndexService) {
         super(GetEngineAction.NAME, transportService, actionFilters, GetEngineAction.Request::new);
-        this.client = new OriginSettingClient(client, ENT_SEARCH_ENGINE_ORIGIN);
         this.engineIndexService = engineIndexService;
     }
 

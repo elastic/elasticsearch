@@ -55,9 +55,9 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
 
     record Config(int[] offsets, String utf8str) {}
 
-    static Config fromBase64Str(String s) {
+    static Config fromBase64EncodedResource(String resourcePath) throws IOException {
+        byte[] bytes = Base64.getDecoder().wrap(PrecompiledCharMapNormalizer.class.getResourceAsStream(resourcePath)).readAllBytes();
         int offset = 0;
-        byte[] bytes = Base64.getDecoder().decode(s);
         int trieSize = ByteBuffer.wrap(bytes, offset, 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt();
         offset += 4;
         int size = trieSize / 4;

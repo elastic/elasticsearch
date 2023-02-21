@@ -1022,6 +1022,10 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 --
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-xlm-roberta[]
+XLMRoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-xlm-roberta[]
+
 tag::inference-config-nlp-vocabulary[]
 The configuration for retrieving the vocabulary of the model. The vocabulary is
 then used at inference time. This information is usually provided automatically

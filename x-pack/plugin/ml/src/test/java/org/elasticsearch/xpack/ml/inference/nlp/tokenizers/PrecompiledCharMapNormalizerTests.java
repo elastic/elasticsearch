@@ -62,9 +62,8 @@ public class PrecompiledCharMapNormalizerTests extends ESTestCase {
     }
 
     static PrecompiledCharMapNormalizer.Config loadTestCharMap() throws IOException {
-        PreCompiledCharMap map = PreCompiledCharMap.fromResource(
-            "/org.elasticsearch.xpack.ml.inference.nlp.tokenizers/precompiled_char_map.json"
+        return PrecompiledCharMapNormalizer.fromBase64EncodedResource(
+            "/org/elasticsearch/xpack/ml/inference.nlp.tokenizers/spm_precompiled_normalizer.txt"
         );
-        return PrecompiledCharMapNormalizer.fromBase64Str(map.charMapStr());
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.XLMRobertaTokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -82,10 +83,22 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
                     );
                     return;
                 }
+                if (nlpConfig.getTokenization() instanceof XLMRobertaTokenization && request.getScores().isEmpty()) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "cannot put vocabulary for model [{}] as tokenizer type [{}] requires [{}] to be provided and non-empty",
+                            RestStatus.BAD_REQUEST,
+                            request.getModelId(),
+                            nlpConfig.getTokenization().getName(),
+                            Request.SCORES.getPreferredName()
+                        )
+                    );
+                    return;
+                }
                 trainedModelProvider.storeTrainedModelVocabulary(
                     request.getModelId(),
                     ((NlpConfig) inferenceConfig).getVocabularyConfig(),
-                    new Vocabulary(request.getVocabulary(), request.getModelId(), request.getMerges()),
+                    new Vocabulary(request.getVocabulary(), request.getModelId(), request.getMerges(), request.getScores()),
                     ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
                 );
                 return;

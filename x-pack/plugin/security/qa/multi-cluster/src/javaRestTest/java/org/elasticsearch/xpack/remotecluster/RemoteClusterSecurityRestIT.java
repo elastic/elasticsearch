@@ -152,10 +152,10 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(
                 exception.getMessage(),
                 containsString(
-                    "action [indices:data/read/search] is unauthorized for user [remote_search_user] "
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
                         + "with assigned roles [remote_search] authenticated by API key id ["
                         + remoteAccessApiKeyId
-                        + "] of user [test_user] on remote cluster on indices [index2]"
+                        + "] of user [test_user] on indices [index2]"
                 )
             );
 
@@ -168,10 +168,10 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(
                 exception2.getMessage(),
                 containsString(
-                    "action [indices:data/read/search] is unauthorized for user [remote_search_user] "
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
                         + "with assigned roles [remote_search] authenticated by API key id ["
                         + remoteAccessApiKeyId
-                        + "] of user [test_user] on remote cluster on indices [prefixed_index]"
+                        + "] of user [test_user] on indices [prefixed_index]"
                 )
             );
 

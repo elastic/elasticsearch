@@ -109,10 +109,10 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
             assertThat(
                 e2.getMessage(),
                 containsString(
-                    "action [indices:data/read/search] is unauthorized for remote user [_anonymous] "
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [_anonymous] "
                         + "with assigned roles [read_remote_shared_logs] authenticated by API key id ["
                         + remoteAccessApiKeyId
-                        + "] of user [test_user] for remote access on indices ["
+                        + "] of user [test_user] on indices ["
                         + inaccessibleIndexForAnonymous
                         + "]"
                 )

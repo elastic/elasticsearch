@@ -164,10 +164,18 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
     }
 
     private boolean isIdenticalPoint(Geometry geometry, LatLonGeometry latLonGeometry) {
-        if (geometry instanceof org.elasticsearch.geometry.Point point) {
-            if (latLonGeometry instanceof Point latLonPoint) {
+        if (latLonGeometry instanceof Point latLonPoint) {
+            if (geometry instanceof org.elasticsearch.geometry.Point point) {
                 return encodeLatitude(point.getLat()) == encodeLatitude(latLonPoint.getLat())
                     && encodeLongitude(point.getLon()) == encodeLongitude(latLonPoint.getLon());
+            } else if (geometry instanceof org.elasticsearch.geometry.Line line) {
+                for (int i = 0; i < line.length(); i++) {
+                    if (encodeLatitude(line.getLat(i)) != encodeLatitude(latLonPoint.getLat())
+                        || encodeLongitude(line.getLon(i)) != encodeLongitude(latLonPoint.getLon())) {
+                        return false;
+                    }
+                }
+                return true;
             }
         }
         return false;

@@ -129,6 +129,11 @@ public final class BlockUtils {
                 }
 
                 @Override
+                public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+                    return this;
+                }
+
+                @Override
                 public Block build() {
                     return constantNullBlock(size);
                 }

@@ -60,6 +60,54 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     }
 
     @Override
+    public IntBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        return copyFrom((IntBlock) block, beginInclusive, endExclusive);
+    }
+
+    /**
+     * Copy the values in {@code block} from {@code beginInclusive} to
+     * {@code endExclusive} into this builder.
+     */
+    public IntBlockBuilder copyFrom(IntBlock block, int beginInclusive, int endExclusive) {
+        if (endExclusive > block.getPositionCount()) {
+            throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
+        }
+        IntVector vector = block.asVector();
+        if (vector != null) {
+            copyFromVector(vector, beginInclusive, endExclusive);
+        } else {
+            copyFromBlock(block, beginInclusive, endExclusive);
+        }
+        return this;
+    }
+
+    private void copyFromBlock(IntBlock block, int beginInclusive, int endExclusive) {
+        for (int p = beginInclusive; p < endExclusive; p++) {
+            if (block.isNull(p)) {
+                appendNull();
+                continue;
+            }
+            int count = block.getValueCount(p);
+            if (count > 1) {
+                beginPositionEntry();
+            }
+            int i = block.getFirstValueIndex(p);
+            for (int v = 0; v < count; v++) {
+                appendInt(block.getInt(i++));
+            }
+            if (count > 1) {
+                endPositionEntry();
+            }
+        }
+    }
+
+    private void copyFromVector(IntVector vector, int beginInclusive, int endExclusive) {
+        for (int p = beginInclusive; p < endExclusive; p++) {
+            appendInt(vector.getInt(p));
+        }
+    }
+
+    @Override
     public IntBlock build() {
         if (positionEntryIsOpen) {
             endPositionEntry();

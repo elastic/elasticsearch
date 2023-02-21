@@ -60,6 +60,54 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
     }
 
     @Override
+    public BooleanBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        return copyFrom((BooleanBlock) block, beginInclusive, endExclusive);
+    }
+
+    /**
+     * Copy the values in {@code block} from {@code beginInclusive} to
+     * {@code endExclusive} into this builder.
+     */
+    public BooleanBlockBuilder copyFrom(BooleanBlock block, int beginInclusive, int endExclusive) {
+        if (endExclusive > block.getPositionCount()) {
+            throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
+        }
+        BooleanVector vector = block.asVector();
+        if (vector != null) {
+            copyFromVector(vector, beginInclusive, endExclusive);
+        } else {
+            copyFromBlock(block, beginInclusive, endExclusive);
+        }
+        return this;
+    }
+
+    private void copyFromBlock(BooleanBlock block, int beginInclusive, int endExclusive) {
+        for (int p = beginInclusive; p < endExclusive; p++) {
+            if (block.isNull(p)) {
+                appendNull();
+                continue;
+            }
+            int count = block.getValueCount(p);
+            if (count > 1) {
+                beginPositionEntry();
+            }
+            int i = block.getFirstValueIndex(p);
+            for (int v = 0; v < count; v++) {
+                appendBoolean(block.getBoolean(i++));
+            }
+            if (count > 1) {
+                endPositionEntry();
+            }
+        }
+    }
+
+    private void copyFromVector(BooleanVector vector, int beginInclusive, int endExclusive) {
+        for (int p = beginInclusive; p < endExclusive; p++) {
+            appendBoolean(vector.getBoolean(p));
+        }
+    }
+
+    @Override
     public BooleanBlock build() {
         if (positionEntryIsOpen) {
             endPositionEntry();

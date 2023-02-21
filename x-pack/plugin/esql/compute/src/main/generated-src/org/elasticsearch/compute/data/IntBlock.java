@@ -165,6 +165,12 @@ public sealed interface IntBlock extends Block permits FilterIntBlock,IntArrayBl
          */
         Builder appendInt(int value);
 
+        /**
+         * Copy the values in {@code block} from {@code beginInclusive} to
+         * {@code endExclusive} into this builder.
+         */
+        Builder copyFrom(IntBlock block, int beginInclusive, int endExclusive);
+
         @Override
         Builder appendNull();
 
@@ -173,6 +179,9 @@ public sealed interface IntBlock extends Block permits FilterIntBlock,IntArrayBl
 
         @Override
         Builder endPositionEntry();
+
+        @Override
+        Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
         IntBlock build();

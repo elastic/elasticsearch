@@ -168,6 +168,12 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
          */
         Builder appendBytesRef(BytesRef value);
 
+        /**
+         * Copy the values in {@code block} from {@code beginInclusive} to
+         * {@code endExclusive} into this builder.
+         */
+        Builder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive);
+
         @Override
         Builder appendNull();
 
@@ -176,6 +182,9 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
 
         @Override
         Builder endPositionEntry();
+
+        @Override
+        Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
         BytesRefBlock build();

@@ -7,15 +7,39 @@
 
 package org.elasticsearch.compute.data;
 
+import java.util.function.IntFunction;
+
 /**
  * The type of elements in {@link Block} and {@link Vector}
  */
 public enum ElementType {
-    BOOLEAN,
-    INT,
-    LONG,
-    DOUBLE,
-    NULL, // Blocks contain only null values
-    BYTES_REF,
-    UNKNOWN // Intermediate blocks, which doesn't support retrieving elements
+    BOOLEAN(BooleanBlock::newBlockBuilder),
+    INT(IntBlock::newBlockBuilder),
+    LONG(LongBlock::newBlockBuilder),
+    DOUBLE(DoubleBlock::newBlockBuilder),
+    /**
+     * Blocks containing only null values.
+     */
+    NULL(estimatedSize -> { throw new UnsupportedOperationException("can't build null blocks"); }),
+    // TODO we might want to be able to copy null vectors - so maybe we don't need this element type?
+
+    BYTES_REF(BytesRefBlock::newBlockBuilder),
+
+    /**
+     * Intermediate blocks which don't support retrieving elements.
+     */
+    UNKNOWN(estimatedSize -> { throw new UnsupportedOperationException("can't build null blocks"); });
+
+    private final IntFunction<Block.Builder> builder;
+
+    ElementType(IntFunction<Block.Builder> builder) {
+        this.builder = builder;
+    }
+
+    /**
+     * Create a new {@link Block.Builder} for blocks of this type.
+     */
+    public Block.Builder newBlockBuilder(int estimatedSize) {
+        return builder.apply(estimatedSize);
+    }
 }

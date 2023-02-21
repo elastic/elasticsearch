@@ -101,6 +101,68 @@ $if(BytesRef)$
 $endif$
 
     @Override
+    public $Type$BlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        return copyFrom(($Type$Block) block, beginInclusive, endExclusive);
+    }
+
+    /**
+     * Copy the values in {@code block} from {@code beginInclusive} to
+     * {@code endExclusive} into this builder.
+     */
+    public $Type$BlockBuilder copyFrom($Type$Block block, int beginInclusive, int endExclusive) {
+        if (endExclusive > block.getPositionCount()) {
+            throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
+        }
+        $Type$Vector vector = block.asVector();
+        if (vector != null) {
+            copyFromVector(vector, beginInclusive, endExclusive);
+        } else {
+            copyFromBlock(block, beginInclusive, endExclusive);
+        }
+        return this;
+    }
+
+    private void copyFromBlock($Type$Block block, int beginInclusive, int endExclusive) {
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        for (int p = beginInclusive; p < endExclusive; p++) {
+            if (block.isNull(p)) {
+                appendNull();
+                continue;
+            }
+            int count = block.getValueCount(p);
+            if (count > 1) {
+                beginPositionEntry();
+            }
+            int i = block.getFirstValueIndex(p);
+            for (int v = 0; v < count; v++) {
+$if(BytesRef)$
+                appendBytesRef(block.getBytesRef(i++, scratch));
+$else$
+                append$Type$(block.get$Type$(i++));
+$endif$
+            }
+            if (count > 1) {
+                endPositionEntry();
+            }
+        }
+    }
+
+    private void copyFromVector($Type$Vector vector, int beginInclusive, int endExclusive) {
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        for (int p = beginInclusive; p < endExclusive; p++) {
+$if(BytesRef)$
+            appendBytesRef(vector.getBytesRef(p, scratch));
+$else$
+            append$Type$(vector.get$Type$(p));
+$endif$
+        }
+    }
+
+    @Override
     public $Type$Block build() {
         if (positionEntryIsOpen) {
             endPositionEntry();

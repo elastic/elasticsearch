@@ -166,6 +166,12 @@ public sealed interface LongBlock extends Block permits FilterLongBlock,LongArra
          */
         Builder appendLong(long value);
 
+        /**
+         * Copy the values in {@code block} from {@code beginInclusive} to
+         * {@code endExclusive} into this builder.
+         */
+        Builder copyFrom(LongBlock block, int beginInclusive, int endExclusive);
+
         @Override
         Builder appendNull();
 
@@ -174,6 +180,9 @@ public sealed interface LongBlock extends Block permits FilterLongBlock,LongArra
 
         @Override
         Builder endPositionEntry();
+
+        @Override
+        Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
         LongBlock build();

@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
@@ -151,11 +152,15 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            IntVector.Builder blockBuilder = IntVector.newVectorBuilder(
+            IntBlock.Builder blockBuilder = IntBlock.newBlockBuilder(1);
+            IntBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+
+            IntVector.Builder vectorBuilder = IntVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            IntStream.range(0, positionCount).forEach(blockBuilder::appendInt);
-            IntVector vector = blockBuilder.build();
+            IntStream.range(0, positionCount).forEach(vectorBuilder::appendInt);
+            IntVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
         }
     }
@@ -212,11 +217,15 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            LongVector.Builder blockBuilder = LongVector.newVectorBuilder(
+            LongBlock.Builder blockBuilder = LongBlock.newBlockBuilder(1);
+            LongBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+
+            LongVector.Builder vectorBuilder = LongVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            LongStream.range(0, positionCount).forEach(blockBuilder::appendLong);
-            LongVector vector = blockBuilder.build();
+            LongStream.range(0, positionCount).forEach(vectorBuilder::appendLong);
+            LongVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
         }
     }
@@ -273,11 +282,15 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            DoubleVector.Builder blockBuilder = DoubleVector.newVectorBuilder(
+            DoubleBlock.Builder blockBuilder = DoubleBlock.newBlockBuilder(1);
+            DoubleBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+
+            DoubleVector.Builder vectorBuilder = DoubleVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(blockBuilder::appendDouble);
-            DoubleVector vector = blockBuilder.build();
+            IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(vectorBuilder::appendDouble);
+            DoubleVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
         }
     }
@@ -347,11 +360,15 @@ public class BasicBlockTests extends ESTestCase {
             );
         }
 
-        BytesRefVector.Builder blockBuilder = BytesRefVector.newVectorBuilder(
+        BytesRefBlock.Builder blockBuilder = BytesRefBlock.newBlockBuilder(1);
+        BytesRefBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+        assertThat(copy, equalTo(block));
+
+        BytesRefVector.Builder vectorBuilder = BytesRefVector.newVectorBuilder(
             randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
         );
-        IntStream.range(0, positionCount).mapToObj(ii -> new BytesRef(randomAlphaOfLength(5))).forEach(blockBuilder::appendBytesRef);
-        BytesRefVector vector = blockBuilder.build();
+        IntStream.range(0, positionCount).mapToObj(ii -> new BytesRef(randomAlphaOfLength(5))).forEach(vectorBuilder::appendBytesRef);
+        BytesRefVector vector = vectorBuilder.build();
         assertSingleValueDenseBlock(vector.asBlock());
     }
 
@@ -452,11 +469,15 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            DoubleVector.Builder blockBuilder = DoubleVector.newVectorBuilder(
+            BooleanBlock.Builder blockBuilder = BooleanBlock.newBlockBuilder(1);
+            BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+
+            BooleanVector.Builder vectorBuilder = BooleanVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(blockBuilder::appendDouble);
-            DoubleVector vector = blockBuilder.build();
+            IntStream.range(0, positionCount).mapToObj(ii -> randomBoolean()).forEach(vectorBuilder::appendBoolean);
+            BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
         }
     }
@@ -622,6 +643,59 @@ public class BasicBlockTests extends ESTestCase {
         IntVector.Builder b = IntVector.newVectorBuilder(2);
         b.appendInt(1).appendInt(2).setNonDecreasing(hardSet);
         assertThat(b.build().isNonDecreasing(), is(hardSet));
+    }
+
+    public static List<List<Object>> valuesAtPositions(Block block, int from, int to) {
+        List<List<Object>> result = new ArrayList<>(to - from);
+        for (int p = from; p < to; p++) {
+            if (block.isNull(p)) {
+                result.add(null);
+                continue;
+            }
+            int count = block.getValueCount(p);
+            List<Object> positionValues = new ArrayList<>(count);
+            int i = block.getFirstValueIndex(p);
+            for (int v = 0; v < count; v++) {
+                positionValues.add(switch (block.elementType()) {
+                    case INT -> ((IntBlock) block).getInt(i++);
+                    case LONG -> ((LongBlock) block).getLong(i++);
+                    case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
+                    case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
+                    case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
+                    default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
+                });
+            }
+            result.add(positionValues);
+        }
+        return result;
+    }
+
+    public static Block randomBlock(ElementType elementType, int positionCount, boolean nullAllowed, int maxValuesPerPosition) {
+        var builder = elementType.newBlockBuilder(positionCount);
+        for (int p = 0; p < positionCount; p++) {
+            if (nullAllowed && randomBoolean()) {
+                builder.appendNull();
+                continue;
+            }
+            int valueCount = between(1, maxValuesPerPosition);
+            if (valueCount > 1) {
+                builder.beginPositionEntry();
+            }
+            for (int v = 0; v < valueCount; v++) {
+                switch (elementType) {
+                    case INT -> ((IntBlock.Builder) builder).appendInt(randomInt());
+                    case LONG -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                    case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
+                    case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomRealisticUnicodeOfLength(4)));
+                    case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
+                    default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
+                }
+            }
+            if (valueCount > 1) {
+                builder.endPositionEntry();
+            }
+        }
+        return builder.build();
     }
 
     interface BlockBuilderFactory<B extends Block.Builder> {

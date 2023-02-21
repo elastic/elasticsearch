@@ -13,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
@@ -100,24 +99,27 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     // fail when remote_indices are provided:
                     // against old node
                     if (isUpdateApiSupported(oldVersionClient)) {
-                        ResponseException e = expectThrows(
-                            ResponseException.class,
+                        Exception e = expectThrows(
+                            Exception.class,
                             () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true))
                         );
-                        assertThat(e.getMessage(), containsString("failed to parse role [my_role]. unexpected field [remote_indices]"));
+                        assertThat(
+                            e.getMessage(),
+                            anyOf(
+                                containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                                containsString("remote indices not supported for API keys")
+                            )
+                        );
                     }
 
                     // and against new node
-                    ResponseException e = expectThrows(
-                        ResponseException.class,
-                        () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true))
-                    );
+                    Exception e = expectThrows(Exception.class, () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true)));
                     assertThat(
                         e.getMessage(),
                         anyOf(
                             containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
                             containsString(
-                                "all nodes must have version [8.8.0] or higher to support remote indices privileges for API keys"
+                                "all nodes must have version [8080099] or higher to support remote indices privileges for API keys"
                             )
                         )
                     );

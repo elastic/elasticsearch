@@ -154,7 +154,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             assertThat(outList.get(i).canMatch(), equalTo(inList.get(i).canMatch()));
             Map<String, IndexFieldCapabilities> outCap = outList.get(i).get();
             Map<String, IndexFieldCapabilities> inCap = inList.get(i).get();
-            if (version.onOrAfter(TransportVersion.V_8_0_0)) {
+            if (version.onOrAfter(TransportVersion.V_8_8_0)) {
                 assertThat(outCap, equalTo(inCap));
             } else {
                 // Exclude metric types which was introduced in 8.0
@@ -165,6 +165,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     assertThat(outCap.get(field).isSearchable(), equalTo(inCap.get(field).isSearchable()));
                     assertThat(outCap.get(field).isAggregatable(), equalTo(inCap.get(field).isAggregatable()));
                     assertThat(outCap.get(field).meta(), equalTo(inCap.get(field).meta()));
+                    if (version.onOrAfter(TransportVersion.V_8_0_0)) {
+                        assertThat(outCap.get(field).getMetricType(), equalTo(inCap.get(field).getMetricType()));
+                        assertThat(outCap.get(field).isDimension(), equalTo(inCap.get(field).isDimension()));
+                    }
                 }
             }
         }

@@ -37,8 +37,8 @@ configure(allprojects) {
 
             test.doFirst {
                 println "%%%%%%%% ${test.path} DEBUG START %%%%%%%"
-                println test.executable
-                println test.javaLauncher.get().executablePath.asFile.path
+                println "executable ${test.executable}"
+                println "launcher ${test.javaLauncher.get().executablePath.asFile.path}"
                 println "%%%%%%%% ${test.path} DEBUG END   %%%%%%%"
             }
             println "test.path = ${test.path}  + ${test.executable} -- runtime java"

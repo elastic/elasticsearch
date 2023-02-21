@@ -457,10 +457,13 @@ public class IndexBalanceTests extends ESAllocationTestCase {
      */
     public void testRebalanceShouldNotPerformUnnecessaryMovesWithMultipleConcurrentRebalances() {
         final var settings = Settings.builder()
+            .put("cluster.routing.allocation.type", "desired_balance")
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", randomIntBetween(3, 9))
             .build();
+
         final var allocationService = createAllocationService(settings);
-        assumeTrue(
+
+        assertTrue(
             "Only fixed in DesiredBalanceShardsAllocator",
             allocationService.shardsAllocator instanceof DesiredBalanceShardsAllocator
         );

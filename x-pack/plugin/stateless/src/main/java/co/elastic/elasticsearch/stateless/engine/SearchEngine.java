@@ -171,6 +171,8 @@ public class SearchEngine extends Engine {
                         return;
                     }
 
+                    // TODO also fail listeners if we are corrupted
+
                     final CommitNotification notification = latestCommit;
                     logger.trace(() -> "updating directory with commit " + notification);
                     directory.updateCommit(notification.commit);

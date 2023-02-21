@@ -663,7 +663,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
         if (id == null && opType == OpType.CREATE && version.before(Version.V_7_5_0)) {
             throw new IllegalArgumentException(
-                "optype create not supported for indexing requests without explicit id until all nodes are on version 7.5.0 or higher, current version "
+                "optype create not supported for indexing requests without explicit id until all nodes are on version 7.5.0 or higher,"
+                    + " current version "
                     + version
             );
         }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -30,16 +29,6 @@ public class TransportPutEngineAction extends HandledTransportAction<PutEngineAc
     @Override
     protected void doExecute(Task task, PutEngineAction.Request request, ActionListener<PutEngineAction.Response> listener) {
         Engine engine = request.getEngine();
-        engineIndexService.putEngine(engine, new ActionListener<>() {
-            @Override
-            public void onResponse(IndexResponse indexResponse) {
-                listener.onResponse(new PutEngineAction.Response(indexResponse.getResult()));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        engineIndexService.putEngine(engine, listener.map(r -> new PutEngineAction.Response(r.getResult())));
     }
 }

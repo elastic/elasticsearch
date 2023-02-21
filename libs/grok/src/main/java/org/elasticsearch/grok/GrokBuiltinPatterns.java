@@ -32,12 +32,12 @@ public class GrokBuiltinPatterns {
     public static synchronized Map<String, String> get(boolean ecsCompatibility) {
         if (ecsCompatibility) {
             if (ECS_V1_PATTERNS == null) {
-                ECS_V1_PATTERNS = loadPatterns(ecsCompatibility);
+                ECS_V1_PATTERNS = loadEcsPatterns();
             }
             return ECS_V1_PATTERNS;
         } else {
             if (LEGACY_PATTERNS == null) {
-                LEGACY_PATTERNS = loadPatterns(ecsCompatibility);
+                LEGACY_PATTERNS = loadLegacyPatterns();
             }
             return LEGACY_PATTERNS;
         }
@@ -55,8 +55,8 @@ public class GrokBuiltinPatterns {
         return Arrays.asList(ECS_COMPATIBILITY_MODES).contains(ecsCompatibility);
     }
 
-    private static Map<String, String> loadPatterns(boolean ecsCompatibility) {
-        String[] legacyPatternNames = {
+    private static Map<String, String> loadLegacyPatterns() {
+        String[] patternNames = {
             "aws",
             "bacula",
             "bind",
@@ -78,7 +78,11 @@ public class GrokBuiltinPatterns {
             "redis",
             "ruby",
             "squid" };
-        String[] ecsPatternNames = {
+        return readPatternFromDirectory(patternNames, "/patterns/legacy/");
+    }
+
+    private static Map<String, String> loadEcsPatterns() {
+        String[] patternNames = {
             "aws",
             "bacula",
             "bind",
@@ -101,15 +105,15 @@ public class GrokBuiltinPatterns {
             "ruby",
             "squid",
             "zeek" };
+        return readPatternFromDirectory(patternNames, "/patterns/ecs-v1/");
+    }
 
-        String[] patternNames = ecsCompatibility ? ecsPatternNames : legacyPatternNames;
-        String directory = ecsCompatibility ? "/patterns/ecs-v1/" : "/patterns/legacy/";
-
+    private static Map<String, String> readPatternFromDirectory(String[] patternNames, String directory) {
         Map<String, String> builtinPatterns = new LinkedHashMap<>();
         for (String pattern : patternNames) {
             try {
-                try (InputStream is = Grok.class.getResourceAsStream(directory + pattern)) {
-                    loadPatterns(builtinPatterns, is);
+                try (InputStream is = GrokBuiltinPatterns.class.getResourceAsStream(directory + pattern)) {
+                    loadPatternsFromFile(builtinPatterns, is);
                 }
             } catch (IOException e) {
                 throw new RuntimeException("failed to load built-in patterns", e);
@@ -118,7 +122,7 @@ public class GrokBuiltinPatterns {
         return Collections.unmodifiableMap(builtinPatterns);
     }
 
-    private static void loadPatterns(Map<String, String> patternBank, InputStream inputStream) throws IOException {
+    private static void loadPatternsFromFile(Map<String, String> patternBank, InputStream inputStream) throws IOException {
         String line;
         BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
         while ((line = br.readLine()) != null) {

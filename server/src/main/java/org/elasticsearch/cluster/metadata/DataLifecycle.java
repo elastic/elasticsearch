@@ -101,14 +101,18 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         out.writeOptionalTimeValue(dataRetention);
     }
 
-    // Visible for testing
-    protected DataLifecycle(StreamInput in) throws IOException {
+    /**
+     * Please use {@link DataLifecycle#readOptional} instead because it takes into consideration the feature flag.
+     */
+    public DataLifecycle(StreamInput in) throws IOException {
         dataRetention = in.readOptionalTimeValue();
     }
 
-    // In case of a cluster in which the flag is partially enabled, we need to ensure that the communication between the nodes will
-    // always work. That's why when dealing with StreamInput/StreamOutput we always read/write. We reset to null if the flag is disabled.
-    public static DataLifecycle read(StreamInput in) throws IOException {
+    /** When it comes to internode communication via the transport layer, different nodes can only sync their messages based on their
+     * Version. We choose to always write and read the lifecycle when the version is after 8.8.0 to ensure stable communication, but we
+     * discard the value read if the feature flag is disabled.
+     */
+    public static DataLifecycle readOptional(StreamInput in) throws IOException {
         DataLifecycle lifecycle = in.readOptionalWriteable(DataLifecycle::new);
         return DataLifecycle.isEnabled() ? lifecycle : null;
     }

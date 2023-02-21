@@ -132,7 +132,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             this.aliases = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            this.lifecycle = DataLifecycle.read(in);
+            this.lifecycle = DataLifecycle.readOptional(in);
         } else {
             this.lifecycle = null;
         }

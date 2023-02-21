@@ -1407,8 +1407,9 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into a collected {@link Settings} object
+     * Resolve the given v2 template into a {@link DataLifecycle} object
      */
+    @Nullable
     public static DataLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
@@ -1420,8 +1421,9 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the provided v2 template and component templates into the lifecycle object
+     * Resolve the provided v2 template and component templates into a {@link DataLifecycle} object
      */
+    @Nullable
     public static DataLifecycle resolveLifecycle(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
         Objects.requireNonNull(template, "attempted to resolve lifecycle for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve lifecycle with null component templates");

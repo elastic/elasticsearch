@@ -99,14 +99,19 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
                     // fail when remote_indices are provided:
                     // against old node
-                    ResponseException e = expectThrows(
-                        ResponseException.class,
-                        () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true))
-                    );
-                    assertThat(e.getMessage(), containsString("failed to parse role [my_role]. unexpected field [remote_indices]"));
+                    if (isUpdateApiSupported(oldVersionClient)) {
+                        ResponseException e = expectThrows(
+                            ResponseException.class,
+                            () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true))
+                        );
+                        assertThat(e.getMessage(), containsString("failed to parse role [my_role]. unexpected field [remote_indices]"));
+                    }
 
                     // and against new node
-                    e = expectThrows(ResponseException.class, () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true)));
+                    ResponseException e = expectThrows(
+                        ResponseException.class,
+                        () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true))
+                    );
                     assertThat(
                         e.getMessage(),
                         anyOf(
@@ -128,7 +133,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 authenticateWithApiKey(apiKey.v1(), apiKey.v2());
 
                 Tuple<String, String> apiKeyWithRemoteIndices = createOrGrantApiKey(randomRoleDescriptors(true));
-                updateOrBulkUpdateApiKey(apiKey.v1(), randomRoleDescriptors(true));
+                updateOrBulkUpdateApiKey(apiKeyWithRemoteIndices.v1(), randomRoleDescriptors(true));
                 authenticateWithApiKey(apiKeyWithRemoteIndices.v1(), apiKeyWithRemoteIndices.v2());
             }
         }

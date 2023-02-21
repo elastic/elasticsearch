@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
@@ -189,6 +190,7 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
     }
 
+    @Ignore("https://github.com/elastic/elasticsearch/issues/93908")
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {
         // Start with no metadata available
         assertAllMetadataUnavailable();

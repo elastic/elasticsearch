@@ -21,14 +21,14 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
 
 final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
     // pkg-private for testing
     static final Set<String> ALLOWED_TRANSPORT_HEADERS;
     static {
         final Set<String> allowedHeaders = new HashSet<>(
-            Set.of(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+            Set.of(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
         );
         allowedHeaders.addAll(Task.HEADERS_TO_COPY);
         ALLOWED_TRANSPORT_HEADERS = Set.copyOf(allowedHeaders);

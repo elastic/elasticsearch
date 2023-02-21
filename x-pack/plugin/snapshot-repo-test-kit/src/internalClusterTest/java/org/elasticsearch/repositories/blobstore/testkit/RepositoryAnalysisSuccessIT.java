@@ -409,8 +409,17 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public long compareAndExchangeRegister(String key, long expected, long updated) throws ConcurrentRegisterOperationException {
+        public long getRegister(String key) throws ConcurrentRegisterOperationException {
             if (randomBoolean() && randomBoolean()) {
+                throw new ConcurrentRegisterOperationException(new ElasticsearchException("simulated"));
+            }
+            return registers.computeIfAbsent(key, ignored -> new AtomicLong()).get();
+        }
+
+        @Override
+        public long compareAndExchangeRegister(String key, long expected, long updated) throws ConcurrentRegisterOperationException {
+            if (expected != updated && randomBoolean() && randomBoolean()) {
+                // don't fail the final check because we know there can be no concurrent operations at that point
                 throw new ConcurrentRegisterOperationException(new ElasticsearchException("simulated"));
             }
             return registers.computeIfAbsent(key, ignored -> new AtomicLong()).compareAndExchange(expected, updated);

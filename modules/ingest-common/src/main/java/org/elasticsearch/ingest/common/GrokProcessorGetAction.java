@@ -125,7 +125,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            this(transportService, actionFilters, GrokBuiltinPatterns.get(false), GrokBuiltinPatterns.get(true));
+            this(transportService, actionFilters, GrokBuiltinPatterns.legacyPatterns(), GrokBuiltinPatterns.ecsV1Patterns());
         }
 
         // visible for testing

@@ -1803,13 +1803,13 @@ public final class TimestampFormatFinder {
             this.strictGrokPattern = Objects.requireNonNull(strictGrokPattern);
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
             this.strictSearchGrok = new Grok(
-                GrokBuiltinPatterns.get(false),
+                GrokBuiltinPatterns.legacyPatterns(),
                 "(?m)%{DATA:" + PREFACE + "}" + strictGrokPattern + "%{GREEDYDATA:" + EPILOGUE + "}",
                 TimeoutChecker.watchdog,
                 logger::warn
             );
             this.strictFullMatchGrok = new Grok(
-                GrokBuiltinPatterns.get(false),
+                GrokBuiltinPatterns.legacyPatterns(),
                 "^" + strictGrokPattern + "$",
                 TimeoutChecker.watchdog,
                 logger::warn

@@ -351,7 +351,7 @@ public class RedactProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(GrokBuiltinPatterns.get(true));
+            Map<String, String> patternBank = new HashMap<>(GrokBuiltinPatterns.ecsV1Patterns());
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);
             }

@@ -26,6 +26,14 @@ public class GrokBuiltinPatterns {
     private static Map<String, String> LEGACY_PATTERNS;
     private static Map<String, String> ECS_V1_PATTERNS;
 
+    public static synchronized Map<String, String> legacyPatterns() {
+        return get(false);
+    }
+
+    public static synchronized Map<String, String> ecsV1Patterns() {
+        return get(true);
+    }
+
     /**
      * Load built-in patterns.
      */

@@ -556,9 +556,9 @@ public class ApiKeyService {
                 );
 
                 HeaderWarning.addWarning(
-                    "Removed API key's remote indices privileges from role(s) "
+                    "Removed API key's remote indices privileges from role(s) ["
                         + affectedRoles
-                        + ". Remote indices are not supported by all nodes in the cluster. "
+                        + "]. Remote indices are not supported by all nodes in the cluster. "
                         + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
                 );
             }

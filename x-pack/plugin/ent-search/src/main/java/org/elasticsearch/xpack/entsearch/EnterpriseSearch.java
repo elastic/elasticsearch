@@ -13,10 +13,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -25,6 +29,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -33,6 +39,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
+import org.elasticsearch.xpack.entsearch.engine.action.PutEngineAction;
+import org.elasticsearch.xpack.entsearch.engine.action.RestPutEngineAction;
+import org.elasticsearch.xpack.entsearch.engine.action.TransportPutEngineAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,11 +54,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     public static final String FEATURE_NAME = "ent_search";
 
-    private final Settings settings;
     private final boolean enabled;
 
     public EnterpriseSearch(Settings settings) {
-        this.settings = settings;
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
     }
 
@@ -63,7 +70,25 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return Collections.emptyList();
         }
         // Register new actions here
-        return Collections.emptyList();
+        return List.of(new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class));
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+
+        if (enabled == false) {
+            return Collections.emptyList();
+        }
+        // Register new actions here
+        return List.of(new RestPutEngineAction());
     }
 
     @Override

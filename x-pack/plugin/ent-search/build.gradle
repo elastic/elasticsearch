@@ -19,3 +19,8 @@ dependencies {
 }
 
 addQaCheckDependencies(project)
+
+testClusters.configureEach {
+  setting 'xpack.ent-search.enabled', 'true'
+}
+

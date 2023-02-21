@@ -61,7 +61,7 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
             super(in);
             this.engineId = in.readString();
             this.indices = in.readStringArray();
-            this.analyticsCollectionName = in.readString(); // TODO: Check this is needed
+            this.analyticsCollectionName = in.readOptionalString();
         }
 
         public Response(String engineId, String[] indices, String analyticsCollectionName) {
@@ -74,7 +74,7 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(engineId);
             out.writeStringArray(indices);
-            out.writeString(analyticsCollectionName);
+            out.writeOptionalString(analyticsCollectionName);
         }
 
         @Override

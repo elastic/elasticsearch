@@ -90,7 +90,7 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
             .setModelType(TrainedModelType.PYTORCH)
             .setModelSize((long) (0.3 * maxNativeBytesPerNode))
             .setInferenceConfig(new PassThroughConfig(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()), null, null))
-            .setLocation(new IndexLocation(InferenceIndexConstants.nativeDefinitionStore()))
+            .setLocation(new IndexLocation(InferenceIndexConstants.nativeDefinitionStore(), "test_model"))
             .build();
 
         TrainedModelDefinitionDoc modelDefinitionDoc = new TrainedModelDefinitionDoc(

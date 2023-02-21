@@ -131,6 +131,8 @@ setup:
               foo_non_indexed:
                 type: keyword
                 index: false
+              semver:
+                type: version
               timestamp:
                 type : date
   - do:
@@ -178,6 +180,8 @@ setup:
             properties:
               foo:
                 type : flattened
+              semver:
+                type: version
               timestamp:
                 type : date
   - do:
@@ -197,6 +201,8 @@ setup:
                 value: const
               foo:
                 type : keyword
+              semver:
+                type: version
               foo_non_indexed:
                 type: keyword
                 index: false
@@ -205,7 +211,7 @@ setup:
       index:
           index:  test_k
           id:     "1"
-          body:   { foo: "bar_k", foo_non_indexed: "bar_k", "timestamp":"2021-01-01T01:01:01.000Z" }
+          body:   { foo: "bar_k", foo_non_indexed: "bar_k", "semver" : ["11.1.1", "2.0.0-beta"], "timestamp":"2021-01-01T01:01:01.000Z" }
 
   - do:
       index:
@@ -223,12 +229,12 @@ setup:
       index:
           index:  test_f
           id:     "3"
-          body:   { foo: { bar: "bar_f" }, "timestamp":"2019-01-01T01:01:01.000Z" }
+          body:   { foo: { bar: "bar_f" }, "semver" : "1.2.1", "timestamp":"2019-01-01T01:01:01.000Z" }
   - do:
       index:
           index:  test_security
           id:     "4"
-          body:   { foo: "bar_dls", foo_non_indexed: "bar_dls"}
+          body:   { foo: "bar_dls", foo_non_indexed: "bar_dls", "semver" : "1.11.1"}
 
   - do: #superuser
       headers: { Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # admin
@@ -319,6 +325,38 @@ teardown:
         index:  test_*
         body:  {"field": "foo_non_indexed", "string":"b"}
   - length: {terms: 2}
+
+---
+"Test basic term enumeration on version field":
+  - skip:
+      version: " - 8.7.99"
+      reason: "terms enum support for version fields was added in 8.8.0"
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"1"}
+  - length: {terms: 3}
+  - match: { terms: [ 1.2.1, 1.11.1, 11.1.1] }
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"2.0.0-B"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"2.0.0-B", "case_insensitive" : true}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"1", "search_after" : "1.12.0"}
+  - length: {terms: 1}
+  - match: { terms: [ 11.1.1] }
 
 ---
 "Test case insensitivity":

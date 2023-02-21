@@ -139,7 +139,6 @@ public class CompoundProcessor implements Processor {
         innerExecute(0, ingestDocument, handler);
     }
 
-
     void innerExecute(int currentProcessor, IngestDocument ingestDocument, final BiConsumer<IngestDocument, Exception> handler) {
         assert currentProcessor <= processorsWithMetrics.size();
         if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isSkipCurrentPipeline()) {

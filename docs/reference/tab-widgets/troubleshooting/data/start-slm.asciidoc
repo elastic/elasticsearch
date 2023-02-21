@@ -10,8 +10,7 @@ In order to start {slm} we need to go to Kibana and execute the <<slm-api-start,
 . On the **Elasticsearch Service** panel, click the name of your deployment. 
 +
 
-NOTE:
-If the name of your deployment is disabled your {kib} instances might be
+NOTE: If the name of your deployment is disabled your {kib} instances might be
 unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
 If your deployment doesn't include {kib}, all you need to do is 
 {cloud}/ec-access-kibana.html[enable it first].
@@ -29,7 +28,7 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 POST _slm/start
 ----
 +
-The reponse will look like this:
+The response will look like this:
 +
 [source,console-result]
 ----
@@ -46,7 +45,7 @@ The reponse will look like this:
 GET _slm/status
 ----
 +
-The reponse will look like this:
+The response will look like this:
 +
 [source,console-result]
 ----
@@ -64,7 +63,7 @@ The reponse will look like this:
 ----
 POST _slm/start
 ----
-The reponse will look like this:
+The response will look like this:
 [source,console-result]
 ----
 {
@@ -77,7 +76,7 @@ Verify the {slm} is now running:
 ----
 GET _slm/status
 ----
-The reponse will look like this:
+The response will look like this:
 [source,console-result]
 ----
 {

@@ -21,11 +21,16 @@ public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScr
     private static DoubleFieldScript.Factory factory(Consumer<DoubleFieldScript> executor) {
         return new DoubleFieldScript.Factory() {
             @Override
-            public DoubleFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public DoubleFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new DoubleFieldScript.LeafFactory() {
                     @Override
                     public DoubleFieldScript newInstance(LeafReaderContext ctx) {
-                        return new DoubleFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new DoubleFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);
@@ -67,11 +72,9 @@ public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScr
 
     @Override
     protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("DoublePoint <field:3.14>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:4614253070214989087>", fields[1].toString());
-        assertEquals("DoublePoint <field:2.78>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:4613442422282062397>", fields[3].toString());
+        assertEquals(2, fields.length);
+        assertEquals("DoubleField <field:3.14>", fields[0].toString());
+        assertEquals("DoubleField <field:2.78>", fields[1].toString());
     }
 
     @Override

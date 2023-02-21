@@ -1,7 +1,0 @@
-pr: 86909
-summary: Fix clearing of `lastSuccessfulAuthCache` when clear all realm cache API
-  is called
-area: Authentication
-type: bug
-issues:
- - 86650

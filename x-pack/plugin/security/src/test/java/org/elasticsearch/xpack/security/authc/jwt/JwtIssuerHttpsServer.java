@@ -68,12 +68,17 @@ public class JwtIssuerHttpsServer implements Closeable {
         LOGGER.debug("Started [{}]", this.url);
     }
 
+    public void updateJwkSetPkcContents(final byte[] encodedJwkSetPkcPublicBytes) {
+        httpsServer.removeContext(PATH);
+        httpsServer.createContext(PATH, new JwtIssuerHttpHandler(encodedJwkSetPkcPublicBytes));
+    }
+
     @Override
     public void close() throws IOException {
-        if (this.httpsServer != null) {
-            LOGGER.trace("Stopping [{}]", this.url);
-            this.httpsServer.stop(STOP_DELAY_SECONDS);
-            LOGGER.debug("Stopped [{}]", this.url);
+        if (httpsServer != null) {
+            LOGGER.trace("Stopping [{}]", url);
+            httpsServer.stop(STOP_DELAY_SECONDS);
+            LOGGER.debug("Stopped [{}]", url);
         }
     }
 
@@ -92,8 +97,12 @@ public class JwtIssuerHttpsServer implements Closeable {
                 final String path = httpExchange.getRequestURI().getPath(); // EX: "/", "/valid/", "/valid/pkc_jwkset.json"
                 LOGGER.trace("Request: [{}]", path);
                 try (OutputStream os = httpExchange.getResponseBody()) {
-                    httpExchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, this.encodedJwkSetPkcPublicBytes.length);
-                    os.write(this.encodedJwkSetPkcPublicBytes);
+                    if (encodedJwkSetPkcPublicBytes == null) {
+                        httpExchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, 0);
+                    } else {
+                        httpExchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, encodedJwkSetPkcPublicBytes.length);
+                        os.write(encodedJwkSetPkcPublicBytes);
+                    }
                 }
                 LOGGER.trace("Response: [{}]", path); // Confirm client didn't disconnect before flush
             } catch (Throwable t) {

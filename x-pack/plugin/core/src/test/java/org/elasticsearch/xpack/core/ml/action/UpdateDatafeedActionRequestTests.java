@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction.Request;
@@ -20,7 +20,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 
-public class UpdateDatafeedActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class UpdateDatafeedActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     private String datafeedId;
 
@@ -32,6 +32,11 @@ public class UpdateDatafeedActionRequestTests extends AbstractSerializingTestCas
     @Override
     protected Request createTestInstance() {
         return new Request(DatafeedUpdateTests.createRandomized(datafeedId));
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

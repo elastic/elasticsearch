@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 
@@ -28,7 +29,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 
 public class SimpleRole implements Role {
 
@@ -43,19 +43,22 @@ public class SimpleRole implements Role {
     private final IndicesPermission indices;
     private final ApplicationPermission application;
     private final RunAsPermission runAs;
+    private final RemoteIndicesPermission remoteIndices;
 
     SimpleRole(
         String[] names,
         ClusterPermission cluster,
         IndicesPermission indices,
         ApplicationPermission application,
-        RunAsPermission runAs
+        RunAsPermission runAs,
+        RemoteIndicesPermission remoteIndices
     ) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
         this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
+        this.remoteIndices = Objects.requireNonNull(remoteIndices);
     }
 
     @Override
@@ -84,12 +87,17 @@ public class SimpleRole implements Role {
     }
 
     @Override
+    public RemoteIndicesPermission remoteIndices() {
+        return remoteIndices;
+    }
+
+    @Override
     public boolean hasFieldOrDocumentLevelSecurity() {
         return indices.hasFieldOrDocumentLevelSecurity();
     }
 
     @Override
-    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
+    public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
         return indices.allowedIndicesMatcher(action);
     }
 

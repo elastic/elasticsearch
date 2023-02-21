@@ -8,8 +8,9 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -593,11 +594,28 @@ public class XContentHelper {
      * @param xContentType an instance to serialize
      */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
             out.writeVInt(xContentType.canonical().ordinal());
         } else {
             out.writeVInt(xContentType.ordinal());
+        }
+    }
+
+    /**
+     * Convenience method that creates a {@link XContentParser} from a content map so that it can be passed to
+     * existing REST based code for input parsing.
+     *
+     * @param config XContentParserConfiguration for this mapper
+     * @param source the operator content as a map
+     * @return
+     */
+    public static XContentParser mapToXContentParser(XContentParserConfiguration config, Map<String, ?> source) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.map(source);
+            return XContentFactory.xContent(builder.contentType()).createParser(config, Strings.toString(builder));
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 }

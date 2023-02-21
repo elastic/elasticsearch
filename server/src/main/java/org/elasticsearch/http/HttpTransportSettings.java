@@ -43,7 +43,13 @@ public final class HttpTransportSettings {
     );
     public static final Setting<String> SETTING_CORS_ALLOW_HEADERS = new Setting<>(
         "http.cors.allow-headers",
-        "X-Requested-With,Content-Type,Content-Length",
+        "X-Requested-With,Content-Type,Content-Length,Authorization,Accept,User-Agent,X-Elastic-Client-Meta",
+        (value) -> value,
+        Property.NodeScope
+    );
+    public static final Setting<String> SETTING_CORS_EXPOSE_HEADERS = new Setting<>(
+        "http.cors.expose-headers",
+        "X-elastic-product",
         (value) -> value,
         Property.NodeScope
     );
@@ -95,8 +101,8 @@ public final class HttpTransportSettings {
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH = Setting.byteSizeSetting(
         "http.max_content_length",
         new ByteSizeValue(100, ByteSizeUnit.MB),
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE = Setting.byteSizeSetting(
@@ -106,7 +112,7 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE = Setting.byteSizeSetting(
         "http.max_header_size",
-        new ByteSizeValue(8, ByteSizeUnit.KB),
+        new ByteSizeValue(16, ByteSizeUnit.KB),
         Property.NodeScope
     );
     public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT = intSetting(
@@ -117,7 +123,7 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_WARNING_HEADER_SIZE = Setting.byteSizeSetting(
         "http.max_warning_header_size",
-        new ByteSizeValue(-1),
+        ByteSizeValue.MINUS_ONE,
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH = Setting.byteSizeSetting(

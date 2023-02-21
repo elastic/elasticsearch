@@ -8,11 +8,11 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.BeforeClass;
 
@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 import static org.elasticsearch.ingest.useragent.UserAgentParser.readParserConfigurations;
 import static org.hamcrest.Matchers.is;
 
@@ -33,7 +32,7 @@ public class DeviceTypeParserTests extends ESTestCase {
 
     private ArrayList<HashMap<String, String>> readTestDevices(InputStream regexStream, String keyName) throws IOException {
         XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
-            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, regexStream);
+            .createParser(XContentParserConfiguration.EMPTY, regexStream);
 
         XContentParser.Token token = yamlParser.nextToken();
 

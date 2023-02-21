@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -111,8 +112,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("timeout", "70s");
                 }));
                 waitForDeploymentStarted(modelId);
-                assertInfer(modelId);
-                assertInfer(modelId);
+                // attempt inference on new and old nodes multiple times
+                for (int i = 0; i < 10; i++) {
+                    assertInfer(modelId);
+                }
             }
             case UPGRADED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {
@@ -189,8 +192,8 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
+        request.setJsonEntity(Strings.format("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
 
@@ -202,9 +205,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "vocabulary": [%s] }
-            """.formatted(quotedWords));
+            """, quotedWords));
         client().performRequest(request);
     }
 
@@ -274,9 +277,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
@@ -285,9 +288,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         var response = client().performRequest(request);
         assertOK(response);
         return response;

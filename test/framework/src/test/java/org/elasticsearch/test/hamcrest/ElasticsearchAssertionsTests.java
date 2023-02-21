@@ -9,7 +9,7 @@
 package org.elasticsearch.test.hamcrest;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -199,7 +199,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
 
         indexLevelBlocks.put("test", Set.of(IndexMetadata.INDEX_READ_ONLY_BLOCK));
         assertBlocked(
-            new BroadcastResponse(
+            new BaseBroadcastResponse(
                 1,
                 0,
                 1,
@@ -209,7 +209,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
 
         indexLevelBlocks.put("test", Set.of(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
         assertBlocked(
-            new BroadcastResponse(
+            new BaseBroadcastResponse(
                 1,
                 0,
                 1,
@@ -219,7 +219,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
 
         indexLevelBlocks.put("test", Set.of(IndexMetadata.INDEX_READ_BLOCK, IndexMetadata.INDEX_METADATA_BLOCK));
         assertBlocked(
-            new BroadcastResponse(
+            new BaseBroadcastResponse(
                 1,
                 0,
                 1,
@@ -229,7 +229,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
 
         indexLevelBlocks.put("test", Set.of(IndexMetadata.INDEX_READ_ONLY_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
         assertBlocked(
-            new BroadcastResponse(
+            new BaseBroadcastResponse(
                 1,
                 0,
                 1,

@@ -1,0 +1,191 @@
+setup:
+  - do:
+      indices.create:
+        index: test0
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+                fielddata: true
+              long:
+                type: long
+
+  - do:
+      index:
+        index: test0
+        id: "1"
+        body:
+          text: "Lots of text."
+          long: 1
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+                fielddata: true
+              long:
+                type: long
+
+  - do:
+      index:
+        index: test1
+        id: "1"
+        body:
+          text: "Lots of text."
+          long: 1
+
+  - do:
+      indices.refresh: {}
+
+---
+"test_leaf_cache_text_field_first":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test0
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+  - match: { hits.hits.0.fields.field_0.0: 'Lots of text. lots' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test0
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+            field_1:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+            field_2:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+            field_3:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+  - match: { hits.hits.0.fields.field_0.0: 'Lots of text. lots' }
+  - match: { hits.hits.0.fields.field_1.0: 'lots Lots of text.' }
+  - match: { hits.hits.0.fields.field_2.0: 'Lots of text. lots' }
+  - match: { hits.hits.0.fields.field_3.0: 'lots Lots of text.' }
+
+---
+"test_leaf_cache_text_doc_first":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+  - match: { hits.hits.0.fields.field_0.0: 'lots Lots of text.' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+            field_1:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+            field_2:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+            field_3:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+  - match: { hits.hits.0.fields.field_0.0: 'lots Lots of text.' }
+  - match: { hits.hits.0.fields.field_1.0: 'Lots of text. lots' }
+  - match: { hits.hits.0.fields.field_2.0: 'lots Lots of text.' }
+  - match: { hits.hits.0.fields.field_3.0: 'Lots of text. lots' }
+
+---
+"test_leaf_cache_long_field_first":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test0
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "/* avoid stash */ $('long', 0) + ' ' + doc['long'].value"
+  - match: { hits.hits.0.fields.field_0.0: '1 1' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test0
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "/* avoid stash */ $('long', 0) + ' ' + doc['long'].value"
+            field_1:
+              script:
+                source: "doc['long'].value + ' ' + $('long', 0)"
+            field_2:
+              script:
+                source: "/* avoid stash */ $('long', 0) + ' ' + doc['long'].value"
+            field_3:
+              script:
+                source: "doc['long'].value + ' ' + $('long', 0)"
+  - match: { hits.hits.0.fields.field_0.0: '1 1' }
+  - match: { hits.hits.0.fields.field_1.0: '1 1' }
+  - match: { hits.hits.0.fields.field_2.0: '1 1' }
+  - match: { hits.hits.0.fields.field_3.0: '1 1' }
+
+---
+"test_leaf_cache_long_doc_first":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "doc['long'].value + ' ' + $('long', 0)"
+  - match: { hits.hits.0.fields.field_0.0: '1 1' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "doc['long'].value + ' ' + $('long', 0)"
+            field_1:
+              script:
+                source: "/* avoid stash */ $('long', 0) + ' ' + doc['long'].value"
+            field_2:
+              script:
+                source: "doc['long'].value + ' ' + $('long', 0)"
+            field_3:
+              script:
+                source: "/* avoid stash */ $('long', 0) + ' ' + doc['long'].value"
+  - match: { hits.hits.0.fields.field_0.0: '1 1' }
+  - match: { hits.hits.0.fields.field_1.0: '1 1' }
+  - match: { hits.hits.0.fields.field_2.0: '1 1' }
+  - match: { hits.hits.0.fields.field_3.0: '1 1' }

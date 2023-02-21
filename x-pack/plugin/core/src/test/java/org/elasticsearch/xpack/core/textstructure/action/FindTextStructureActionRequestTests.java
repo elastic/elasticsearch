@@ -59,6 +59,9 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
                 if (randomBoolean()) {
                     request.setGrokPattern(randomAlphaOfLength(80));
                 }
+                if (randomBoolean()) {
+                    request.setEcsCompatibility(randomAlphaOfLength(80));
+                }
             }
         }
 
@@ -72,6 +75,11 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
         request.setSample(new BytesArray(randomByteArrayOfLength(randomIntBetween(1000, 20000))));
 
         return request;
+    }
+
+    @Override
+    protected FindStructureAction.Request mutateInstance(FindStructureAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -139,7 +147,6 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
     }
 
     public void testValidateNonSemiStructuredText() {
-
         FindStructureAction.Request request = new FindStructureAction.Request();
         request.setFormat(randomFrom(TextStructure.Format.NDJSON, TextStructure.Format.XML, TextStructure.Format.DELIMITED));
         request.setGrokPattern(randomAlphaOfLength(80));
@@ -149,6 +156,30 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
         assertNotNull(e);
         assertThat(e.getMessage(), startsWith("Validation Failed: "));
         assertThat(e.getMessage(), containsString(" [grok_pattern] may only be specified if [format] is [semi_structured_text]"));
+    }
+
+    public void testValidateEcsCompatibility() {
+        FindStructureAction.Request request = new FindStructureAction.Request();
+        request.setFormat(
+            randomFrom(
+                TextStructure.Format.NDJSON,
+                TextStructure.Format.XML,
+                TextStructure.Format.DELIMITED,
+                TextStructure.Format.SEMI_STRUCTURED_TEXT
+            )
+        );
+        String ecsCompatibility = randomAlphaOfLength(80);
+        request.setEcsCompatibility(ecsCompatibility);
+        request.setSample(new BytesArray("foo\n"));
+
+        ActionRequestValidationException e = request.validate();
+        if (FindStructureAction.ECS_COMPATIBILITY_DISABLED.equalsIgnoreCase(ecsCompatibility) == false) {
+            assertNotNull(e);
+            assertThat(e.getMessage(), startsWith("Validation Failed: "));
+            assertThat(e.getMessage(), containsString(" [ecs_compatibility] must be one of [disabled, v1] if specified"));
+        } else {
+            assertNull(e);
+        }
     }
 
     public void testValidateSample() {

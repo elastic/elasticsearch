@@ -1,5 +1,0 @@
-pr: 87881
-summary: Make CBE message creation more robust
-area: Infra/Circuit Breakers
-type: bug
-issues: []

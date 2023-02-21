@@ -97,7 +97,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             )
             .build();
         // This role has "editor" on the deployment itself, and "viewer" for the organization that owns the deployment
-        createRole(roleName, """
+        createRole(roleName, Strings.format("""
             {
               "cluster": [ "manage_own_api_key" ],
               "applications": [
@@ -113,7 +113,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
                 }
               ]
             }
-            """.formatted(SP_ENTITY_ID, entityWildcard), adminOptions);
+            """, SP_ENTITY_ID, entityWildcard), adminOptions);
         createUser(username, password, roleName, adminOptions);
 
         ObjectPath objectPath = performSso(entityId, acsUrl, username, password);
@@ -205,9 +205,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity("""
+        initRequest.setJsonEntity(Strings.format("""
             {"entity_id":"%s","acs":"%s","authn_state":%s}
-            """.formatted(entityId, serviceProvider.get("acs"), Strings.toString(authnStateBuilder)));
+            """, entityId, serviceProvider.get("acs"), Strings.toString(authnStateBuilder)));
         Response initResponse = getRestClient().performRequest(initRequest);
         ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
         assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
@@ -271,9 +271,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity("""
+        initRequest.setJsonEntity(Strings.format("""
             {"entity_id":"%s", "acs":"%s","authn_state":%s}
-            """.formatted(entityId, acsUrl, Strings.toString(authnStateBuilder)));
+            """, entityId, acsUrl, Strings.toString(authnStateBuilder)));
         Response initResponse = getRestClient().performRequest(initRequest);
         ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
         assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
@@ -468,14 +468,14 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
 
     private void createUser(String userName, SecureString password, String roleName, RequestOptions options) throws IOException {
         final Request req = new Request("PUT", "/_security/user/" + userName);
-        final String body = """
+        final String body = Strings.format("""
             {
               "username": "%s",
               "full_name": "Test User (%s)",
               "password": "%s",
               "roles": [ "%s" ]
             }
-            """.formatted(userName, getTestName(), password, roleName);
+            """, userName, getTestName(), password, roleName);
         req.setJsonEntity(body);
         req.setOptions(options);
         getRestClient().performRequest(req);
@@ -557,9 +557,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void assertContainsAttributeWithValues(String message, String attribute, String... values) {
-        final String startAttribute = """
+        final String startAttribute = Strings.format("""
             <saml2:Attribute FriendlyName="%s" Name="https://saml.elasticsearch.org/attributes/%s" \
-            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">""".formatted(attribute, attribute);
+            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">""", attribute, attribute);
         assertThat(message, containsString(startAttribute));
         final int posStart = message.indexOf(startAttribute);
         assertThat(posStart, Matchers.greaterThan(0));

@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -90,9 +91,6 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public boolean hasMetric(String name) {
-        if (size != 1) {
-            throw new IllegalArgumentException("[top_metrics] can only the be target if [size] is [1] but was [" + size + "]");
-        }
         for (MetricValues values : metrics.values) {
             if (values.name.equals(name)) {
                 return true;
@@ -103,14 +101,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
-        assert size == 1;
-        /*
-         * Since size is always 1 we know that the index into the values
-         * array is same same as the bucket ordinal. Also, this will always
-         * be called after we've collected a bucket, so it won't just fetch
-         * garbage.
-         */
-        return metrics.metric(name, owningBucketOrd);
+        return metrics.metric(name, owningBucketOrd * size);
     }
 
     @Override
@@ -120,10 +111,10 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert sub.isNoop() : "Expected noop but was " + sub.toString();
 
-        BucketedSort.Leaf leafSort = sort.forLeaf(ctx);
+        BucketedSort.Leaf leafSort = sort.forLeaf(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollector() {
             @Override

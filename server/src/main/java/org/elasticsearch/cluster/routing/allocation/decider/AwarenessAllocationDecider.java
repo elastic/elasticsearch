@@ -123,7 +123,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, true);
+        return underCapacity(allocation.metadata().getIndexSafe(shardRouting.index()), shardRouting, node, allocation, true);
     }
 
     @Override
@@ -135,8 +135,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, false);
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return underCapacity(indexMetadata, shardRouting, node, allocation, false);
     }
 
     private static final Decision YES_NOT_ENABLED = Decision.single(
@@ -155,13 +155,18 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_ALL_MET = Decision.single(Decision.Type.YES, NAME, "node meets all awareness attribute requirements");
 
-    private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
+    private Decision underCapacity(
+        IndexMetadata indexMetadata,
+        ShardRouting shardRouting,
+        RoutingNode node,
+        RoutingAllocation allocation,
+        boolean moveToNode
+    ) {
         if (awarenessAttributes.isEmpty()) {
             return YES_NOT_ENABLED;
         }
 
         final boolean debug = allocation.debugDecision();
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
 
         if (indexMetadata.getAutoExpandReplicas().expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;

@@ -69,6 +69,10 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
+        }
+
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         if (indexMetadata.isSearchableSnapshot()) {
             EnableAllocationDecider.Allocation enableAllocationCopy = this.enableAllocation;

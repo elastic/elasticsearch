@@ -240,7 +240,7 @@ public class AuthenticatorChainTests extends ESTestCase {
 
         authenticatorChain.authenticateAsync(context, future);
         final Authentication authentication = future.actionGet();
-        assertThat(authentication.getUser(), is(hasFallbackUser ? fallbackUser : anonymousUser));
+        assertThat(authentication.getEffectiveSubject().getUser(), is(hasFallbackUser ? fallbackUser : anonymousUser));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
         verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
@@ -303,7 +303,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         );
         final String runAsUsername = "your-run-as-username";
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, runAsUsername);
-        assertThat(authentication.getUser().principal(), not(equalTo(runAsUsername)));
+        assertThat(authentication.getEffectiveSubject().getUser().principal(), not(equalTo(runAsUsername)));
 
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final Authenticator.Context context = new Authenticator.Context(threadContext, auditableRequest, null, true, realms);
@@ -334,7 +334,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         );
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "you-shall-not-pass");
         assertThat(
-            authentication.getUser().principal(),
+            authentication.getEffectiveSubject().getUser().principal(),
             not(equalTo(threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER)))
         );
 

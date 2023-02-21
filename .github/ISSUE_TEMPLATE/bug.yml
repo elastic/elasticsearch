@@ -4,22 +4,27 @@ labels: [">bug", "needs:triage"]
 body:
   - type: markdown
     attributes:
-      value: |
+      value: >
         Github is reserved for bug reports and feature requests; it is
         not the place for general questions. If you have a question or
         an unconfirmed bug, please visit the [forums](https://discuss.elastic.co/c/elasticsearch).
-        Please also check your OS is [supported](https://www.elastic.co/support/matrix#show_os).
-        If it is not, the issue is likely to be closed.
+        Please also check your OS is [supported](https://www.elastic.co/support/matrix#show_os),
+        and that the version of Elasticsearch has not passed [end-of-life](https://www.elastic.co/support/eol).
+        If you are using an unsupported OS or an unsupported version then the issue is likely to be closed.
+
 
         For security vulnerabilities please only send reports to security@elastic.co.
         See https://www.elastic.co/community/security for more information.
+
 
         Please fill in the following details to help us reproduce the bug:
   - type: input
     id: es_version
     attributes:
       label: Elasticsearch Version
-      description: The version of Elasticsearch you are running, found with `bin/elasticsearch --version`
+      description: >-
+        The version of Elasticsearch you are running, found with `bin/elasticsearch --version`.
+        Ensure this version has not [passed end-of-life](https://www.elastic.co/support/eol).
     validations:
       required: true
   - type: input

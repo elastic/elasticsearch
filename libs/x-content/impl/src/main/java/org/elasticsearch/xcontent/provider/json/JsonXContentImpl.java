@@ -51,6 +51,7 @@ public class JsonXContentImpl implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        jsonFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         jsonXContent = new JsonXContentImpl();
     }
 

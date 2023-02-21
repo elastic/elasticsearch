@@ -25,8 +25,8 @@ import static org.elasticsearch.ingest.common.CommunityIdProcessor.Factory.DEFAU
 import static org.elasticsearch.ingest.common.CommunityIdProcessor.Factory.DEFAULT_TARGET;
 import static org.elasticsearch.ingest.common.CommunityIdProcessor.Factory.DEFAULT_TRANSPORT;
 import static org.elasticsearch.ingest.common.CommunityIdProcessor.toUint16;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CommunityIdProcessorFactoryTests extends ESTestCase {
 

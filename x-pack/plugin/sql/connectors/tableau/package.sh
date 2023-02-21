@@ -12,7 +12,7 @@ set -e
 TSA_URL=http://timestamp.digicert.com
 
 TAB_SDK_REPO=https://github.com/tableau/connector-plugin-sdk
-TAB_SDK_TAG="tdvt-2.1.9"
+TAB_SDK_TAG="tdvt-2.6.1"
 
 MY_NAME="Packager for Elastic's Tableau connector to Elasticsearch"
 MY_FILE=$(basename $0)

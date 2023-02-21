@@ -23,7 +23,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -44,13 +44,14 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -59,11 +60,12 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,7 +80,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.function.Supplier;
+import java.util.List;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -120,16 +123,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(MapperBuilderContext.ROOT);
+        wildcardFieldType = builder.build(MapperBuilderContext.root(false));
 
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
-        wildcardFieldType79 = builder79.build(MapperBuilderContext.ROOT);
+        wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
             Version.CURRENT
         );
-        keywordFieldType = kwBuilder.build(MapperBuilderContext.ROOT);
+        keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false));
 
         rewriteDir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
@@ -548,7 +551,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String superfastRegexes[] = { ".*", "(foo|bar|.*)", "@" };
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
-            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
+            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof FieldExistsQuery);
         }
         String matchNoDocsRegexes[] = { "" };
         for (String regex : matchNoDocsRegexes) {
@@ -587,7 +590,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             "@&~(abc.+)",
             "aaa.+&.+bbb",
             "a*",
-            "...*.." };
+            "...*..",
+            "\\w",
+            "\\W",
+            "\\s",
+            "\\S",
+            "\\d",
+            "\\D" };
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
@@ -627,7 +636,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             assertTrue(
                 pattern + " was not a pure match all query " + formatQuery(wildcardFieldQuery),
-                wildcardFieldQuery instanceof DocValuesFieldExistsQuery
+                wildcardFieldQuery instanceof FieldExistsQuery
             );
         }
 
@@ -1075,13 +1084,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
         return new SearchExecutionContext(
             0,
             0,
@@ -1089,7 +1096,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             bitsetFilterCache,
             indexFieldDataLookup,
             null,
-            null,
+            lookup,
             null,
             null,
             parserConfig(),
@@ -1207,12 +1214,76 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
 
     @Override
-    protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+    protected boolean supportsIgnoreMalformed() {
+        return false;
     }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
+        return new WildcardSyntheticSourceSupport();
+    }
+
+    static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
+        private final boolean allIgnored = ignoreAbove != null && rarely();
+        private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+
+        @Override
+        public SyntheticSourceExample example(int maxValues) {
+            if (randomBoolean()) {
+                Tuple<String, String> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            List<String> docValuesValues = new ArrayList<>();
+            List<String> outExtraValues = new ArrayList<>();
+            values.stream().map(Tuple::v2).forEach(v -> {
+                if (ignoreAbove != null && v.length() > ignoreAbove) {
+                    outExtraValues.add(v);
+                } else {
+                    docValuesValues.add(v);
+                }
+            });
+            List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
+            Collections.sort(outList);
+            outList.addAll(outExtraValues);
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<String, String> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            int length = 5;
+            if (ignoreAbove != null && (allIgnored || randomBoolean())) {
+                length = ignoreAbove + 5;
+            }
+            String v = randomAlphaOfLength(length);
+            return Tuple.tuple(v, v);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "wildcard");
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+            if (ignoreAbove != null) {
+                b.field("ignore_above", ignoreAbove);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of();
+        }
+    }
+
 }

@@ -1,5 +1,0 @@
-pr: 86404
-summary: Add preflight checks to Health API to ensure health is obtainable
-area: Health
-type: enhancement
-issues: []

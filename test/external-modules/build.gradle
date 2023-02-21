@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 subprojects {
   apply plugin: 'elasticsearch.base-internal-es-plugin'
-  apply plugin: 'elasticsearch.internal-yaml-rest-test'
+  apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
   esplugin {
     name it.name

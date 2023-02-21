@@ -1,5 +1,0 @@
-pr: 85455
-summary: App permissions with action patterns do not retrieve privileges
-area: Authorization
-type: enhancement
-issues: []

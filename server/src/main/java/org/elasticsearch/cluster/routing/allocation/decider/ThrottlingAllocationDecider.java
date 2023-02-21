@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.THROTTLE;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.YES;
@@ -81,24 +80,19 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     private volatile int concurrentIncomingRecoveries;
     private volatile int concurrentOutgoingRecoveries;
 
-    public ThrottlingAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.primariesInitialRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.get(settings);
-        concurrentIncomingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings);
-        concurrentOutgoingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings);
-
-        clusterSettings.addSettingsUpdateConsumer(
+    public ThrottlingAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(
             CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
             this::setPrimariesInitialRecoveries
         );
-        clusterSettings.addSettingsUpdateConsumer(
+        clusterSettings.initializeAndWatch(
             CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
             this::setConcurrentIncomingRecoverries
         );
-        clusterSettings.addSettingsUpdateConsumer(
+        clusterSettings.initializeAndWatch(
             CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
             this::setConcurrentOutgoingRecoverries
         );
-
         logger.debug(
             "using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], "
                 + "node_initial_primaries_recoveries [{}]",
@@ -135,7 +129,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     primariesInRecovery++;
                 }
             }
-            if (primariesInRecovery >= primariesInitialRecoveries) {
+            if (allocation.isSimulating()) {
+                return allocation.decision(Decision.YES, NAME, "primary allocation is not throttled when simulating");
+            } else if (primariesInRecovery >= primariesInitialRecoveries) {
                 // TODO: Should index creation not be throttled for primary shards?
                 return allocation.decision(
                     THROTTLE,

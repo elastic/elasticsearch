@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -75,6 +76,11 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     @Override
+    protected Classification mutateInstance(Classification instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -121,7 +127,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         );
     }
 
-    public static Classification mutateForVersion(Classification instance, Version version) {
+    public static Classification mutateForVersion(Classification instance, TransportVersion version) {
         return new Classification(
             instance.getDependentVariable(),
             BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
@@ -330,7 +336,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             Map.of("foo", 10L, "bar", 20L, "baz", 30L)
         );
         assertThat(
-            new Classification("foo").getParams(fieldInfo),
+            new Classification("foo", BoostedTreeParams.builder().build(), null, null, null, null, 42L, null, null).getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable",
@@ -348,12 +354,14 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "training_percent",
                     100.0,
                     "early_stopping_enabled",
-                    true
+                    true,
+                    "randomize_seed",
+                    42L
                 )
             )
         );
         assertThat(
-            new Classification("bar").getParams(fieldInfo),
+            new Classification("bar", BoostedTreeParams.builder().build(), null, null, null, null, 42L, null, null).getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable",
@@ -371,12 +379,14 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "training_percent",
                     100.0,
                     "early_stopping_enabled",
-                    true
+                    true,
+                    "randomize_seed",
+                    42L
                 )
             )
         );
         assertThat(
-            new Classification("baz", BoostedTreeParams.builder().build(), null, null, null, 50.0, null, null, null).getParams(fieldInfo),
+            new Classification("baz", BoostedTreeParams.builder().build(), null, null, null, 50.0, 42L, null, null).getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable",
@@ -394,7 +404,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "training_percent",
                     50.0,
                     "early_stopping_enabled",
-                    true
+                    true,
+                    "randomize_seed",
+                    42L
                 )
             )
         );
@@ -411,7 +423,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(constraints.size(), equalTo(1));
         assertThat(constraints.get(0).getField(), equalTo(classification.getDependentVariable()));
         assertThat(constraints.get(0).getLowerBound(), equalTo(2L));
-        assertThat(constraints.get(0).getUpperBound(), equalTo(30L));
+        assertThat(constraints.get(0).getUpperBound(), equalTo(100L));
     }
 
     public void testGetResultMappings_DependentVariableMappingIsAbsent() {
@@ -544,7 +556,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     @Override
-    protected Classification mutateInstanceForVersion(Classification instance, Version version) {
+    protected Classification mutateInstanceForVersion(Classification instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

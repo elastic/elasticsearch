@@ -15,7 +15,12 @@ Retrieves information for one or more API keys.
 [[security-api-get-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_api_key` cluster privilege.
+* To use this API, you must have at least the `manage_own_api_key` or the `read_security`
+cluster privileges.
+* If you have only the `manage_own_api_key` privilege, this API returns only
+the API keys that you own. If you have `read_security`, `manage_api_key` or greater
+privileges (including `manage_security`), this API returns all API keys
+regardless of ownership.
 
 [[security-api-get-api-key-desc]]
 ==== {api-description-title}
@@ -23,7 +28,7 @@ Retrieves information for one or more API keys.
 The information for the API keys created by
 <<security-api-create-api-key,create API Key>> can be retrieved using this API.
 
-[[security-api-get-api-key-path-params]]
+[[security-api-get-api-key-query-params]]
 ==== {api-path-parms-title}
 
 The following parameters can be specified in the query parameters of a GET request and
@@ -51,6 +56,12 @@ by the currently authenticated user. Defaults to false.
 The 'realm_name' or 'username' parameters cannot be specified when this
 parameter is set to 'true' as they are assumed to be the currently authenticated ones.
 
+`with_limited_by`::
+(Optional, Boolean) A boolean flag to return the snapshot of the owner user's role descriptors
+associated with the API key. An API key's actual permission is the intersection of
+its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's role descriptors
+(effectively limited by it). An API key must have `manage_api_key` or higher privileges to retrieve the limited-by role descriptors of any API key, including itself.
+
 NOTE: When none of the parameters "id", "name", "username" and "realm_name"
 are specified, and the "owner" is set to false then it will retrieve all API
 keys if the user is authorized. If the user is not authorized to retrieve other user's
@@ -66,7 +77,10 @@ If you create an API key as follows:
 POST /_security/api_key
 {
   "name": "my-api-key",
-  "role_descriptors": {}
+  "role_descriptors": {},
+  "metadata": {
+    "application": "myapp"
+  }
 }
 ------------------------------------------------------------
 
@@ -90,10 +104,79 @@ You can use the following example to retrieve the API key by ID:
 
 [source,console]
 --------------------------------------------------
-GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx
+GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx&with_limited_by=true
 --------------------------------------------------
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
+
+A successful call returns a JSON structure that contains the information of the API key:
+
+[source,js]
+--------------------------------------------------
+{
+  "api_keys": [ <1>
+    {
+      "id": "VuaCfGcBCdbkQm-e5aOx", <2>
+      "name": "my-api-key", <3>
+      "creation": 1548550550158, <4>
+      "expiration": 1548551550158, <5>
+      "invalidated": false, <6>
+      "username": "myuser", <7>
+      "realm": "native1", <8>
+      "metadata": { <9>
+        "application": "myapp"
+      },
+      "role_descriptors": { }, <10>
+      "limited_by": [  <11>
+        {
+          "role-power-user": {
+            "cluster": [
+              "monitor"
+            ],
+            "indices": [
+              {
+                "names": [
+                  "*"
+                ],
+                "privileges": [
+                  "read"
+                ],
+                "allow_restricted_indices": false
+              }
+            ],
+            "applications": [ ],
+            "run_as": [ ],
+            "metadata": { },
+            "transient_metadata": {
+              "enabled": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The list of API keys that were retrieved for this request.
+<2> Id for the API key
+<3> Name of the API key
+<4> Creation time for the API key in milliseconds
+<5> Optional expiration time for the API key in milliseconds
+<6> Invalidation status for the API key. If the key has been invalidated, it has
+a value of `true`. Otherwise, it is `false`.
+<7> Principal for which this API key was created
+<8> Realm name of the principal for which this API key was created
+<9> Metadata of the API key
+<10> The role descriptors assigned to this API key when it was <<api-key-role-descriptors,created>>
+or last <<security-api-update-api-key-api-key-role-descriptors,updated>>.
+An empty role descriptor means the API key inherits the owner user's
+permissions.
+<11> The owner user's permissions associated with the API key.
+It is a point-in-time snapshot captured at <<security-api-create-api-key,creation>> and
+subsequent <<security-api-update-api-key,updates>>. An API key's
+effective permissions are an intersection of its assigned privileges and
+the owner user's permissions.
 
 You can use the following example to retrieve the API key by name:
 
@@ -179,17 +262,41 @@ A successful call returns a JSON structure that contains the information of one 
 [source,js]
 --------------------------------------------------
 {
-  "api_keys": [ <1>
+  "api_keys": [
     {
-      "id": "0GF5GXsBCXxz2eDxWwFN", <2>
-      "name": "hadoop_myuser_key", <3>
-      "creation": 1548550550158, <4>
-      "expiration": 1548551550158, <5>
-      "invalidated": false, <6>
-      "username": "myuser", <7>
-      "realm": "native1", <8>
-      "metadata": { <9>
+      "id": "0GF5GXsBCXxz2eDxWwFN",
+      "name": "hadoop_myuser_key",
+      "creation": 1548550550158,
+      "expiration": 1548551550158,
+      "invalidated": false,
+      "username": "myuser",
+      "realm": "native1",
+      "metadata": {
         "application": "myapp"
+      },
+      "role_descriptors": {
+        "role-a": {
+          "cluster": [
+            "monitor"
+          ],
+          "indices": [
+            {
+              "names": [
+                "index-a"
+              ],
+              "privileges": [
+                "read"
+              ],
+              "allow_restricted_indices": false
+            }
+          ],
+          "applications": [ ],
+          "run_as": [ ],
+          "metadata": { },
+          "transient_metadata": {
+            "enabled": true
+          }
+        }
       }
     },
     {
@@ -199,20 +306,11 @@ A successful call returns a JSON structure that contains the information of one 
       "invalidated": false,
       "username": "user-y",
       "realm": "realm-2",
-      "metadata": {}
+      "metadata": {},
+      "role_descriptors": { }
     }
   ]
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> The list of API keys that were retrieved for this request.
-<2> Id for the API key
-<3> Name of the API key
-<4> Creation time for the API key in milliseconds
-<5> Optional expiration time for the API key in milliseconds
-<6> Invalidation status for the API key. If the key has been invalidated, it has
-a value of `true`. Otherwise, it is `false`.
-<7> Principal for which this API key was created
-<8> Realm name of the principal for which this API key was created
-<9> Metadata of the API key

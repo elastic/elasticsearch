@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -24,9 +25,12 @@ import java.util.List;
 import java.util.Objects;
 
 public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesiredNodesRequest> {
+    private static final TransportVersion DRY_RUN_VERSION = TransportVersion.V_8_4_0;
+
     private final String historyID;
     private final long version;
     private final List<DesiredNode> nodes;
+    private final boolean dryRun;
 
     public static final ParseField NODES_FIELD = new ParseField("nodes");
 
@@ -41,12 +45,13 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
     }
 
-    public UpdateDesiredNodesRequest(String historyID, long version, List<DesiredNode> nodes) {
+    public UpdateDesiredNodesRequest(String historyID, long version, List<DesiredNode> nodes, boolean dryRun) {
         assert historyID != null;
         assert nodes != null;
         this.historyID = historyID;
         this.version = version;
         this.nodes = nodes;
+        this.dryRun = dryRun;
     }
 
     public UpdateDesiredNodesRequest(StreamInput in) throws IOException {
@@ -54,6 +59,11 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         this.historyID = in.readString();
         this.version = in.readLong();
         this.nodes = in.readList(DesiredNode::readFrom);
+        if (in.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
+            this.dryRun = in.readBoolean();
+        } else {
+            this.dryRun = false;
+        }
     }
 
     @Override
@@ -62,11 +72,15 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         out.writeString(historyID);
         out.writeLong(version);
         out.writeList(nodes);
+        if (out.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
+            out.writeBoolean(dryRun);
+        }
     }
 
-    public static UpdateDesiredNodesRequest fromXContent(String historyID, long version, XContentParser parser) throws IOException {
+    public static UpdateDesiredNodesRequest fromXContent(String historyID, long version, boolean dryRun, XContentParser parser)
+        throws IOException {
         List<DesiredNode> nodes = PARSER.parse(parser, null);
-        return new UpdateDesiredNodesRequest(historyID, version, nodes);
+        return new UpdateDesiredNodesRequest(historyID, version, nodes, dryRun);
     }
 
     public String getHistoryID() {
@@ -81,10 +95,15 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         return nodes;
     }
 
+    public boolean isDryRun() {
+        return dryRun;
+    }
+
     public boolean isCompatibleWithVersion(Version version) {
         if (version.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
             return true;
         }
+
         return nodes.stream().allMatch(desiredNode -> desiredNode.isCompatibleWithVersion(version));
     }
 
@@ -93,12 +112,15 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UpdateDesiredNodesRequest that = (UpdateDesiredNodesRequest) o;
-        return version == that.version && Objects.equals(historyID, that.historyID) && Objects.equals(nodes, that.nodes);
+        return version == that.version
+            && Objects.equals(historyID, that.historyID)
+            && Objects.equals(nodes, that.nodes)
+            && Objects.equals(dryRun, that.dryRun);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(historyID, version, nodes);
+        return Objects.hash(historyID, version, nodes, dryRun);
     }
 
     @Override

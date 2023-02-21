@@ -1,0 +1,278 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: foo
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              histogram:
+                type: histogram
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            histogram:
+              values: [0.1, 0.5, 1, 2, 4, 10]
+              counts: [1, 4, 5, 4, 5, 1]
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            histogram:
+              values: [0.1, 0.5, 1, 2, 4, 10]
+              counts: [1, 4, 5, 4, 5, 1]
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            histogram:
+              values: [0.1, 0.5, 1, 2, 4, 10]
+              counts: [1, 4, 5, 4, 5, 1]
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-02T05:00:00Z"
+            histogram:
+              values: [0.1, 0.5, 1, 2, 4, 10]
+              counts: [1, 4, 5, 4, 5, 1]
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-02T05:00:00Z"
+            histogram:
+              values: [0.1, 0.5, 1, 2, 4, 10]
+              counts: [1, 4, 5, 4, 5, 1]
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-03T05:00:00Z"
+            histogram:
+              values: [0.1, 0.5, 1, 2, 4, 10]
+              counts: [1, 4, 5, 4, 5, 1]
+
+---
+shift:
+  - do:
+      search:
+        index: "foo"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                percentiles:
+                  percentiles:
+                    field: "histogram"
+                    percents: [90]
+                    keyed: false
+                moving_percentiles:
+                  moving_percentiles:
+                    buckets_path: "percentiles"
+                    window: 2
+                    shift: 1
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 3 }
+  - match: { aggregations.histo.buckets.0.percentiles.values.0.value: 4.0 }
+  - match: { aggregations.histo.buckets.0.moving_percentiles.values.0.value: 4.0 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.percentiles.values.0.value: 5.0 }
+  - match: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: 4.0 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.histo.buckets.2.percentiles.values.0.value:  7.0 }
+  - match: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: 4.0 }
+
+---
+default choses tdigest:
+  - do:
+      search:
+        index: "foo"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                percentiles:
+                  percentiles:
+                    field: "histogram"
+                    percents: [90]
+                    keyed: false
+                moving_percentiles:
+                  moving_percentiles:
+                    buckets_path: "percentiles"
+                    window: 2
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 3 }
+  - match: { aggregations.histo.buckets.0.percentiles.values.0.value: 4.0 }
+  - is_false: aggregations.histo.buckets.0.moving_percentiles
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.percentiles.values.0.value: 5.0 }
+  - match: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: 4.0 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.histo.buckets.2.percentiles.values.0.value:  7.0 }
+  - match: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: 4.0 }
+
+---
+tdest explicitly:
+  - do:
+      search:
+        index: "foo"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                percentiles:
+                  percentiles:
+                    field: "histogram"
+                    percents: [90]
+                    keyed: false
+                    tdigest: {}
+                moving_percentiles:
+                  moving_percentiles:
+                    buckets_path: "percentiles"
+                    window: 2
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 3 }
+  - match: { aggregations.histo.buckets.0.percentiles.values.0.value: 4.0 }
+  - is_false: aggregations.histo.buckets.0.moving_percentiles
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.percentiles.values.0.value: 5.0 }
+  - match: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: 4.0 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.histo.buckets.2.percentiles.values.0.value:  7.0 }
+  - match: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: 4.0 }
+
+---
+hdr:
+  - do:
+      search:
+        index: "foo"
+        body:
+          size: 10
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                percentiles:
+                  percentiles:
+                    field: "histogram"
+                    percents: [90]
+                    keyed: false
+                    hdr:
+                      number_of_significant_value_digits: 1
+                moving_percentiles:
+                  moving_percentiles:
+                    buckets_path: "percentiles"
+                    window: 3
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 3 }
+  - match: { aggregations.histo.buckets.0.percentiles.values.0.value: 4.24609375 }
+  - is_false: aggregations.histo.buckets.0.moving_percentiles
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.percentiles.values.0.value: 4.24609375 }
+  - match: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: 4.24609375 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.histo.buckets.2.percentiles.values.0.value:  4.24609375 }
+  - match: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: 4.24609375 }
+
+---
+bad path:
+  - do:
+      catch: /No aggregation found for path \[bad_path\]/
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: date
+                calendar_interval: 1d
+              aggs:
+                percentiles:
+                  percentiles:
+                    field: histogram
+                    percents: [ 90 ]
+                    keyed: false
+                moving_percentiles:
+                  moving_percentiles:
+                    buckets_path: bad_path
+                    window: 3
+
+---
+Bad window:
+  - do:
+      catch: /\[window\] must be a positive, non-zero integer\./
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: date
+                calendar_interval: 1d
+              aggs:
+                percentiles:
+                  percentiles:
+                    field: histogram
+                    percents: [ 90 ]
+                    keyed: false
+                moving_percentiles:
+                  moving_percentiles:
+                    buckets_path: percentiles
+                    window: -1
+
+---
+Not under date histo:
+  - do:
+      catch: /moving_percentiles aggregation \[moving_percentiles\] must have a histogram, date_histogram or auto_date_histogram as parent but doesn't have a parent/
+      search:
+        body:
+          size: 0
+          aggs:
+            percentiles:
+              percentiles:
+                field: histogram
+                percents: [90]
+                keyed: false
+            moving_percentiles:
+              moving_percentiles:
+                buckets_path: percentiles
+                window: 2
+                shift: 1

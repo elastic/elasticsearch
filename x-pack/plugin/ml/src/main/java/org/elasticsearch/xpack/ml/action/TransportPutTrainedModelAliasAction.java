@@ -37,15 +37,20 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -141,10 +146,6 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                 listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                 return;
             }
-            if (newModel.getModelType() == TrainedModelType.PYTORCH) {
-                listener.onFailure(ExceptionsHelper.badRequestException("model_alias is not supported on pytorch models"));
-                return;
-            }
             // if old model is null, none of these validations matter
             // we should still allow reassignment even if the old model was some how deleted and the alias still refers to it
             if (oldModel != null) {
@@ -163,6 +164,70 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                             )
                         );
                         return;
+                    }
+                }
+
+                if (Objects.equals(newModel.getModelType(), oldModel.getModelType()) == false) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "cannot reassign model_alias [{}] to model [{}] with type [{}] from model [{}] with type [{}]",
+                            request.getModelAlias(),
+                            newModel.getModelId(),
+                            Optional.ofNullable(newModel.getModelType()).orElse(TrainedModelType.TREE_ENSEMBLE).toString(),
+                            oldModel.getModelId(),
+                            Optional.ofNullable(oldModel.getModelType()).orElse(TrainedModelType.TREE_ENSEMBLE).toString()
+                        )
+                    );
+                    return;
+                }
+
+                // If we are reassigning Pytorch models, we need to validate assignments are acceptable.
+                if (newModel.getModelType() == TrainedModelType.PYTORCH) {
+                    Optional<TrainedModelAssignment> oldAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(state, oldModelId);
+                    Optional<TrainedModelAssignment> newAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(
+                        state,
+                        newModel.getModelId()
+                    );
+                    // Old model is currently deployed
+                    if (oldAssignment.isPresent()) {
+                        // disallow changing the model alias from a deployed model to an undeployed model
+                        if (newAssignment.isEmpty()) {
+                            listener.onFailure(
+                                ExceptionsHelper.badRequestException(
+                                    "cannot reassign model_alias [{}] to model [{}] from model [{}] as it is not yet deployed",
+                                    request.getModelAlias(),
+                                    newModel.getModelId(),
+                                    oldModel.getModelId()
+                                )
+                            );
+                            return;
+                        } else {
+                            Optional<AllocationStatus> oldAllocationStatus = oldAssignment.map(
+                                TrainedModelAssignment::calculateAllocationStatus
+                            ).get();
+                            // Old model is deployed and its allocation status is NOT "stopping" or "starting"
+                            if (oldAllocationStatus.isPresent()
+                                && oldAllocationStatus.get()
+                                    .calculateState()
+                                    .isAnyOf(AllocationStatus.State.FULLY_ALLOCATED, AllocationStatus.State.STARTED)) {
+                                Optional<AllocationStatus> newAllocationStatus = newAssignment.map(
+                                    TrainedModelAssignment::calculateAllocationStatus
+                                ).get();
+                                if (newAllocationStatus.isEmpty()
+                                    || newAllocationStatus.get().calculateState().equals(AllocationStatus.State.STARTING)) {
+                                    listener.onFailure(
+                                        ExceptionsHelper.badRequestException(
+                                            "cannot reassign model_alias [{}] to model [{}] "
+                                                + " from model [{}] as it is not yet allocated to any nodes",
+                                            request.getModelAlias(),
+                                            newModel.getModelId(),
+                                            oldModel.getModelId()
+                                        )
+                                    );
+                                    return;
+                                }
+                            }
+                        }
                     }
                 }
 

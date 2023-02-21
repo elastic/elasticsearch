@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -147,13 +147,13 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
             tokenizationUpdate == null ? zeroShotConfig.getTokenization() : tokenizationUpdate.apply(zeroShotConfig.getTokenization()),
             zeroShotConfig.getHypothesisTemplate(),
             Optional.ofNullable(isMultiLabel).orElse(zeroShotConfig.isMultiLabel()),
-            Optional.ofNullable(labels).orElse(zeroShotConfig.getLabels()),
+            Optional.ofNullable(labels).orElse(zeroShotConfig.getLabels().orElse(null)),
             Optional.ofNullable(resultsField).orElse(zeroShotConfig.getResultsField())
         );
     }
 
     boolean isNoop(ZeroShotClassificationConfig originalConfig) {
-        return (labels == null || labels.equals(originalConfig.getLabels()))
+        return (labels == null || labels.equals(originalConfig.getLabels().orElse(null)))
             && (isMultiLabel == null || isMultiLabel.equals(originalConfig.isMultiLabel()))
             && (resultsField == null || resultsField.equals(originalConfig.getResultsField()))
             && super.isNoop();
@@ -243,7 +243,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_0_0;
     }
 }

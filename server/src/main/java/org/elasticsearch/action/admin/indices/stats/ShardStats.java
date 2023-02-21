@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +26,7 @@ import java.util.Objects;
 
 public class ShardStats implements Writeable, ToXContentFragment {
 
-    private static final Version DEDUPLICATE_SHARD_PATH_VERSION = Version.V_8_4_0;
+    private static final TransportVersion DEDUPLICATE_SHARD_PATH_VERSION = TransportVersion.V_8_4_0;
 
     private final ShardRouting shardRouting;
     private final CommonStats commonStats;
@@ -34,18 +34,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
     private final CommitStats commitStats;
     @Nullable
     private final SeqNoStats seqNoStats;
-
     @Nullable
     private final RetentionLeaseStats retentionLeaseStats;
-
-    /**
-     * Gets the current retention lease stats.
-     *
-     * @return the current retention lease stats
-     */
-    public RetentionLeaseStats getRetentionLeaseStats() {
-        return retentionLeaseStats;
-    }
 
     private final String dataPath;
     private final String statePath;
@@ -56,7 +46,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
-        if (in.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
             dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
         } else {
             dataPath = in.readString();
@@ -67,21 +57,63 @@ public class ShardStats implements Writeable, ToXContentFragment {
     }
 
     public ShardStats(
-        final ShardRouting routing,
+        final ShardRouting shardRouting,
         final ShardPath shardPath,
         final CommonStats commonStats,
         final CommitStats commitStats,
         final SeqNoStats seqNoStats,
         final RetentionLeaseStats retentionLeaseStats
     ) {
-        this.shardRouting = routing;
-        this.dataPath = shardPath.getRootDataPath().toString();
-        this.statePath = shardPath.getRootStatePath().toString();
-        this.isCustomDataPath = shardPath.isCustomDataPath();
-        this.commitStats = commitStats;
+        this(
+            shardRouting,
+            commonStats,
+            commitStats,
+            seqNoStats,
+            retentionLeaseStats,
+            shardPath.getRootDataPath().toString(),
+            shardPath.getRootStatePath().toString(),
+            shardPath.isCustomDataPath()
+        );
+    }
+
+    public ShardStats(
+        ShardRouting shardRouting,
+        CommonStats commonStats,
+        CommitStats commitStats,
+        SeqNoStats seqNoStats,
+        RetentionLeaseStats retentionLeaseStats,
+        String dataPath,
+        String statePath,
+        boolean isCustomDataPath
+    ) {
+        this.shardRouting = shardRouting;
         this.commonStats = commonStats;
+        this.commitStats = commitStats;
         this.seqNoStats = seqNoStats;
         this.retentionLeaseStats = retentionLeaseStats;
+        this.dataPath = dataPath;
+        this.statePath = statePath;
+        this.isCustomDataPath = isCustomDataPath;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ShardStats that = (ShardStats) o;
+        return Objects.equals(shardRouting, that.shardRouting)
+            && Objects.equals(dataPath, that.dataPath)
+            && Objects.equals(statePath, that.statePath)
+            && isCustomDataPath == that.isCustomDataPath
+            && Objects.equals(commitStats, that.commitStats)
+            && Objects.equals(commonStats, that.commonStats)
+            && Objects.equals(seqNoStats, that.seqNoStats)
+            && Objects.equals(retentionLeaseStats, that.retentionLeaseStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardRouting, dataPath, statePath, isCustomDataPath, commitStats, commonStats, seqNoStats, retentionLeaseStats);
     }
 
     /**
@@ -105,6 +137,15 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return this.seqNoStats;
     }
 
+    /**
+     * Gets the current retention lease stats.
+     *
+     * @return the current retention lease stats
+     */
+    public RetentionLeaseStats getRetentionLeaseStats() {
+        return retentionLeaseStats;
+    }
+
     public String getDataPath() {
         return dataPath;
     }
@@ -123,7 +164,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats.writeTo(out);
         out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
-        if (out.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
             out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
         } else {
             out.writeString(dataPath);

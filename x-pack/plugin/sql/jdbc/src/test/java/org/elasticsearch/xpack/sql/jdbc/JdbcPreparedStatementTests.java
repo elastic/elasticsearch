@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigInteger;
@@ -27,7 +28,6 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
 
-import static java.lang.String.format;
 import static java.time.ZoneOffset.UTC;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BINARY;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BOOLEAN;
@@ -209,7 +209,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         int someInt = randomInt();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, someInt, Types.TIMESTAMP));
-        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [INTEGER] to [TIMESTAMP]", someInt), sqle.getMessage());
+        assertEquals(Strings.format("Unable to convert value [%.128s] of type [INTEGER] to [TIMESTAMP]", someInt), sqle.getMessage());
 
         Integer randomIntNotShort = randomIntBetween(32768, Integer.MAX_VALUE);
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, randomIntNotShort, Types.SMALLINT));
@@ -299,7 +299,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         long someLong = randomLong();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, someLong, Types.TIMESTAMP));
-        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [LONG] to [TIMESTAMP]", someLong), sqle.getMessage());
+        assertEquals(Strings.format("Unable to convert value [%.128s] of type [LONG] to [TIMESTAMP]", someLong), sqle.getMessage());
 
         Long randomLongNotShort = randomLongBetween(Integer.MAX_VALUE + 1, Long.MAX_VALUE);
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, randomLongNotShort, Types.INTEGER));
@@ -340,7 +340,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         float someFloat = randomFloat();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, someFloat, Types.TIMESTAMP));
-        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [FLOAT] to [TIMESTAMP]", someFloat), sqle.getMessage());
+        assertEquals(Strings.format("Unable to convert value [%.128s] of type [FLOAT] to [TIMESTAMP]", someFloat), sqle.getMessage());
 
         Float floatNotInt = 5_155_000_000f;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, floatNotInt, Types.INTEGER));
@@ -377,10 +377,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         double someDouble = randomDouble();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, someDouble, Types.TIMESTAMP));
-        assertEquals(
-            format(Locale.ROOT, "Unable to convert value [%.128s] of type [DOUBLE] to [TIMESTAMP]", someDouble),
-            sqle.getMessage()
-        );
+        assertEquals(Strings.format("Unable to convert value [%.128s] of type [DOUBLE] to [TIMESTAMP]", someDouble), sqle.getMessage());
 
         Double doubleNotInt = 5_155_000_000d;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, doubleNotInt, Types.INTEGER));

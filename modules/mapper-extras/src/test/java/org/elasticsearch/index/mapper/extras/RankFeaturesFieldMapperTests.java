@@ -59,6 +59,11 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }
@@ -121,6 +126,16 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         assertTrue(freq1 > freq2);
     }
 
+    public void testDotinFieldname() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("politi.cs", 10, "sports", 20))))
+        );
+        assertThat(ex.getCause().getMessage(), containsString("do not support dots in feature names"));
+        assertThat(ex.getCause().getMessage(), containsString("politi.cs"));
+    }
+
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field").field("type", "rank_features").endObject();
@@ -179,7 +194,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
         throw new AssumptionViolatedException("not supported");
     }
 

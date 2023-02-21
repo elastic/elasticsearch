@@ -515,14 +515,14 @@ public class ClusterStatsNodes implements ToXContentFragment {
          * Total heap used in the cluster
          */
         public ByteSizeValue getHeapUsed() {
-            return new ByteSizeValue(heapUsed);
+            return ByteSizeValue.ofBytes(heapUsed);
         }
 
         /**
          * Maximum total heap available to the cluster
          */
         public ByteSizeValue getHeapMax() {
-            return new ByteSizeValue(heapMax);
+            return ByteSizeValue.ofBytes(heapMax);
         }
 
         static final class Fields {

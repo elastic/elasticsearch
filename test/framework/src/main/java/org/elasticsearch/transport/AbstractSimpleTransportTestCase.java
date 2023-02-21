@@ -12,13 +12,14 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -110,7 +111,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
-    protected static final Version version0 = CURRENT_VERSION.minimumCompatibilityVersion();
+    protected static final Version version0 = CURRENT_VERSION;
 
     protected volatile DiscoveryNode nodeA;
     protected volatile MockTransportService serviceA;
@@ -120,7 +121,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract Transport build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
+    protected abstract Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake);
 
     protected int channelsPerNodeConnection() {
         // This is a customized profile for this test case.
@@ -206,7 +207,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
         }
-        Transport transport = build(updatedSettings, version, clusterSettings, doHandshake);
+        Transport transport = build(updatedSettings, version.transportVersion, clusterSettings, doHandshake);
         MockTransportService service = MockTransportService.createNewService(
             updatedSettings,
             transport,
@@ -223,7 +224,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return service;
     }
 
-    private MockTransportService buildService(
+    protected MockTransportService buildService(
         final String name,
         final Version version,
         @Nullable ClusterSettings clusterSettings,
@@ -1466,7 +1467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version1Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(version1)) {
+            if (in.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 value2 = in.readInt();
             }
         }
@@ -1474,7 +1475,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(version1)) {
+            if (out.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 out.writeInt(value2);
             }
         }
@@ -1509,7 +1510,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version1Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(version1)) {
+            if (in.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 value2 = in.readInt();
             } else {
                 value2 = 0;
@@ -1519,7 +1520,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(version1)) {
+            if (out.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 out.writeInt(value2);
             }
         }
@@ -1531,7 +1532,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value2, equalTo(0)); // not set, coming from service A
             Version1Response response = new Version1Response(1, 2);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            assertEquals(version0.transportVersion, channel.getVersion());
         });
 
         Version0Request version0Request = new Version0Request();
@@ -1568,7 +1569,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            assertEquals(version0.transportVersion, channel.getVersion());
         });
 
         Version1Request version1Request = new Version1Request();
@@ -1609,7 +1610,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value2, equalTo(2));
             Version1Response response = new Version1Response(1, 2);
             channel.sendResponse(response);
-            assertEquals(version1, channel.getVersion());
+            // channel versions don't make sense on DirectResponseChannel
+            assertThat(channel, instanceOf(TaskTransportChannel.class));
+            assertThat(((TaskTransportChannel) channel).getChannel(), instanceOf(TransportService.DirectResponseChannel.class));
         });
 
         Version1Request version1Request = new Version1Request();
@@ -1649,7 +1652,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            // channel versions don't make sense on DirectResponseChannel
+            assertThat(channel, instanceOf(TaskTransportChannel.class));
+            assertThat(((TaskTransportChannel) channel).getChannel(), instanceOf(TransportService.DirectResponseChannel.class));
         });
 
         Version0Request version0Request = new Version0Request();
@@ -2168,61 +2173,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         );
     }
 
-    public void testTimeoutPerConnection() throws IOException {
-        assumeTrue("Works only on BSD network stacks", Constants.MAC_OS_X || Constants.FREE_BSD);
-        try (ServerSocket socket = new MockServerSocket()) {
-            // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
-            // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which
-            // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
-            // into a connection timeout quickly. Yet other implementations can for instance can terminate the connection within the 3 way
-            // handshake which I haven't tested yet.
-            socket.bind(getLocalEphemeral(), 1);
-            socket.setReuseAddress(true);
-            DiscoveryNode first = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            DiscoveryNode second = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-            builder.addConnections(
-                1,
-                TransportRequestOptions.Type.BULK,
-                TransportRequestOptions.Type.PING,
-                TransportRequestOptions.Type.RECOVERY,
-                TransportRequestOptions.Type.REG,
-                TransportRequestOptions.Type.STATE
-            );
-            // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
-            try (TransportService service = buildService("TS_TPC", Version.CURRENT, null, Settings.EMPTY, true, false)) {
-                IOUtils.close(openConnection(service, first, builder.build()));
-                builder.setConnectTimeout(TimeValue.timeValueMillis(1));
-                final ConnectionProfile profile = builder.build();
-                // now with the 1ms timeout we got and test that is it's applied
-                long startTime = System.nanoTime();
-                ConnectTransportException ex = expectThrows(
-                    ConnectTransportException.class,
-                    () -> openConnection(service, second, profile)
-                );
-                final long now = System.nanoTime();
-                final long timeTaken = TimeValue.nsecToMSec(now - startTime);
-                assertTrue(
-                    "test didn't timeout quick enough, time taken: [" + timeTaken + "]",
-                    timeTaken < TimeValue.timeValueSeconds(5).millis()
-                );
-                assertEquals(ex.getMessage(), "[][" + second.getAddress() + "] connect_timeout[1ms]");
-            }
-        }
-    }
-
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         Version version = Version.fromString("2.0.0");
@@ -2258,7 +2208,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             try (Transport.Connection connection = openConnection(serviceA, node, builder.build())) {
-                assertEquals(connection.getVersion(), version);
+                assertEquals(version.transportVersion, connection.getTransportVersion());
             }
         }
     }
@@ -2303,7 +2253,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                assertEquals(connection.getVersion(), Version.CURRENT);
+                assertEquals(TransportVersion.CURRENT, connection.getTransportVersion());
             }
         }
     }
@@ -2375,7 +2325,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 ConnectTransportException.class,
                 () -> connectToNode(serviceA, dummy, builder.build())
             );
-            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() + "] general node connection failure");
+            assertEquals("[][" + dummy.getAddress() + "] general node connection failure", ex.getMessage());
             assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
         }
@@ -2626,8 +2576,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(51, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(55, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2641,16 +2591,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(111, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(114, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
-            assertEquals(50, stats.getRxSize().getBytes());
-            assertEquals(111, stats.getTxSize().getBytes());
+            assertEquals(54, stats.getRxSize().getBytes());
+            assertEquals(114, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2735,8 +2685,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(51, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(55, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2750,8 +2700,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(111, transportStats.getTxSize().getBytes());
+                assertEquals(29, transportStats.getRxSize().getBytes());
+                assertEquals(114, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2761,13 +2711,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportException exception = receivedException.get();
             assertNotNull(exception);
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(version0);
+            streamOutput.setTransportVersion(version0.transportVersion);
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
-            // 53 bytes are the non-exception message bytes that have been received. It should include the initial
+            // 57 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 53 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(111, stats.getTxSize().getBytes());
+            assertEquals(failedMessage, 57 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
+            assertEquals(114, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -3037,6 +2987,59 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(exception.getCause().getMessage(), equalTo("fail to send"));
     }
 
+    public void testChannelToString() {
+        final String ACTION = "internal:action";
+        serviceA.registerRequestHandler(ACTION, ThreadPool.Names.SAME, TransportRequest.Empty::new, (request, channel, task) -> {
+            assertThat(
+                channel.toString(),
+                allOf(
+                    containsString("DirectResponseChannel"),
+                    containsString('{' + ACTION + '}'),
+                    containsString("TaskTransportChannel{task=" + task.getId() + '}')
+                )
+            );
+            assertThat(new ChannelActionListener<>(channel).toString(), containsString(channel.toString()));
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
+        serviceB.registerRequestHandler(ACTION, ThreadPool.Names.SAME, TransportRequest.Empty::new, (request, channel, task) -> {
+            assertThat(
+                channel.toString(),
+                allOf(
+                    containsString("TcpTransportChannel"),
+                    containsString('{' + ACTION + '}'),
+                    containsString("TaskTransportChannel{task=" + task.getId() + '}'),
+                    containsString("localAddress="),
+                    containsString(serviceB.getLocalNode().getAddress().toString())
+                )
+            );
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        });
+
+        PlainActionFuture.get(
+            f -> submitRequest(
+                serviceA,
+                serviceA.getLocalNode(),
+                ACTION,
+                TransportRequest.Empty.INSTANCE,
+                new ActionListenerResponseHandler<>(f, ignored -> TransportResponse.Empty.INSTANCE)
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
+
+        PlainActionFuture.get(
+            f -> submitRequest(
+                serviceA,
+                serviceB.getLocalNode(),
+                ACTION,
+                TransportRequest.Empty.INSTANCE,
+                new ActionListenerResponseHandler<>(f, ignored -> TransportResponse.Empty.INSTANCE)
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
+    }
+
     // test that the response handler is invoked on a failure to send
     private TransportException doFailToSend(RuntimeException failToSendException) throws InterruptedException {
         final TransportInterceptor interceptor = new TransportInterceptor() {
@@ -3176,11 +3179,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         responseListener.whenComplete(handler::handleResponse, e -> handler.handleException((TransportException) e));
         final PlainActionFuture<T> future = PlainActionFuture.newFuture();
         responseListener.addListener(future);
-        try {
-            transportService.sendRequest(node, action, request, options, futureHandler);
-        } catch (NodeNotConnectedException ex) {
-            futureHandler.handleException(ex);
-        }
+        transportService.sendRequest(node, action, request, options, futureHandler);
         return future;
     }
 }

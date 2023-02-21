@@ -1,5 +1,0 @@
-pr: 87392
-summary: Fix a bug with flattened fields in terms aggregations
-area: Aggregations
-type: bug
-issues: []

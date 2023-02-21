@@ -131,8 +131,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                         RetryPolicyType.EXPONENTIAL,
                         azureStorageSettings.getMaxRetries() + 1,
                         60,
-                        50L,
-                        100L,
+                        5L,
+                        10L,
                         null
                     );
                 }

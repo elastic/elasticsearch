@@ -38,6 +38,13 @@ Defaults to daily at 1:30am UTC: `0 30 1 * * ?`.
 Limits how long {slm-init} should spend deleting old snapshots.
 Defaults to one hour: `1h`.
 
+[[slm-health-failed-snapshot-warn-threshold]]
+`slm.health.failed_snapshot_warn_threshold`::
+(<<dynamic-cluster-setting,Dynamic>>, Long)
+The number of failed invocations since last successful snapshot that
+indicate a problem with the policy in the health api.
+Defaults to a health api warning after five repeated failures: `5L`.
+
 [[repositories-url-allowed]]
 // tag::repositories-url-allowed[]
 `repositories.url.allowed_urls` {ess-icon}::

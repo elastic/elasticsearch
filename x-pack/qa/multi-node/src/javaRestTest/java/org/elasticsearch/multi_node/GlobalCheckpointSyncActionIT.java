@@ -12,14 +12,28 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.ClassRule;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test-user", "x-pack-test-password", "test")
+        .user("super-user", "x-pack-super-password")
+        .build();
 
     @Override
     protected Settings restClientSettings() {
@@ -29,6 +43,11 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
     @Override
     protected Settings restAdminSettings() {
         return getClientSettings("super-user", "x-pack-super-password");
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     private Settings getClientSettings(final String username, final String password) {

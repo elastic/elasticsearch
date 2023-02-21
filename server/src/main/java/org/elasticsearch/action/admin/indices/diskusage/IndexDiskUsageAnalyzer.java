@@ -13,17 +13,20 @@ import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
+import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -118,6 +121,10 @@ final class IndexDiskUsageAnalyzer {
                 startTimeInNanos = System.nanoTime();
                 analyzeTermVectors(reader, stats);
                 executionTime.termVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
+
+                startTimeInNanos = System.nanoTime();
+                analyzeKnnVectors(reader, stats);
+                executionTime.knnVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
             }
         }
         logger.debug("analyzing the disk usage took {} stats: {}", executionTime, stats);
@@ -131,7 +138,7 @@ final class IndexDiskUsageAnalyzer {
         final int skipMask = 0x1FF; // 511
         while (docID < reader.maxDoc()) {
             cancellationChecker.logEvent();
-            storedFieldsReader.visitDocument(docID, visitor);
+            storedFieldsReader.document(docID, visitor);
             // As we already estimate the size of stored fields, we can trade off the accuracy for the speed of the estimate.
             // Here we only visit 1/11 documents instead of all documents. Ideally, we should visit 1 doc then skip 10 docs
             // to avoid missing many skew documents. But, documents are stored in chunks in compressed format and a chunk can
@@ -510,6 +517,60 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
+    void analyzeKnnVectors(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
+        KnnVectorsReader vectorReader = reader.getVectorReader();
+        if (vectorReader == null) {
+            return;
+        }
+        for (FieldInfo field : reader.getFieldInfos()) {
+            cancellationChecker.checkForCancellation();
+            directory.resetBytesRead();
+            if (field.getVectorDimension() > 0) {
+                switch (field.getVectorEncoding()) {
+                    case BYTE -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getByteVectorValues(field.name), vectors -> {
+                            cancellationChecker.logEvent();
+                            vectors.vectorValue();
+                        });
+
+                        // do a couple of randomized searches to figure out min and max offsets of index file
+                        ByteVectorValues vectorValues = vectorReader.getByteVectorValues(field.name);
+                        int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
+                        int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
+                        for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
+                            if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                                break;
+                            }
+                            cancellationChecker.checkForCancellation();
+                            vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
+                        }
+                        stats.addKnnVectors(field.name, directory.getBytesRead());
+                    }
+                    case FLOAT32 -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name), vectors -> {
+                            cancellationChecker.logEvent();
+                            vectors.vectorValue();
+                        });
+
+                        // do a couple of randomized searches to figure out min and max offsets of index file
+                        FloatVectorValues vectorValues = vectorReader.getFloatVectorValues(field.name);
+                        int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
+                        int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
+                        for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
+                            if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                                break;
+                            }
+                            cancellationChecker.checkForCancellation();
+                            vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
+                        }
+                        stats.addKnnVectors(field.name, directory.getBytesRead());
+                    }
+                }
+
+            }
+        }
+    }
+
     private static class TrackingReadBytesDirectory extends FilterDirectory {
         private final Map<String, BytesReadTracker> trackers = new HashMap<>();
 
@@ -602,7 +663,7 @@ final class IndexDiskUsageAnalyzer {
     }
 
     /**
-     * Lucene Codec organizes data field by field for doc values, points, postings, and norms; and document by document
+     * Lucene Codec organizes data field by field for doc values, points, postings, vectors, and norms; and document by document
      * for stored fields and term vectors. BytesReadTracker then can simply track the min and max read positions.
      * This would allow us to traverse only two ends of each partition.
      */
@@ -698,10 +759,11 @@ final class IndexDiskUsageAnalyzer {
         long pointsTimeInNanos;
         long normsTimeInNanos;
         long termVectorsTimeInNanos;
+        long knnVectorsTimeInNanos;
 
         long totalInNanos() {
             return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos + pointsTimeInNanos + normsTimeInNanos
-                + termVectorsTimeInNanos;
+                + termVectorsTimeInNanos + knnVectorsTimeInNanos;
         }
 
         @Override
@@ -726,6 +788,9 @@ final class IndexDiskUsageAnalyzer {
                 + "ms"
                 + ", term vectors: "
                 + termVectorsTimeInNanos / 1000_000
+                + "ms"
+                + ", knn vectors: "
+                + knnVectorsTimeInNanos / 1000_000
                 + "ms";
         }
     }

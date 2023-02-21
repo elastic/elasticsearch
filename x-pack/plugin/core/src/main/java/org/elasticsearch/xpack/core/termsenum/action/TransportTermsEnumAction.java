@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -413,43 +414,67 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
 
-            if (indexAccessControl != null) {
-                final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                if (dls && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
-                    // Check to see if any of the roles defined for the current user rewrite to match_all
+            if (indexAccessControl != null
+                && indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
+                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
+                // Check to see if any of the roles defined for the current user rewrite to match_all
 
-                    SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
-                    final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-                    final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
-                        shardId.id(),
-                        0,
-                        null,
-                        request::nodeStartedTimeMillis,
-                        null,
-                        Collections.emptyMap()
-                    );
+                SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
+                final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
+                    shardId.id(),
+                    0,
+                    null,
+                    request::nodeStartedTimeMillis,
+                    null,
+                    Collections.emptyMap()
+                );
 
-                    // Current user has potentially many roles and therefore potentially many queries
-                    // defining sets of docs accessible
-                    Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
-                    for (BytesReference querySource : queries) {
-                        QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
-                            querySource,
-                            scriptService,
-                            queryShardContext.getParserConfig().registry(),
-                            securityContext.getUser()
-                        );
-                        QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
-                        if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
-                            // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
-                            return true;
-                        }
-                    }
-                    return false;
-                }
+                // Current user has potentially many roles and therefore potentially many queries
+                // defining sets of docs accessible
+                final List<Set<BytesReference>> listOfQueries = indexAccessControl.getDocumentPermissions().getListOfQueries();
+
+                // When the user is an API Key, its role is a limitedRole and its effective document permissions
+                // are intersections of the two sets of queries, one belongs to the API key itself and the other belongs
+                // to the owner user. To allow unfiltered access to termsDict, both sets of the queries must have
+                // the "all" permission, i.e. the query can be rewritten into a MatchAll query.
+                // The following code loop through both sets queries and returns true only when both of them
+                // have the "all" permission.
+                return listOfQueries.stream().allMatch(queries -> hasMatchAllEquivalent(queries, securityContext, queryShardContext));
             }
         }
         return true;
+    }
+
+    private boolean hasMatchAllEquivalent(
+        Set<BytesReference> queries,
+        SecurityContext securityContext,
+        SearchExecutionContext queryShardContext
+    ) {
+        if (queries == null) {
+            return true;
+        }
+        // Current user has potentially many roles and therefore potentially many queries
+        // defining sets of docs accessible
+        for (BytesReference querySource : queries) {
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
+                querySource,
+                scriptService,
+                queryShardContext.getParserConfig().registry(),
+                securityContext.getUser()
+            );
+            QueryBuilder rewrittenQueryBuilder;
+            try {
+                rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
+                // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean canMatchShard(ShardId shardId, NodeTermsEnumRequest req) throws IOException {

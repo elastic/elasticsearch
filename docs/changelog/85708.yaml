@@ -1,7 +1,0 @@
-pr: 85708
-summary: "TSDB: Implement downsampling on time-series indices"
-area: TSDB
-type: feature
-issues:
- - 69799
- - 65769

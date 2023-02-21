@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.contains;
 
 public class ClusterPrivilegeResolverTests extends ESTestCase {
 
-    public void testSortByAccessLevel() throws Exception {
+    public void testSortByAccessLevel() {
         final List<NamedClusterPrivilege> privileges = new ArrayList<>(
             List.of(
                 ClusterPrivilegeResolver.ALL,
@@ -26,16 +26,20 @@ public class ClusterPrivilegeResolverTests extends ESTestCase {
                 ClusterPrivilegeResolver.MANAGE,
                 ClusterPrivilegeResolver.MANAGE_OWN_API_KEY,
                 ClusterPrivilegeResolver.MANAGE_API_KEY,
+                ClusterPrivilegeResolver.READ_SECURITY,
                 ClusterPrivilegeResolver.MANAGE_SECURITY
             )
         );
         Collections.shuffle(privileges, random());
         final SortedMap<String, NamedClusterPrivilege> sorted = ClusterPrivilegeResolver.sortByAccessLevel(privileges);
         // This is:
-        // "manage_own_api_key", "monitor" (neither of which grant anything else in the list), sorted by name
+        // "manage_own_api_key", "monitor", "read_security" (neither of which grant anything else in the list), sorted by name
         // "manage" and "manage_api_key",(which each grant 1 other privilege in the list), sorted by name
         // "manage_security" and "all", sorted by access level ("all" implies "manage_security")
-        assertThat(sorted.keySet(), contains("manage_own_api_key", "monitor", "manage", "manage_api_key", "manage_security", "all"));
+        assertThat(
+            sorted.keySet(),
+            contains("manage_own_api_key", "monitor", "read_security", "manage", "manage_api_key", "manage_security", "all")
+        );
     }
 
 }

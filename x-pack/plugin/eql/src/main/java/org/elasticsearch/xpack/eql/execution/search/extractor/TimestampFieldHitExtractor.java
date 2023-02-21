@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 public class TimestampFieldHitExtractor extends FieldHitExtractor {
 
     public TimestampFieldHitExtractor(FieldHitExtractor target) {
-        super(target.fieldName(), target.dataType(), target.zoneId(), target.hitName(), target.arrayLeniency());
+        super(target.fieldName(), target.dataType(), target.zoneId(), target.hitName(), target.multiValueSupport());
     }
 
     @Override

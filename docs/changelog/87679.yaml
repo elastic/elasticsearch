@@ -1,5 +1,0 @@
-pr: 87679
-summary: Run `TransportClusterInfoActions` on MANAGEMENT pool
-area: Stats
-type: bug
-issues: []

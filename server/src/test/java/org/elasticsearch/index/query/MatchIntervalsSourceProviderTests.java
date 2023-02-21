@@ -11,14 +11,14 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.IntervalsSourceProvider.Match;
 
-public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCase<Match> {
+public class MatchIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<Match> {
 
     @Override
     protected Match createTestInstance() {
@@ -26,7 +26,7 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
     }
 
     @Override
-    protected Match mutateInstance(Match instance) throws IOException {
+    protected Match mutateInstance(Match instance) {
         String query = instance.getQuery();
         int maxGaps = instance.getMaxGaps();
         boolean isOrdered = instance.isOrdered();

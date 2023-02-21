@@ -80,7 +80,8 @@ time zone.
 One month is the interval between the start day of the month and time of
 day and the same day of the month and time of the following month in the specified
 time zone, so that the day of the month and time of day are the same at the start
-and end.
+and end. Note that the day may differ if an
+<<search-aggregations-bucket-datehistogram-offset-months,`offset` is used that is longer than a month>>.
 
 `quarter`, `1q` ::
 
@@ -543,6 +544,94 @@ NOTE: The start `offset` of each bucket is calculated after `time_zone`
 adjustments have been made.
 // end::offset-note[]
 
+[[search-aggregations-bucket-datehistogram-offset-months]]
+===== Long offsets over calendar intervals
+
+It is typical to use offsets in units smaller than the `calendar_interval`. For example,
+using offsets in hours when the interval is days, or an offset of days when the interval is months.
+If the calendar interval is always of a standard length, or the `offset` is less than one unit of the calendar
+interval (for example less than `+24h` for `days` or less than `+28d` for months),
+then each bucket will have a repeating start. For example `+6h` for `days` will result in all buckets
+starting at 6am each day. However, `+30h` will also result in buckets starting at 6am, except when crossing
+days that change from standard to summer-savings time or vice-versa.
+
+This situation is much more pronounced for months, where each month has a different length
+to at least one of its adjacent months.
+To demonstrate this, consider eight documents each with a date field on the 20th day of each of the
+eight months from January to August of 2022.
+
+When querying for a date histogram over the calendar interval of months, the response will return one bucket per month, each with a single document.
+Each bucket will have a key named after the first day of the month, plus any offset.
+For example, the offset of `+19d` will result in buckets with names like `2022-01-20`.
+
+[source,console,id=datehistogram-aggregation-offset-example-19d]
+--------------------------------------------------
+"buckets": [
+  { "key_as_string": "2022-01-20", "key": 1642636800000, "doc_count": 1 },
+  { "key_as_string": "2022-02-20", "key": 1645315200000, "doc_count": 1 },
+  { "key_as_string": "2022-03-20", "key": 1647734400000, "doc_count": 1 },
+  { "key_as_string": "2022-04-20", "key": 1650412800000, "doc_count": 1 },
+  { "key_as_string": "2022-05-20", "key": 1653004800000, "doc_count": 1 },
+  { "key_as_string": "2022-06-20", "key": 1655683200000, "doc_count": 1 },
+  { "key_as_string": "2022-07-20", "key": 1658275200000, "doc_count": 1 },
+  { "key_as_string": "2022-08-20", "key": 1660953600000, "doc_count": 1 }
+]
+--------------------------------------------------
+// TESTRESPONSE[skip:no setup made for this example yet]
+
+Increasing the offset to `+20d`, each document will appear in a bucket for the previous month,
+with all bucket keys ending with the same day of the month, as normal.
+However, further increasing to `+28d`, 
+what used to be a February bucket has now become `"2022-03-01"`.
+
+[source,console,id=datehistogram-aggregation-offset-example-28d]
+--------------------------------------------------
+"buckets": [
+  { "key_as_string": "2021-12-29", "key": 1640736000000, "doc_count": 1 },
+  { "key_as_string": "2022-01-29", "key": 1643414400000, "doc_count": 1 },
+  { "key_as_string": "2022-03-01", "key": 1646092800000, "doc_count": 1 },
+  { "key_as_string": "2022-03-29", "key": 1648512000000, "doc_count": 1 },
+  { "key_as_string": "2022-04-29", "key": 1651190400000, "doc_count": 1 },
+  { "key_as_string": "2022-05-29", "key": 1653782400000, "doc_count": 1 },
+  { "key_as_string": "2022-06-29", "key": 1656460800000, "doc_count": 1 },
+  { "key_as_string": "2022-07-29", "key": 1659052800000, "doc_count": 1 }
+]
+--------------------------------------------------
+// TESTRESPONSE[skip:no setup made for this example yet]
+
+If we continue to increase the offset, the 30-day months will also shift into the next month,
+so that 3 of the 8 buckets have different days than the other five.
+In fact if we keep going, we will find cases where two documents appear in the same month.
+Documents that were originally 30 days apart can be shifted into the same 31-day month bucket.
+
+For example, for `+50d` we see:
+
+[source,console,id=datehistogram-aggregation-offset-example-50d]
+--------------------------------------------------
+"buckets": [
+  { "key_as_string": "2022-01-20", "key": 1642636800000, "doc_count": 1 },
+  { "key_as_string": "2022-02-20", "key": 1645315200000, "doc_count": 2 },
+  { "key_as_string": "2022-04-20", "key": 1650412800000, "doc_count": 2 },
+  { "key_as_string": "2022-06-20", "key": 1655683200000, "doc_count": 2 },
+  { "key_as_string": "2022-08-20", "key": 1660953600000, "doc_count": 1 }
+]
+--------------------------------------------------
+// TESTRESPONSE[skip:no setup made for this example yet]
+
+It is therefor always important when using `offset` with `calendar_interval` bucket sizes
+to understand the consequences of using offsets larger than the interval size.
+
+More examples:
+
+* If the goal is to, for example, have an annual histogram where each year starts on the 5th February,
+you could use `calendar_interval` of `year` and `offset` of `+33d`, and each year will be shifted identically,
+because the offset includes only January, which is the same length every year.
+However, if the goal is to have the year start on the 5th March instead, this technique will not work because
+the offset includes February, which changes length every four years.
+* If you want a quarterly histogram starting on a date within the first month of the year, it will work,
+but as soon as you push the start date into the second month by having an offset longer than a month, the
+quarters will all start on different dates.
+
 [[date-histogram-keyed-response]]
 ==== Keyed Response
 
@@ -705,7 +794,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // TEST[setup:sales]
 
-<1> Documents without a value in the `publish_date` field will fall into the
+<1> Documents without a value in the `date` field will fall into the
 same bucket as documents that have the value `2000-01-01`.
 
 [[date-histogram-order]]

@@ -24,7 +24,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
@@ -36,6 +38,8 @@ import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -53,14 +57,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
- * clients against against an elasticsearch cluster.
+ * clients against an elasticsearch cluster.
  *
  * The suite timeout is extended to account for projects with a large number of tests.
  */
@@ -114,11 +121,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         this.testCandidate = testCandidate;
     }
 
-    private static boolean useDefaultNumberOfShards;
+    private static Settings globalTemplateIndexSettings;
 
     @BeforeClass
-    public static void initializeUseDefaultNumberOfShards() {
-        useDefaultNumberOfShards = usually();
+    public static void initializeGlobalTemplateIndexSettings() {
+        globalTemplateIndexSettings = usually()
+            ? Settings.EMPTY
+            : Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build();
     }
 
     @Before
@@ -445,10 +454,25 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
-        if (useDefaultNumberOfShards == false
-            && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+        assumeFalse(
+            "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
+        );
+
+        final Settings globalTemplateSettings = getGlobalTemplateSettings(testCandidate.getTestSection().getSkipSection().getFeatures());
+        if (globalTemplateSettings.isEmpty() == false) {
+            final XContentBuilder template = jsonBuilder();
+            template.startObject();
+            {
+                template.startArray("index_patterns").value("*").endArray();
+                template.startObject("settings");
+                globalTemplateSettings.toXContent(template, ToXContent.EMPTY_PARAMS);
+                template.endObject();
+            }
+            template.endObject();
+
             final Request request = new Request("PUT", "/_template/global");
-            request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
+            request.setJsonEntity(Strings.toString(template));
             // Because this has not yet transitioned to a composable template, it's possible that
             // this can overlap an installed composable template since this is a global (*)
             // template. In order to avoid this failing the test, we override the warnings handler
@@ -459,10 +483,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
-        assumeFalse(
-            "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
-            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
-        );
 
         if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
@@ -487,6 +507,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
+    protected Settings getGlobalTemplateSettings(List<String> features) {
+        if (features.contains("default_shards")) {
+            return Settings.EMPTY;
+        } else {
+            return globalTemplateIndexSettings;
+        }
+    }
+
     protected boolean skipSetupSections() {
         return false;
     }
@@ -498,6 +526,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         try {
             executableSection.execute(restTestExecutionContext);
         } catch (AssertionError | Exception e) {
+            // Dump the original yaml file, if available, for reference.
+            Optional<Path> file = testCandidate.getRestTestSuite().getFile();
+            if (file.isPresent()) {
+                try {
+                    logger.info("Dump test yaml [{}] on failure:\n{}", file.get(), Files.readString(file.get()));
+                } catch (IOException ex) {
+                    logger.info("Did not dump test yaml [{}] on failure due to an exception [{}]", file.get(), ex);
+                }
+            }
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
             logger.info(
                 "Stash dump on test failure [{}]",
@@ -536,5 +573,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;
+    }
+
+    public ClientYamlTestCandidate getTestCandidate() {
+        return testCandidate;
     }
 }

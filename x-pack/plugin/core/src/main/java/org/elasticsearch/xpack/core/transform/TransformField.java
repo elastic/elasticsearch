@@ -22,6 +22,7 @@ public final class TransformField {
     public static final ParseField COUNT = new ParseField("count");
     public static final ParseField GROUP_BY = new ParseField("group_by");
     public static final ParseField TIMEOUT = new ParseField("timeout");
+    public static final ParseField FROM = new ParseField("from");
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
     public static final ParseField WAIT_FOR_CHECKPOINT = new ParseField("wait_for_checkpoint");
     public static final ParseField STATS_FIELD = new ParseField("stats");
@@ -42,6 +43,8 @@ public final class TransformField {
     public static final ParseField USE_PIT = new ParseField("use_point_in_time");
     public static final ParseField DEDUCE_MAPPINGS = new ParseField("deduce_mappings");
     public static final ParseField NUM_FAILURE_RETRIES = new ParseField("num_failure_retries");
+    public static final ParseField UNATTENDED = new ParseField("unattended");
+
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME = new ParseField("time");

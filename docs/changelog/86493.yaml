@@ -1,5 +1,0 @@
-pr: 86493
-summary: Make the ILM and SLM `history_index_enabled` settings dynamic
-area: ILM+SLM
-type: enhancement
-issues: []

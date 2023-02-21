@@ -13,10 +13,10 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +49,8 @@ public class RenameProcessorTests extends ESTestCase {
         list.add("item3");
         document.put("list", list);
         List<Map<String, String>> one = new ArrayList<>();
-        one.add(Collections.singletonMap("one", "one"));
-        one.add(Collections.singletonMap("two", "two"));
+        one.add(Map.of("one", "one"));
+        one.add(Map.of("two", "two"));
         document.put("one", one);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
@@ -137,18 +137,17 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     public void testRenameAtomicOperationSetFails() throws Exception {
-        Map<String, Object> source = new HashMap<String, Object>() {
-            @Override
-            public Object put(String key, Object value) {
-                if (key.equals("new_field")) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("list", List.of("item"));
+
+        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(
+            metadata,
+            Map.of("new_field", new Metadata.FieldProperty<>(Object.class, true, true, (k, v) -> {
+                if (v != null) {
                     throw new UnsupportedOperationException();
                 }
-                return super.put(key, value);
-            }
-        };
-        source.put("list", Collections.singletonList("item"));
-
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+            }), "list", new Metadata.FieldProperty<>(Object.class, true, true, null))
+        );
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -161,23 +160,18 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     public void testRenameAtomicOperationRemoveFails() throws Exception {
-        Map<String, Object> source = new HashMap<String, Object>() {
-            @Override
-            public Object remove(Object key) {
-                if (key.equals("list")) {
-                    throw new UnsupportedOperationException();
-                }
-                return super.remove(key);
-            }
-        };
-        source.put("list", Collections.singletonList("item"));
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("list", List.of("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(
+            metadata,
+            Map.of("list", new Metadata.FieldProperty<>(Object.class, false, true, null))
+        );
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch (UnsupportedOperationException e) {
+        } catch (IllegalArgumentException e) {
             // the set failed, the old field has not been removed
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
@@ -187,19 +181,16 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameLeafIntoBranch() throws Exception {
         Map<String, Object> source = new HashMap<>();
         source.put("foo", "bar");
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(source);
         Processor processor1 = createRenameProcessor("foo", "foo.bar", false);
         processor1.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar", "bar")));
+        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Map.of("bar", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar", String.class), equalTo("bar"));
 
         Processor processor2 = createRenameProcessor("foo.bar", "foo.bar.baz", false);
         processor2.execute(ingestDocument);
-        assertThat(
-            ingestDocument.getFieldValue("foo", Map.class),
-            equalTo(Collections.singletonMap("bar", Collections.singletonMap("baz", "bar")))
-        );
-        assertThat(ingestDocument.getFieldValue("foo.bar", Map.class), equalTo(Collections.singletonMap("baz", "bar")));
+        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Map.of("bar", Map.of("baz", "bar"))));
+        assertThat(ingestDocument.getFieldValue("foo.bar", Map.class), equalTo(Map.of("baz", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("bar"));
 
         // for fun lets try to restore it (which don't allow today)

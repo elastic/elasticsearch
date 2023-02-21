@@ -35,7 +35,11 @@ public final class GeoTileUtils {
 
     private GeoTileUtils() {}
 
-    private static final double PI_DIV_2 = Math.PI / 2;
+    private static final double PI_DIV_2 = Math.PI / 2.0;
+
+    private static final double PI_TIMES_2 = Math.PI * 2.0;
+
+    private static final double PI_TIMES_4 = Math.PI * 4.0;
 
     /**
      * Largest number of tiles (precision) to use.
@@ -104,24 +108,14 @@ public final class GeoTileUtils {
      * @param longitude the longitude to use when determining the tile x-coordinate
      * @param tiles     the number of tiles per row for a pre-determined zoom-level
      */
-    public static int getXTile(double longitude, long tiles) {
+    public static int getXTile(double longitude, int tiles) {
         // normalizeLon treats this as 180, which is not friendly for tile mapping
         if (longitude == -180) {
             return 0;
         }
-
-        int xTile = (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
-
+        final double xTile = (normalizeLon(longitude) + 180.0) / 360.0 * tiles;
         // Edge values may generate invalid values, and need to be clipped.
-        // For example, polar regions (above/below lat 85.05112878) get normalized.
-        if (xTile < 0) {
-            return 0;
-        }
-        if (xTile >= tiles) {
-            return (int) tiles - 1;
-        }
-
-        return xTile;
+        return Math.max(0, Math.min(tiles - 1, (int) Math.floor(xTile)));
     }
 
     /**
@@ -131,18 +125,12 @@ public final class GeoTileUtils {
      * @param latitude  the latitude to use when determining the tile y-coordinate
      * @param tiles     the number of tiles per column for a pre-determined zoom-level
      */
-    public static int getYTile(double latitude, long tiles) {
-        double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(normalizeLat(latitude)));
-        int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
-
-        if (yTile < 0) {
-            yTile = 0;
-        }
-        if (yTile >= tiles) {
-            return (int) tiles - 1;
-        }
-
-        return yTile;
+    public static int getYTile(double latitude, int tiles) {
+        final double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(normalizeLat(latitude)));
+        final double yTile = (0.5 - (ESSloppyMath.log((1.0 + latSin) / (1.0 - latSin)) / PI_TIMES_4)) * tiles;
+        // Edge values may generate invalid values, and need to be clipped.
+        // For example, polar regions (above/below lat 85.05112878) get normalized.
+        return Math.max(0, Math.min(tiles - 1, (int) Math.floor(yTile)));
     }
 
     /**
@@ -153,10 +141,8 @@ public final class GeoTileUtils {
     public static long longEncode(double longitude, double latitude, int precision) {
         // Mathematics for this code was adapted from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Java
         // Number of tiles for the current zoom level along the X and Y axis
-        final long tiles = 1 << checkPrecisionRange(precision);
-        long xTile = getXTile(longitude, tiles);
-        long yTile = getYTile(latitude, tiles);
-        return longEncodeTiles(precision, xTile, yTile);
+        final int tiles = 1 << checkPrecisionRange(precision);
+        return longEncodeTiles(precision, getXTile(longitude, tiles), getYTile(latitude, tiles));
     }
 
     /**
@@ -166,38 +152,28 @@ public final class GeoTileUtils {
      * @return long encoded value of the given string hash
      */
     public static long longEncode(String hashAsString) {
-        int[] parsed = parseHash(hashAsString);
-        return longEncode((long) parsed[0], (long) parsed[1], (long) parsed[2]);
+        final int[] parsed = parseHash(hashAsString);
+        return longEncodeTiles(parsed[0], parsed[1], parsed[2]);
     }
 
-    public static long longEncodeTiles(int precision, long xTile, long yTile) {
+    public static long longEncodeTiles(int precision, int xTile, int yTile) {
         // Zoom value is placed in front of all the bits used for the geotile
         // e.g. when max zoom is 29, the largest index would use 58 bits (57th..0th),
         // leaving 5 bits unused for zoom. See MAX_ZOOM comment above.
-        return ((long) precision << ZOOM_SHIFT) | (xTile << MAX_ZOOM) | yTile;
+        return ((long) precision << ZOOM_SHIFT) | ((long) xTile << MAX_ZOOM) | yTile;
     }
 
     /**
      * Parse geotile hash as zoom, x, y integers.
      */
     private static int[] parseHash(long hash) {
-        final int zoom = (int) (hash >>> ZOOM_SHIFT);
-        final int xTile = (int) ((hash >>> MAX_ZOOM) & X_Y_VALUE_MASK);
-        final int yTile = (int) (hash & X_Y_VALUE_MASK);
-        return new int[] { zoom, xTile, yTile };
-    }
-
-    private static long longEncode(long precision, long xTile, long yTile) {
-        // Zoom value is placed in front of all the bits used for the geotile
-        // e.g. when max zoom is 29, the largest index would use 58 bits (57th..0th),
-        // leaving 5 bits unused for zoom. See MAX_ZOOM comment above.
-        return (precision << ZOOM_SHIFT) | (xTile << MAX_ZOOM) | yTile;
+        return new int[] { (int) (hash >>> ZOOM_SHIFT), (int) ((hash >>> MAX_ZOOM) & X_Y_VALUE_MASK), (int) (hash & X_Y_VALUE_MASK) };
     }
 
     /**
      * Parse geotile String hash format in "zoom/x/y" into an array of integers
      */
-    private static int[] parseHash(String hashAsString) {
+    public static int[] parseHash(String hashAsString) {
         final String[] parts = hashAsString.split("/", 4);
         if (parts.length != 3) {
             throw new IllegalArgumentException(
@@ -218,7 +194,7 @@ public final class GeoTileUtils {
      * Encode to a geotile string from the geotile based long format
      */
     public static String stringEncode(long hash) {
-        int[] res = parseHash(hash);
+        final int[] res = parseHash(hash);
         validateZXY(res[0], res[1], res[2]);
         return "" + res[0] + "/" + res[1] + "/" + res[2];
     }
@@ -227,7 +203,7 @@ public final class GeoTileUtils {
      * Decode long hash as a GeoPoint (center of the tile)
      */
     static GeoPoint hashToGeoPoint(long hash) {
-        int[] res = parseHash(hash);
+        final int[] res = parseHash(hash);
         return zxyToGeoPoint(res[0], res[1], res[2]);
     }
 
@@ -235,12 +211,12 @@ public final class GeoTileUtils {
      * Decode a string bucket key in "zoom/x/y" format to a GeoPoint (center of the tile)
      */
     static GeoPoint keyToGeoPoint(String hashAsString) {
-        int[] hashAsInts = parseHash(hashAsString);
+        final int[] hashAsInts = parseHash(hashAsString);
         return zxyToGeoPoint(hashAsInts[0], hashAsInts[1], hashAsInts[2]);
     }
 
     public static Rectangle toBoundingBox(long hash) {
-        int[] hashAsInts = parseHash(hash);
+        final int[] hashAsInts = parseHash(hash);
         return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
     }
 
@@ -248,7 +224,7 @@ public final class GeoTileUtils {
      * Decode a string bucket key in "zoom/x/y" format to a bounding box of the tile corners
      */
     public static Rectangle toBoundingBox(String hash) {
-        int[] hashAsInts = parseHash(hash);
+        final int[] hashAsInts = parseHash(hash);
         return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
     }
 
@@ -257,25 +233,34 @@ public final class GeoTileUtils {
      */
     public static Rectangle toBoundingBox(int xTile, int yTile, int precision) {
         final double tiles = validateZXY(precision, xTile, yTile);
-        final double minY = tileToLat(yTile + 1, tiles);
-        final double minX = tileToLon(xTile, tiles);
-        final double maxY = tileToLat(yTile, tiles);
-        final double maxX = tileToLon(xTile + 1, tiles);
-        return new Rectangle(minX, maxX, maxY, minY);
+        return new Rectangle(
+            tileToLon(xTile, tiles),            // minLon
+            tileToLon(xTile + 1, tiles),  // maxLon
+            tileToLat(yTile, tiles),            // maxLat
+            tileToLat(yTile + 1, tiles)   // minLat
+        );
     }
 
     /**
      * Decode a xTile into its longitude value
      */
-    public static double tileToLon(int xTile, double tiles) {
-        return (xTile / tiles * 360.0) - 180;
+    public static double tileToLon(int xTile, int tiles) {
+        return tileToLon(xTile, (double) tiles);
+    }
+
+    private static double tileToLon(double xTile, double tiles) {
+        return (xTile / tiles * 360.0) - 180.0;
     }
 
     /**
      * Decode a yTile into its latitude value
      */
-    public static double tileToLat(int yTile, double tiles) {
-        final double n = Math.PI - (2.0 * Math.PI * yTile) / tiles;
+    public static double tileToLat(int yTile, int tiles) {
+        return tileToLat(yTile, (double) tiles);
+    }
+
+    private static double tileToLat(double yTile, double tiles) {
+        final double n = Math.PI - (PI_TIMES_2 * yTile) / tiles;
         return Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(n)));
     }
 
@@ -296,10 +281,7 @@ public final class GeoTileUtils {
      * Converts zoom/x/y integers into a GeoPoint.
      */
     private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
-        final int tiles = validateZXY(zoom, xTile, yTile);
-        final double n = Math.PI - (2.0 * Math.PI * (yTile + 0.5)) / tiles;
-        final double lat = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(n)));
-        final double lon = ((xTile + 0.5) / tiles * 360.0) - 180;
-        return new GeoPoint(lat, lon);
+        final double tiles = validateZXY(zoom, xTile, yTile);
+        return new GeoPoint(tileToLat(yTile + 0.5, tiles), tileToLon(xTile + 0.5, tiles));
     }
 }

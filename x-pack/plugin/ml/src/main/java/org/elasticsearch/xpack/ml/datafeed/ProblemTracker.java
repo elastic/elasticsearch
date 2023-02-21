@@ -35,10 +35,12 @@ class ProblemTracker {
     private volatile boolean hadProblems;
     private volatile String previousProblem;
     private volatile int emptyDataCount;
+    private final long numberOfSearchesInADay;
 
-    ProblemTracker(AnomalyDetectionAuditor auditor, String jobId) {
+    ProblemTracker(AnomalyDetectionAuditor auditor, String jobId, long numberOfSearchesInADay) {
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
+        this.numberOfSearchesInADay = Math.max(numberOfSearchesInADay, 1);
     }
 
     /**
@@ -74,10 +76,11 @@ class ProblemTracker {
 
     /**
      * Updates the tracking of empty data cycles. If the number of consecutive empty data
-     * cycles reaches {@code EMPTY_DATA_WARN_COUNT}, a warning is reported.
+     * cycles reaches {@code EMPTY_DATA_WARN_COUNT} or the 24 hours of empty data counts
+     * have passed a warning is reported.
      */
     public int reportEmptyDataCount() {
-        if (++emptyDataCount == EMPTY_DATA_WARN_COUNT) {
+        if (++emptyDataCount == EMPTY_DATA_WARN_COUNT || (emptyDataCount % numberOfSearchesInADay) == 0) {
             auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_NO_DATA));
         }
         return emptyDataCount;

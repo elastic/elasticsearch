@@ -15,8 +15,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class UriPartsProcessorTests extends ESTestCase {
 
@@ -186,12 +186,14 @@ public class UriPartsProcessorTests extends ESTestCase {
 
         Map<String, Object> source = new HashMap<>();
         source.put(field, "http://www.google.com");
-        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
         expectedSourceAndMetadata.put(field, Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
-        assertThat(output.getSourceAndMetadata().entrySet(), containsInAnyOrder(expectedSourceAndMetadata.entrySet().toArray()));
+        for (Map.Entry<String, Object> entry : expectedSourceAndMetadata.entrySet()) {
+            assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
+        }
     }
 
     public void testInvalidUri() {
@@ -200,7 +202,7 @@ public class UriPartsProcessorTests extends ESTestCase {
 
         Map<String, Object> source = new HashMap<>();
         source.put("field", uri);
-        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(input));
         assertThat(e.getMessage(), containsString("unable to parse URI [" + uri + "]"));
@@ -216,7 +218,7 @@ public class UriPartsProcessorTests extends ESTestCase {
 
         Map<String, Object> source = new HashMap<>();
         source.put("field", uri);
-        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
@@ -234,7 +236,9 @@ public class UriPartsProcessorTests extends ESTestCase {
         }
         expectedSourceAndMetadata.put("url", values);
 
-        assertThat(output.getSourceAndMetadata().entrySet(), containsInAnyOrder(expectedSourceAndMetadata.entrySet().toArray()));
+        for (Map.Entry<String, Object> entry : expectedSourceAndMetadata.entrySet()) {
+            assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
+        }
     }
 
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.rollup.action;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -36,6 +35,11 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
             return new GetRollupCapsAction.Request(Metadata.ALL);
         }
         return new GetRollupCapsAction.Request(randomAlphaOfLengthBetween(1, 20));
+    }
+
+    @Override
+    protected GetRollupCapsAction.Request mutateInstance(GetRollupCapsAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -129,14 +133,13 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
     }
 
     public void testNoIndices() {
-        ImmutableOpenMap<String, IndexMetadata> indices = new ImmutableOpenMap.Builder<String, IndexMetadata>().build();
-        Map<String, RollableIndexCaps> caps = TransportGetRollupCapsAction.getCaps("foo", indices);
+        Map<String, RollableIndexCaps> caps = TransportGetRollupCapsAction.getCaps("foo", Map.of());
         assertThat(caps.size(), equalTo(0));
     }
 
     public void testAllIndices() throws IOException {
         int num = randomIntBetween(1, 5);
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = new ImmutableOpenMap.Builder<>(5);
+        Map<String, IndexMetadata> indices = Maps.newMapWithExpectedSize(5);
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
@@ -161,13 +164,13 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
             indices.put(randomAlphaOfLength(10), meta);
         }
 
-        Map<String, RollableIndexCaps> caps = TransportGetRollupCapsAction.getCaps(Metadata.ALL, indices.build());
+        Map<String, RollableIndexCaps> caps = TransportGetRollupCapsAction.getCaps(Metadata.ALL, indices);
         assertThat(caps.size(), equalTo(num * 5));
     }
 
     public void testOneIndex() throws IOException {
         int num = randomIntBetween(1, 5);
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = new ImmutableOpenMap.Builder<>(5);
+        Map<String, IndexMetadata> indices = Maps.newMapWithExpectedSize(5);
         String selectedIndexName = null;
         for (int j = 0; j < 5; j++) {
             String indexName = randomAlphaOfLength(10);
@@ -195,7 +198,7 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
             indices.put(indexName, meta);
         }
 
-        Map<String, RollableIndexCaps> caps = TransportGetRollupCapsAction.getCaps(selectedIndexName, indices.build());
+        Map<String, RollableIndexCaps> caps = TransportGetRollupCapsAction.getCaps(selectedIndexName, indices);
         assertThat(caps.size(), equalTo(1));
     }
 

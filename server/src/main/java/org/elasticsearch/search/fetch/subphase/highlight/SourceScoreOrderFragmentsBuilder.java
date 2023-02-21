@@ -17,7 +17,7 @@ import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,7 +27,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
 
     private final FetchContext fetchContext;
     private final MappedFieldType fieldType;
-    private final SourceLookup sourceLookup;
+    private final Source source;
     private final ValueFetcher valueFetcher;
     private final boolean fixBrokenAnalysis;
 
@@ -35,7 +35,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         MappedFieldType fieldType,
         FetchContext fetchContext,
         boolean fixBrokenAnalysis,
-        SourceLookup sourceLookup,
+        Source source,
         String[] preTags,
         String[] postTags,
         BoundaryScanner boundaryScanner
@@ -43,7 +43,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         super(preTags, postTags, boundaryScanner);
         this.fetchContext = fetchContext;
         this.fieldType = fieldType;
-        this.sourceLookup = sourceLookup;
+        this.source = source;
         this.valueFetcher = fieldType.valueFetcher(fetchContext.getSearchExecutionContext(), null);
         this.fixBrokenAnalysis = fixBrokenAnalysis;
     }
@@ -51,7 +51,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
-        List<Object> values = valueFetcher.fetchValues(sourceLookup, new ArrayList<>());
+        List<Object> values = valueFetcher.fetchValues(source, docId, new ArrayList<>());
         if (values.size() > 1 && fetchContext.sourceLoader().reordersFieldValues()) {
             throw new IllegalArgumentException(
                 "The fast vector highlighter doesn't support loading multi-valued fields from _source in index ["

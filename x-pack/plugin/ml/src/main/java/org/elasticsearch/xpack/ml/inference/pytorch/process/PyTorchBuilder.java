@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
@@ -23,17 +25,21 @@ public class PyTorchBuilder {
     private static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
     private static final String NUM_THREADS_PER_ALLOCATION_ARG = "--numThreadsPerAllocation=";
     private static final String NUM_ALLOCATIONS_ARG = "--numAllocations=";
+    private static final String CACHE_MEMORY_LIMIT_BYTES_ARG = "--cacheMemorylimitBytes=";
+    private static final String LOW_PRIORITY_ARG = "--lowPriority";
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
-    private final int threadsPerAllocation;
-    private final int numberOfAllocations;
+    private final StartTrainedModelDeploymentAction.TaskParams taskParams;
 
-    public PyTorchBuilder(NativeController nativeController, ProcessPipes processPipes, int threadPerAllocation, int numberOfAllocations) {
+    public PyTorchBuilder(
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        StartTrainedModelDeploymentAction.TaskParams taskParams
+    ) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
-        this.threadsPerAllocation = threadPerAllocation;
-        this.numberOfAllocations = numberOfAllocations;
+        this.taskParams = Objects.requireNonNull(taskParams);
     }
 
     public void build() throws IOException, InterruptedException {
@@ -49,8 +55,14 @@ public class PyTorchBuilder {
         // License was validated when the trained model was started
         command.add(LICENSE_KEY_VALIDATED_ARG + true);
 
-        command.add(NUM_THREADS_PER_ALLOCATION_ARG + threadsPerAllocation);
-        command.add(NUM_ALLOCATIONS_ARG + numberOfAllocations);
+        command.add(NUM_THREADS_PER_ALLOCATION_ARG + taskParams.getThreadsPerAllocation());
+        command.add(NUM_ALLOCATIONS_ARG + taskParams.getNumberOfAllocations());
+        if (taskParams.getCacheSizeBytes() > 0) {
+            command.add(CACHE_MEMORY_LIMIT_BYTES_ARG + taskParams.getCacheSizeBytes());
+        }
+        if (taskParams.getPriority() == Priority.LOW) {
+            command.add(LOW_PRIORITY_ARG);
+        }
 
         return command;
     }

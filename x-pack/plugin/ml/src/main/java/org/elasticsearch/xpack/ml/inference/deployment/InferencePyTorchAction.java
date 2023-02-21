@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -23,7 +27,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -32,7 +35,8 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
     private static final Logger logger = LogManager.getLogger(InferencePyTorchAction.class);
 
     private final InferenceConfig config;
-    private final Map<String, Object> doc;
+    private final NlpInferenceInput input;
+    private final Task parentActionTask;
 
     InferencePyTorchAction(
         String modelId,
@@ -40,13 +44,27 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         TimeValue timeout,
         DeploymentManager.ProcessContext processContext,
         InferenceConfig config,
-        Map<String, Object> doc,
+        NlpInferenceInput input,
         ThreadPool threadPool,
+        @Nullable Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         super(modelId, requestId, timeout, processContext, threadPool, listener);
         this.config = config;
-        this.doc = doc;
+        this.input = input;
+        this.parentActionTask = parentActionTask;
+    }
+
+    private boolean isCancelled() {
+        if (parentActionTask instanceof CancellableTask cancellableTask) {
+            try {
+                cancellableTask.ensureNotCancelled();
+            } catch (TaskCancelledException ex) {
+                logger.debug(() -> format("[%s] %s", getModelId(), ex.getMessage()));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -56,13 +74,16 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             logger.debug(() -> format("[%s] skipping inference on request [%s] as it has timed out", getModelId(), getRequestId()));
             return;
         }
+        if (isCancelled()) {
+            onFailure("inference task cancelled");
+            return;
+        }
 
         final String requestIdStr = String.valueOf(getRequestId());
         try {
             // The request builder expect a list of inputs which are then batched.
-            // TODO batching was implemented for expected use-cases such as zero-shot
-            // classification but is not used here.
-            List<String> text = Collections.singletonList(NlpTask.extractInput(getProcessContext().getModelInput().get(), doc));
+            // TODO batching was implemented for expected use-cases such as zero-shot classification but is not used here.
+            List<String> text = Collections.singletonList(input.extractInput(getProcessContext().getModelInput().get()));
             NlpTask.Processor processor = getProcessContext().getNlpTaskProcessor().get();
             processor.validateInputs(text);
             assert config instanceof NlpConfig;
@@ -74,6 +95,11 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
                 logger.debug("[{}] [{}] input truncated", getModelId(), getRequestId());
             }
 
+            // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process
+            if (isCancelled()) {
+                onFailure("inference task cancelled");
+                return;
+            }
             getProcessContext().getResultProcessor()
                 .registerRequest(
                     requestIdStr,
@@ -107,6 +133,10 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             logger.debug(
                 () -> format("[%s] skipping result processing for request [%s] as the request has timed out", getModelId(), getRequestId())
             );
+            return;
+        }
+        if (isCancelled()) {
+            onFailure("inference task cancelled");
             return;
         }
         InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult.inferenceResult());

@@ -33,7 +33,8 @@ import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 
 import java.io.IOException;
 
@@ -48,9 +49,17 @@ public class GeoTestUtils {
         return reader;
     }
 
-    public static BinaryGeoShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
+    public static BinaryShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, name);
-        BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField(name);
+        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
+        field.add(indexer.indexShape(geometry), geometry);
+        return field;
+    }
+
+    // TODO: Should this be in a cartesian specific test class, and if so, which?
+    public static BinaryShapeDocValuesField binaryCartesianShapeDocValuesField(String name, Geometry geometry) {
+        CartesianShapeIndexer indexer = new CartesianShapeIndexer(name);
+        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
         field.add(indexer.indexShape(geometry), geometry);
         return field;
     }

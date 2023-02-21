@@ -1,0 +1,5 @@
+pr: 92695
+summary: "[Rest Api Compatibility] Format response media type with parameters"
+area: Infra/REST API
+type: bug
+issues: []

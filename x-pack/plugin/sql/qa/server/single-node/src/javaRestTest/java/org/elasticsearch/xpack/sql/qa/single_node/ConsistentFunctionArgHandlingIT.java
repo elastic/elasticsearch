@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 
@@ -22,7 +23,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -204,7 +204,7 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
                 if (results.stream().map(Tuple::v2).distinct().count() > 1) {
                     int maxResultWidth = results.stream().map(Tuple::v2).mapToInt(o -> asLiteralInQuery(o).length()).max().orElse(20);
                     String resultsAsString = results.stream()
-                        .map(r -> String.format(Locale.ROOT, "%2$-" + maxResultWidth + "s // %1$s", r.v1(), asLiteralInQuery(r.v2())))
+                        .map(r -> Strings.format("%2$-" + maxResultWidth + "s // %1$s", r.v1(), asLiteralInQuery(r.v2())))
                         .collect(joining("\n"));
                     fail("The result of the last call differs from the other calls:\n" + resultsAsString);
                 }

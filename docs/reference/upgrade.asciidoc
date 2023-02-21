@@ -1,6 +1,16 @@
 [[setup-upgrade]]
 = Upgrade {es}
 
+ifeval::["{release-state}"!="released"]
+[[upgrade-pre-release]]
+IMPORTANT: This documentation is for {es} {version}, which is not yet released.
+You can upgrade from a previously released version to a pre-release build, if
+following a supported upgrade path. Upgrading from a pre-release build to any
+other build is not supported, and can result in errors or silent data loss. If
+you run a pre-release build for testing, discard the contents of the cluster
+before upgrading to another build of {es}.
+endif::[]
+
 {es} clusters can usually be upgraded one node at a time so upgrading does not
 interrupt service. For upgrade instructions, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].

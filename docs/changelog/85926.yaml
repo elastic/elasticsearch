@@ -1,6 +1,0 @@
-pr: 85926
-summary: Execute self-reference checks once per pipeline
-area: Ingest
-type: bug
-issues:
- - 85790

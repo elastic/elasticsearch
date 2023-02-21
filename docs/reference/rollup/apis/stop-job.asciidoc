@@ -10,6 +10,9 @@ Stops an existing, started {rollup-job}.
 
 experimental[]
 
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
+
 [[rollup-stop-job-request]]
 ==== {api-request-title}
 

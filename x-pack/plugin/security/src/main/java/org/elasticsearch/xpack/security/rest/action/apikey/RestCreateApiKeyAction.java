@@ -15,7 +15,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,7 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest action to create an API key
  */
-public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
+public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     /**
      * @param settings the node's settings

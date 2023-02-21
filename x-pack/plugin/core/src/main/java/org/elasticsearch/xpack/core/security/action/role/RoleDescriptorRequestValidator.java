@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -49,6 +50,17 @@ public class RoleDescriptorRequestValidator {
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }
+            }
+        }
+        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = roleDescriptor.getRemoteIndicesPrivileges();
+        for (RoleDescriptor.RemoteIndicesPrivileges ridp : remoteIndicesPrivileges) {
+            if (Arrays.asList(ridp.remoteClusters()).contains("")) {
+                validationException = addValidationError("remote index cluster alias cannot be an empty string", validationException);
+            }
+            try {
+                IndexPrivilege.get(Set.of(ridp.indicesPrivileges().getPrivileges()));
+            } catch (IllegalArgumentException ile) {
+                validationException = addValidationError(ile.getMessage(), validationException);
             }
         }
         if (roleDescriptor.getApplicationPrivileges() != null) {

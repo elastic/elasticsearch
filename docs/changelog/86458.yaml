@@ -1,6 +1,0 @@
-pr: 86458
-summary: Support geo label position through REST vector tiles API
-area: Geo
-type: enhancement
-issues:
- - 86044

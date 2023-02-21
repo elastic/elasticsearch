@@ -27,9 +27,5 @@
     "input": ["Nevermind", "Nirvana"],
     "weight": 34
   },
-  "f_geop": "41.12,-71.34",
-  "f_geos": {
-    "type": "point",
-    "coordinates": [-77.03653, 38.897676]
-  }
+  "f_geop": "41.12,-71.34"
 }

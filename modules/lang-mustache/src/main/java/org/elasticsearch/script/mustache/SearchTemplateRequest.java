@@ -162,12 +162,12 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         return validationException;
     }
 
-    private static ParseField ID_FIELD = new ParseField("id");
-    private static ParseField SOURCE_FIELD = new ParseField("source", "inline", "template");
+    private static final ParseField ID_FIELD = new ParseField("id");
+    private static final ParseField SOURCE_FIELD = new ParseField("source", "inline", "template");
 
-    private static ParseField PARAMS_FIELD = new ParseField("params");
-    private static ParseField EXPLAIN_FIELD = new ParseField("explain");
-    private static ParseField PROFILE_FIELD = new ParseField("profile");
+    private static final ParseField PARAMS_FIELD = new ParseField("params");
+    private static final ParseField EXPLAIN_FIELD = new ParseField("explain");
+    private static final ParseField PROFILE_FIELD = new ParseField("profile");
 
     private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {

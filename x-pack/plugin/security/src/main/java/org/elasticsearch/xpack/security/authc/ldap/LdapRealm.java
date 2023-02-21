@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -41,14 +42,17 @@ import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupp
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.security.authc.ldap.LdapUserSearchSessionFactory.configuredUserSearchSettings;
 
 /**
  * Authenticates username/password tokens against ldap, locates groups and maps them to roles.
@@ -101,9 +105,9 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                     + ", "
                     + LdapRealmSettings.LDAP_TYPE
                     + "]";
-            final boolean hasSearchSettings = LdapUserSearchSessionFactory.hasUserSearchSettings(config);
+            final List<? extends Setting.AffixSetting<?>> configuredSearchSettings = configuredUserSearchSettings(config);
             final boolean hasTemplates = config.hasSetting(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING);
-            if (hasSearchSettings == false) {
+            if (configuredSearchSettings.isEmpty()) {
                 if (hasTemplates == false) {
                     throw new IllegalArgumentException(
                         "settings were not found for either user search ["
@@ -119,7 +123,9 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             } else if (hasTemplates) {
                 throw new IllegalArgumentException(
                     "settings were found for both user search ["
-                        + RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN)
+                        + configuredSearchSettings.stream()
+                            .map(s -> RealmSettings.getFullSettingKey(config, s))
+                            .collect(Collectors.joining(","))
                         + "] and user template ["
                         + RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING)
                         + "] modes of operation. "
@@ -206,7 +212,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             usage.put("size", getCacheSize());
             usage.put("load_balance_type", LdapLoadBalancing.resolve(config).toString());
             usage.put("ssl", sessionFactory.isSslUsed());
-            usage.put("user_search", LdapUserSearchSessionFactory.hasUserSearchSettings(config));
+            usage.put("user_search", false == configuredUserSearchSettings(config).isEmpty());
             listener.onResponse(usage);
         }, listener::onFailure));
     }

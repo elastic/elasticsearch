@@ -14,6 +14,7 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
@@ -239,12 +240,12 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     public void testParseDoSectionWithJsonBody() throws Exception {
         String body = """
             { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }""";
-        parser = createParser(YamlXContent.yamlXContent, """
+        parser = createParser(YamlXContent.yamlXContent, Strings.format("""
             index:
                 index:  test_1
                 type:   test
                 id:     1
-                body:   %s""".formatted(body));
+                body:   %s""", body));
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();

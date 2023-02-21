@@ -172,7 +172,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
         final Response createApiKeyResponse;
         if (grantApiKey) {
-            createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+            createApiKeyResponse = client.performRequest(createApiKeyRequest);
         } else {
             createApiKeyResponse = client.performRequest(createApiKeyRequest);
         }

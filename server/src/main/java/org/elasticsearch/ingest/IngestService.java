@@ -769,8 +769,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private Pipelines getPipelines(IndexRequest indexRequest) {
-        indexRequest.isPipelineResolved(false);
-        resolvePipelines(null, indexRequest, state.metadata());
         final String pipelineId = indexRequest.getPipeline();
         indexRequest.setPipeline(NOOP_PIPELINE_NAME);
         final String finalPipelineId = indexRequest.getFinalPipeline();
@@ -909,8 +907,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
                         return; // document failed!
                     } else {
-                        // reset request pipeline that is set to _none that would override the default pipeline
+                        // reset request pipeline that is set to _none which would take precedence over the default pipeline
                         indexRequest.setPipeline(null);
+                        indexRequest.isPipelineResolved(false);
+                        resolvePipelines(null, indexRequest, state.metadata());
                         Pipelines pipelines = getPipelines(indexRequest);
                         newHasFinalPipeline = pipelines.hasFinalPipeline();
                         newPipelineIds = pipelines.iterator();

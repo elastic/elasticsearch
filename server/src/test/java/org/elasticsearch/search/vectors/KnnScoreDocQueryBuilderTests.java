@@ -187,7 +187,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 for (int i = 0; i < scoreDocs.length; i++) {
                     assertEquals(scoreDocs[i].doc, topDocs.scoreDocs[i].doc);
                     assertEquals(scoreDocs[i].score, topDocs.scoreDocs[i].score, 0.0001f);
-
+                    assertTrue(searcher.explain(query, scoreDocs[i].doc).isMatch());
                 }
             }
         }

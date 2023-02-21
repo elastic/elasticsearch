@@ -67,14 +67,3 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/legacygeo/builders/MultiPointBuilder","missing test")
-  task.skipTest("org/elasticsearch/legacygeo/builders/LineStringBuilder","missing test")
-  task.skipTest("org/elasticsearch/legacygeo/builders/CircleBuilder","missing test")
-  task.skipTest("org/elasticsearch/legacygeo/builders/GeometryCollectionBuilder","missing test")
-  task.skipTest("org/elasticsearch/legacygeo/builders/PointBuilder","missing test")
-  task.skipTest("org/elasticsearch/legacygeo/builders/PolygonBuilder","missing test")
-  task.skipTest("org/elasticsearch/legacygeo/builders/MultiPolygonBuilder","missing test")
-  task.skipTest("org/elasticsearch/legacygeo/builders/EnvelopeBuilder","missing test")
-  task.skipTest("org/elasticsearch/legacygeo/builders/MultiLineStringBuilder","missing test")
-}

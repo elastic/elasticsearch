@@ -32,9 +32,9 @@ testClusters.configureEach {
 }
 
 tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/xpack/fleet/action/GetGlobalCheckpointsAction$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/fleet/action/GetGlobalCheckpointsShardAction$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/fleet/action/GetGlobalCheckpointsShardAction$Response","missing test")
-  task.skipTest("org/elasticsearch/xpack/fleet/action/GetGlobalCheckpointsAction$Response","missing test")
+  task.skipTest("org/elasticsearch/xpack/fleet/action/GetGlobalCheckpointsAction\$Request","missing test")
+  task.skipTest("org/elasticsearch/xpack/fleet/action/GetGlobalCheckpointsShardAction\$Request","missing test")
+  task.skipTest("org/elasticsearch/xpack/fleet/action/GetGlobalCheckpointsShardAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/xpack/fleet/action/GetGlobalCheckpointsAction\$Response","missing test")
 }
 

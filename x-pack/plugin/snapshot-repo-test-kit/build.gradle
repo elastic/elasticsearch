@@ -18,10 +18,10 @@ dependencies {
 addQaCheckDependencies(project)
 
 tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/RepositoryAnalyzeAction$Request","missing test")
-  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/BlobAnalyzeAction$Request","missing test")
-  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/BlobAnalyzeAction$Response","missing test")
-  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/GetBlobChecksumAction$Response","missing test")
-  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/RepositoryAnalyzeAction$Response","missing test")
-  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/GetBlobChecksumAction$Request","missing test")
+  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/RepositoryAnalyzeAction\$Request","missing test")
+  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/BlobAnalyzeAction\$Request","missing test")
+  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/BlobAnalyzeAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/GetBlobChecksumAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/RepositoryAnalyzeAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/repositories/blobstore/testkit/GetBlobChecksumAction\$Request","missing test")
 }

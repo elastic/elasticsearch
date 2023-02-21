@@ -68,8 +68,3 @@ tasks.named("test").configure {enabled = false }
 
 // not published, so no need for javadoc
 tasks.named("javadoc").configure { enabled = false }
-
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/client/analytics/TopMetricsAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/client/analytics/StringStatsAggregationBuilder","missing test")
-}

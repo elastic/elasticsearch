@@ -15,12 +15,12 @@ dependencies {
 }
 
 tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/xpack/deprecation/DeprecationInfoAction$Response","missing test")
-  task.skipTest("org/elasticsearch/xpack/deprecation/NodesDeprecationCheckAction$NodeResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/deprecation/NodesDeprecationCheckAction$NodeRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/deprecation/logging/DeprecationCacheResetAction$NodeRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/deprecation/logging/DeprecationCacheResetAction$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/deprecation/logging/DeprecationCacheResetAction$NodeResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/deprecation/DeprecationInfoAction$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/deprecation/logging/DeprecationCacheResetAction$Response","missing test")
+  task.skipTest("org/elasticsearch/xpack/deprecation/DeprecationInfoAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/xpack/deprecation/NodesDeprecationCheckAction\$NodeResponse","missing test")
+  task.skipTest("org/elasticsearch/xpack/deprecation/NodesDeprecationCheckAction\$NodeRequest","missing test")
+  task.skipTest("org/elasticsearch/xpack/deprecation/logging/DeprecationCacheResetAction\$NodeRequest","missing test")
+  task.skipTest("org/elasticsearch/xpack/deprecation/logging/DeprecationCacheResetAction\$Request","missing test")
+  task.skipTest("org/elasticsearch/xpack/deprecation/logging/DeprecationCacheResetAction\$NodeResponse","missing test")
+  task.skipTest("org/elasticsearch/xpack/deprecation/DeprecationInfoAction\$Request","missing test")
+  task.skipTest("org/elasticsearch/xpack/deprecation/logging/DeprecationCacheResetAction\$Response","missing test")
 }

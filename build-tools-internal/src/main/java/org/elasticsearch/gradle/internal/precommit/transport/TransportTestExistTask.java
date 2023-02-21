@@ -93,7 +93,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         this.testClasspath = testClasspath;
     }
 
-    public void setSkipClass(String className, String reason) {
+    public void skipTest(String className, String reason) {
         skipClasses.add(classNameToPath(className));
     }
 
@@ -144,6 +144,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
                 Map.of(transportTestCase, transportTestCase)
             );
             Set<String> transportTestClasses = transportTestsScanner.getConcreteSubclasses(subclassesOfTransportTestCase);
+            System.out.println(transportClasses);
             System.out.println(transportTestClasses);
             System.out.println(skipClasses);
             transportClasses.removeAll(skipClasses);

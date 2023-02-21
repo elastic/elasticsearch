@@ -48,6 +48,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/ingest/common/GrokProcessorGetAction$Response","missing test")
-  task.skipTest("org/elasticsearch/ingest/common/GrokProcessorGetAction$Request","missing test")
+  task.skipTest("org/elasticsearch/ingest/common/GrokProcessorGetAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/ingest/common/GrokProcessorGetAction\$Request","missing test")
 }

@@ -29,7 +29,7 @@ tasks.named("transportTestExistCheck").configure { task ->
   task.skipTest("org/elasticsearch/xpack/analytics/ttest/PairedTTestState","missing test")
   task.skipTest("org/elasticsearch/xpack/analytics/cumulativecardinality/CumulativeCardinalityPipelineAggregationBuilder","missing test")
   task.skipTest("org/elasticsearch/xpack/analytics/movingPercentiles/MovingPercentilesPipelineAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/xpack/analytics/multiterms/InternalMultiTerms$Bucket","missing test")
+  task.skipTest("org/elasticsearch/xpack/analytics/multiterms/InternalMultiTerms\$Bucket","missing test")
   task.skipTest("org/elasticsearch/xpack/analytics/ttest/UnpairedTTestState","missing test")
   task.skipTest("org/elasticsearch/xpack/analytics/normalize/NormalizePipelineAggregationBuilder","missing test")
   task.skipTest("org/elasticsearch/xpack/analytics/cumulativecardinality/InternalSimpleLongValue","missing test")

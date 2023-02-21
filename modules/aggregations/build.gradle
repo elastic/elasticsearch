@@ -56,16 +56,3 @@ dependencies {
   clusterModules(project(':modules:lang-painless'))
 }
 
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/aggregations/metric/MatrixStatsAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/aggregations/pipeline/DerivativePipelineAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/aggregations/bucket/adjacency/AdjacencyMatrixAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/aggregations/bucket/histogram/AutoDateHistogramAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/aggregations/pipeline/BucketSelectorPipelineAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/aggregations/pipeline/MovFnPipelineAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/aggregations/bucket/timeseries/TimeSeriesAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/aggregations/bucket/adjacency/InternalAdjacencyMatrix$InternalBucket","missing test")
-  task.skipTest("org/elasticsearch/aggregations/bucket/histogram/InternalAutoDateHistogram$Bucket","missing test")
-  task.skipTest("org/elasticsearch/aggregations/bucket/timeseries/InternalTimeSeries$InternalBucket","missing test")
-  task.skipTest("org/elasticsearch/aggregations/pipeline/BucketSortPipelineAggregationBuilder","missing test")
-}

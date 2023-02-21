@@ -295,17 +295,3 @@ if (BuildParams.inFipsJvm) {
   // We don't support the IDP in FIPS-140 mode, so no need to run tests
   tasks.named("test").configure { enabled = false }
 }
-
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/xpack/idp/action/PutSamlServiceProviderRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/PutSamlServiceProviderResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/saml/sp/ServiceProviderException","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/SamlInitiateSingleSignOnRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/SamlMetadataResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/DeleteSamlServiceProviderRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/SamlMetadataRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/SamlValidateAuthnRequestResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/SamlInitiateSingleSignOnResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/DeleteSamlServiceProviderResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/idp/action/SamlValidateAuthnRequestRequest","missing test")
-}

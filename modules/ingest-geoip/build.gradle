@@ -105,8 +105,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   // task.skipTest("lang_mustache/50_multi_search_template/Multi-search template with errors", "xxx")
 }
 tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction$Response","missing test")
-  task.skipTest("org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction$NodeResponse","missing test")
-  task.skipTest("org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction$NodeRequest","missing test")
-  task.skipTest("org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction$Request","missing test")
+  task.skipTest("org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction\$NodeResponse","missing test")
+  task.skipTest("org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction\$NodeRequest","missing test")
+  task.skipTest("org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction\$Request","missing test")
 }

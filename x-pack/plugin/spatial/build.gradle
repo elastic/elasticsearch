@@ -36,14 +36,3 @@ if (BuildParams.isSnapshotBuild() == false) {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/xpack/spatial/search/aggregations/metrics/CartesianCentroidAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/xpack/spatial/common/CartesianBoundingBox","missing test")
-  task.skipTest("org/elasticsearch/xpack/spatial/search/aggregations/metrics/CartesianBoundsAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/xpack/spatial/search/aggregations/bucket/geogrid/InternalGeoHexGridBucket","missing test")
-  task.skipTest("org/elasticsearch/xpack/spatial/search/aggregations/bucket/geogrid/InternalGeoHexGrid","missing test")
-  task.skipTest("org/elasticsearch/xpack/spatial/index/query/GeoGridQueryBuilder","missing test")
-  task.skipTest("org/elasticsearch/xpack/spatial/search/aggregations/bucket/geogrid/GeoHexGridAggregationBuilder","missing test")
-  task.skipTest("org/elasticsearch/xpack/spatial/index/query/ShapeQueryBuilder","missing test")
-}

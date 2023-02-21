@@ -331,8 +331,8 @@ tasks.register("regenSuggest") {
     }
 }
 tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/painless/action/PainlessExecuteAction$Request","missing test")
-  task.skipTest("org/elasticsearch/painless/action/PainlessContextAction$Response","missing test")
-  task.skipTest("org/elasticsearch/painless/action/PainlessExecuteAction$Response","missing test")
-  task.skipTest("org/elasticsearch/painless/action/PainlessContextAction$Request","missing test")
+  task.skipTest("org/elasticsearch/painless/action/PainlessExecuteAction\$Request","missing test")
+  task.skipTest("org/elasticsearch/painless/action/PainlessContextAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/painless/action/PainlessExecuteAction\$Response","missing test")
+  task.skipTest("org/elasticsearch/painless/action/PainlessContextAction\$Request","missing test")
 }

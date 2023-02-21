@@ -610,6 +610,41 @@ public class AnalyzerTests extends ESTestCase {
             """, "second argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
     }
 
+    public void testDateTruncOnInt() {
+        verifyUnsupported("""
+            from test
+            | eval date_trunc(int, "1M")
+            """, "first argument of [date_trunc(int, \"1M\")] must be [datetime], found value [int] type [integer]");
+    }
+
+    public void testDateTruncOnFloat() {
+        verifyUnsupported("""
+            from test
+            | eval date_trunc(float, "1M")
+            """, "first argument of [date_trunc(float, \"1M\")] must be [datetime], found value [float] type [double]");
+    }
+
+    public void testDateTruncOnText() {
+        verifyUnsupported("""
+            from test
+            | eval date_trunc(keyword, "1M")
+            """, "first argument of [date_trunc(keyword, \"1M\")] must be [datetime], found value [keyword] type [keyword]");
+    }
+
+    public void testDateTruncWithNumericInterval() {
+        verifyUnsupported("""
+            from test
+            | eval date_trunc(date, 1)
+            """, "second argument of [date_trunc(date, 1)] must be [dateperiod or timeduration], found value [1] type [integer]");
+    }
+
+    public void testDateTruncWithDateInterval() {
+        verifyUnsupported("""
+            from test
+            | eval date_trunc(date, date)
+            """, "second argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]");
+    }
+
     // check field declaration is validated even across duplicated declarations
     public void testAggsWithDuplicatesAndNonExistingFunction() throws Exception {
         verifyUnsupported("""

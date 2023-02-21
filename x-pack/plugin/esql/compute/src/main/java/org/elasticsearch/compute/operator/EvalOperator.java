@@ -114,7 +114,7 @@ public class EvalOperator implements Operator {
                 yield blockBuilder.build();
             }
             case NULL -> Block.constantNullBlock(rowsCount);
-            default -> throw new UnsupportedOperationException("unspported element type [" + elementType + "]");
+            default -> throw new UnsupportedOperationException("unsupported element type [" + elementType + "]");
         });
 
         lastInput = null;

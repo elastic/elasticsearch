@@ -420,6 +420,11 @@ public class TaskManagerTests extends ESTestCase {
         }
 
         @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
+        }
+
+        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws TransportException {
             throw new UnsupportedOperationException();

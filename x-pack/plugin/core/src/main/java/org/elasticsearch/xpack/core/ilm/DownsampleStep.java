@@ -24,19 +24,19 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import java.util.Objects;
 
 /**
- * ILM step that invokes the rollup action for an index using a {@link DateHistogramInterval}. The rollup
- * index name is retrieved from the lifecycle state {@link LifecycleExecutionState#rollupIndexName()}
- * index. If a rollup index with the same name has been already successfully created, this step
+ * ILM step that invokes the downsample action for an index using a {@link DateHistogramInterval}. The downsample
+ * index name is retrieved from the lifecycle state {@link LifecycleExecutionState#downsampleIndexName()}
+ * index. If a downsample index with the same name has been already successfully created, this step
  * will be skipped.
  */
-public class RollupStep extends AsyncActionStep {
+public class DownsampleStep extends AsyncActionStep {
     public static final String NAME = "rollup";
 
-    private static final Logger logger = LogManager.getLogger(RollupStep.class);
+    private static final Logger logger = LogManager.getLogger(DownsampleStep.class);
 
     private final DateHistogramInterval fixedInterval;
 
-    public RollupStep(StepKey key, StepKey nextStepKey, Client client, DateHistogramInterval fixedInterval) {
+    public DownsampleStep(StepKey key, StepKey nextStepKey, Client client, DateHistogramInterval fixedInterval) {
         super(key, nextStepKey, client);
         this.fixedInterval = fixedInterval;
     }
@@ -60,8 +60,8 @@ public class RollupStep extends AsyncActionStep {
 
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
-        final String rollupIndexName = lifecycleState.rollupIndexName();
-        if (Strings.hasText(rollupIndexName) == false) {
+        final String downsampleIndexName = lifecycleState.downsampleIndexName();
+        if (Strings.hasText(downsampleIndexName) == false) {
             listener.onFailure(
                 new IllegalStateException(
                     "rollup index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"
@@ -70,7 +70,7 @@ public class RollupStep extends AsyncActionStep {
             return;
         }
 
-        IndexMetadata rollupIndexMetadata = currentState.metadata().index(rollupIndexName);
+        IndexMetadata rollupIndexMetadata = currentState.metadata().index(downsampleIndexName);
         if (rollupIndexMetadata != null) {
             IndexMetadata.DownsampleTaskStatus rollupIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
                 rollupIndexMetadata.getSettings()
@@ -80,37 +80,37 @@ public class RollupStep extends AsyncActionStep {
             if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
                 logger.warn(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the rollup index [{}] already exists",
-                    RollupStep.NAME,
+                    DownsampleStep.NAME,
                     indexName,
                     policyName,
-                    rollupIndexName
+                    downsampleIndexName
                 );
                 listener.onResponse(null);
             } else {
                 logger.warn(
                     "[{}] step for index [{}] as part of policy [{}] found the rollup index [{}] already exists. Deleting it.",
-                    RollupStep.NAME,
+                    DownsampleStep.NAME,
                     indexName,
                     policyName,
-                    rollupIndexName
+                    downsampleIndexName
                 );
                 // Rollup index has already been created with the generated name but its status is not "success".
                 // So we delete the index and proceed with executing the rollup step.
-                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(rollupIndexName);
+                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(downsampleIndexName);
                 getClient().admin().indices().delete(deleteRequest, ActionListener.wrap(response -> {
                     if (response.isAcknowledged()) {
-                        performRollupIndex(indexName, rollupIndexName, listener);
+                        performDownsampleIndex(indexName, downsampleIndexName, listener);
                     } else {
                         listener.onFailure(
                             new IllegalStateException(
                                 "failing ["
-                                    + RollupStep.NAME
+                                    + DownsampleStep.NAME
                                     + "] step for index ["
                                     + indexName
                                     + "] as part of policy ["
                                     + policyName
                                     + "] because the rollup index ["
-                                    + rollupIndexName
+                                    + downsampleIndexName
                                     + "] already exists with rollup status ["
                                     + rollupIndexStatus
                                     + "]"
@@ -122,10 +122,10 @@ public class RollupStep extends AsyncActionStep {
             return;
         }
 
-        performRollupIndex(indexName, rollupIndexName, listener);
+        performDownsampleIndex(indexName, downsampleIndexName, listener);
     }
 
-    private void performRollupIndex(String indexName, String rollupIndexName, ActionListener<Void> listener) {
+    private void performDownsampleIndex(String indexName, String rollupIndexName, ActionListener<Void> listener) {
         DownsampleConfig config = new DownsampleConfig(fixedInterval);
         DownsampleAction.Request request = new DownsampleAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(
             TimeValue.MAX_VALUE
@@ -155,7 +155,7 @@ public class RollupStep extends AsyncActionStep {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        RollupStep other = (RollupStep) obj;
+        DownsampleStep other = (DownsampleStep) obj;
         return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval);
     }
 }

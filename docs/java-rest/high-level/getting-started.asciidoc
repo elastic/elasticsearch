@@ -168,7 +168,7 @@ will be referenced as `client`.
 === RequestOptions
 
 All APIs in the `RestHighLevelClient` accept a `RequestOptions` which you can
-use to customize the request in ways that won't change how Elasticsearch
+use to customize the request in ways that will change how Elasticsearch
 executes the request. For example, this is the place where you'd specify a
 `NodeSelector` to control which node receives the request. See the
 <<java-rest-low-usage-request-options,low level client documentation>> for

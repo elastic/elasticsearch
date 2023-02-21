@@ -912,6 +912,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
                         Pipelines pipelines = getPipelines(indexRequest);
+                        if (newIndex.equals(ingestDocument.getMetadata().getRedirect()) == false) {
+                            pipelines.withoutDefaultPipeline();
+                        }
                         newHasFinalPipeline = pipelines.hasFinalPipeline();
                         newPipelineIds = pipelines.iterator();
                     }
@@ -1024,6 +1027,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // it's fine to set all metadata fields all the time, as ingest document holds their starting values
         // before ingestion, which might also get modified during ingestion.
         request.index(metadata.getIndex());
+        String redirectIndex = metadata.getRedirect();
+        if (redirectIndex != null) {
+            request.index(redirectIndex);
+        }
         request.id(metadata.getId());
         request.routing(metadata.getRouting());
         request.version(metadata.getVersion());

@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
  */
 public class Metadata {
     protected static final String INDEX = "_index";
+    protected static final String REDIRECT = "_redirect";
     protected static final String ID = "_id";
     protected static final String ROUTING = "_routing";
     protected static final String VERSION_TYPE = "_version_type";
@@ -116,6 +117,14 @@ public class Metadata {
 
     public void setIndex(String index) {
         put(INDEX, index);
+    }
+
+    public String getRedirect() {
+        return getString(REDIRECT);
+    }
+
+    public void setRedirect(String redirect) {
+        put(REDIRECT, redirect);
     }
 
     public String getId() {

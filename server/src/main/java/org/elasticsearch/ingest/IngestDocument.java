@@ -905,6 +905,7 @@ public final class IngestDocument {
 
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
+        REDIRECT("_redirect"),
         TYPE("_type"),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),

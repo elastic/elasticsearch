@@ -126,6 +126,17 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     @Nullable
     protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
 
+    // Whether the response received from the chosen shard copy should be ignored, and the action should
+    // be repeated on the next shard copy
+    protected boolean ignoreShardCopyResponse(ShardRouting lastShardTried, Response lastResponse) {
+        return false;
+    }
+
+    // Whether a specific shard copy should be skipped and not sent the action
+    protected boolean skipShardCopy(ShardRouting shardRouting, Response lastResponse, Exception lastFailure) {
+        return false;
+    }
+
     class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
@@ -133,6 +144,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         private final InternalRequest internalRequest;
         private final DiscoveryNodes nodes;
         private volatile Exception lastFailure;
+        private volatile Response lastResponse;
 
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.listener = listener;
@@ -175,24 +187,31 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     new ActionListenerResponseHandler<>(listener, reader)
                 );
             } else {
-                perform(null);
+                perform(null, null);
             }
         }
 
-        private void onFailure(ShardRouting shardRouting, Exception e) {
+        private void tryNextShardCopy(ShardRouting lastShardRouting, Exception e, Response r) {
             if (e != null) {
-                logger.trace(() -> format("%s: failed to execute [%s]", shardRouting, internalRequest.request()), e);
+                logger.trace(() -> format("%s: failed to execute [%s]", lastShardRouting, internalRequest.request()), e);
             }
-            perform(e);
+            perform(e, r);
         }
 
-        private void perform(@Nullable final Exception currentFailure) {
+        private void perform(@Nullable final Exception currentFailure, @Nullable final Response currentResponse) {
             Exception lastFailure = this.lastFailure;
             if (lastFailure == null || TransportActions.isReadOverrideException(currentFailure)) {
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
-            final ShardRouting shardRouting = shardIt.nextOrNull();
+            this.lastResponse = currentResponse;
+
+            ShardRouting shardRouting = shardIt.nextOrNull();
+            if (shardRouting != null) {
+                while (shardRouting != null && skipShardCopy(shardRouting, lastResponse, lastFailure)) {
+                    shardRouting = shardIt.nextOrNull();
+                }
+            }
             if (shardRouting == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
@@ -209,7 +228,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
             DiscoveryNode node = nodes.get(shardRouting.currentNodeId());
             if (node == null) {
-                onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
+                tryNextShardCopy(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()), lastResponse);
             } else {
                 internalRequest.request().internalShardId = shardRouting.shardId();
                 if (logger.isTraceEnabled()) {
@@ -221,14 +240,24 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     );
                 }
                 final Writeable.Reader<Response> reader = getResponseReader();
+                ShardRouting finalShardRouting = shardRouting;
                 transportService.sendRequest(
                     node,
                     transportShardAction,
                     internalRequest.request(),
                     new ActionListenerResponseHandler<>(listener, reader) {
                         @Override
+                        public void handleResponse(Response response) {
+                            if (ignoreShardCopyResponse(finalShardRouting, response)) {
+                                tryNextShardCopy(finalShardRouting, null, lastResponse);
+                            } else {
+                                super.handleResponse(response);
+                            }
+                        }
+
+                        @Override
                         public void handleException(TransportException exp) {
-                            onFailure(shardRouting, exp);
+                            tryNextShardCopy(finalShardRouting, exp, lastResponse);
                         }
                     }
                 );

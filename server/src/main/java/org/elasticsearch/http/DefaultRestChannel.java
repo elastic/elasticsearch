@@ -151,7 +151,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             restResponse.getHeaders()
                 .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
 
-            ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
+            ActionListener<Void> listener = ActionListener.running(() -> Releasables.close(toClose));
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
             }

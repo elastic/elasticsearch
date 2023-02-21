@@ -147,4 +147,9 @@ public class URLBlobContainer extends AbstractBlobContainer {
         }
     }
 
+    @Override
+    public long compareAndExchangeRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
 }

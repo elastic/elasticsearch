@@ -339,7 +339,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
-import org.elasticsearch.xpack.security.transport.RemoteClusterAuthorizationResolver;
+import org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -821,7 +821,7 @@ public class Security extends Plugin
             getSslService(),
             client,
             environment,
-            (runnable -> nodeStartedListenable.addListener(ActionListener.wrap(runnable))),
+            (runnable -> nodeStartedListenable.addListener(ActionListener.running(runnable))),
             threadPool
         );
 
@@ -905,7 +905,7 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
-        final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = new RemoteClusterAuthorizationResolver(
+        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(
             settings,
             clusterService.getClusterSettings()
         );
@@ -927,7 +927,7 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 remoteAccessAuthcService,
-                remoteClusterAuthorizationResolver
+                remoteClusterCredentialsResolver
             )
         );
 

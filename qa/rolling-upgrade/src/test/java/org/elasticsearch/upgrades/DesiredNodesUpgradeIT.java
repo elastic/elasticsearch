@@ -43,9 +43,9 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
             return;
         }
 
-        if (UPGRADE_FROM_VERSION.transportVersion.onOrAfter(Processors.DOUBLE_PROCESSORS_SUPPORT_VERSION)) {
+        if (UPGRADE_FROM_VERSION.onOrAfter(Processors.DOUBLE_PROCESSORS_SUPPORT_VERSION)) {
             assertUpgradedNodesCanReadDesiredNodes();
-        } else if (UPGRADE_FROM_VERSION.transportVersion.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+        } else if (UPGRADE_FROM_VERSION.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
             assertDesiredNodesUpdatedWithRoundedUpFloatsAreIdempotent();
         } else {
             assertDesiredNodesWithFloatProcessorsAreRejectedInOlderVersions();

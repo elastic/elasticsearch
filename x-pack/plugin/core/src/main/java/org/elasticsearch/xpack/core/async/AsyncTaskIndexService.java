@@ -315,7 +315,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         response,
                         e,
                         // at end, we should report a failure to the listener
-                        ActionListener.wrap(() -> newListener.onFailure(e))
+                        ActionListener.running(() -> newListener.onFailure(e))
                     );
                 } else {
                     listener.onFailure(e);

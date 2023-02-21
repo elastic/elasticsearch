@@ -316,4 +316,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             });
         }
     }
+
+    @Override
+    public long compareAndExchangeRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException("HDFS repositories do not support this operation");
+    }
 }

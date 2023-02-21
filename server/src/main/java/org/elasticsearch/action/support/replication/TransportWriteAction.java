@@ -498,7 +498,7 @@ public abstract class TransportWriteAction<
                     }
                 };
                 // If the post refresh action is null, this is just the replica and we only call the static method
-                if (postWriteAction != null) {
+                if (postWriteRefresh != null) {
                     postWriteRefresh.refreshShard(request.getRefreshPolicy(), indexShard, location, refreshListener);
                 } else {
                     PostWriteRefresh.refreshReplicaShard(request.getRefreshPolicy(), indexShard, location, refreshListener);

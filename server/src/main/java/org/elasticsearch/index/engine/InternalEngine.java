@@ -1862,7 +1862,6 @@ public class InternalEngine extends Engine {
                     } else {
                         refreshed = referenceManager.maybeRefresh();
                     }
-                    refreshLastCommittedSegmentInfos();
                     if (refreshed) {
                         final ElasticsearchDirectoryReader current = referenceManager.acquire();
                         try {

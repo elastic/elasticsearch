@@ -7,16 +7,21 @@
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class PhaseProgressTests extends AbstractSerializingTestCase<PhaseProgress> {
+public class PhaseProgressTests extends AbstractXContentSerializingTestCase<PhaseProgress> {
 
     @Override
     protected PhaseProgress createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected PhaseProgress mutateInstance(PhaseProgress instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static PhaseProgress createRandom() {

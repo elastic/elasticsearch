@@ -7,7 +7,7 @@
  */
 
 plugins {
-  id "com.gradle.enterprise" version "3.8.1"
+  id "com.gradle.enterprise" version "3.11.4"
 }
 
 // Include all subdirectories as example projects
@@ -22,7 +22,10 @@ gradle.rootProject {
       def props = new Properties()
       props.load(is)
       elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
+      // for example plugins the pluginApiVersion is the same as ES version, but for real plugins it only has to match a major
+      pluginApiVersion = "${props.get('elasticsearch')}-SNAPSHOT"
       log4jVersion = props.get('log4j')
+      luceneVersion = props.get('lucene')
     }
   }
 }

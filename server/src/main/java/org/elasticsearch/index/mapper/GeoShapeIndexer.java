@@ -36,7 +36,7 @@ import java.util.List;
 /**
  * Utility class that converts geometries into Lucene-compatible form for indexing in a geo_shape field.
  */
-public class GeoShapeIndexer {
+public class GeoShapeIndexer implements ShapeIndexer {
 
     private final Orientation orientation;
     private final String name;

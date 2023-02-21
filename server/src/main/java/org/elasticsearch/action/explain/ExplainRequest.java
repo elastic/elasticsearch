@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -41,7 +41,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     private String[] storedFields;
     private FetchSourceContext fetchSourceContext;
 
-    private AliasFilter filteringAlias = new AliasFilter(null, Strings.EMPTY_ARRAY);
+    private AliasFilter filteringAlias = AliasFilter.EMPTY;
 
     long nowInMillis;
 
@@ -54,7 +54,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     ExplainRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String type = in.readString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type);
         }
@@ -62,7 +62,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         query = in.readNamedWriteable(QueryBuilder.class);
-        filteringAlias = new AliasFilter(in);
+        filteringAlias = AliasFilter.readFrom(in);
         storedFields = in.readOptionalStringArray();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         nowInMillis = in.readVLong();
@@ -160,7 +160,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);

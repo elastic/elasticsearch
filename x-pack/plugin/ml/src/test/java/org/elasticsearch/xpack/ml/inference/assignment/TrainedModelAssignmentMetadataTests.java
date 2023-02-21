@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
 
@@ -23,7 +25,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 
-public class TrainedModelAssignmentMetadataTests extends AbstractSerializingTestCase<TrainedModelAssignmentMetadata> {
+public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializingTestCase<TrainedModelAssignmentMetadata> {
 
     public static TrainedModelAssignmentMetadata randomInstance() {
         LinkedHashMap<String, TrainedModelAssignment> map = Stream.generate(() -> randomAlphaOfLength(10))
@@ -49,6 +51,11 @@ public class TrainedModelAssignmentMetadataTests extends AbstractSerializingTest
         return new TrainedModelAssignmentMetadata(new HashMap<>());
     }
 
+    @Override
+    protected TrainedModelAssignmentMetadata mutateInstance(TrainedModelAssignmentMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testIsAllocated() {
         String allocatedModelId = "test_model_id";
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -64,8 +71,9 @@ public class TrainedModelAssignmentMetadataTests extends AbstractSerializingTest
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
             randomIntBetween(1, 8),
-            randomIntBetween(1, 10000)
+            randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            randomFrom(Priority.values())
         );
     }
-
 }

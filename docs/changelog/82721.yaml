@@ -1,6 +1,0 @@
-pr: 82721
-summary: Cache immutable translog lastModifiedTime  
-area: Engine 
-type: enhancement 
-issues:
- - 82720 

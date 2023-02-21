@@ -9,14 +9,10 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 ext.pluginPaths = []
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
-    // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-    return
-  }
   pluginPaths << pluginProject.path
 }
 

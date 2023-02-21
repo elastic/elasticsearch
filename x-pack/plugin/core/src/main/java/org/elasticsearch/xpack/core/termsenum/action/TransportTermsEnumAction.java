@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -69,6 +68,7 @@ import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -328,9 +328,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         long timeout_millis = request.timeout();
         long scheduledEnd = request.nodeStartedTimeMillis() + timeout_millis;
 
-        ArrayList<TermsEnum> shardTermsEnums = new ArrayList<>();
         ArrayList<Closeable> openedResources = new ArrayList<>();
         try {
+            MultiShardTermsEnum.Builder teBuilder = new MultiShardTermsEnum.Builder();
             for (ShardId shardId : request.shardIds()) {
                 // Check we haven't just arrived on a node and time is up already.
                 if (System.currentTimeMillis() > scheduledEnd) {
@@ -358,15 +358,15 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                         request.searchAfter()
                     );
                     if (terms != null) {
-                        shardTermsEnums.add(terms);
+                        teBuilder.add(terms, mappedFieldType::valueForDisplay);
                     }
                 }
             }
-            if (shardTermsEnums.size() == 0) {
+            if (teBuilder.size() == 0) {
                 // No term enums available
                 return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
             }
-            MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new TermsEnum[0]));
+            MultiShardTermsEnum te = teBuilder.build();
 
             int shard_size = request.size();
             // All the above prep might take a while - do a timer check now before we continue further.
@@ -386,8 +386,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     }
                     termCount = 0;
                 }
-                BytesRef bytes = te.term();
-                termsList.add(bytes.utf8ToString());
+                termsList.add(te.decodedTerm());
                 if (termsList.size() >= shard_size) {
                     break;
                 }
@@ -413,43 +412,67 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
 
-            if (indexAccessControl != null) {
-                final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                if (dls && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
-                    // Check to see if any of the roles defined for the current user rewrite to match_all
+            if (indexAccessControl != null
+                && indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
+                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
+                // Check to see if any of the roles defined for the current user rewrite to match_all
 
-                    SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
-                    final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-                    final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
-                        shardId.id(),
-                        0,
-                        null,
-                        request::nodeStartedTimeMillis,
-                        null,
-                        Collections.emptyMap()
-                    );
+                SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
+                final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
+                    shardId.id(),
+                    0,
+                    null,
+                    request::nodeStartedTimeMillis,
+                    null,
+                    Collections.emptyMap()
+                );
 
-                    // Current user has potentially many roles and therefore potentially many queries
-                    // defining sets of docs accessible
-                    Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
-                    for (BytesReference querySource : queries) {
-                        QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
-                            querySource,
-                            scriptService,
-                            queryShardContext.getParserConfig().registry(),
-                            securityContext.getUser()
-                        );
-                        QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
-                        if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
-                            // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
-                            return true;
-                        }
-                    }
-                    return false;
-                }
+                // Current user has potentially many roles and therefore potentially many queries
+                // defining sets of docs accessible
+                final List<Set<BytesReference>> listOfQueries = indexAccessControl.getDocumentPermissions().getListOfQueries();
+
+                // When the user is an API Key, its role is a limitedRole and its effective document permissions
+                // are intersections of the two sets of queries, one belongs to the API key itself and the other belongs
+                // to the owner user. To allow unfiltered access to termsDict, both sets of the queries must have
+                // the "all" permission, i.e. the query can be rewritten into a MatchAll query.
+                // The following code loop through both sets queries and returns true only when both of them
+                // have the "all" permission.
+                return listOfQueries.stream().allMatch(queries -> hasMatchAllEquivalent(queries, securityContext, queryShardContext));
             }
         }
         return true;
+    }
+
+    private boolean hasMatchAllEquivalent(
+        Set<BytesReference> queries,
+        SecurityContext securityContext,
+        SearchExecutionContext queryShardContext
+    ) {
+        if (queries == null) {
+            return true;
+        }
+        // Current user has potentially many roles and therefore potentially many queries
+        // defining sets of docs accessible
+        for (BytesReference querySource : queries) {
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
+                querySource,
+                scriptService,
+                queryShardContext.getParserConfig().registry(),
+                securityContext.getUser()
+            );
+            QueryBuilder rewrittenQueryBuilder;
+            try {
+                rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
+                // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean canMatchShard(ShardId shardId, NodeTermsEnumRequest req) throws IOException {

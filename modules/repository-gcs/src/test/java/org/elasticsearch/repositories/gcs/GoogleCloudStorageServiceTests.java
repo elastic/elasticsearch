@@ -16,12 +16,19 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
@@ -179,5 +186,26 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertEquals(-1, GoogleCloudStorageService.toTimeout(null).intValue());
         assertEquals(-1, GoogleCloudStorageService.toTimeout(TimeValue.ZERO).intValue());
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
+    }
+
+    public void testGetDefaultProjectIdViaProxy() throws Exception {
+        String proxyProjectId = randomAlphaOfLength(16);
+        var proxyServer = new MockHttpProxyServer((is, os) -> {
+            try (
+                var reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)
+            ) {
+                assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
+                writer.write(Strings.format("""
+                    HTTP/1.1 200 OK\r
+                    Content-Length: %s\r
+                    \r
+                    %s""", proxyProjectId.length(), proxyProjectId));
+            }
+        }).await();
+        try (proxyServer) {
+            var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
+            assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));
+        }
     }
 }

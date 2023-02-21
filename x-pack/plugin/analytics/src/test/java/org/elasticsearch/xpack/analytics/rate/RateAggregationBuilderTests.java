@@ -15,7 +15,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
 
-public class RateAggregationBuilderTests extends AbstractSerializingTestCase<RateAggregationBuilder> {
+public class RateAggregationBuilderTests extends AbstractXContentSerializingTestCase<RateAggregationBuilder> {
     String aggregationName;
 
     @Before
@@ -65,6 +65,11 @@ public class RateAggregationBuilderTests extends AbstractSerializingTestCase<Rat
             aggregationBuilder.rateUnit(randomFrom(Rounding.DateTimeUnit.values()));
         }
         return aggregationBuilder;
+    }
+
+    @Override
+    protected RateAggregationBuilder mutateInstance(RateAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

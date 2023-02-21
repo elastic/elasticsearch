@@ -409,11 +409,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             buildClassificationConfig("some_keyword"),
             100,
             fieldCapabilities,
-            Collections.singletonMap("some_keyword", 31L)
+            Collections.singletonMap("some_keyword", 101L)
         );
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
-        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [30] distinct values but there were at least [31]"));
+        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [100] distinct values but there were at least [101]"));
     }
 
     public void testDetect_GivenIgnoredField() {
@@ -1332,7 +1332,63 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object or nested fields: [nested_field]"));
     }
 
-    public void testDetect_givenFeatureProcessorsFailures_ResultsField() {
+    public void testDetect_GivenAnalyzedFieldIncludesFieldWithCommaCharacter() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder().addAggregatableField("comma,field", "float")
+            .addAggregatableField("some_other_field", "float")
+            .build();
+
+        analyzedFields = FetchSourceContext.of(true, new String[] { "comma,field" }, null);
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildOutlierDetectionConfig(),
+            100,
+            fieldCapabilities,
+            Collections.emptyMap()
+        );
+
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.get(0).getName(), equalTo("comma,field"));
+        assertThat(allFields.get(0).getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
+
+        assertFieldSelectionContains(
+            fieldExtraction.v2(),
+            FieldSelection.included("comma,field", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL),
+            FieldSelection.excluded("some_other_field", Collections.singleton("float"), "field not in includes list")
+        );
+    }
+
+    public void testDetect_GivenAnalyzedFieldExcludesFieldWithCommaCharacter() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder().addAggregatableField("comma,field", "float")
+            .addAggregatableField("some_other_field", "float")
+            .build();
+
+        analyzedFields = FetchSourceContext.of(true, null, new String[] { "comma,field" });
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildOutlierDetectionConfig(),
+            100,
+            fieldCapabilities,
+            Collections.emptyMap()
+        );
+
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.get(0).getName(), equalTo("some_other_field"));
+        assertThat(allFields.get(0).getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
+
+        assertFieldSelectionContains(
+            fieldExtraction.v2(),
+            FieldSelection.excluded("comma,field", Collections.singleton("float"), "field in excludes list"),
+            FieldSelection.included("some_other_field", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL)
+        );
+    }
+
+    public void tesstDetect_givenFeatureProcessorsFailures_ResultsField() {
         FieldCapabilitiesResponse fieldCapabilities = simpleFieldResponse();
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             buildRegressionConfig("field_31", Arrays.asList(buildPreProcessor("ml.result", "foo"))),

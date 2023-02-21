@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class NormalizerResultTests extends AbstractSerializingTestCase<NormalizerResult> {
+public class NormalizerResultTests extends AbstractXContentSerializingTestCase<NormalizerResult> {
 
     private static final double EPSILON = 0.0000000001;
 
@@ -40,6 +40,11 @@ public class NormalizerResultTests extends AbstractSerializingTestCase<Normalize
         msg.setProbability(0.005);
         msg.setNormalizedScore(98.7);
         return msg;
+    }
+
+    @Override
+    protected NormalizerResult mutateInstance(NormalizerResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

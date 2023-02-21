@@ -21,13 +21,12 @@ import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerationException;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 
@@ -444,14 +443,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
-            // EMPTY is safe here because we never call namedObject when writing raw data
-            try (
-                XContentParser parser = XContentFactory.xContent(contentType)
-                    // It's okay to pass the throwing deprecation handler
-                    // because we should not be writing raw fields when
-                    // generating JSON
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(XContentParserConfiguration.EMPTY, content)) {
                 parser.nextToken();
                 writeFieldName(name);
                 copyCurrentStructure(parser);
@@ -493,13 +485,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     protected void copyRawValue(InputStream stream, XContent xContent) throws IOException {
-        // EMPTY is safe here because we never call namedObject
-        try (
-            XContentParser parser = xContent
-                // It's okay to pass the throwing deprecation handler because we
-                // should not be writing raw fields when generating JSON
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
-        ) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
             copyCurrentStructure(parser);
         }
     }

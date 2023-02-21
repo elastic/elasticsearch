@@ -7,7 +7,7 @@ minimal:
     # Give all users involved in these tests access to the indices where the data to
     # be analyzed is stored, because the ML roles alone do not provide access to
     # non-ML indices
-    - names: [ 'airline-data', 'index-*', 'unavailable-data', 'utopia', 'store' ]
+    - names: [ 'airline-data', 'index-*', 'unavailable-data', 'utopia', 'store', 'store-flattened' ]
       privileges:
         - create_index
         - indices:admin/refresh

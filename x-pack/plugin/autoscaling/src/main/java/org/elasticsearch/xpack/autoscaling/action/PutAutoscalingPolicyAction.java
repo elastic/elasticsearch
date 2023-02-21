@@ -118,7 +118,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
                 out.writeInt(deciders.size());
                 for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
                     out.writeString(entry.getKey());
-                    Settings.writeSettingsToStream(entry.getValue(), out);
+                    entry.getValue().writeTo(out);
                 }
             } else {
                 out.writeBoolean(false);

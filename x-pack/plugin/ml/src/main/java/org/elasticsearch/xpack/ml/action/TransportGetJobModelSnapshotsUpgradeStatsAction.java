@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
@@ -75,6 +76,7 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
         logger.debug(() -> format("[%s] get stats for model snapshot [%s] upgrades", request.getJobId(), request.getSnapshotId()));
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgrades = MlTasks.snapshotUpgradeTasks(tasksInProgress);
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         // 2. Now that we have the job IDs, find the relevant model snapshot upgrades
         ActionListener<List<Job.Builder>> expandIdsListener = ActionListener.wrap(jobs -> {
@@ -119,7 +121,7 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
         }, listener::onFailure);
 
         // 1. Expand jobs - this will throw if a required job ID match isn't made
-        jobConfigProvider.expandJobs(request.getJobId(), request.allowNoMatch(), true, expandIdsListener);
+        jobConfigProvider.expandJobs(request.getJobId(), request.allowNoMatch(), true, parentTaskId, expandIdsListener);
     }
 
     @Override

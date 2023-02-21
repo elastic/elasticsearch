@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,10 +45,10 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
         compilationLimitTriggered = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             compilationsHistory = new TimeSeries(in);
             cacheEvictionsHistory = new TimeSeries(in);
-        } else if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        } else if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             compilationsHistory = new TimeSeries(in).withTotal(compilations);
             cacheEvictionsHistory = new TimeSeries(in).withTotal(cacheEvictions);
         } else {
@@ -63,7 +63,7 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
         out.writeVLong(compilationLimitTriggered);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             compilationsHistory.writeTo(out);
             cacheEvictionsHistory.writeTo(out);
         }

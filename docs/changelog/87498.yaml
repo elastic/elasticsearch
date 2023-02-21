@@ -1,5 +1,0 @@
-pr: 87498
-summary: Avoid attempting PIT close on PIT open failure
-area: EQL
-type: bug
-issues: []

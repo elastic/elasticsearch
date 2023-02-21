@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class AucRocTests extends AbstractSerializingTestCase<AucRoc> {
+public class AucRocTests extends AbstractXContentSerializingTestCase<AucRoc> {
 
     @Override
     protected AucRoc doParseInstance(XContentParser parser) throws IOException {
@@ -22,6 +22,11 @@ public class AucRocTests extends AbstractSerializingTestCase<AucRoc> {
     @Override
     protected AucRoc createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected AucRoc mutateInstance(AucRoc instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

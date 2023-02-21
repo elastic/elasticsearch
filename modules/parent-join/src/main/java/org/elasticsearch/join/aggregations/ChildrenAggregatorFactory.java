@@ -68,7 +68,7 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
             );
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
-        long maxOrd = valuesSource.globalMaxOrd(context.searcher());
+        long maxOrd = valuesSource.globalMaxOrd(context.searcher().getIndexReader());
         return new ParentToChildrenAggregator(
             name,
             factories,

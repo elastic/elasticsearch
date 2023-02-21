@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Locale;
 
@@ -62,7 +61,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         final DiscoveryNode randomNode = state.nodes().resolveNode(primaryShard.currentNodeId());
 
         // stop the random data node, all remaining shards are promoted to primaries
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(randomNode.getName()));
+        internalCluster().stopNode(randomNode.getName());
         ensureYellowAndNoInitializingShards(indexName);
 
         state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();

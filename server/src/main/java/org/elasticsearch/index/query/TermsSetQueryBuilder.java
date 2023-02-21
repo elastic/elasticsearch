@@ -18,7 +18,7 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -266,7 +266,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
             }
 
-            IndexNumericFieldData fieldData = context.getForField(msmFieldType);
+            IndexNumericFieldData fieldData = context.getForField(msmFieldType, MappedFieldType.FielddataOperation.SEARCH);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
             TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript, TermsSetQueryScript.CONTEXT);
@@ -438,7 +438,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

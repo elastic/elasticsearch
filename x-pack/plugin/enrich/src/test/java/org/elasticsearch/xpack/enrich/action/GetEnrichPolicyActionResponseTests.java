@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolici
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestCase<GetEnrichPolicyAction.Response> {
+public class GetEnrichPolicyActionResponseTests extends AbstractXContentSerializingTestCase<GetEnrichPolicyAction.Response> {
 
     @Override
     protected GetEnrichPolicyAction.Response doParseInstance(XContentParser parser) throws IOException {
@@ -53,6 +53,11 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
             items.put(randomAlphaOfLength(3), policy);
         }
         return new GetEnrichPolicyAction.Response(items);
+    }
+
+    @Override
+    protected GetEnrichPolicyAction.Response mutateInstance(GetEnrichPolicyAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

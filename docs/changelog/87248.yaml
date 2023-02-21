@@ -1,6 +1,0 @@
-pr: 87248
-summary: Do not retry client requests when failing with `ContentTooLargeException`
-area: Java Low Level REST Client
-type: bug
-issues:
- - 86041

@@ -39,6 +39,7 @@ module org.elasticsearch.security {
     requires org.opensaml.xmlsec;
 
     requires com.nimbusds.jose.jwt;
+    requires io.netty.common;
     requires io.netty.handler;
     requires io.netty.transport;
     requires jopt.simple;
@@ -74,4 +75,8 @@ module org.elasticsearch.security {
             org.elasticsearch.xpack.security.crypto.tool.SystemKeyToolProvider,
             org.elasticsearch.xpack.security.authc.file.tool.UsersToolProvider,
             org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHashToolProvider;
+
+    provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
+        with
+            org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
 }

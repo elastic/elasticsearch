@@ -463,7 +463,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         stringBuilder.append(bytes);
         if (-1L <= bytes) {
             stringBuilder.append("/");
-            stringBuilder.append(new ByteSizeValue(bytes));
+            stringBuilder.append(ByteSizeValue.ofBytes(bytes));
         } else {
             // Something's definitely wrong, maybe a breaker was freed twice? Still, we're just creating an exception message here, so we
             // should keep going if we're running in production.

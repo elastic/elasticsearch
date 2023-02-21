@@ -9,6 +9,7 @@ package org.elasticsearch.indices.state;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -20,9 +21,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -55,6 +58,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -187,7 +191,22 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                 .collect(toList())
         );
-        ensureYellowAndNoInitializingShards(indexName);
+
+        ClusterHealthResponse healthResponse = client().admin()
+            .cluster()
+            .prepareHealth(indexName)
+            .setWaitForYellowStatus()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setWaitForNodes(Integer.toString(cluster().size()))
+            .setTimeout(TimeValue.timeValueSeconds(60L))
+            .get();
+        if (healthResponse.isTimedOut()) {
+            logClusterState();
+        }
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        assertThat(healthResponse.getIndices().get(indexName).getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
 
         final CountDownLatch startClosing = new CountDownLatch(1);
         final Thread[] threads = new Thread[randomIntBetween(2, 5)];

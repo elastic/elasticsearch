@@ -11,13 +11,17 @@ package org.elasticsearch.common.regex;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 public class Regex {
@@ -37,6 +41,10 @@ public class Regex {
 
     public static boolean isMatchAllPattern(String str) {
         return str.equals("*");
+    }
+
+    public static boolean isSuffixMatchPattern(String str) {
+        return str.length() > 1 && str.indexOf("*") == str.length() - 1;
     }
 
     /** Return an {@link Automaton} that matches the given pattern. */
@@ -84,6 +92,40 @@ public class Regex {
             automata.add(simpleStringsAutomaton);
         }
         return Operations.union(automata);
+    }
+
+    /**
+     * Create a {@link Predicate} that matches the given patterns. Evaluating
+     * the returned predicate against a {@link String} yields the same result as
+     * running {@link #simpleMatch(String[], String)} but may run faster,
+     * especially in the case when there are multiple patterns.
+     */
+    public static Predicate<String> simpleMatcher(String... patterns) {
+        if (patterns == null || patterns.length == 0) {
+            return str -> false;
+        }
+        boolean hasWildcard = false;
+        for (String pattern : patterns) {
+            if (isMatchAllPattern(pattern)) {
+                return str -> true;
+            }
+            if (isSimpleMatchPattern(pattern)) {
+                hasWildcard = true;
+                break;
+            }
+        }
+        if (patterns.length == 1) {
+            if (hasWildcard) {
+                return str -> simpleMatch(patterns[0], str);
+            } else {
+                return patterns[0]::equals;
+            }
+        } else if (hasWildcard == false) {
+            return Set.copyOf(Arrays.asList(patterns))::contains;
+        } else {
+            Automaton automaton = simpleMatchToAutomaton(patterns);
+            return new CharacterRunAutomaton(automaton)::run;
+        }
     }
 
     /**

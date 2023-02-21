@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
@@ -18,9 +19,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -152,9 +151,7 @@ public class GoogleCloudStorageClientSettings {
         final TimeValue readTimeout,
         final String applicationName,
         final URI tokenUri,
-        final Proxy.Type proxyType,
-        final String proxyHost,
-        final Integer proxyPort
+        final Proxy proxy
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -163,13 +160,7 @@ public class GoogleCloudStorageClientSettings {
         this.readTimeout = readTimeout;
         this.applicationName = applicationName;
         this.tokenUri = tokenUri;
-        try {
-            proxy = proxyType.equals(Proxy.Type.DIRECT)
-                ? null
-                : new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
-        } catch (UnknownHostException e) {
-            throw new SettingsException("GCS proxy host is unknown.", e);
-        }
+        this.proxy = proxy;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -219,17 +210,26 @@ public class GoogleCloudStorageClientSettings {
     }
 
     static GoogleCloudStorageClientSettings getClientSettings(final Settings settings, final String clientName) {
+        Proxy.Type proxyType = getConfigValue(settings, clientName, PROXY_TYPE_SETTING);
+        String proxyHost = getConfigValue(settings, clientName, PROXY_HOST_SETTING);
+        Integer proxyPort = getConfigValue(settings, clientName, PROXY_PORT_SETTING);
+        Proxy proxy;
+        try {
+            proxy = proxyType.equals(Proxy.Type.DIRECT)
+                ? null
+                : new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
+        } catch (UnknownHostException e) {
+            throw new SettingsException("GCS proxy host is unknown.", e);
+        }
         return new GoogleCloudStorageClientSettings(
-            loadCredential(settings, clientName),
+            loadCredential(settings, clientName, proxy),
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
             getConfigValue(settings, clientName, PROJECT_ID_SETTING),
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
-            getConfigValue(settings, clientName, PROXY_TYPE_SETTING),
-            getConfigValue(settings, clientName, PROXY_HOST_SETTING),
-            getConfigValue(settings, clientName, PROXY_PORT_SETTING)
+            proxy
         );
     }
 
@@ -245,25 +245,27 @@ public class GoogleCloudStorageClientSettings {
      * @return the {@link ServiceAccountCredentials} to use for the given client,
      *         {@code null} if no service account is defined.
      */
-    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName) {
+    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName, @Nullable Proxy proxy) {
+        final var credentialsFileSetting = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName);
         try {
-            if (CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).exists(settings) == false) {
+            if (credentialsFileSetting.exists(settings) == false) {
                 // explicitly returning null here so that the default credential
                 // can be loaded later when creating the Storage client
                 return null;
             }
-            try (InputStream credStream = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).get(settings)) {
+            try (InputStream credStream = credentialsFileSetting.get(settings)) {
                 final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
                 return SocketAccess.doPrivilegedIOException(() -> {
-                    final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
+                    NetHttpTransport netHttpTransport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                    final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream, () -> netHttpTransport);
                     if (credentials.createScopedRequired()) {
                         return (ServiceAccountCredentials) credentials.createScoped(scopes);
                     }
                     return credentials;
                 });
             }
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (final Exception e) {
+            throw new IllegalArgumentException("failed to load GCS client credentials from [" + credentialsFileSetting.getKey() + "]", e);
         }
     }
 

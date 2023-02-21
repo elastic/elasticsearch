@@ -89,7 +89,7 @@ public class IndexMetadataVerifier {
         newMetadata = removeTierFiltering(newMetadata);
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
-        newMetadata = archiveBrokenIndexSettings(newMetadata);
+        newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
         checkMappingsCompatibility(newMetadata);
         return newMetadata;
     }
@@ -191,7 +191,7 @@ public class IndexMetadataVerifier {
                     similarityService,
                     mapperRegistry,
                     () -> null,
-                    indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+                    indexSettings.getMode().idFieldMapperWithoutFieldData(),
                     scriptService
                 );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
@@ -205,27 +205,54 @@ public class IndexMetadataVerifier {
     /**
      * Identify invalid or unknown index settings and archive them. This leniency allows Elasticsearch to load
      * indices even if they contain old settings that are no longer valid.
+     *
+     * When we find an invalid setting on a system index, we simply remove it instead of archiving. System indices
+     * are managed by Elasticsearch and manual modification of settings is limited and sometimes impossible.
      */
-    IndexMetadata archiveBrokenIndexSettings(IndexMetadata indexMetadata) {
+    IndexMetadata archiveOrDeleteBrokenIndexSettings(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
-        final Settings newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
-            settings,
-            e -> logger.warn(
-                "{} ignoring unknown index setting: [{}] with value [{}]; archiving",
-                indexMetadata.getIndex(),
-                e.getKey(),
-                e.getValue()
-            ),
-            (e, ex) -> logger.warn(
-                () -> format(
-                    "%s ignoring invalid index setting: [%s] with value [%s]; archiving",
+        final Settings newSettings;
+
+        if (indexMetadata.isSystem()) {
+            newSettings = indexScopedSettings.deleteUnknownOrInvalidSettings(
+                settings,
+                e -> logger.warn(
+                    "{} deleting unknown system index setting: [{}] with value [{}]",
                     indexMetadata.getIndex(),
                     e.getKey(),
                     e.getValue()
                 ),
-                ex
-            )
-        );
+                (e, ex) -> logger.warn(
+                    () -> format(
+                        "%s deleting invalid system index setting: [%s] with value [%s]",
+                        indexMetadata.getIndex(),
+                        e.getKey(),
+                        e.getValue()
+                    ),
+                    ex
+                )
+            );
+        } else {
+            newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
+                settings,
+                e -> logger.warn(
+                    "{} ignoring unknown index setting: [{}] with value [{}]; archiving",
+                    indexMetadata.getIndex(),
+                    e.getKey(),
+                    e.getValue()
+                ),
+                (e, ex) -> logger.warn(
+                    () -> format(
+                        "%s ignoring invalid index setting: [%s] with value [%s]; archiving",
+                        indexMetadata.getIndex(),
+                        e.getKey(),
+                        e.getValue()
+                    ),
+                    ex
+                )
+            );
+        }
+
         if (newSettings != settings) {
             return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         } else {

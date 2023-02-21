@@ -30,6 +30,11 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
         return randomStatsResponse();
     }
 
+    @Override
+    protected DataStreamsStatsAction.Response mutateInstance(DataStreamsStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataStreamsStatsAction.Response randomStatsResponse() {
         int dataStreamCount = randomInt(10);
         int backingIndicesTotal = 0;
@@ -43,7 +48,12 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
             totalStoreSize += storeSize;
             long maximumTimestamp = randomRecentTimestamp();
             dataStreamStats.add(
-                new DataStreamsStatsAction.DataStreamStats(dataStreamName, backingIndices, new ByteSizeValue(storeSize), maximumTimestamp)
+                new DataStreamsStatsAction.DataStreamStats(
+                    dataStreamName,
+                    backingIndices,
+                    ByteSizeValue.ofBytes(storeSize),
+                    maximumTimestamp
+                )
             );
         }
         int totalShards = randomIntBetween(backingIndicesTotal, backingIndicesTotal * 3);
@@ -66,7 +76,7 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
             exceptions,
             dataStreamCount,
             backingIndicesTotal,
-            new ByteSizeValue(totalStoreSize),
+            ByteSizeValue.ofBytes(totalStoreSize),
             dataStreamStats.toArray(DataStreamsStatsAction.DataStreamStats[]::new)
         );
     }

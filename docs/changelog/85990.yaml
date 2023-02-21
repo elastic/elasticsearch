@@ -1,7 +1,0 @@
-pr: 85990
-summary: Allow to sort by script value using `SemVer` semantics
-area: Infra/Scripting
-type: bug
-issues:
- - 85989
- - 82287

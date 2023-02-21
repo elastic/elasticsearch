@@ -9,12 +9,12 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class QueryExplanationTests extends AbstractSerializingTestCase<QueryExplanation> {
+public class QueryExplanationTests extends AbstractXContentSerializingTestCase<QueryExplanation> {
 
     static QueryExplanation createRandomQueryExplanation(boolean isValid) {
         String index = "index_" + randomInt(1000);
@@ -40,6 +40,11 @@ public class QueryExplanationTests extends AbstractSerializingTestCase<QueryExpl
     @Override
     protected QueryExplanation createTestInstance() {
         return createRandomQueryExplanation();
+    }
+
+    @Override
+    protected QueryExplanation mutateInstance(QueryExplanation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

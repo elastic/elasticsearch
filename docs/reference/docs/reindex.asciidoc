@@ -141,8 +141,6 @@ If the request contains `wait_for_completion=false`, {es}
 performs some preflight checks, launches the request, and returns a
 <<tasks,`task`>> you can use to cancel or get the status of the task.
 {es} creates a record of this task as a document at `_tasks/<task_id>`.
-When you are done with a task, you should delete the task document so
-{es} can reclaim the space.
 
 [[docs-reindex-from-multiple-sources]]
 ===== Reindex from multiple sources
@@ -576,6 +574,9 @@ Valid values: `index`, `create`. Defaults to `index`.
 +
 IMPORTANT: To reindex to a data stream destination, this argument must be
 `create`.
+
+`pipeline`:::
+(Optional, string) the name of the <<reindex-with-an-ingest-pipeline,pipeline>> to use.
 
 `script`::
 `source`:::

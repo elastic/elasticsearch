@@ -31,13 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
     @Override
     protected ComponentTemplate makeTestChanges(ComponentTemplate testInstance) {
-        try {
-            return mutateInstance(testInstance);
-        } catch (IOException e) {
-            logger.error(e);
-            fail("mutating should not throw an exception, but got: " + e);
-            return null;
-        }
+        return mutateInstance(testInstance);
     }
 
     @Override
@@ -125,7 +119,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     @Override
-    protected ComponentTemplate mutateInstance(ComponentTemplate orig) throws IOException {
+    protected ComponentTemplate mutateInstance(ComponentTemplate orig) {
         return mutateTemplate(orig);
     }
 
@@ -206,27 +200,27 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
         {
             String randomString = randomAlphaOfLength(10);
-            CompressedXContent m1 = new CompressedXContent("""
+            CompressedXContent m1 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomString));
-            CompressedXContent m2 = new CompressedXContent("""
+                """, randomString));
+            CompressedXContent m2 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomString));
+                """, randomString));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
         }
 
         {
             CompressedXContent m1 = randomMappings();
-            CompressedXContent m2 = new CompressedXContent("""
+            CompressedXContent m2 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomAlphaOfLength(10)));
+                """, randomAlphaOfLength(10)));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(false));
         }
 
         {
-            Map<String, Object> map = XContentHelper.convertToMap(new BytesArray("""
+            Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(Strings.format("""
                 {"%s":{"properties":{"%s":{"type":"keyword"}}}}
-                """.formatted(MapperService.SINGLE_MAPPING_NAME, randomAlphaOfLength(10))), true, XContentType.JSON).v2();
+                """, MapperService.SINGLE_MAPPING_NAME, randomAlphaOfLength(10))), true, XContentType.JSON).v2();
             Map<String, Object> reduceMap = Template.reduceMapping(map);
             CompressedXContent m1 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(map)));
             CompressedXContent m2 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(reduceMap)));

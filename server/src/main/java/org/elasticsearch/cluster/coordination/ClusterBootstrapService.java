@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +44,7 @@ import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
-public class ClusterBootstrapService {
+public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
 
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.listSetting(
         "cluster.initial_master_nodes",
@@ -129,14 +130,9 @@ public class ClusterBootstrapService {
             if (bootstrapRequirements.isEmpty()) {
                 logger.info("this node is locked into cluster UUID [{}] and will not attempt further cluster bootstrapping", clusterUUID);
             } else {
-                logger.warn(
-                    """
-                        this node is locked into cluster UUID [{}] but [{}] is set to {}; \
-                        remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts""",
-                    clusterUUID,
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
-                    bootstrapRequirements
-                );
+                transportService.getThreadPool()
+                    .scheduleWithFixedDelay(() -> logRemovalWarning(clusterUUID), TimeValue.timeValueHours(12), Names.SAME);
+                logRemovalWarning(clusterUUID);
             }
         } else {
             logger.info(
@@ -147,7 +143,21 @@ public class ClusterBootstrapService {
         }
     }
 
-    void onFoundPeersUpdated() {
+    private void logRemovalWarning(String clusterUUID) {
+        logger.warn(
+            """
+                this node is locked into cluster UUID [{}] but [{}] is set to {}; \
+                remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; \
+                for further information see {}""",
+            clusterUUID,
+            INITIAL_MASTER_NODES_SETTING.getKey(),
+            bootstrapRequirements,
+            ReferenceDocs.INITIAL_MASTER_NODES
+        );
+    }
+
+    @Override
+    public void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get()
             && transportService.getLocalNode().isMasterNode()

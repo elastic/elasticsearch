@@ -55,9 +55,6 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        DoubleHistogram state;
-        state = new DoubleHistogram(numberOfSignificantValueDigits);
-        state.setAutoResize(true);
-        return new InternalHDRPercentiles(name, keys, state, keyed, format, metadata());
+        return new InternalHDRPercentiles(name, keys, null, keyed, format, metadata());
     }
 }

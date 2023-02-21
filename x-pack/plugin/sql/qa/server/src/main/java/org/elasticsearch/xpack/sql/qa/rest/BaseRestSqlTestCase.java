@@ -200,10 +200,10 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {
-            bulk.append("""
+            bulk.append(String.format(Locale.ROOT, """
                 {"index":{}}
                 %s
-                """.formatted(doc));
+                """, doc));
         }
         request.setJsonEntity(bulk.toString());
         provisioningClient().performRequest(request);

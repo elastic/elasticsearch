@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -17,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
+public class GenerateReleaseNotesTaskTest {
     private GitWrapper gitWrapper;
 
     @Before
@@ -150,7 +150,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
      * Check that when deriving a lit of versions from git tags, the current unreleased version is included.
      */
     @Test
-    public void getVersions_includesCurrentVersion() {
+    public void getVersions_includesCurrentAndPreviousVersion() {
         // given:
         when(gitWrapper.listVersions(anyString())).thenReturn(
             Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1", "8.0.0", "8.0.1", "8.1.0")
@@ -158,7 +158,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         );
 
         // when:
-        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.2.0-SNAPSHOT");
+        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.3.0-SNAPSHOT");
 
         // then:
         assertThat(
@@ -174,7 +174,8 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
                     "8.0.0",
                     "8.0.1",
                     "8.1.0",
-                    "8.2.0-SNAPSHOT"
+                    "8.2.0",
+                    "8.3.0-SNAPSHOT"
                 ).map(QualifiedVersion::of).toArray(QualifiedVersion[]::new)
             )
         );

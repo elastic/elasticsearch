@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -40,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -520,17 +520,21 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
             final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
-            if (logger.isDebugEnabled()) {
-                logger.debug("previous [{}]", prevLicensesMetadata);
-                logger.debug("current [{}]", currentLicensesMetadata);
-            }
             // notify all interested plugins
             if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || prevLicensesMetadata == null) {
                 if (currentLicensesMetadata != null) {
+                    logger.debug("state recovered: previous license [{}]", prevLicensesMetadata);
+                    logger.debug("state recovered: current license [{}]", currentLicensesMetadata);
                     onUpdate(currentLicensesMetadata);
+                } else {
+                    logger.trace("state recovered: no current license");
                 }
             } else if (prevLicensesMetadata.equals(currentLicensesMetadata) == false) {
+                logger.debug("previous [{}]", prevLicensesMetadata);
+                logger.debug("current [{}]", currentLicensesMetadata);
                 onUpdate(currentLicensesMetadata);
+            } else {
+                logger.trace("license unchanged [{}]", currentLicensesMetadata);
             }
 
             License currentLicense = null;

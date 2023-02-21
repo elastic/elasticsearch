@@ -8,6 +8,7 @@
 module org.elasticsearch.xcore {
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
+    requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
     requires org.elasticsearch.sslconfig;
     requires org.elasticsearch.xcontent;
@@ -52,6 +53,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.common;
     exports org.elasticsearch.xpack.core.datastreams;
     exports org.elasticsearch.xpack.core.deprecation;
+    exports org.elasticsearch.xpack.core.downsample;
     exports org.elasticsearch.xpack.core.enrich.action;
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;

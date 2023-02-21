@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -238,7 +237,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
 
         logger.info("stop the only running ml node");
-        internalCluster().stopRandomNode(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE));
+        internalCluster().stopNode(
+            internalCluster().getNodeNameThat(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE))
+        );
         ensureStableCluster(2);
         assertBusy(() -> {
             // job should get and remain in a failed state and
@@ -315,15 +316,13 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         logger.info("stopping ml nodes");
         for (int i = 0; i < numMlNodes; i++) {
-            // fork so stopping all ml nodes proceeds quicker:
-            Runnable r = () -> {
-                try {
-                    internalCluster().stopRandomNode(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE));
-                } catch (IOException e) {
-                    logger.error("error stopping node", e);
-                }
-            };
-            new Thread(r).start();
+            try {
+                internalCluster().stopNode(
+                    internalCluster().getNodeNameThat(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE))
+                );
+            } catch (IOException e) {
+                logger.error("error stopping node", e);
+            }
         }
         ensureStableCluster(1, nonMlNode);
         assertBusy(() -> {
@@ -422,7 +421,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
         logger.info("Stop non ml node");
         Settings nonMLNodeDataPathSettings = internalCluster().dataPathSettings(nonMLNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nonMLNode));
+        internalCluster().stopNode(nonMLNode);
         ensureStableCluster(1);
 
         Exception e = expectThrows(

@@ -11,10 +11,9 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -53,7 +52,7 @@ public class QuerySearchResultTests extends ESTestCase {
             shardId,
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             randomNonNegativeLong(),
             null
@@ -86,7 +85,7 @@ public class QuerySearchResultTests extends ESTestCase {
             querySearchResult,
             namedWriteableRegistry,
             delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
-            Version.CURRENT
+            TransportVersion.CURRENT
         );
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
@@ -107,7 +106,12 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testNullResponse() throws Exception {
         QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
-        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
+        QuerySearchResult deserialized = copyWriteable(
+            querySearchResult,
+            namedWriteableRegistry,
+            QuerySearchResult::new,
+            TransportVersion.CURRENT
+        );
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }
 }

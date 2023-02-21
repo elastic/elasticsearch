@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -134,15 +133,12 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
 
     private ClusterFormationFailureHelper.ClusterFormationState getClusterFormationState() {
         Map<String, DiscoveryNode> masterEligibleNodesMap = getMasterEligibleNodes();
-        List<String> initialMasterNodesSetting = Arrays.stream(generateRandomStringArray(7, 30, false, false)).toList();
+        List<String> initialMasterNodesSetting = Arrays.asList(generateRandomStringArray(7, 30, false, false));
         DiscoveryNode localNode = masterEligibleNodesMap.values().stream().findAny().get();
-        ImmutableOpenMap.Builder<String, DiscoveryNode> masterEligibleNodesBuilder = new ImmutableOpenMap.Builder<>();
-        masterEligibleNodesMap.forEach(masterEligibleNodesBuilder::put);
-        ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes = masterEligibleNodesBuilder.build();
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
             localNode,
-            masterEligibleNodes,
+            Map.copyOf(masterEligibleNodesMap),
             randomLong(),
             randomLong(),
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),

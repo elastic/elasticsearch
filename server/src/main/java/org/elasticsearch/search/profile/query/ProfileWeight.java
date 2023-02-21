@@ -11,6 +11,7 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -102,7 +103,13 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public int count(LeafReaderContext context) throws IOException {
-        return subQueryWeight.count(context);
+        Timer timer = profile.getTimer(QueryTimingType.COUNT_WEIGHT);
+        timer.start();
+        try {
+            return subQueryWeight.count(context);
+        } finally {
+            timer.stop();
+        }
     }
 
     @Override
@@ -110,4 +117,7 @@ public final class ProfileWeight extends Weight {
         return false;
     }
 
+    public Matches matches(LeafReaderContext context, int doc) throws IOException {
+        return subQueryWeight.matches(context, doc);
+    }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -40,7 +41,6 @@ import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -171,7 +171,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
         // IDP end user doesn't need any privileges on the security cluster
         // Could switch to grant apikey for user and call this as console_user
         // Console user should be able to call all IDP related endpoints and register application privileges
-        return """
+        return Strings.format("""
             %s:
               cluster: [ ALL ]
               indices:
@@ -190,7 +190,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
             %s:
               cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]
               indices: []
-            """.formatted(SAMPLE_USER_ROLE, SAMPLE_IDPUSER_ROLE, SP_ENTITY_ID, CONSOLE_USER_ROLE);
+            """, SAMPLE_USER_ROLE, SAMPLE_IDPUSER_ROLE, SP_ENTITY_ID, CONSOLE_USER_ROLE);
     }
 
     private String configUsers() {
@@ -262,7 +262,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
                 Files.move(tempFile, path, REPLACE_EXISTING);
             }
         } catch (final IOException e) {
-            throw new UncheckedIOException(String.format(Locale.ROOT, "could not write file [%s]", path.toAbsolutePath()), e);
+            throw new UncheckedIOException(Strings.format("could not write file [%s]", path.toAbsolutePath()), e);
         } finally {
             // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
             IOUtils.deleteFilesIgnoringExceptions(tempFile);

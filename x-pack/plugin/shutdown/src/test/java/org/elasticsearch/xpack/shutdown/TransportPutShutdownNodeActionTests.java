@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
@@ -74,7 +75,8 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
         verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
-        ClusterState stableState = taskExecutor.getValue().execute(ClusterState.EMPTY_STATE, List.of(taskContext));
+        ClusterState stableState = taskExecutor.getValue()
+            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
 
         // run the request again, there should be no call to submit an update task
         clearInvocations(clusterService);
@@ -85,7 +87,8 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
         verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
-        ClusterState gotState = taskExecutor.getValue().execute(stableState, List.of(taskContext));
+        ClusterState gotState = taskExecutor.getValue()
+            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(stableState, List.of(taskContext), () -> null));
         assertThat(gotState, sameInstance(stableState));
     }
 }

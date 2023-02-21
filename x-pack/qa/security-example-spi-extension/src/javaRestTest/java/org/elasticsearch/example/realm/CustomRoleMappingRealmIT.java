@@ -11,6 +11,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -40,7 +41,7 @@ public class CustomRoleMappingRealmIT extends ESRestTestCase {
     public void setupRoleMapping() throws Exception {
         expectedRole = randomAlphaOfLengthBetween(4, 16);
         Request request = new Request("PUT", "/_security/role_mapping/test");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "enabled": true,
               "roles": [ "%s" ],
@@ -49,7 +50,7 @@ public class CustomRoleMappingRealmIT extends ESRestTestCase {
                   "groups": "%s"
                 }
               }
-            }""".formatted(expectedRole, CustomRoleMappingRealm.USER_GROUP));
+            }""", expectedRole, CustomRoleMappingRealm.USER_GROUP));
         adminClient().performRequest(request);
     }
 

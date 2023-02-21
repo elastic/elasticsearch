@@ -251,8 +251,8 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         final List<String> allDataPaths = new ArrayList<>(node0DataPaths);
         allDataPaths.addAll(node1DataPaths);
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
+        internalCluster().stopNode(nodes.get(1));
+        internalCluster().stopNode(nodes.get(0));
 
         CorruptStateException corruptStateException = expectThrows(
             CorruptStateException.class,

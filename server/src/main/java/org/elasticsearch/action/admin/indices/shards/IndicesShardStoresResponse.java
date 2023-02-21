@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -238,17 +237,13 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         this.failures = failures;
     }
 
-    IndicesShardStoresResponse() {
-        this(Map.of(), Collections.emptyList());
-    }
-
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
         super(in);
         storeStatuses = in.readImmutableMap(
             StreamInput::readString,
             i -> i.readImmutableMap(StreamInput::readInt, j -> j.readImmutableList(StoreStatus::new))
         );
-        failures = Collections.unmodifiableList(in.readList(Failure::readFailure));
+        failures = in.readImmutableList(Failure::readFailure);
     }
 
     /**

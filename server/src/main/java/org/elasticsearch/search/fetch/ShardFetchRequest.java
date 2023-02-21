@@ -87,10 +87,6 @@ public class ShardFetchRequest extends TransportRequest {
         return docIds;
     }
 
-    public int docIdsSize() {
-        return docIds.length;
-    }
-
     public ScoreDoc lastEmittedDoc() {
         return lastEmittedDoc;
     }

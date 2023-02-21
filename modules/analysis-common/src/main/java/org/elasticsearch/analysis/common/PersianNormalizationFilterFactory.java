@@ -18,7 +18,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class PersianNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     PersianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

@@ -1,0 +1,277 @@
+setup:
+  - skip:
+      version: ' - 8.4.99'
+      reason: 'filtered alias for kNN search added in 8.5'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              test_vector:
+                type: dense_vector
+                dims: 4
+                index : true
+                similarity : l2_norm
+              name:
+                type: keyword
+                store: true
+          aliases:
+            test-alias:
+              filter:
+                term:
+                  name: v1
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: v1
+          test_vector: [230.0, 300.33, -34.8988, 15.555]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: v1
+          test_vector: [0.5, 0.5, 0.5, -1]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: v2
+          test_vector: [0.5, 0.5, 0.5, 0.5]
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          name: v2
+          test_vector: [0.5, 0.5, 0.5, 0]
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          name: v2
+          test_vector: [0.5, 0.5, 0.5, 0.4]
+
+  - do:
+     indices.refresh: {}
+
+---
+"kNN filter alias":
+
+  # test knn search w/ no filter
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, -1.0 ]
+            k: 2
+            num_candidates: 100
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
+
+  # test knn search w/ a prefilter of term v1
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, -1.0 ]
+            k: 2
+            num_candidates: 100
+            filter:
+              term:
+                name: v1
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
+
+  # test knn search w/ a filtered alias of term v1
+  - do:
+      search:
+        index: test-alias
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, -1.0 ]
+            k: 2
+            num_candidates: 100
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
+
+  # test knn search w/ with no filter to show
+  # the nearest vectors are 1 and 3
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 0.5 ]
+            k: 2
+            num_candidates: 100
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.name.0: v2 }
+
+  # test knn search w/ a prefilter of term v1
+  # the nearest vectors w/ the prefilter are 1 and 2
+  # instead of 1 and 3
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 0.5 ]
+            k: 2
+            num_candidates: 100
+            filter:
+              term:
+                name: v1
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
+
+  # test knn search w/ with a filtered alias
+  # the nearest vectors w/ the filtered alias are 1 and 2
+  # instead of 1 and 3
+  - do:
+      search:
+        index: test-alias
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 0.5 ]
+            k: 2
+            num_candidates: 100
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
+
+  # test knn search w/ with no filter to show
+  # the nearest vectors are 1, 3, and 5
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 0.5 ]
+            k: 3
+            num_candidates: 100
+
+  - match: { hits.total.value: 3 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.name.0: v2 }
+
+  - match: { hits.hits.2._id: "5" }
+  - match: { hits.hits.2.fields.name.0: v2 }
+
+  # test knn search w/ a prefilter of term v1
+  # the nearest vectors w/ the prefilter are 1 and 2
+  # instead of 1, 3, and 5
+  # note there are only 2 vectors found w/ the prefilter
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 0.5 ]
+            k: 3
+            num_candidates: 100
+            filter:
+              term:
+                name: v1
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
+
+  # test knn search w/ with a filtered alias
+  # the nearest vectors w/ the filtered alias are 1 and 2
+  # instead of 1, 3, and 5
+  # note there are only 2 vectors found w/ the filtered alias
+  - do:
+      search:
+        index: test-alias
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 0.5 ]
+            k: 3
+            num_candidates: 100
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }

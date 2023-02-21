@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')
@@ -9,7 +9,7 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:security')
 }
 
-boolean literalUsername = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+boolean literalUsername = BuildParams.random.nextBoolean()
 
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
@@ -40,6 +40,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   // Ensure new cache setting is recognised
   setting 'xpack.security.authz.store.roles.has_privileges.cache.max_size', '100'
 
-  user username: "test_admin", password: 'x-pack-test-password'
-  user username: "rac_user", password: 'x-pack-test-password', role: "rac_user_role"
+  user username: "test-admin", password: 'x-pack-test-password'
+  user username: "rac-user", password: 'x-pack-test-password', role: "rac_user_role"
 }

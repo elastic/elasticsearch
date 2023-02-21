@@ -12,15 +12,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -55,6 +60,8 @@ public class MetadataIndexAliasesService {
 
     private final NamedXContentRegistry xContentRegistry;
 
+    private final ClusterStateTaskExecutor<ApplyAliasesTask> executor;
+
     @Inject
     public MetadataIndexAliasesService(
         ClusterService clusterService,
@@ -66,20 +73,19 @@ public class MetadataIndexAliasesService {
         this.indicesService = indicesService;
         this.deleteIndexService = deleteIndexService;
         this.xContentRegistry = xContentRegistry;
+        this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasesTask applyAliasesTask, ClusterState clusterState) {
+                return new Tuple<>(applyAliasActions(clusterState, applyAliasesTask.request().actions()), applyAliasesTask);
+            }
+        };
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        submitUnbatchedTask("index-aliases", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return applyAliasActions(currentState, request.actions());
-            }
-        });
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
+        var task = new ApplyAliasesTask(request, listener);
+        var config = ClusterStateTaskConfig.build(Priority.URGENT);
+        clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
     }
 
     /**
@@ -198,6 +204,11 @@ public class MetadataIndexAliasesService {
         }
     }
 
+    // Visible for testing purposes
+    ClusterStateTaskExecutor<ApplyAliasesTask> getExecutor() {
+        return executor;
+    }
+
     private void validateFilter(
         List<Index> indicesToClose,
         Map<String, IndexService> indices,
@@ -242,6 +253,45 @@ public class MetadataIndexAliasesService {
                     + indexAbstraction.getParentDataStream().getName()
                     + "]. Data stream backing indices don't support alias operations."
             );
+        }
+    }
+
+    /**
+     * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
+     */
+    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+        implements
+            ClusterStateTaskListener,
+            ClusterStateAckListener {
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public void onAckTimeout() {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return request.ackTimeout();
         }
     }
 }

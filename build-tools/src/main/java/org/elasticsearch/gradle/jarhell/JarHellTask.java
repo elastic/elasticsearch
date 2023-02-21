@@ -16,6 +16,7 @@ import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
@@ -66,8 +67,9 @@ public class JarHellTask extends DefaultTask {
     // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jar hell.
     // We only care about the runtime classpath ABI here.
     @CompileClasspath
+    @SkipWhenEmpty
     public FileCollection getClasspath() {
-        return classpath.filter(File::exists);
+        return classpath == null ? null : classpath.filter(File::exists);
     }
 
     public void setClasspath(FileCollection classpath) {

@@ -59,7 +59,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -90,7 +89,6 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -154,7 +152,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -526,7 +523,7 @@ public final class InternalTestCluster extends TestCluster {
 
         builder.put(
             EsExecutors.NODE_PROCESSORS_SETTING.getKey(),
-            1 + random.nextInt(Math.min(4, Runtime.getRuntime().availableProcessors()))
+            RandomNumbers.randomIntBetween(random, 1, Math.min(4, Runtime.getRuntime().availableProcessors()))
         );
         if (random.nextBoolean()) {
             if (random.nextBoolean()) {
@@ -599,10 +596,16 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextInt(10) == 0) {
             builder.put(
                 PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
-                new ByteSizeValue(
+                ByteSizeValue.ofBytes(
                     RandomNumbers.randomIntBetween(random, rarely(random) ? 10 : 100, randomFrom(random, 1000, 10000, 100000, 1000000))
                 )
             );
+        }
+
+        if (random.nextBoolean()) {
+            // Nodes may fail to join a cluster within the default 30s timeout so we must sometimes skip that wait to ensure there's nothing
+            // in the startup process which relies on having joined a cluster.
+            builder.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s");
         }
 
         return builder.build();
@@ -732,14 +735,6 @@ public final class InternalTestCluster extends TestCluster {
         // force certain settings
         updatedSettings.put("node.name", name);
         updatedSettings.put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
-
-        if (autoManageMasterNodes) {
-            assertThat(
-                "if master nodes are automatically managed then nodes must complete a join cycle when starting",
-                updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()),
-                nullValue()
-            );
-        }
 
         return updatedSettings.build();
     }
@@ -1675,6 +1670,7 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(nodeName)).findFirst();
         if (nodeToStop.isPresent()) {
+            ensureNotTheLastMasterEligibleNode(nodeToStop.get());
             logger.info("Closing node [{}]", nodeToStop.get().name);
             stopNodesAndClient(nodeToStop.get());
             return true;
@@ -1682,27 +1678,17 @@ public final class InternalTestCluster extends TestCluster {
         return false;
     }
 
-    /**
-     * Stops a random node in the cluster that applies to the given filter. Does nothing if none of the nodes match the
-     * filter.
-     */
-    public synchronized void stopRandomNode(final Predicate<Settings> filter) throws IOException {
-        ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
-        if (nodeAndClient != null) {
-            if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
-                && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
-                && nodeAndClient.isMasterEligible()
-                && autoManageMasterNodes
-                && nodes.values()
-                    .stream()
-                    .filter(NodeAndClient::isMasterEligible)
-                    .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
-                    .count() == 1) {
-                throw new AssertionError("Tried to stop the only master eligible shared node");
-            }
-            logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
-            stopNodesAndClient(nodeAndClient);
+    private void ensureNotTheLastMasterEligibleNode(NodeAndClient nodeAndClient) {
+        if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
+            && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
+            && nodeAndClient.isMasterEligible()
+            && autoManageMasterNodes
+            && nodes.values()
+                .stream()
+                .filter(NodeAndClient::isMasterEligible)
+                .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
+                .count() == 1) {
+            throw new AssertionError("Tried to stop the only master eligible shared node");
         }
     }
 
@@ -1787,6 +1773,10 @@ public final class InternalTestCluster extends TestCluster {
                 throw new AssertionError("failed to configure file-based discovery", e);
             }
         }
+    }
+
+    public Collection<Path> configPaths() {
+        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configFile()).toList();
     }
 
     private void stopNodesAndClient(NodeAndClient nodeAndClient) throws IOException {
@@ -1993,30 +1983,18 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns the name of the selected health node in the cluster. If there is no selected health node it returns null.
+     * @return the name of a random node in a cluster
      */
-    public String getHealthNodeName() {
-        return getHealthNodeName(null);
+    public String getRandomNodeName() {
+        return getNodeNameThat(ignored -> true);
     }
 
     /**
-     * Returns the name of the selected health node in the cluster and executes the request via the node specified
-     * in the viaNode parameter. If viaNode isn't specified a random node will be picked to send the request to. If
-     * there is no selected health node it returns null.
+     * @return the name of a random node in a cluster that match the {@code predicate}
      */
-    public String getHealthNodeName(@Nullable String viaNode) {
-        try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            ClusterState state = client.admin().cluster().prepareState().clear().setMetadata(true).get().getState();
-            PersistentTasksCustomMetadata taskMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            PersistentTasksCustomMetadata.PersistentTask<?> task = taskMetadata.getTask("health-node");
-            return task != null && task.isAssigned()
-                ? state.nodes().getDataNodes().get(task.getAssignment().getExecutorNode()).getName()
-                : null;
-        } catch (Exception e) {
-            logger.warn("Can't fetch cluster state", e);
-            throw new RuntimeException("Can't get the health node " + e.getMessage(), e);
-        }
+    public String getNodeNameThat(Predicate<Settings> predicate) {
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> predicate.test(nc.node.settings()));
+        return nodeAndClient != null ? nodeAndClient.getName() : null;
     }
 
     synchronized Set<String> allDataNodesButN(int count) {
@@ -2234,8 +2212,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public String startDataOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(dataOnlyNode(settings)).build();
-        return startNode(settings1);
+        return startNode(Settings.builder().put(settings).put(dataOnlyNode(settings)).build());
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {
@@ -2383,14 +2360,6 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return getInstance(NamedWriteableRegistry.class);
-    }
-
-    /**
-     * Returns a predicate that only accepts settings of nodes with one of the given names.
-     */
-    public static Predicate<Settings> nameFilter(String... nodeNames) {
-        final Set<String> nodes = Sets.newHashSet(nodeNames);
-        return settings -> nodes.contains(settings.get("node.name"));
     }
 
     /**
@@ -2547,9 +2516,9 @@ public final class InternalTestCluster extends TestCluster {
                                 "All incoming requests on node ["
                                     + nodeAndClient.name
                                     + "] should have finished. "
-                                    + "Expected 0 but got "
+                                    + "Expected 0 bytes for requests in-flight but got "
                                     + bytesUsed
-                                    + "; pending tasks ["
+                                    + " bytes; pending tasks ["
                                     + pendingTasks
                                     + "]"
                             );

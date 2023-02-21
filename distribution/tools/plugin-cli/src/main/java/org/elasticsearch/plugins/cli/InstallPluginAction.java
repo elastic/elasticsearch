@@ -38,9 +38,12 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugin.scanner.ClassReaders;
+import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsUtils;
+import org.objectweb.asm.ClassReader;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -82,6 +85,7 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -159,7 +163,12 @@ public class InstallPluginAction implements Closeable {
      * maintained so that existing user workflows that install these plugins do not need to be updated
      * immediately.
      */
-    public static final Set<String> PLUGINS_CONVERTED_TO_MODULES = Set.of("repository-azure", "repository-gcs", "repository-s3");
+    public static final Set<String> PLUGINS_CONVERTED_TO_MODULES = Set.of(
+        "repository-azure",
+        "repository-gcs",
+        "repository-s3",
+        "ingest-attachment"
+    );
 
     static final Set<PosixFilePermission> BIN_DIR_PERMS;
     static final Set<PosixFilePermission> BIN_FILES_PERMS;
@@ -192,6 +201,7 @@ public class InstallPluginAction implements Closeable {
     private Environment env;
     private boolean batch;
     private Proxy proxy = null;
+    private NamedComponentScanner scanner = new NamedComponentScanner();
 
     public InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
         this.terminal = terminal;
@@ -203,7 +213,6 @@ public class InstallPluginAction implements Closeable {
         this.proxy = proxy;
     }
 
-    // pkg private for testing
     public void execute(List<InstallablePlugin> plugins) throws Exception {
         if (plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
@@ -862,7 +871,22 @@ public class InstallPluginAction implements Closeable {
         // check for jar hell before any copying
         jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
 
+        if (info.isStable() && hasNamedComponentFile(pluginRoot) == false) {
+            generateNameComponentFile(pluginRoot);
+        }
         return info;
+    }
+
+    private void generateNameComponentFile(Path pluginRoot) throws IOException {
+        Stream<ClassReader> classPath = ClassReaders.ofClassPath().stream(); // contains plugin-api
+        List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(pluginRoot).stream(), classPath).toList();
+        Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
+        Path outputFile = pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
+        scanner.writeToFile(namedComponentsMap, outputFile);
+    }
+
+    private boolean hasNamedComponentFile(Path pluginRoot) {
+        return Files.exists(pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME));
     }
 
     private static final String LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR;

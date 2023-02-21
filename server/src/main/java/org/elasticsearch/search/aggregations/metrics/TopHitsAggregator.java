@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -97,7 +97,7 @@ class TopHitsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
         // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
@@ -149,7 +149,7 @@ class TopHitsAggregator extends MetricsAggregator {
 
                 LeafCollector leafCollector = leafCollectors.get(bucket);
                 if (leafCollector == null) {
-                    leafCollector = collectors.collector.getLeafCollector(ctx);
+                    leafCollector = collectors.collector.getLeafCollector(aggCtx.getLeafReaderContext());
                     if (scorer != null) {
                         leafCollector.setScorer(scorer);
                     }
@@ -191,7 +191,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        subSearchContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
+        subSearchContext.docIdsToLoad(docIdsToLoad);
         subSearchContext.fetchPhase().execute(subSearchContext);
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
         if (fetchProfiles != null) {

@@ -21,10 +21,13 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SetsTests extends ESTestCase {
 
@@ -76,6 +79,14 @@ public class SetsTests extends ESTestCase {
             .filter(i -> (sets.v1().contains(i) && sets.v2().contains(i)))
             .collect(Collectors.toSet());
         assertThat(intersection, containsInAnyOrder(expectedIntersection.toArray(new Integer[0])));
+
+        final Set<Integer> emptyIntersection = Sets.intersection(
+            Sets.difference(sets.v1(), intersection),
+            Sets.difference(sets.v2(), intersection)
+        );
+        assertThat(emptyIntersection.isEmpty(), is(true));
+        // as an implementation detail, it's not just *some* empty set, but precisely *this* empty set
+        assertThat(emptyIntersection, sameInstance(Set.of()));
     }
 
     public void testNewHashSetWithExpectedSize() {
@@ -92,6 +103,11 @@ public class SetsTests extends ESTestCase {
             int capacity = Sets.capacity(size);
             assertThat(size, lessThanOrEqualTo((int) (capacity * 0.75f)));
         }
+    }
+
+    public void testAddToCopy() {
+        assertThat(addToCopy(Set.of("a", "b"), "c"), containsInAnyOrder("a", "b", "c"));
+        assertThat(addToCopy(Set.of("a", "b"), "c", "d"), containsInAnyOrder("a", "b", "c", "d"));
     }
 
     /**

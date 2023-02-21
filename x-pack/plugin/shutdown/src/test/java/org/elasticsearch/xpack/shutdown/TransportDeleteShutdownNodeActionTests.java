@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -76,7 +77,8 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);
         verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
-        ClusterState gotState = taskExecutor.getValue().execute(ClusterState.EMPTY_STATE, List.of(taskContext));
+        ClusterState gotState = taskExecutor.getValue()
+            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
         assertThat(gotState, sameInstance(ClusterState.EMPTY_STATE));
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +32,7 @@ public class Grant implements Writeable {
     private String username;
     private SecureString password;
     private SecureString accessToken;
+    private String runAsUsername;
 
     public Grant() {}
 
@@ -39,6 +41,11 @@ public class Grant implements Writeable {
         this.username = in.readOptionalString();
         this.password = in.readOptionalSecureString();
         this.accessToken = in.readOptionalSecureString();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            this.runAsUsername = in.readOptionalString();
+        } else {
+            this.runAsUsername = null;
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -46,6 +53,9 @@ public class Grant implements Writeable {
         out.writeOptionalString(username);
         out.writeOptionalSecureString(password);
         out.writeOptionalSecureString(accessToken);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            out.writeOptionalString(runAsUsername);
+        }
     }
 
     public String getType() {
@@ -64,6 +74,10 @@ public class Grant implements Writeable {
         return accessToken;
     }
 
+    public String getRunAsUsername() {
+        return runAsUsername;
+    }
+
     public void setType(String type) {
         this.type = type;
     }
@@ -78,6 +92,10 @@ public class Grant implements Writeable {
 
     public void setAccessToken(SecureString accessToken) {
         this.accessToken = accessToken;
+    }
+
+    public void setRunAsUsername(String runAsUsername) {
+        this.runAsUsername = runAsUsername;
     }
 
     public AuthenticationToken getAuthenticationToken() {

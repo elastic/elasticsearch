@@ -1,5 +1,0 @@
-pr: 86434
-summary: Add support for CPU ranges in desired nodes
-area: Autoscaling
-type: enhancement
-issues: []

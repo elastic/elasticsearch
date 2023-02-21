@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -32,6 +33,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -95,7 +98,7 @@ public class JoinValidationService {
     private final Supplier<ClusterState> clusterStateSupplier;
     private final AtomicInteger queueSize = new AtomicInteger();
     private final Queue<AbstractRunnable> queue = new ConcurrentLinkedQueue<>();
-    private final Map<Version, ReleasableBytesReference> statesByVersion = new HashMap<>();
+    private final Map<TransportVersion, ReleasableBytesReference> statesByVersion = new HashMap<>();
     private final RefCounted executeRefs;
 
     public JoinValidationService(
@@ -229,27 +232,39 @@ public class JoinValidationService {
         try {
             nextItem.run();
         } finally {
-            final var remaining = queueSize.decrementAndGet();
-            assert remaining >= 0;
-            if (remaining > 0) {
-                runProcessor();
+            try {
+                final var remaining = queueSize.decrementAndGet();
+                assert remaining >= 0;
+                if (remaining > 0) {
+                    runProcessor();
+                }
+            } catch (Exception e) {
+                assert false : e;
+                /* we only catch so we can assert false, so throwing is ok */
+                // noinspection ThrowFromFinallyBlock
+                throw e;
             }
         }
     }
 
     private void onShutdown() {
-        // shutting down when enqueueing the next processor run which means there is no active processor so it's safe to clear out the
-        // cache ...
-        cacheClearer.run();
+        try {
+            // shutting down when enqueueing the next processor run which means there is no active processor so it's safe to clear out the
+            // cache ...
+            cacheClearer.run();
 
-        // ... and drain the queue
-        do {
-            final var nextItem = queue.poll();
-            assert nextItem != null;
-            if (nextItem != cacheClearer) {
-                nextItem.onFailure(new NodeClosedException(transportService.getLocalNode()));
-            }
-        } while (queueSize.decrementAndGet() > 0);
+            // ... and drain the queue
+            do {
+                final var nextItem = queue.poll();
+                assert nextItem != null;
+                if (nextItem != cacheClearer) {
+                    nextItem.onFailure(new NodeClosedException(transportService.getLocalNode()));
+                }
+            } while (queueSize.decrementAndGet() > 0);
+        } catch (Exception e) {
+            assert false : e;
+            throw e;
+        }
     }
 
     private final AbstractRunnable cacheClearer = new AbstractRunnable() {
@@ -289,19 +304,28 @@ public class JoinValidationService {
             assert discoveryNode.getVersion().onOrAfter(Version.V_8_3_0) : discoveryNode.getVersion();
             // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
             // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
-            final var cachedBytes = statesByVersion.get(discoveryNode.getVersion());
-            final var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode));
+            Transport.Connection connection;
+            try {
+                connection = transportService.getConnection(discoveryNode);
+            } catch (NodeNotConnectedException e) {
+                listener.onFailure(e);
+                return;
+            }
+            var version = connection.getTransportVersion();
+            var cachedBytes = statesByVersion.get(version);
+            var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode, version));
             assert bytes.hasReferences() : "already closed";
             bytes.incRef();
             transportService.sendRequest(
-                discoveryNode,
+                connection,
                 JOIN_VALIDATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, discoveryNode.getVersion()),
+                new BytesTransportRequest(bytes, version),
                 REQUEST_OPTIONS,
-                new ActionListenerResponseHandler<>(
-                    ActionListener.runAfter(listener, bytes::decRef),
+                new CleanableResponseHandler<>(
+                    listener,
                     in -> TransportResponse.Empty.INSTANCE,
-                    ThreadPool.Names.CLUSTER_COORDINATION
+                    ThreadPool.Names.CLUSTER_COORDINATION,
+                    bytes::decRef
                 )
             );
             if (cachedBytes == null) {
@@ -325,37 +349,36 @@ public class JoinValidationService {
         }
     }
 
-    private ReleasableBytesReference serializeClusterState(DiscoveryNode discoveryNode) {
+    private ReleasableBytesReference serializeClusterState(DiscoveryNode discoveryNode, TransportVersion version) {
         final var bytesStream = transportService.newNetworkBytesStream();
         var success = false;
         try {
             final var clusterState = clusterStateSupplier.get();
-            final var version = discoveryNode.getVersion();
             try (
                 var stream = new OutputStreamStreamOutput(
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
                 )
             ) {
-                stream.setVersion(version);
+                stream.setTransportVersion(version);
                 clusterState.writeTo(stream);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, discoveryNode);
             }
             final var newBytes = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             logger.trace(
-                "serialized join validation cluster state version [{}] for node version [{}] with size [{}]",
+                "serialized join validation cluster state version [{}] for transport version [{}] with size [{}]",
                 clusterState.version(),
                 version,
                 newBytes.length()
             );
             final var previousBytes = statesByVersion.put(version, newBytes);
-            success = true;
             assert previousBytes == null;
+            success = true;
             return newBytes;
         } finally {
             if (success == false) {
-                assert false;
                 bytesStream.close();
+                assert false;
             }
         }
     }

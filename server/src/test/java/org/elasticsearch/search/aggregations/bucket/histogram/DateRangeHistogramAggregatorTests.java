@@ -128,7 +128,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> createAggregator(aggBuilder, searcher, fieldType));
+                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType)));
             }
         }
     }
@@ -1084,7 +1084,10 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                InternalDateHistogram histogram = searchAndReduce(
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
+                );
                 verify.accept(histogram);
             }
         }

@@ -19,10 +19,10 @@ in a <<paginate-search-results,paginated>> fashion.
 [[security-api-query-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_own_api_key` cluster
-privilege.
+* To use this API, you must have at least the `manage_own_api_key` or the `read_security`
+cluster privileges.
 * If you have only the `manage_own_api_key` privilege, this API returns only
-the API keys that you own. If you have the `manage_api_key` or greater
+the API keys that you own. If you have the `read_security`, `manage_api_key` or greater
 privileges (including `manage_security`), this API returns all API keys
 regardless of ownership.
 
@@ -32,6 +32,16 @@ regardless of ownership.
 Use this API to retrieve the API keys created with the
 <<security-api-create-api-key,create API key API>> in a paginated manner.
 You can optionally filter the results with a query.
+
+[[security-api-query-api-key-query-params]]
+==== {api-path-parms-title}
+
+`with_limited_by`::
+(Optional, Boolean) A boolean flag to return the snapshot of the owner user's role descriptors
+associated with the API key. An API key's actual permission is the intersection of
+its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's role descriptors
+(effectively limited by it). An API key cannot retrieve any API key's limited-by role descriptors
+(including itself) unless it has `manage_api_key` or higher privileges.
 
 [[security-api-query-api-key-request-body]]
 ==== {api-request-body-title}
@@ -46,8 +56,7 @@ The query supports a subset of query types, including
 <<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>, <<query-dsl-exists-query,`exists`>>,
 and <<query-dsl-range-query,`range`>>.
 +
-You can query all public information associated with an API key, including the
-following values.
+You can query the following public values associated with an API key.
 +
 .Valid values for `query`
 [%collapsible%open]
@@ -78,6 +87,8 @@ Realm name of the API key owner.
 Metadata field associated with the API key, such as `metadata.my_field`. Because
 metadata is stored as a <<flattened,flattened>> field type, all fields act like
 `keyword` fields when querying and sorting.
+
+NOTE: You cannot query the role descriptors of an API key.
 ====
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
@@ -146,6 +157,30 @@ retrieved from one or more API keys:
       "realm": "reserved",
       "metadata": {
         "letter": "a"
+      },
+      "role_descriptors": { <2>
+        "role-a": {
+          "cluster": [
+            "monitor"
+          ],
+          "indices": [
+            {
+              "names": [
+                "index-a"
+              ],
+              "privileges": [
+                "read"
+              ],
+              "allow_restricted_indices": false
+            }
+          ],
+          "applications": [ ],
+          "run_as": [ ],
+          "metadata": { },
+          "transient_metadata": {
+            "enabled": true
+          }
+        }
       }
     },
     {
@@ -158,7 +193,8 @@ retrieved from one or more API keys:
       "realm": "reserved",
       "metadata": {
         "letter": "b"
-      }
+      },
+      "role_descriptors": { } <3>
     }
   ]
 }
@@ -166,6 +202,11 @@ retrieved from one or more API keys:
 // NOTCONSOLE
 
 <1> The list of API keys that were retrieved for this request
+<2> The role descriptors that are assigned to this API key when it was <<api-key-role-descriptors,created>>
+or last <<security-api-update-api-key-api-key-role-descriptors,updated>>. Note the API key's
+effective permissions are an intersection of its assigned privileges and the point-in-time snapshot of
+the owner user's permissions.
+<3> An empty role descriptors means the API key inherits the owner user's permissions.
 
 If you create an API key with the following details:
 
@@ -198,7 +239,7 @@ Use the information from the response to retrieve the API key by ID:
 
 [source,console]
 ----
-GET /_security/_query/api_key
+GET /_security/_query/api_key?with_limited_by=true
 {
   "query": {
     "ids": {
@@ -211,6 +252,61 @@ GET /_security/_query/api_key
 ----
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
+
+A successful call returns a JSON structure for API key information including its limited-by role descriptors:
+
+[source,js]
+--------------------------------------------------
+{
+  "api_keys": [
+    {
+      "id": "VuaCfGcBCdbkQm-e5aOx",
+      "name": "application-key-1",
+      "creation": 1548550550158,
+      "expiration": 1548551550158,
+      "invalidated": false,
+      "username": "myuser",
+      "realm": "native1",
+      "metadata": {
+        "application": "my-application"
+      },
+      "role_descriptors": { },
+      "limited_by": [ <1>
+        {
+          "role-power-user": {
+            "cluster": [
+              "monitor"
+            ],
+            "indices": [
+              {
+                "names": [
+                  "*"
+                ],
+                "privileges": [
+                  "read"
+                ],
+                "allow_restricted_indices": false
+              }
+            ],
+            "applications": [ ],
+            "run_as": [ ],
+            "metadata": { },
+            "transient_metadata": {
+              "enabled": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The owner user's permissions associated with the API key.
+It is a point-in-time snapshot captured at <<security-api-create-api-key,creation>> and
+subsequent <<security-api-update-api-key,updates>>. An API key's
+effective permissions are an intersection of its assigned privileges and
+the owner user's permissions.
 
 You can also retrieve the API key by name:
 
@@ -308,6 +404,7 @@ The response contains a list of matched API keys along with their sort values:
       "metadata": {
         "environment": "production"
       },
+      "role_descriptors": { },
       "_sort": [
         "2021-08-18T01:29:14.811Z",  <1>
         "app1-key-79"  <2>
@@ -323,6 +420,7 @@ The response contains a list of matched API keys along with their sort values:
       "metadata": {
         "environment": "production"
       },
+      "role_descriptors": { },
       "_sort": [
         "2021-08-18T01:29:13.794Z",
         "app1-key-78"

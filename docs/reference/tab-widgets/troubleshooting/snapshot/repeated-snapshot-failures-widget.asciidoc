@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Addressing repeated snapshot policy failures">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-repeated-snapshot-failures"
+            id="cloud-repeated-snapshot-failures">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-repeated-snapshot-failures"
+            id="self-managed-repeated-snapshot-failures"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-repeated-snapshot-failures"
+       aria-labelledby="cloud-repeated-snapshot-failures">
+++++
+
+include::repeated-snapshot-failures.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-repeated-snapshot-failures"
+       aria-labelledby="self-managed-repeated-snapshot-failures"
+       hidden="">
+++++
+
+include::repeated-snapshot-failures.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

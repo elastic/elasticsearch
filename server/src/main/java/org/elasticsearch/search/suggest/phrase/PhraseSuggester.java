@@ -133,7 +133,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                         XContentParser parser = XContentFactory.xContent(querySource)
                             .createParser(searchExecutionContext.getParserConfig(), querySource)
                     ) {
-                        QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
+                        QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(parser);
                         final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());
                     }

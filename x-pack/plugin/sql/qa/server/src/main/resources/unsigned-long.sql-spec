@@ -10,6 +10,7 @@
 // RAND takes an int.
 // ROUND only works for values < Long.MAX_VALUE
 // ES's CEIL & FLOOR don't work with unsigned_longs (TODO) + they can return longs, while H2's always returns doubles
+// Divide and Modulo operations lose precision in H2 on big numbers (led to random failures in the past, so they were removed) 
 
 plus
 SELECT 18446744073709551614 + 1 AS x;
@@ -17,14 +18,8 @@ plusLongMax
 SELECT 9223372036854775808 + ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000) AS x;
 minus
 SELECT 18446744073709551615 - ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000) AS x;
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/83516
-divide-Ignore
-SELECT 18446744073709551615 / ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000) AS x;
 multiply
 SELECT 18446744073709551615 * 1 AS x;
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/83516
-mod-Ignore
-SELECT 18446744073709551615 % ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000) AS x;
 
 abs
 SELECT ABS(9223372036854775808 + ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000)) AS x;

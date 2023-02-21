@@ -1,0 +1,407 @@
+---
+"Runtime fields accessing metric fields in downsample target index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: close_to
+
+  - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            runtime:
+              # NOTE: all runtime fields are defined with `type: double` to avoid cast exceptions
+              tx_kb:
+                type: double
+                script: |
+                  emit(doc['k8s.pod.network.tx'].value / 1024.0d);
+              rx_kb:
+                type: double
+                script: |
+                  emit(doc['k8s.pod.network.rx'].value / 1024.0d);
+              sent_kb:
+                type: double
+                script: |
+                  emit(doc['k8s.pod.network.sent'].value / 1024.0d);
+              received_kb:
+                type: double
+                script: |
+                  emit(doc['k8s.pod.network.received'].value / 1024.0d);
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+                          sent:
+                            type: long
+                            time_series_metric: counter
+                          received:
+                            type: long
+                            time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        index: source
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2001818691, "rx": 802133794, "sent": 2001818691, "received": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2005177954, "rx": 801479970, "sent": 2001826691, "received": 802143794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2006223737, "rx": 802337279, "sent": 2002018680, "received": 802173799}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2012916202, "rx": 803685721, "sent": 2002267888, "received": 802178800}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434521831, "rx": 530575198, "sent": 1434521831, "received": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434577921, "rx": 530600088, "sent": 1434557898, "received": 530577811}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434587694, "rx": 530604797, "sent": 1434589900, "received": 530600110}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434595272, "rx": 530605511, "sent": 1434612001, "received": 530622980}}}}'
+
+  # Make the downsample source index read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+
+  # Downsample using `1h` fixed interval
+  - do:
+      indices.downsample:
+        index: source
+        target_index: target
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  # Check downsample target index runtime fields mappings
+  - do:
+      indices.get_mapping:
+        index: target
+
+  - match: { target.mappings.runtime.tx_kb.type: double }
+  - match: { target.mappings.runtime.tx_kb.script.lang: painless }
+  - match:
+      target.mappings.runtime.tx_kb.script.source: |
+        emit(doc['k8s.pod.network.tx'].value / 1024.0d);
+  - match: { target.mappings.runtime.rx_kb.type: double }
+  - match: { target.mappings.runtime.rx_kb.script.lang: painless }
+  - match:
+      target.mappings.runtime.rx_kb.script.source: |
+        emit(doc['k8s.pod.network.rx'].value / 1024.0d);
+  - match: { target.mappings.runtime.sent_kb.type: double }
+  - match: { target.mappings.runtime.sent_kb.script.lang: painless }
+  - match:
+      target.mappings.runtime.sent_kb.script.source: |
+        emit(doc['k8s.pod.network.sent'].value / 1024.0d);
+  - match: { target.mappings.runtime.received_kb.type: double }
+  - match: { target.mappings.runtime.received_kb.script.lang: painless }
+  - match:
+      target.mappings.runtime.received_kb.script.source: |
+        emit(doc['k8s.pod.network.received'].value / 1024.0d);
+
+  # Search the downsample target index including runtime fields
+  - do:
+      search:
+        index: target
+        body:
+          fields: [ tx_kb, rx_kb, sent_kb, received_kb ]
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+
+  - close_to: { hits.hits.0.fields.received_kb.0: { value: 783343.5488, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.sent_kb.0: { value: 1954908.8779, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.tx_kb.0: { value: 1958181.5957, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.rx_kb.0: { value: 783333.7832, error: 0.0001 } }
+
+  - close_to: { hits.hits.1.fields.received_kb.0: { value: 783377.7343, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.sent_kb.0: { value: 1955339.7343, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.tx_kb.0: { value: 1965738.4785, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.rx_kb.0: { value: 784849.3369, error: 0.0001 } }
+
+  - close_to: { hits.hits.2.fields.received_kb.0: { value: 518142.3935, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.sent_kb.0: { value: 1400935.4472, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.tx_kb.0: { value: 1400955.0009, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.rx_kb.0: { value: 518164.1484, error: 0.0001 } }
+
+  - close_to: { hits.hits.3.fields.received_kb.0: { value: 518186.5039, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.sent_kb.0: { value: 1400988.2822, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.tx_kb.0: { value: 1400971.9453, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.rx_kb.0: { value: 518169.4443, error: 0.0001 } }
+
+---
+"Runtime field accessing dimension fields in downsample target index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+
+  - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            runtime:
+              metricset_tag:
+                type: keyword
+                script: |
+                  emit(doc['metricset'].value + '-' + doc['tag'].value);
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              tag:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+                          sent:
+                            type: long
+                            time_series_metric: counter
+                          received:
+                            type: long
+                            time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        index: source
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "tag": "AAA", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2001818691, "rx": 802133794, "sent": 2001818691, "received": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "tag": "AAA", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2005177954, "rx": 801479970, "sent": 2001826691, "received": 802143794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "tag": "AAB", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2006223737, "rx": 802337279, "sent": 2002018680, "received": 802173799}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "tag": "AAB", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2012916202, "rx": 803685721, "sent": 2002267888, "received": 802178800}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "tag": "AAC", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434521831, "rx": 530575198, "sent": 1434521831, "received": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "tag": "AAC", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434577921, "rx": 530600088, "sent": 1434557898, "received": 530577811}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "tag": "AAD", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434587694, "rx": 530604797, "sent": 1434589900, "received": 530600110}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "tag": "AAD", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434595272, "rx": 530605511, "sent": 1434612001, "received": 530622980}}}}'
+
+  # Make the downsample source index read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+
+  # Downsample using `1h` fixed interval
+  - do:
+      indices.downsample:
+        index: source
+        target_index: target
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  # Check downsample target index runtime fields mappings
+  - do:
+      indices.get_mapping:
+        index: target
+
+  - match: { target.mappings.runtime.metricset_tag.type: keyword }
+  - match: { target.mappings.runtime.metricset_tag.script.lang: painless }
+  - match:
+      target.mappings.runtime.metricset_tag.script.source: |
+        emit(doc['metricset'].value + '-' + doc['tag'].value);
+
+  # Search the downsample target index including runtime fields
+  - do:
+      search:
+        index: target
+        body:
+          fields: [ metricset_tag ]
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+
+  - match: { hits.hits.0.fields.metricset_tag.0: "pod-AAA" }
+  - match: { hits.hits.1.fields.metricset_tag.0: "pod-AAB" }
+  - match: { hits.hits.2.fields.metricset_tag.0: "pod-AAC" }
+  - match: { hits.hits.3.fields.metricset_tag.0: "pod-AAD" }
+
+---
+"Runtime field accessing label fields in downsample target index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+
+  - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            runtime:
+              labels:
+                type: keyword
+                script: |
+                  emit(doc['label_1'].value + '-' + doc['label_2'].value);
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              label_1:
+                type: keyword
+              label_2:
+                type: long
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+                          sent:
+                            type: long
+                            time_series_metric: counter
+                          received:
+                            type: long
+                            time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        index: source
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "label_1": "AAA", "label_2": 9, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2001818691, "rx": 802133794, "sent": 2001818691, "received": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "label_1": "AAA", "label_2": 10, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2005177954, "rx": 801479970, "sent": 2001826691, "received": 802143794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "label_1": "AAB", "label_2": 117, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2006223737, "rx": 802337279, "sent": 2002018680, "received": 802173799}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "label_1": "AAB", "label_2": 110, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2012916202, "rx": 803685721, "sent": 2002267888, "received": 802178800}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "label_1": "AAC", "label_2": 110, "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434521831, "rx": 530575198, "sent": 1434521831, "received": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "label_1": "AAC", "label_2": 11, "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434577921, "rx": 530600088, "sent": 1434557898, "received": 530577811}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "label_1": "AAD", "label_2": 114, "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434587694, "rx": 530604797, "sent": 1434589900, "received": 530600110}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "label_1": "AAD", "label_2": 111, "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434595272, "rx": 530605511, "sent": 1434612001, "received": 530622980}}}}'
+
+  # Make the downsample source index read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+
+  # Downsample using `1h` fixed interval
+  - do:
+      indices.downsample:
+        index: source
+        target_index: target
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  # Check downsample target index runtime fields mappings
+  - do:
+      indices.get_mapping:
+        index: target
+
+  - match: { target.mappings.runtime.labels.type: keyword }
+  - match: { target.mappings.runtime.labels.script.lang: painless }
+  - match:
+      target.mappings.runtime.labels.script.source: |
+        emit(doc['label_1'].value + '-' + doc['label_2'].value);
+
+  # Search the downsample target index including runtime fields
+  - do:
+      search:
+        index: target
+        body:
+          fields: [ labels ]
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+
+  - match: { hits.hits.0.fields.labels.0: "AAA-10" }
+  - match: { hits.hits.1.fields.labels.0: "AAB-110" }
+  - match: { hits.hits.2.fields.labels.0: "AAC-11" }
+  - match: { hits.hits.3.fields.labels.0: "AAD-111" }

@@ -169,3 +169,40 @@
   - match:
       $body: |
                /^(ba(r|z) \n?){2}$/
+
+---
+tsdb:
+  - skip:
+      version: " - 8.4.99"
+      reason: Serialization for segment stats fixed in 8.5.0
+
+  - do:
+      indices.create:
+        index: tsdb
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: metricset
+          mappings:
+            properties:
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      index:
+        index: tsdb
+        refresh: true
+        body:
+          metricset: bar
+          "@timestamp": 2022-01-01T00:00:00Z
+
+  - do:
+      cat.segments: {}
+  - match:
+      $body: |
+        /^(tsdb \s+ 0 \s+ p \s+ \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \s+ _\d (\s\d){3} \s+
+        (\d+|\d+[.]\d+)(kb|b) \s+ \d+ (\s+ (false|true)){2} \s+  \d+\.\d+(\.\d+)? \s+ (false|true) \s? \n?)$/

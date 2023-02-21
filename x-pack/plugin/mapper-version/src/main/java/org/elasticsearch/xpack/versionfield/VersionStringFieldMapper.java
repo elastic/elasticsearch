@@ -12,10 +12,12 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -24,6 +26,8 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +36,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -39,6 +44,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SearchAfterTermsEnum;
+import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -47,19 +55,16 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
@@ -139,7 +144,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new DocValuesFieldExistsQuery(name());
+            return new FieldExistsQuery(name());
         }
 
         @Override
@@ -181,8 +186,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
-                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes(StandardCharsets.UTF_8);
-                            boolean accepted = compiled.runAutomaton.run(decoded, 0, decoded.length);
+                            BytesRef decoded = VersionEncoder.decodeVersion(term);
+                            boolean accepted = compiled.runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
                             if (accepted) {
                                 return AcceptStatus.YES;
                             }
@@ -234,8 +239,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
-                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes(StandardCharsets.UTF_8);
-                            boolean accepted = runAutomaton.run(decoded, 0, decoded.length);
+                            BytesRef decoded = VersionEncoder.decodeVersion(term);
+                            boolean accepted = runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
                             if (accepted) {
                                 return AcceptStatus.YES;
                             }
@@ -279,7 +284,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
         }
 
@@ -309,6 +314,30 @@ public class VersionStringFieldMapper extends FieldMapper {
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
             return new TermRangeQuery(name(), lower, upper, includeLower, includeUpper);
+        }
+
+        @Override
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+            CompiledAutomaton prefixAutomaton = VersionEncoder.prefixAutomaton(string, caseInsensitive);
+            BytesRef searchBytes = searchAfter == null ? null : VersionEncoder.encodeVersion(searchAfter).bytesRef;
+
+            if (prefixAutomaton.type == AUTOMATON_TYPE.ALL) {
+                TermsEnum iterator = terms.iterator();
+                TermsEnum result = iterator;
+                if (searchAfter != null) {
+                    result = new SearchAfterTermsEnum(result, searchBytes);
+                }
+                return result;
+            }
+            return terms.intersect(prefixAutomaton, searchBytes);
         }
     }
 
@@ -380,7 +409,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public String format(BytesRef value) {
-            return VersionEncoder.decodeVersion(value);
+            return VersionEncoder.decodeVersion(value).utf8ToString();
         }
 
         @Override
@@ -397,5 +426,26 @@ public class VersionStringFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName(), null, false) {
+            @Override
+            protected BytesRef convert(BytesRef value) {
+                return VersionEncoder.decodeVersion(value);
+            }
+
+            @Override
+            protected BytesRef preserve(BytesRef value) {
+                // Convert copies the underlying bytes
+                return value;
+            }
+        };
     }
 }

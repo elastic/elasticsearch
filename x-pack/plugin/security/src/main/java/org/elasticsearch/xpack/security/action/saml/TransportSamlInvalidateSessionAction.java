@@ -113,8 +113,8 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
                 listener.onResponse(0);
             } else {
                 GroupedActionListener<TokensInvalidationResult> groupedListener = new GroupedActionListener<>(
-                    ActionListener.wrap(collection -> listener.onResponse(collection.size()), listener::onFailure),
-                    tokens.size()
+                    tokens.size(),
+                    ActionListener.wrap(collection -> listener.onResponse(collection.size()), listener::onFailure)
                 );
                 tokens.forEach(tuple -> invalidateTokenPair(tuple, groupedListener));
             }

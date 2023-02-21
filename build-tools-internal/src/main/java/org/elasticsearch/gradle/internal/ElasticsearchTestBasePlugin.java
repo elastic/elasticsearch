@@ -54,7 +54,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
-            ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
+            ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
+            test.getExtensions().getExtraProperties().set("dumpOutputOnFailure", true);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
             test.addTestListener(listener);
@@ -88,7 +89,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getJvmArgumentProviders().add(nonInputProperties);
             test.getExtensions().add("nonInputProperties", nonInputProperties);
 
-            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName()));
+            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName().replace("#", "_")));
             test.setMaxParallelForks(Integer.parseInt(System.getProperty("tests.jvms", BuildParams.getDefaultParallel().toString())));
 
             test.exclude("**/*$*.class");
@@ -160,9 +161,6 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
             // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
             test.systemProperty("es.transport.cname_in_publish_address", "true");
-
-            // TODO: remove this once the disk usage indicator feature is finished #84811
-            test.systemProperty("es.health_node_feature_flag_enabled", true);
 
             // Set netty system properties to the properties we configure in jvm.options
             test.systemProperty("io.netty.noUnsafe", "true");

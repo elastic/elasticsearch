@@ -102,7 +102,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             ShardId shardId = new ShardId("_index_" + i, "_uuid_" + i, i);
             RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
             final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_" + i);
-            final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, source, unassignedInfo)
+            final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, false, source, unassignedInfo, ShardRouting.Role.DEFAULT)
                 .initialize(localNode.getId(), "_allocation_id", 10 * i);
 
             final RecoveryState recoveryState = new RecoveryState(shardRouting, localNode, localNode);

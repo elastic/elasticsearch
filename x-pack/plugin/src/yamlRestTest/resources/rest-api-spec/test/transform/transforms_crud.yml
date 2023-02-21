@@ -165,6 +165,7 @@ setup:
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
   - match: { transforms.0.description: "yaml test transform on airline-data" }
+  - is_true: transforms.0.authorization.roles
 
   - do:
       transform.get_transform:
@@ -186,6 +187,8 @@ setup:
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform" }
   - match: { transforms.1.id: "airline-transform-dos" }
+  - is_true: transforms.0.authorization.roles
+  - is_true: transforms.1.authorization.roles
 
   - do:
       transform.get_transform:
@@ -254,6 +257,7 @@ setup:
   - match: { transforms.0.dest.index: "airline-data-by-airline" }
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
 ---
 "Test PUT continuous transform":
   - do:
@@ -288,6 +292,8 @@ setup:
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
   - match: { transforms.0.sync.time.field: "time" }
   - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.authorization.roles
+
 ---
 "Test PUT continuous transform without delay set":
   - do:

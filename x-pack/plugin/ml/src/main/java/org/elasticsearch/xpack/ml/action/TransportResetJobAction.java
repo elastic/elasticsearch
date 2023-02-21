@@ -135,7 +135,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             }
         }, listener::onFailure);
 
-        jobConfigProvider.getJob(request.getJobId(), jobListener);
+        jobConfigProvider.getJob(request.getJobId(), null, jobListener);
     }
 
     private void waitExistingResetTaskToComplete(
@@ -190,7 +190,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         }, listener::onFailure);
 
         // Get job again to check if it is still blocked
-        jobConfigProvider.getJob(request.getJobId(), jobListener);
+        jobConfigProvider.getJob(request.getJobId(), null, jobListener);
     }
 
     private void resetJob(
@@ -236,7 +236,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
                 listener.onResponse(AcknowledgedResponse.of(false));
                 return;
             }
-            jobConfigProvider.getJob(jobId, ActionListener.wrap(jobBuilder -> {
+            jobConfigProvider.getJob(jobId, null, ActionListener.wrap(jobBuilder -> {
                 if (task.isCancelled()) {
                     listener.onResponse(AcknowledgedResponse.of(false));
                     return;
@@ -245,7 +245,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             }, listener::onFailure));
         };
 
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(taskClient, jobId);
+        JobDataDeleter jobDataDeleter = new JobDataDeleter(taskClient, jobId, request.getDeleteUserAnnotations());
         jobDataDeleter.deleteJobDocuments(
             jobConfigProvider,
             indexNameExpressionResolver,

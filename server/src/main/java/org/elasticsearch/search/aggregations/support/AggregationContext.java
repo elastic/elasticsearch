@@ -34,7 +34,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -289,7 +291,7 @@ public abstract class AggregationContext implements Releasable {
      * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-sort order execution.
      *
      * A side-effect of such execution is that all leaves are walked simultaneously and therefore we can no longer rely on
-     * {@link org.elasticsearch.search.aggregations.BucketCollector#getLeafCollector(LeafReaderContext)} to be called only after the
+     * {@link BucketCollector#getLeafCollector(AggregationExecutionContext)} to be called only after the
      * previous leaf was fully collected.
      */
     public abstract boolean isInSortOrderExecutionRequired();
@@ -433,7 +435,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            return context.getForField(ft);
+            return context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
         }
 
         @Override

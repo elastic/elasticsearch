@@ -42,7 +42,7 @@ public class ShardSnapshotResult implements Writeable {
 
     public ShardSnapshotResult(StreamInput in) throws IOException {
         generation = new ShardGeneration(in);
-        size = new ByteSizeValue(in);
+        size = ByteSizeValue.readFrom(in);
         segmentCount = in.readVInt();
     }
 

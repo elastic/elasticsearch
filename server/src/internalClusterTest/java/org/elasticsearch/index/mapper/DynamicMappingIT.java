@@ -18,9 +18,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -44,7 +46,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -136,12 +138,34 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
     }
 
-    public void testPreflightCheckAvoidsMaster() throws InterruptedException {
-        // can't use INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING as a check here, as that is already checked at parse time,
-        // see testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime
-        createIndex("index", Settings.builder().put(INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 2).build());
+    public void testPreflightCheckAvoidsMaster() throws InterruptedException, IOException {
+        // can't use INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING nor INDEX_MAPPING_DEPTH_LIMIT_SETTING as a check here, as that is already
+        // checked at parse time, see testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime
+        createIndex("index", Settings.builder().put(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
-        client().prepareIndex("index").setId("1").setSource("field1", Map.of("field2", "value1")).get();
+        client().admin()
+            .indices()
+            .preparePutMapping("index")
+            .setSource(
+                Strings.toString(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startArray("dynamic_templates")
+                        .startObject()
+                        .startObject("test")
+                        .field("match", "nested*")
+                        .startObject("mapping")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endArray()
+                        .endObject()
+                ),
+                XContentType.JSON
+            )
+            .get();
+        client().prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
@@ -164,11 +188,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         masterBlockedLatch.await();
         final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index")
             .setId("2")
-            .setSource("field1", Map.of("field3", Map.of("field4", "value2")));
+            .setSource("nested3", Map.of("foo", "bar"));
         try {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
-                Matchers.containsString("Limit of mapping depth [2] has been exceeded due to object field [field1.field3]")
+                Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
         } finally {
             indexingCompletedLatch.countDown();
@@ -210,6 +234,71 @@ public class DynamicMappingIT extends ESIntegTestCase {
             );
         } finally {
             indexingCompletedLatch.countDown();
+        }
+    }
+
+    public void testTotalFieldsLimitWithRuntimeFields() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 4)
+            .build();
+
+        String mapping = """
+                {
+                  "dynamic":"runtime",
+                  "runtime": {
+                    "my_object.rfield1": {
+                       "type": "keyword"
+                    },
+                    "rfield2": {
+                      "type": "keyword"
+                    }
+                  },
+                  "properties": {
+                    "field3" : {
+                      "type": "keyword"
+                    }
+                  }
+                }
+            """;
+
+        client().admin().indices().prepareCreate("index1").setSettings(indexSettings).setMapping(mapping).get();
+        ensureGreen("index1");
+
+        {
+            // introduction of a new object with 2 new sub-fields fails
+            final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index1")
+                .setId("1")
+                .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
+            Exception exc = expectThrows(MapperParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
+            assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(
+                exc.getCause().getMessage(),
+                Matchers.containsString("Limit of total fields [4] has been exceeded while adding new fields [2]")
+            );
+        }
+
+        {
+            // introduction of a new single field succeeds
+            client().prepareIndex("index1").setId("2").setSource("field3", "value3", "new_field4", 100).get();
+        }
+
+        {
+            // remove 2 runtime field mappings
+            assertAcked(client().admin().indices().preparePutMapping("index1").setSource("""
+                    {
+                      "runtime": {
+                        "my_object.rfield1": null,
+                        "rfield2" : null
+                      }
+                    }
+                """, XContentType.JSON));
+
+            // introduction of a new object with 2 new sub-fields succeeds
+            client().prepareIndex("index1")
+                .setId("1")
+                .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
         }
     }
 

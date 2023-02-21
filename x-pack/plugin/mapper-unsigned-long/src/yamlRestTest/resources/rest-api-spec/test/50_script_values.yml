@@ -12,6 +12,14 @@ setup:
             properties:
               ul:
                 type: unsigned_long
+              ul_ndv:
+                type: unsigned_long
+                doc_values: false
+              ul_multi:
+                type: unsigned_long
+              ul_ndv_multi:
+                type: unsigned_long
+                doc_values: false
 
   - do:
       bulk:
@@ -19,15 +27,15 @@ setup:
         refresh: true
         body: |
           { "index": {"_id" : "1"} }
-          { "ul": 0 }
+          { "ul": 0, "ul_ndv": 0, "ul_multi": [18446744073709551615, 9223372036854775808, 0, 0],  "ul_ndv_multi": [0, 18446744073709551615, 0, 9223372036854775808]}
           { "index": {"_id" : "2"} }
-          { "ul": 9223372036854775807 }
+          { "ul": 9223372036854775807, "ul_ndv": 9223372036854775807 }
           { "index": {"_id" : "3"} }
-          { "ul": 9223372036854775808 }
+          { "ul": 9223372036854775808, "ul_ndv": 9223372036854775808 }
           { "index": {"_id" : "4"} }
-          { "ul": 18446744073709551613 }
+          { "ul": 18446744073709551613, "ul_ndv": 18446744073709551613 }
           { "index": {"_id" : "5"} }
-          { "ul": 18446744073709551615 }
+          { "ul": 18446744073709551615, "ul_ndv": 18446744073709551615 }
 
 ---
 "Scripted fields values return Long":
@@ -62,6 +70,89 @@ setup:
   - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
   - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
   - match: { hits.hits.4.fields.scripted_ul.0: 0 }
+
+---
+"Scripted fields using multi-value unsigned long":
+  - do:
+      search:
+        index: test1
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            scripted_ul_0:
+              script:
+                source: "field('ul_multi').getValue(1000L)"
+            scripted_ul_1:
+              script:
+                source: "field('ul_multi').getValue(1, 1000L)"
+            scripted_ul_2:
+              script:
+                source: "field('ul_multi').getValue(2, 1000L)"
+            scripted_ul_3:
+              script:
+                source: "field('ul_multi').getValue(3, 1000L)"
+
+  - match: { hits.hits.0.fields.scripted_ul_0.0: 0 }
+  - match: { hits.hits.0.fields.scripted_ul_1.0: 0 }
+  - match: { hits.hits.0.fields.scripted_ul_2.0: -9223372036854775808 }
+  - match: { hits.hits.0.fields.scripted_ul_3.0: -1 }
+
+---
+"No Doc Values: Scripted fields values return Long":
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ul: desc } ]
+          script_fields:
+            scripted_ul:
+              script:
+                source: "field('ul_ndv').getValue(1000L)"
+
+  - match: { hits.hits.0.fields.scripted_ul.0: -1 }
+  - match: { hits.hits.1.fields.scripted_ul.0: -3 }
+  - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
+  - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
+  - match: { hits.hits.4.fields.scripted_ul.0: 0 }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test1
+        body:
+          sort: [ { ul: desc } ]
+          script_fields:
+            scripted_ul:
+              script:
+                source: "doc['ul_ndv'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+---
+"No Doc Values: Scripted fields using multi-value unsigned long":
+  - do:
+      search:
+        index: test1
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            scripted_ul_0:
+              script:
+                source: "field('ul_ndv_multi').getValue(1000L)"
+            scripted_ul_1:
+              script:
+                source: "field('ul_ndv_multi').getValue(1, 1000L)"
+            scripted_ul_2:
+              script:
+                source: "field('ul_ndv_multi').getValue(2, 1000L)"
+            scripted_ul_3:
+              script:
+                source: "field('ul_ndv_multi').getValue(3, 1000L)"
+
+  - match: { hits.hits.0.fields.scripted_ul_0.0: 0 }
+  - match: { hits.hits.0.fields.scripted_ul_1.0: 0 }
+  - match: { hits.hits.0.fields.scripted_ul_2.0: -9223372036854775808 }
+  - match: { hits.hits.0.fields.scripted_ul_3.0: -1 }
+
 
 ---
 "Scripted sort values":

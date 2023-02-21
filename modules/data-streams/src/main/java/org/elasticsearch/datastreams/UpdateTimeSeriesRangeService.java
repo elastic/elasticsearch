@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -200,9 +199,12 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     private class UpdateTimeSeriesExecutor implements ClusterStateTaskExecutor<UpdateTimeSeriesTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateTimeSeriesTask>> taskContexts) throws Exception {
-            var result = updateTimeSeriesTemporalRange(currentState, Instant.now());
-            for (final var taskContext : taskContexts) {
+        public ClusterState execute(BatchExecutionContext<UpdateTimeSeriesTask> batchExecutionContext) throws Exception {
+            final ClusterState result;
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                result = updateTimeSeriesTemporalRange(batchExecutionContext.initialState(), Instant.now());
+            }
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> taskContext.getTask().listener().accept(null));
             }
             return result;

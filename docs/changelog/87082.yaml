@@ -1,6 +1,0 @@
-pr: 87082
-summary: Increase `force_merge` threadpool size based on the allocated processors
-area: Engine
-type: enhancement
-issues:
- - 84943

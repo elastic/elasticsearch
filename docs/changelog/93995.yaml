@@ -1,0 +1,5 @@
+pr: 93995
+summary: ci: upgrade to actions/checkout@v3
+area: ci
+type: upgrade
+issues: []

@@ -9,11 +9,16 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
@@ -85,32 +90,25 @@ public class PostWriteRefresh {
         boolean wasForced,
         long generation
     ) {
-        if (isPrimary && hasUnpromotables(indexShard)) {
+        if (isPrimary && indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
             assert transportService != null : "TransportService cannot be null if unpromotables present";
-
-            // Integrate #93600
-            // UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-            // indexShard.getReplicationGroup().getRoutingTable(),
-            // result.generation()
-            // );
-            // transportService.sendRequest(
-            // transportService.getLocalNode(),
-            // TransportUnpromotableShardRefreshAction.NAME,
-            // unpromotableReplicaRequest,
-            // new ActionListenerResponseHandler<>(
-            // listener.delegateFailure((l, r) -> l.onResponse(null)),
-            // (in) -> ActionResponse.Empty.INSTANCE,
-            // ThreadPool.Names.REFRESH
-            // )
-            // );
-            // TODO: Remove
-            listener.onResponse(wasForced);
+            UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
+                indexShard.getReplicationGroup().getRoutingTable(),
+                generation
+            );
+            transportService.sendRequest(
+                transportService.getLocalNode(),
+                TransportUnpromotableShardRefreshAction.NAME,
+                unpromotableReplicaRequest,
+                new ActionListenerResponseHandler<>(
+                    listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
+                    (in) -> ActionResponse.Empty.INSTANCE,
+                    ThreadPool.Names.REFRESH
+                )
+            );
         } else {
             listener.onResponse(wasForced);
         }
     }
 
-    private static boolean hasUnpromotables(IndexShard indexShard) {
-        return indexShard.getReplicationGroup().getReplicationTargets().stream().anyMatch(sr -> sr.isPromotableToPrimary() == false);
-    }
 }

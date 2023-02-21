@@ -483,7 +483,8 @@ public abstract class TransportWriteAction<
                 ActionListener<Boolean> refreshListener = new ActionListener<>() {
                     @Override
                     public void onResponse(Boolean forceRefresh) {
-                        if (forceRefresh) {
+                        // TODO: Maybe move this into PostWriteRefresh
+                        if (forceRefresh && request.getRefreshPolicy() == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
                             logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
                         }
                         refreshed.set(forceRefresh);

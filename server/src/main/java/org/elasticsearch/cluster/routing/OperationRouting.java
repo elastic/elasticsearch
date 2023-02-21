@@ -116,7 +116,8 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(excludeUnsearchableShards(iterator));
+                var searchableShards = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
+                set.add(new PlainShardIterator(iterator.shardId(), searchableShards));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
@@ -153,14 +154,6 @@ public class OperationRouting {
             }
         }
         return set;
-    }
-
-    private static ShardIterator excludeUnsearchableShards(ShardIterator iterator) {
-        if (iterator == null) {
-            return null;
-        }
-        List<ShardRouting> shardRoutings = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
-        return new PlainShardIterator(iterator.shardId(), shardRoutings);
     }
 
     private static ShardIterator prioratizeUnpromotables(ShardIterator iterator) {

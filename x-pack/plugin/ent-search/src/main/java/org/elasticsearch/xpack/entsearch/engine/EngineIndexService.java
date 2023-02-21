@@ -195,6 +195,7 @@ public class EngineIndexService {
                     )
                     .endObject();
             }
+            // TODO Validate indices exist?
             final IndexRequest indexRequest = new IndexRequest(ENGINE_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(engine.name())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

@@ -101,7 +101,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     if (isUpdateApiSupported(oldVersionClient)) {
                         Exception e = expectThrows(
                             Exception.class,
-                            () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true))
+                            () -> updateOrBulkUpdateApiKey(oldVersionClient, apiKey.v1(), randomRoleDescriptors(true))
                         );
                         assertThat(
                             e.getMessage(),
@@ -111,17 +111,28 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             )
                         );
                     }
-
-                    // and against new node
-                    Exception e = expectThrows(Exception.class, () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true)));
+                    Exception e = expectThrows(Exception.class, () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true)));
                     assertThat(
                         e.getMessage(),
                         anyOf(
                             containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                            containsString(
-                                "all nodes must have version [8080099] or higher to support remote indices privileges for API keys"
-                            )
+                            containsString("remote indices not supported for API keys")
                         )
+                    );
+
+                    // and against new node
+                    e = expectThrows(Exception.class, () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true)));
+                    assertThat(
+                        e.getMessage(),
+                        containsString("all nodes must have version [8080099] or higher to support remote indices privileges for API keys")
+                    );
+                    e = expectThrows(
+                        Exception.class,
+                        () -> updateOrBulkUpdateApiKey(newVersionClient, apiKey.v1(), randomRoleDescriptors(true))
+                    );
+                    assertThat(
+                        e.getMessage(),
+                        containsString("all nodes must have version [8080099] or higher to support remote indices privileges for API keys")
                     );
                 } finally {
                     this.closeClientsByVersion();

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal.precommit.transport;
 
+import org.elasticsearch.gradle.internal.precommit.transport.test_classes.EnclosingInnerTransport;
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.ExampleImpl;
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.ExampleSubInterface;
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.ExampleSubclass;
@@ -18,10 +19,7 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.objectweb.asm.ClassReader;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
-import java.net.URL;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -29,17 +27,22 @@ import java.util.stream.Stream;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class ClassHierarchyScannerTests {
-
     @Test
-    public void xxx() throws IOException {
-        URL resource = this.getClass().getResource("/dir/test.json");
-        System.out.println(resource);
-        FileReader fileReader = new FileReader(resource.getPath());
-        BufferedReader bufferedReader = new BufferedReader(fileReader);
-        String line;
-        while ((line = bufferedReader.readLine()) != null) {
-            System.out.println(line);
-        }
+    public void testInnerClasses() throws IOException {
+        ClassHierarchyScanner scanner = new ClassHierarchyScanner();
+        ClassReader enclosing = new ClassReader(EnclosingInnerTransport.class.getCanonicalName());
+        ClassReader enclosed = new ClassReader(EnclosingInnerTransport.Transport.class.getName());
+
+        Stream.of(enclosing, enclosed).forEach(cr -> cr.accept(scanner, ClassReader.SKIP_CODE));
+
+        String className = classNameToPath(Writeable.class.getCanonicalName());
+        Set<String> transportClasses = scanner.getConcreteSubclasses(Map.of(className, className));
+
+        // for inner classes report their enclosing class instead
+        assertThat(
+            transportClasses,
+            Matchers.contains("org/elasticsearch/gradle/internal/precommit/transport/test_classes/EnclosingInnerTransport")
+        );
 
     }
 

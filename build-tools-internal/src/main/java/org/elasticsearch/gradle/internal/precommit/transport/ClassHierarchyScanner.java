@@ -18,12 +18,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.objectweb.asm.Opcodes.ASM9;
 
 public class ClassHierarchyScanner extends ClassVisitor {
     private static final String OBJECT_NAME = Object.class.getCanonicalName().replace('.', '/');
     private final Map<String, Set<String>> classToSubclasses = new HashMap<>();// parent-child
+    private final Map<String, String> innerClasses = new HashMap<>();// inner - enclosing class names
     // transport class cannot not be abstract and must be public
     private final Set<String> concreteClasses = new HashSet<>();
 
@@ -37,6 +39,7 @@ public class ClassHierarchyScanner extends ClassVisitor {
 
     @Override
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+        super.visit(version, access, name, signature, superName, interfaces);
         if (OBJECT_NAME.equals(superName) == false) {
             classToSubclasses.computeIfAbsent(superName, k -> new HashSet<>()).add(name);
         }
@@ -49,15 +52,31 @@ public class ClassHierarchyScanner extends ClassVisitor {
         }
     }
 
+    @Override
+    public void visitInnerClass(String name, String outerName, String innerName, int access) {
+        super.visitInnerClass(name, outerName, innerName, access);
+        // if (name.contains("$") ) {
+        // concreteClasses.add(outerName);
+        // }
+        innerClasses.put(name, outerName);
+    }
+
     /**
-     *
      * @param root - map of classname to its superclass. Allows to dfs traverse the class graph
      * @return a set of non abstract, public classes which are traversable from the root.
      */
     public Set<String> getConcreteSubclasses(Map<String, String> root) {
         Set<String> allSubclasses = allFoundSubclasses(root).keySet();
-        allSubclasses.retainAll(concreteClasses);
-        return allSubclasses;
+        return allSubclasses.stream()
+            .filter(name -> concreteClasses.contains(name))
+            // .map(name -> innerClasses.getOrDefault(name, name))
+            .collect(Collectors.toSet());
+        // allSubclasses.retainAll(concreteClasses);
+        // return allSubclasses;
+    }
+
+    public Map<String, String> getInnerClasses() {
+        return innerClasses;
     }
 
     public Map<String, String> allFoundSubclasses(Map<String, String> root) {

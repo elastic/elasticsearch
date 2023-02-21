@@ -93,7 +93,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         this.testClasspath = testClasspath;
     }
 
-    public void skipTest(String className, String reason) {
+    public void skipMissingTransportTest(String className, String reason) {
         skipClasses.add(classNameToPath(className));
     }
 
@@ -149,32 +149,53 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             System.out.println(skipClasses);
             transportClasses.removeAll(skipClasses);
             System.out.println(transportTestClasses);
+            System.out.println(transportTestsScanner.getInnerClasses());
 
             List<String> classesWithoutTests = new ArrayList<>();
             for (String transportClass : transportClasses) {
-                findTest(transportClass, transportTestClasses, classesWithoutTests);
+                findTest(transportClass, transportTestClasses, transportTestsScanner.getInnerClasses(), classesWithoutTests);
             }
             if (classesWithoutTests.size() > 0) {
                 throw new GradleException(
                     "Missing tests for classes\n"
                         + "tasks.named(\"transportTestExistCheck\").configure { task ->\n"
                         + classesWithoutTests.stream()
-                            .map(s -> "task.skipTest(\"" + s + "\",\"missing test\")")
+                            .map(s -> "task.skipMissingTransportTest(\"" + s + "\",\"missing test\")")
                             .collect(Collectors.joining("\n"))
                         + "\n}"
                 );
             }
         }
 
-        private void findTest(String transportClass, Set<String> transportTestClasses, List<String> classesWithoutTests) {
+        private void findTest(
+            String transportClassWithPackage,
+            Set<String> transportTestClasses,
+            Map<String, String> innerClasses,
+            List<String> classesWithoutTests
+        ) {
+            String transportClass = getClassName(transportClassWithPackage);
             Optional<String> any = transportTestClasses.stream().filter(p -> p.contains(transportClass)).findAny();
-            if (any.isPresent() == false) {
-                classesWithoutTests.add(transportClass);
-                System.out.println("Test missing for class " + transportClass);
-            } else {
+            if (any.isPresent()) {
                 System.out.println("Test " + any.get() + " for class " + transportClass);
+
+            } else if (innerClasses.containsKey(transportClassWithPackage)) {
+                String enclosingClassName = getClassName(innerClasses.get(transportClassWithPackage));
+                Optional<String> enclosing = transportTestClasses.stream().filter(p -> p.contains(enclosingClassName)).findAny();
+                if (enclosing.isPresent() == false) {
+                    classesWithoutTests.add(transportClass);
+                } else {
+                    System.out.println("Test " + enclosing.get() + " for class " + transportClass);
+                }
+                // System.out.println("Test missing for class " + transportClass);
+            } else {
+                classesWithoutTests.add(transportClass);
+
             }
 
+        }
+
+        private static String getClassName(String transportClassWithPackage) {
+            return transportClassWithPackage.substring(transportClassWithPackage.lastIndexOf('/') + 1);
         }
 
     }

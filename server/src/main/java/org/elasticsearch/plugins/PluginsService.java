@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -102,7 +103,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final Path configPath;
 
     /**
-     * We keep around a list of plugins and modules
+     * We keep around a list of plugins and modules. The order of
+     * this list is that which the plugins and modules were loaded in.
      */
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
@@ -156,7 +158,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        Map<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles);
+        LinkedHashMap<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles);
 
         var inspector = PluginIntrospector.getInstance();
         this.info = new PluginsAndModules(getRuntimeInfos(inspector, pluginsList, loadedPlugins), modulesList);
@@ -280,8 +282,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return this.plugins;
     }
 
-    private Map<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
-        Map<String, LoadedPlugin> loaded = new HashMap<>();
+    private LinkedHashMap<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
+        LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
         Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();

@@ -142,7 +142,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                     ThreadPool.Names.SAME
                 );
-                future.addListener(ActionListener.wrap(cancellable::cancel));
+                future.addListener(ActionListener.running(cancellable::cancel));
             }
         } else {
             super.processTasks(request, operation, nodeOperation);

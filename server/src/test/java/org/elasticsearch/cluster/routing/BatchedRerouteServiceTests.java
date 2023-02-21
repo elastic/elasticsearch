@@ -71,7 +71,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             batchedRerouteService.reroute(
                 "iteration " + i,
                 randomFrom(EnumSet.allOf(Priority.class)),
-                ActionListener.wrap(countDownLatch::countDown)
+                ActionListener.running(countDownLatch::countDown)
             );
         }
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
@@ -117,7 +117,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 final String contextValue = randomAlphaOfLength(10);
                 threadContext.putHeader(contextHeader, contextValue);
-                batchedRerouteService.reroute("reroute at " + priority, priority, ActionListener.wrap(() -> {
+                batchedRerouteService.reroute("reroute at " + priority, priority, ActionListener.running(() -> {
                     assertTrue(alreadyRun.compareAndSet(false, true));
                     assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
                     tasksCompletedCountDown.countDown();

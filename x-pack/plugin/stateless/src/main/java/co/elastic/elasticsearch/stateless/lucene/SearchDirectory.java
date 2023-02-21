@@ -34,6 +34,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ImmutableDirectoryException;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.FileNotFoundException;
@@ -42,6 +44,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 public class SearchDirectory extends BaseDirectory {
 
@@ -82,6 +86,8 @@ public class SearchDirectory extends BaseDirectory {
 
     private final SetOnce<BlobContainer> blobContainer = new SetOnce<>();
 
+    private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
+
     private volatile Map<String, Long> currentMetadata = Map.of();
 
     public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
@@ -92,6 +98,10 @@ public class SearchDirectory extends BaseDirectory {
 
     public void setBlobContainer(BlobContainer blobContainer) {
         this.blobContainer.set(blobContainer);
+    }
+
+    public boolean isMarkedAsCorrupted() {
+        return corruptionMarker.get() != null;
     }
 
     /**
@@ -110,10 +120,16 @@ public class SearchDirectory extends BaseDirectory {
     @Override
     public String[] listAll() throws IOException {
         final var current = currentMetadata;
+        final String[] list;
         if (current.isEmpty()) {
-            return EMPTY_COMMIT_DIRECTORY.listAll();
+            list = EMPTY_COMMIT_DIRECTORY.listAll();
+        } else {
+            list = current.keySet().stream().sorted(String::compareTo).toArray(String[]::new);
         }
-        return current.keySet().stream().sorted(String::compareTo).toArray(String[]::new);
+        if (isMarkedAsCorrupted()) {
+            return Stream.concat(Stream.of(list), Stream.of(corruptionMarker.get())).sorted(String::compareTo).toArray(String[]::new);
+        }
+        return list;
     }
 
     @Override
@@ -136,6 +152,11 @@ public class SearchDirectory extends BaseDirectory {
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) {
+        if (name.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
+            if (corruptionMarker.compareAndSet(null, name)) {
+                throw new ImmutableDirectoryException(name);
+            }
+        }
         throw unsupportedException();
     }
 
@@ -146,6 +167,9 @@ public class SearchDirectory extends BaseDirectory {
 
     @Override
     public void sync(Collection<String> names) {
+        if (isMarkedAsCorrupted()) {
+            return; // allows to sync after the corruption marker has been written
+        }
         throw unsupportedException();
     }
 

@@ -88,6 +88,8 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                 try {
                     initialValue = blobContainer.getRegister(registerName);
                 } catch (UnsupportedOperationException e) {
+                    // Registers are not supported on all repository types, and that's ok. If it's not supported here then the final check
+                    // will also be unsupported, so it doesn't matter that we didn't do anything before this successful response.
                     l.onResponse(null);
                     return;
                 }

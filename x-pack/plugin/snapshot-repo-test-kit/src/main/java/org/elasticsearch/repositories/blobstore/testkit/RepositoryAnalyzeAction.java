@@ -609,6 +609,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
                         @Override
                         public void onFailure(Exception exp) {
+                            // Registers are not supported on all repository types, and that's ok.
                             if (exp instanceof UnsupportedOperationException == false) {
                                 fail(exp);
                             }

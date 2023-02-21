@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 
 /**
  * An action listener that wraps another action listener and dispatches its completion to an executor.
@@ -23,14 +23,14 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
 
     private static final Logger logger = LogManager.getLogger(ThreadedActionListener.class);
 
-    private final ExecutorService executor;
+    private final Executor executor;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(ExecutorService executor, ActionListener<Response> listener) {
+    public ThreadedActionListener(Executor executor, ActionListener<Response> listener) {
         this(executor, false, listener);
     }
 
-    public ThreadedActionListener(ExecutorService executor, boolean forceExecution, ActionListener<Response> listener) {
+    public ThreadedActionListener(Executor executor, boolean forceExecution, ActionListener<Response> listener) {
         super(listener);
         this.forceExecution = forceExecution;
         this.executor = executor;

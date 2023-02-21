@@ -139,7 +139,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public SearchHit(StreamInput in) throws IOException {
         docId = -1;
         score = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             rank = in.readVInt();
             rankResult = in.readOptionalWriteable(RankResult::readRankResult);
         }
@@ -242,7 +242,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(score);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeVInt(rank);
             out.writeOptionalWriteable(rankResult);
         }

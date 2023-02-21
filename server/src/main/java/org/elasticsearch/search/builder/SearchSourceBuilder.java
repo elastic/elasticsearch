@@ -261,7 +261,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 knnSearch = in.readList(KnnSearchBuilder::new);
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             rankBuilder = in.readOptionalWriteable(RankBuilder::new);
         }
     }
@@ -345,7 +345,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 out.writeCollection(knnSearch);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeOptionalWriteable(rankBuilder);
         }
     }

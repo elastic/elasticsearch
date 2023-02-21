@@ -99,6 +99,10 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                     return;
                 }
 
+                if (initialValue < 0 || initialValue >= request.getRequestCount()) {
+                    throw new IllegalStateException("register holds unexpected value [" + initialValue + "]");
+                }
+
                 class Execution extends ActionRunnable<Void> {
                     private long currentValue;
 
@@ -117,6 +121,8 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                             final var witness = blobContainer.compareAndExchangeRegister(registerName, currentValue, currentValue + 1);
                             if (witness == currentValue) {
                                 listener.onResponse(null);
+                            } else if (witness < currentValue || witness >= request.getRequestCount()) {
+                                throw new IllegalStateException("register holds unexpected value [" + witness + "]");
                             } else {
                                 currentValue = witness;
                                 executor.execute(Execution.this);
@@ -138,11 +144,13 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
         private final String repositoryName;
         private final String containerPath;
         private final String registerName;
+        private final long requestCount;
 
-        public Request(String repositoryName, String containerPath, String registerName) {
+        public Request(String repositoryName, String containerPath, String registerName, long requestCount) {
             this.repositoryName = repositoryName;
             this.containerPath = containerPath;
             this.registerName = registerName;
+            this.requestCount = requestCount;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -151,6 +159,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             repositoryName = in.readString();
             containerPath = in.readString();
             registerName = in.readString();
+            requestCount = in.readVLong();
         }
 
         @Override
@@ -160,6 +169,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             out.writeString(repositoryName);
             out.writeString(containerPath);
             out.writeString(registerName);
+            out.writeVLong(requestCount);
         }
 
         @Override
@@ -179,6 +189,10 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             return registerName;
         }
 
+        public long getRequestCount() {
+            return requestCount;
+        }
+
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
@@ -192,10 +206,11 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
         @Override
         public String getDescription() {
             return Strings.format(
-                "RegisterAnalyzeAction.Request{repositoryName='%s', containerPath='%s', registerName='%s'}",
+                "RegisterAnalyzeAction.Request{repositoryName='%s', containerPath='%s', registerName='%s', requestCount='%d'}",
                 repositoryName,
                 containerPath,
-                registerName
+                registerName,
+                requestCount
             );
         }
     }

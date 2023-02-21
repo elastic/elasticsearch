@@ -310,6 +310,28 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
     }
 
+    public void testFailsIfRegisterHoldsSpuriousValue() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+
+        final AtomicBoolean sawSpuriousValue = new AtomicBoolean();
+        final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+                if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
+                    return randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1));
+                }
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+        try {
+            analyseRepository(request);
+            assertFalse(sawSpuriousValue.get());
+        } catch (RepositoryVerificationException e) {
+            assertTrue(sawSpuriousValue.get());
+        }
+    }
+
     private RepositoryAnalyzeAction.Response analyseRepository(RepositoryAnalyzeAction.Request request) {
         return client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
     }

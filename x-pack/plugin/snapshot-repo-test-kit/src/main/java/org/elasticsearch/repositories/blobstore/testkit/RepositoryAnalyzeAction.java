@@ -456,7 +456,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     final RegisterAnalyzeAction.Request registerAnalyzeRequest = new RegisterAnalyzeAction.Request(
                         request.getRepositoryName(),
                         blobPath,
-                        registerName
+                        registerName,
+                        registerOperations
                     );
                     final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
                     final Releasable registerRef = registerRefs.acquire();

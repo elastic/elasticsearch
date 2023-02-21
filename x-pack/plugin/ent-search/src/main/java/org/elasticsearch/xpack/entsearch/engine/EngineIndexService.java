@@ -60,6 +60,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.BINARY_CONTENT_FIELD;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.INDICES_FIELD;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.NAME_FIELD;
@@ -74,7 +75,6 @@ public class EngineIndexService {
     public static final String ENGINE_ALIAS_NAME = ".engine";
     public static final String ENGINE_CONCRETE_INDEX_NAME = ".engine-1";
     public static final String ENGINE_INDEX_NAME_PATTERN = ".engine-*";
-    public static final String ENGINE_ORIGIN = "engine";
 
     private final Client clientWithOrigin;
     private final ClusterService clusterService;
@@ -87,7 +87,7 @@ public class EngineIndexService {
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays
     ) {
-        this.clientWithOrigin = new OriginSettingClient(client, ENGINE_ORIGIN);
+        this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.bigArrays = bigArrays;
@@ -107,7 +107,7 @@ public class EngineIndexService {
             .setSettings(getIndexSettings())
             .setAliasName(ENGINE_ALIAS_NAME)
             .setVersionMetaKey("version")
-            .setOrigin(ENGINE_ORIGIN)
+            .setOrigin(ENT_SEARCH_ORIGIN)
             .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
             .build();
     }

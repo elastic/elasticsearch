@@ -15,7 +15,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,11 +40,7 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            String engineId = in.readString();
-            final BytesReference bytesReference = in.readBytesReference();
-            xContentType = in.readEnum(XContentType.class);
-
-            this.engine = Engine.fromXContentBytes(engineId, bytesReference, xContentType);
+            this.engine = new Engine(in);
         }
 
         public Request(String engineId, BytesReference content, XContentType contentType) {
@@ -68,7 +63,6 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             engine.writeTo(out);
-            XContentHelper.writeTo(out, xContentType);
         }
 
         public Engine getEngine() {

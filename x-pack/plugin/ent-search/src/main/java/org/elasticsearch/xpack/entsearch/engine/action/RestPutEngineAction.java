@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.entsearch.EnterpriseSearch;
 
 import java.io.IOException;
 import java.util.List;
@@ -19,8 +20,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutEngineAction extends BaseRestHandler {
 
-    public static final String ENDPOINT = "_engine";
-
     @Override
     public String getName() {
         return "engine_put_action";
@@ -28,7 +27,7 @@ public class RestPutEngineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + ENDPOINT + "/{engine_id}"));
+        return List.of(new Route(PUT, "/" + EnterpriseSearch.ENGINE_API_ENDPOINT + "/{engine_id}"));
     }
 
     @Override

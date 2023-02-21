@@ -51,6 +51,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin {
+    public static final String ENGINE_API_ENDPOINT = "_engine";
+
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
     public static final String FEATURE_NAME = "ent_search";
@@ -70,7 +72,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        // Register new actions here
         return List.of(new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class));
     }
 
@@ -88,7 +89,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        // Register new actions here
         return List.of(new RestPutEngineAction());
     }
 

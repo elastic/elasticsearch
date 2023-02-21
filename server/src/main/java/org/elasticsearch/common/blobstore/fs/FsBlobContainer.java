@@ -384,39 +384,42 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
     public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException,
         ConcurrentRegisterOperationException {
-        try (
-            FileChannel channel = openOrCreateAtomic(path.resolve(key));
-            FileLock ignored1 = channel.lock();
-            Releasable ignored2 = registerLocks.acquire(key)
-        ) {
-            final ByteBuffer buf = ByteBuffer.allocate(Long.BYTES);
-            final long found;
-            while (buf.remaining() > 0) {
-                if (channel.read(buf) == -1) {
-                    break;
-                }
+        try (Releasable registerLock = registerLocks.tryAcquire(key)) {
+            if (registerLock == null) {
+                throw new ConcurrentRegisterOperationException(null);
             }
-            if (buf.position() == 0) {
-                found = 0L;
-            } else if (buf.position() == Long.BYTES) {
-                found = buf.getLong(0);
-                buf.clear();
-                if (channel.read(buf) != -1) {
-                    throw new IllegalStateException("Read file of length greater than [" + Long.BYTES + "] for [" + key + "]");
+            try (FileChannel channel = openOrCreateAtomic(path.resolve(key))) {
+                try (FileLock ignored = channel.lock()) {
+                    final ByteBuffer buf = ByteBuffer.allocate(Long.BYTES);
+                    final long found;
+                    while (buf.remaining() > 0) {
+                        if (channel.read(buf) == -1) {
+                            break;
+                        }
+                    }
+                    if (buf.position() == 0) {
+                        found = 0L;
+                    } else if (buf.position() == Long.BYTES) {
+                        found = buf.getLong(0);
+                        buf.clear();
+                        if (channel.read(buf) != -1) {
+                            throw new IllegalStateException("Read file of length greater than [" + Long.BYTES + "] for [" + key + "]");
+                        }
+                    } else {
+                        throw new IllegalStateException("Read file of length [" + buf.position() + "] for [" + key + "]");
+                    }
+                    if (found == expected) {
+                        buf.clear().putLong(updated).flip();
+                        while (buf.remaining() > 0) {
+                            channel.write(buf, buf.position());
+                        }
+                        channel.force(true);
+                    }
+                    return found;
                 }
-            } else {
-                throw new IllegalStateException("Read file of length [" + buf.position() + "] for [" + key + "]");
+            } catch (OverlappingFileLockException e) {
+                throw new ConcurrentRegisterOperationException(e);
             }
-            if (found == expected) {
-                buf.clear().putLong(updated).flip();
-                while (buf.remaining() > 0) {
-                    channel.write(buf, buf.position());
-                }
-                channel.force(true);
-            }
-            return found;
-        } catch (OverlappingFileLockException e) {
-            throw new ConcurrentRegisterOperationException(e);
         }
     }
 

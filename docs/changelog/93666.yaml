@@ -1,5 +1,0 @@
-pr: 93666
-summary: Don't report MIGRATION_NEEDED for 7.x indices
-area: Infra/Core
-type: bug
-issues: []

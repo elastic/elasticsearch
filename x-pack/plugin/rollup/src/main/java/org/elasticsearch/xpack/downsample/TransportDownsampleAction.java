@@ -68,7 +68,7 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricField
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
-import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
@@ -82,12 +82,12 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
 /**
  * The master rollup action that coordinates
  *  -  creating the rollup index
- *  -  calling {@link TransportRollupIndexerAction} to index rollup documents
+ *  -  calling {@link TransportDownsampleIndexerAction} to index rollup documents
  *  -  cleaning up state
  */
-public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
+public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportRollupAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDownsampleAction.class);
 
     private final Client client;
     private final IndicesService indicesService;
@@ -113,7 +113,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         };
 
     @Inject
-    public TransportRollupAction(
+    public TransportDownsampleAction(
         Client client,
         IndicesService indicesService,
         ClusterService clusterService,
@@ -275,14 +275,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             createRollupIndex(rollupIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
                 if (createIndexResp.isAcknowledged()) {
                     // 3. Rollup index created. Run rollup indexer
-                    RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
+                    DownsampleIndexerAction.Request rollupIndexerRequest = new DownsampleIndexerAction.Request(
                         request,
                         dimensionFields.toArray(new String[0]),
                         metricFields.toArray(new String[0]),
                         labelFields.toArray(new String[0])
                     );
                     rollupIndexerRequest.setParentTask(parentTask);
-                    client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
+                    client.execute(DownsampleIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
                         if (indexerResp.isCreated()) {
                             // 4. Make rollup index read-only and set the correct number of replicas
                             final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);

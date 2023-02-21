@@ -470,7 +470,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
                     return new AbstractProcessor(tag, description) {
                         @Override
                         public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                            ingestDocument.setFieldValue(IngestDocument.Metadata.REDIRECT.getFieldName(), dest);
+                            ingestDocument.redirect(dest);
                             return ingestDocument;
                         }
 

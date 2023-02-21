@@ -64,6 +64,7 @@ public final class IngestDocument {
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     private boolean doNoSelfReferencesCheck = false;
+    private boolean invokeDefaultPipelineOfDestination = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -80,6 +81,7 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+        this.invokeDefaultPipelineOfDestination = other.invokeDefaultPipelineOfDestination;
     }
 
     /**
@@ -903,9 +905,17 @@ public final class IngestDocument {
         return "IngestDocument{" + " sourceAndMetadata=" + ctxMap + ", ingestMetadata=" + ingestMetadata + '}';
     }
 
+    public void redirect(String destIndex) {
+        getMetadata().setIndex(destIndex);
+        this.invokeDefaultPipelineOfDestination = true;
+    }
+
+    public boolean isInvokeDefaultPipelineOfDestination() {
+        return invokeDefaultPipelineOfDestination;
+    }
+
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
-        REDIRECT("_redirect"),
         TYPE("_type"),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),

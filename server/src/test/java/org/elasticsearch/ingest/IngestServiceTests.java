@@ -168,8 +168,6 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client
         );
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
-        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
             .setPipeline("_id")

@@ -22,8 +22,6 @@ class IngestDocMetadata extends Metadata {
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
         StringField.withWritable().withNullable(),
-        REDIRECT,
-        StringField.withWritable().withNullable(),
         ID,
         StringField.withWritable().withNullable(),
         ROUTING,

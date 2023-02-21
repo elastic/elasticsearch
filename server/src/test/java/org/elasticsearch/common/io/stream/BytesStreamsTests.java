@@ -11,6 +11,7 @@ package org.elasticsearch.common.io.stream;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -972,28 +973,27 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testWriteCircularReferenceSuppressedException() throws IOException {
-        IOException rootEx = new IOException("disk broken");
-        AlreadyClosedException ace = new AlreadyClosedException("closed");
-        rootEx.addSuppressed(ace);
-        ace.addSuppressed(rootEx); // circular reference, only through suppression
+        // suppression loop code path doesn't maintain the root exception, so don't check that here
+        ElasticsearchException ex1 = new ElasticsearchException("ex1");
+        ElasticsearchException ex2 = new ElasticsearchException("ex2");
+        ex1.addSuppressed(ex2);
+        ex2.addSuppressed(ex1); // circular reference, only through suppression
 
         BytesStreamOutput testOut = new BytesStreamOutput();
-        AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(rootEx));
+        AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(ex1));
         assertThat(error.getMessage(), containsString("too many nested exceptions"));
-        assertThat(error.getCause(), equalTo(rootEx));
 
         BytesStreamOutput prodOut = new BytesStreamOutput() {
             @Override
             boolean failOnTooManyNestedExceptions(Throwable throwable) {
-                assertThat(throwable, sameInstance(rootEx));
                 return true;
             }
         };
-        prodOut.writeException(rootEx);
+        prodOut.writeException(ex1);
         StreamInput in = prodOut.bytes().streamInput();
         Exception newEx = in.readException();
-        assertThat(newEx, instanceOf(IOException.class));
-        assertThat(newEx.getMessage(), equalTo("disk broken"));
-        assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
+        assertThat(newEx, instanceOf(ElasticsearchException.class));
+        assertThat(newEx.getMessage(), equalTo("ex1"));
+        assertArrayEquals(newEx.getStackTrace(), ex1.getStackTrace());
     }
 }

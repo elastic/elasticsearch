@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -153,5 +155,22 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         } else {
             return super.getExecutor(request, shardId);
         }
+    }
+
+    @Override
+    protected boolean ignoreShardCopyResponse(ShardRouting lastShardTried, MultiGetShardResponse lastResponse) {
+        // TODO: double-check that request is real-time?
+        if (lastShardTried.isPromotableToPrimary()) {
+            return false;
+        }
+        return lastResponse.responses.stream().anyMatch(Predicate.not(GetResponse::isExists));
+    }
+
+    @Override
+    protected boolean skipShardCopy(ShardRouting shardRouting, MultiGetShardResponse lastResponse, Exception lastFailure) {
+        return lastFailure == null
+            && lastResponse != null
+            && lastResponse.responses.stream().anyMatch(Predicate.not(GetResponse::isExists))
+            && shardRouting.isPromotableToPrimary() == false;
     }
 }

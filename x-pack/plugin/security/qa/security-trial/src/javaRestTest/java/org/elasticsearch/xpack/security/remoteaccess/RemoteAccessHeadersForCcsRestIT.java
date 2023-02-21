@@ -53,8 +53,9 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
 import org.elasticsearch.xpack.security.authz.RBACEngine;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -138,13 +139,13 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
     public void testRemoteAccessHeadersSentSingleRemote() throws Exception {
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
-            final String clusterCredential = randomBase64UUID(random());
+            final String encodedCredential = randomBase64UUID(random());
             final TransportAddress remoteAddress = remoteTransport.getOriginalTransport()
                 .profileBoundAddresses()
                 .get("_remote_cluster")
                 .publishAddress();
             final boolean useProxyMode = randomBoolean();
-            setupClusterSettings(CLUSTER_A, clusterCredential, remoteAddress, useProxyMode);
+            setupClusterSettings(CLUSTER_A, encodedCredential, remoteAddress, useProxyMode);
             final boolean alsoSearchLocally = randomBoolean();
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
@@ -171,7 +172,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 List.copyOf(capturedHeaders),
                 useProxyMode,
                 minimizeRoundtrips,
-                clusterCredential,
+                encodedCredential,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -328,7 +329,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         final List<CapturedActionWithHeaders> actualActionsWithHeaders,
         boolean useProxyMode,
         boolean minimizeRoundtrips,
-        final String clusterCredential,
+        final String encodedCredential,
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
     ) throws IOException {
         final Set<String> expectedActions = new HashSet<>();
@@ -350,7 +351,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 // user authentication and empty role descriptors intersection
                 case ClusterStateAction.NAME -> {
                     assertContainsRemoteAccessHeaders(actual.headers());
-                    assertContainsRemoteClusterCredential(clusterCredential, actual);
+                    assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
                     final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
                         actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
                     );
@@ -368,7 +369,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 }
                 case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
                     assertContainsRemoteAccessHeaders(actual.headers());
-                    assertContainsRemoteClusterCredential(clusterCredential, actual);
+                    assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
                     final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
                         actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
                     );
@@ -392,11 +393,11 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         }
     }
 
-    private void assertContainsRemoteClusterCredential(String clusterCredential, CapturedActionWithHeaders actual) {
-        assertThat(actual.headers(), hasKey(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY));
+    private void assertContainsRemoteClusterAuthorizationHeader(String encodedCredential, CapturedActionWithHeaders actual) {
+        assertThat(actual.headers(), hasKey(RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY));
         assertThat(
-            actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY),
-            equalTo("ApiKey " + clusterCredential)
+            actual.headers().get(RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY),
+            equalTo(ApiKeyService.withApiKeyPrefix(encodedCredential))
         );
     }
 
@@ -408,7 +409,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         boolean success = false;
         final Settings settings = Settings.builder()
             .put("node.name", nodeName)
-            .put("remote_cluster.enabled", "true")
+            .put("remote_cluster_server.enabled", "true")
             .put("remote_cluster.port", "0")
             .put("xpack.security.remote_cluster_server.ssl.enabled", "false")
             .build();
@@ -480,7 +481,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             actualHeaders.keySet(),
             containsInAnyOrder(
                 RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
-                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY
             )
         );
     }

@@ -82,6 +82,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     private ClusterBalanceStats.NodeBalanceStats randomNodeBalanceStats() {
         return new ClusterBalanceStats.NodeBalanceStats(
+            randomAlphaOfLength(10),
             randomIntBetween(0, Integer.MAX_VALUE),
             randomDouble(),
             randomLongBetween(0, Long.MAX_VALUE),
@@ -228,7 +229,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             Map<String, Object> nodesStats = (Map<String, Object>) nodes.get(entry.getKey());
             assertThat(
                 nodesStats.keySet(),
-                containsInAnyOrder("shard_count", "forecast_write_load", "forecast_disk_usage_bytes", "actual_disk_usage_bytes")
+                containsInAnyOrder("node_id", "shard_count", "forecast_write_load", "forecast_disk_usage_bytes", "actual_disk_usage_bytes")
             );
 
             assertEquals(nodesStats.get("shard_count"), entry.getValue().shards());

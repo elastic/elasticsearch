@@ -175,7 +175,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             restResponse.getHeaders()
                 .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
 
-            ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
+            ActionListener<Void> listener = ActionListener.running(() -> Releasables.close(toClose));
 
             if (httpLogger != null) {
                 final String finalContentLength = contentLength;

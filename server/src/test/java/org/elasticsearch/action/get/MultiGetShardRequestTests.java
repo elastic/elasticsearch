@@ -26,7 +26,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
         MultiGetShardRequest multiGetShardRequest = createTestInstance(randomBoolean());
 
         BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion minVersion = TransportVersion.CURRENT.minimumCompatibilityVersion();
+        TransportVersion minVersion = TransportVersion.MINIMUM_COMPATIBLE;
         if (multiGetShardRequest.isForceSyntheticSource()) {
             minVersion = TransportVersion.V_8_4_0;
         }

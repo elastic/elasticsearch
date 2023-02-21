@@ -98,10 +98,7 @@ public class InboundPipelineTests extends ESTestCase {
             toRelease.clear();
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
-                    final TransportVersion version = randomFrom(
-                        TransportVersion.CURRENT,
-                        TransportVersion.CURRENT.minimumCompatibilityVersion()
-                    );
+                    final TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersion.MINIMUM_COMPATIBLE);
                     final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
                     Compression.Scheme compressionScheme = getCompressionScheme(version);

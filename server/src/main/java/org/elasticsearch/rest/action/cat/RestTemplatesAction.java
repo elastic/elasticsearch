@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.Collections;
@@ -29,6 +31,7 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestTemplatesAction extends AbstractCatAction {
 
     @Override

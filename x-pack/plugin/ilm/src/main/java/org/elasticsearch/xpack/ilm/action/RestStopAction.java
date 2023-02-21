@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
@@ -18,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestStopAction extends BaseRestHandler {
 
     @Override

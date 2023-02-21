@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public final class EqlTestUtils {
 
-    public static final Version EQL_GA_VERSION = Version.V_7_10_0;
+    public static final TransportVersion EQL_GA_VERSION = TransportVersion.V_7_10_0;
 
     private EqlTestUtils() {}
 
@@ -53,6 +53,7 @@ public final class EqlTestUtils {
         TimeValue.timeValueSeconds(30),
         null,
         123,
+        1,
         "",
         new TaskId("test", 123),
         null
@@ -69,6 +70,7 @@ public final class EqlTestUtils {
             null,
             new TimeValue(randomNonNegativeLong()),
             randomIndicesOptions(),
+            randomIntBetween(1, 1000),
             randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),

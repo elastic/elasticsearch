@@ -335,7 +335,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
                 + version
                 + '\''
                 + ", exception='"
-                + exception.getMessage()
+                + (exception == null ? "null" : exception.getMessage())
                 + "'"
                 + '}';
         }

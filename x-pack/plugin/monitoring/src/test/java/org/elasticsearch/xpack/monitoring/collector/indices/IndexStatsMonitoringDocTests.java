@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -156,7 +157,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         }
 
         // indexStatsSummary()
-        final String expected = stripWhitespace(formatted("""
+        final String expected = stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",
@@ -320,7 +321,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = stripWhitespace(formatted("""
+        final String expected = stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",

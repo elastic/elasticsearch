@@ -29,6 +29,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final TaskId taskId;
     private final EqlSearchTask task;
     private final int fetchSize;
+    private final int maxSamplesPerKey;
 
     @Nullable
     private final QueryBuilder filter;
@@ -48,6 +49,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         TimeValue requestTimeout,
         IndicesOptions indicesOptions,
         int fetchSize,
+        int maxSamplesPerKey,
         String clientId,
         TaskId taskId,
         EqlSearchTask task
@@ -64,6 +66,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.taskId = taskId;
         this.task = task;
         this.fetchSize = fetchSize;
+        this.maxSamplesPerKey = maxSamplesPerKey;
     }
 
     public String[] indices() {
@@ -80,6 +83,10 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public int fetchSize() {
         return fetchSize;
+    }
+
+    public int maxSamplesPerKey() {
+        return maxSamplesPerKey;
     }
 
     public QueryBuilder filter() {

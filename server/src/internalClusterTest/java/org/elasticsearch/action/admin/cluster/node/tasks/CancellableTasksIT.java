@@ -508,8 +508,8 @@ public class CancellableTasksIT extends ESIntegTestCase {
             arrivedLatches.get(request).countDown();
             List<TestRequest> subRequests = request.subRequests;
             GroupedActionListener<TestResponse> groupedListener = new GroupedActionListener<>(
-                listener.map(r -> new TestResponse()),
-                subRequests.size() + 1
+                subRequests.size() + 1,
+                listener.map(r -> new TestResponse())
             );
             transportService.getThreadPool().generic().execute(ActionRunnable.supply(groupedListener, () -> {
                 assertTrue(beforeExecuteLatches.get(request).await(60, TimeUnit.SECONDS));

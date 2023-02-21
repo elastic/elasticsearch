@@ -254,9 +254,9 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         List<FailedNodeException> failedNodeExceptions
     ) {
         if (taskOperationFailures.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            throw failedNodeExceptions.get(0);
         } else {
             return new StopTrainedModelDeploymentAction.Response(true);
         }

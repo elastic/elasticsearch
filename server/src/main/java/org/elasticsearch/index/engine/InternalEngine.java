@@ -42,6 +42,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -59,6 +60,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
@@ -105,6 +107,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -226,7 +229,8 @@ public class InternalEngine extends Engine {
                     logger,
                     translogDeletionPolicy,
                     softDeletesPolicy,
-                    translog::getLastSyncedGlobalCheckpoint
+                    translog::getLastSyncedGlobalCheckpoint,
+                    newCommitsListener()
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
@@ -320,6 +324,28 @@ public class InternalEngine extends Engine {
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
             engineConfig.retentionLeasesSupplier()
         );
+    }
+
+    @Nullable
+    private CombinedDeletionPolicy.CommitsListener newCommitsListener() {
+        final Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
+        if (listener != null) {
+            var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
+            return new CombinedDeletionPolicy.CommitsListener() {
+                @Override
+                public void onNewAcquiredCommit(final IndexCommit commit, final Set<String> additionalFiles) {
+                    final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
+                    assert indexCommitRef.getIndexCommit() == commit;
+                    listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
+                }
+
+                @Override
+                public void onDeletedCommit(IndexCommit commit) {
+                    listener.onIndexCommitDelete(shardId, commit);
+                }
+            };
+        }
+        return null;
     }
 
     @Override
@@ -812,7 +838,21 @@ public class InternalEngine extends Engine {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
-                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), loadSeqNo);
+                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                    docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                        searcher.getIndexReader(),
+                        op.uid(),
+                        op.id(),
+                        loadSeqNo
+                    );
+                } else {
+                    docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                        searcher.getIndexReader(),
+                        op.uid(),
+                        loadSeqNo
+                    );
+                }
             }
             if (docIdAndVersion != null) {
                 versionValue = new IndexVersionValue(null, docIdAndVersion.version, docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
@@ -1792,20 +1832,21 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {
-        refresh(source, SearcherScope.EXTERNAL, true);
+    public RefreshResult refresh(String source) throws EngineException {
+        return refresh(source, SearcherScope.EXTERNAL, true);
     }
 
     @Override
-    public boolean maybeRefresh(String source) throws EngineException {
+    public RefreshResult maybeRefresh(String source) throws EngineException {
         return refresh(source, SearcherScope.EXTERNAL, false);
     }
 
-    final boolean refresh(String source, SearcherScope scope, boolean block) throws EngineException {
+    final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed;
+        long segmentGeneration = RefreshResult.UNKNOWN_GENERATION;
         try {
             // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
             if (store.tryIncRef()) {
@@ -1820,6 +1861,14 @@ public class InternalEngine extends Engine {
                         refreshed = true;
                     } else {
                         refreshed = referenceManager.maybeRefresh();
+                    }
+                    if (refreshed) {
+                        final ElasticsearchDirectoryReader current = referenceManager.acquire();
+                        try {
+                            segmentGeneration = current.getIndexCommit().getGeneration();
+                        } finally {
+                            referenceManager.release(current);
+                        }
                     }
                 } finally {
                     store.decRef();
@@ -1852,7 +1901,7 @@ public class InternalEngine extends Engine {
         // for a long time:
         maybePruneDeletes();
         mergeScheduler.refreshConfig();
-        return refreshed;
+        return new RefreshResult(refreshed, segmentGeneration);
     }
 
     @Override
@@ -1928,10 +1977,9 @@ public class InternalEngine extends Engine {
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
-                boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (hasUncommittedChanges
                     || force
-                    || shouldPeriodicallyFlush
+                    || shouldPeriodicallyFlush()
                     || getProcessedLocalCheckpoint() > Long.parseLong(
                         lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                     )) {
@@ -1941,15 +1989,6 @@ public class InternalEngine extends Engine {
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
-
-                        // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
-                        logger.debug(
-                            "new commit on flush, hasUncommittedChanges:{}, force:{}, shouldPeriodicallyFlush:{}",
-                            hasUncommittedChanges,
-                            force,
-                            shouldPeriodicallyFlush
-                        );
-
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();
@@ -2158,22 +2197,14 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @Override
-    public IndexCommitRef acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
-        // we have to flush outside of the readlock otherwise we might have a problem upgrading
-        // the to a write lock when we fail the engine in this operation
-        if (flushFirst) {
-            logger.trace("start flush for snapshot");
-            flush(false, true);
-            logger.trace("finish flush for snapshot");
-        }
+    private IndexCommitRef acquireIndexCommitRef(final Supplier<IndexCommit> indexCommitSupplier) {
         store.incRef();
         boolean success = false;
         try {
-            final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+            final IndexCommit indexCommit = indexCommitSupplier.get();
             final IndexCommitRef commitRef = new IndexCommitRef(
-                lastCommit,
-                () -> IOUtils.close(() -> releaseIndexCommit(lastCommit), store::decRef)
+                indexCommit,
+                () -> IOUtils.close(() -> releaseIndexCommit(indexCommit), store::decRef)
             );
             success = true;
             return commitRef;
@@ -2185,22 +2216,20 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
-        store.incRef();
-        boolean success = false;
-        try {
-            final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
-            final IndexCommitRef commitRef = new IndexCommitRef(
-                safeCommit,
-                () -> IOUtils.close(() -> releaseIndexCommit(safeCommit), store::decRef)
-            );
-            success = true;
-            return commitRef;
-        } finally {
-            if (success == false) {
-                store.decRef();
-            }
+    public IndexCommitRef acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
+        // we have to flush outside of the readlock otherwise we might have a problem upgrading
+        // the to a write lock when we fail the engine in this operation
+        if (flushFirst) {
+            logger.trace("start flush for snapshot");
+            flush(false, true);
+            logger.trace("finish flush for snapshot");
         }
+        return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(false));
+    }
+
+    @Override
+    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+        return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(true));
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {

@@ -76,6 +76,11 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
     }
 
     @Override
+    protected PainlessExecuteAction.Request mutateInstance(PainlessExecuteAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<PainlessExecuteAction.Request> instanceReader() {
         return PainlessExecuteAction.Request::new;
     }

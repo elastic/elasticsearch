@@ -78,8 +78,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch(
+    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+        var substitutions = new Batch<>(
             "Substitution",
             Limiter.ONCE,
             new ReplaceWildcards(),
@@ -89,7 +89,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new AddMandatoryJoinKeyFilter()
         );
 
-        Batch operators = new Batch(
+        var operators = new Batch<>(
             "Operator Optimization",
             new ConstantFolding(),
             // boolean
@@ -107,13 +107,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineFilters()
         );
 
-        Batch constraints = new Batch("Infer constraints", Limiter.ONCE, new PropagateJoinKeyConstraints());
+        var constraints = new Batch<>("Infer constraints", Limiter.ONCE, new PropagateJoinKeyConstraints());
 
-        Batch ordering = new Batch("Implicit Order", new SortByLimit(), new PushDownOrderBy());
+        var ordering = new Batch<>("Implicit Order", new SortByLimit(), new PushDownOrderBy());
 
-        Batch local = new Batch("Skip Elasticsearch", new SkipEmptyFilter(), new SkipEmptyJoin(), new SkipQueryOnLimitZero());
+        var local = new Batch<>("Skip Elasticsearch", new SkipEmptyFilter(), new SkipEmptyJoin(), new SkipQueryOnLimitZero());
 
-        Batch label = new Batch("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
+        var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
         return asList(substitutions, operators, constraints, operators, ordering, local, label);
     }

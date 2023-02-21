@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestStatus;
 
 import java.text.ParseException;
 import java.time.Clock;
@@ -47,14 +45,14 @@ public class JwtDateClaimValidator implements JwtFieldValidator {
         try {
             claimValue = jwtClaimsSet.getDateClaim(claimName);
         } catch (ParseException e) {
-            throw new ElasticsearchSecurityException("cannot parse date claim [" + claimName + "]", RestStatus.BAD_REQUEST, e);
+            throw new IllegalArgumentException("cannot parse date claim [" + claimName + "]", e);
         }
 
         if (claimValue == null) {
             if (allowNull) {
                 return;
             } else {
-                throw new ElasticsearchSecurityException("missing required date claim [" + claimName + "]");
+                throw new IllegalArgumentException("missing required date claim [" + claimName + "]");
             }
         }
 
@@ -64,27 +62,25 @@ public class JwtDateClaimValidator implements JwtFieldValidator {
         switch (relationship) {
             case BEFORE_NOW:
                 if (false == claimInstant.isBefore(now.plusSeconds(allowedClockSkewSeconds))) {
-                    throw new ElasticsearchSecurityException(
+                    throw new IllegalArgumentException(
                         Strings.format(
                             "date claim [%s] value [%s] must be before now [%s]",
                             claimName,
                             claimInstant.toEpochMilli(),
                             now.toEpochMilli()
-                        ),
-                        RestStatus.BAD_REQUEST
+                        )
                     );
                 }
                 break;
             case AFTER_NOW:
                 if (false == claimInstant.isAfter(now.minusSeconds(allowedClockSkewSeconds))) {
-                    throw new ElasticsearchSecurityException(
+                    throw new IllegalArgumentException(
                         Strings.format(
                             "date claim [%s] value [%s] must be after now [%s]",
                             claimName,
                             claimInstant.toEpochMilli(),
                             now.toEpochMilli()
-                        ),
-                        RestStatus.BAD_REQUEST
+                        )
                     );
                 }
                 break;

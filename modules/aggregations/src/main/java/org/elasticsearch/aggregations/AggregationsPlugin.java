@@ -14,13 +14,15 @@ import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregat
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
+import org.elasticsearch.aggregations.metric.InternalMatrixStats;
+import org.elasticsearch.aggregations.metric.MatrixStatsAggregationBuilder;
+import org.elasticsearch.aggregations.metric.MatrixStatsParser;
 import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.Derivative;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -48,15 +50,14 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPl
             ).addResultReader(InternalAutoDateHistogram::new)
                 .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators)
         );
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            specs.add(
-                new AggregationSpec(
-                    TimeSeriesAggregationBuilder.NAME,
-                    TimeSeriesAggregationBuilder::new,
-                    TimeSeriesAggregationBuilder.PARSER
-                ).addResultReader(InternalTimeSeries::new)
-            );
-        }
+        specs.add(
+            new AggregationSpec(MatrixStatsAggregationBuilder.NAME, MatrixStatsAggregationBuilder::new, new MatrixStatsParser())
+                .addResultReader(InternalMatrixStats::new)
+        );
+        specs.add(
+            new AggregationSpec(TimeSeriesAggregationBuilder.NAME, TimeSeriesAggregationBuilder::new, TimeSeriesAggregationBuilder.PARSER)
+                .addResultReader(InternalTimeSeries::new)
+        );
         return List.copyOf(specs);
     }
 

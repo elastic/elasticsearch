@@ -30,6 +30,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     protected final BytesKeyedBucketOrds bucketOrds;
     private final boolean keyed;
+    private final int size;
 
     public TimeSeriesAggregator(
         String name,
@@ -38,11 +39,13 @@ public class TimeSeriesAggregator extends BucketsAggregator {
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        int size
     ) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.keyed = keyed;
         bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), bucketCardinality);
+        this.size = size;
     }
 
     @Override
@@ -66,6 +69,9 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 );
                 bucket.bucketOrd = ordsEnum.ord();
                 buckets.add(bucket);
+                if (buckets.size() >= size) {
+                    break;
+                }
             }
             allBucketsPerOrd[ordIdx] = buckets.toArray(new InternalTimeSeries.InternalBucket[0]);
         }
@@ -92,8 +98,23 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
 
+            // Keeping track of these fields helps to reduce time spent attempting to add bucket + tsid combos that already were added.
+            long currentTsidOrd = -1;
+            long currentBucket = -1;
+            long currentBucketOrdinal;
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                // Naively comparing bucket against currentBucket and tsid ord to currentBucket can work really well.
+                // TimeSeriesIndexSearcher ensures that docs are emitted in tsid and timestamp order, so if tsid ordinal
+                // changes to what is stored in currentTsidOrd then that ordinal well never occur again. Same applies
+                // currentBucket if there is no parent aggregation or the immediate parent aggregation creates buckets
+                // based on @timestamp field or dimension fields (fields that make up the tsid).
+                if (currentBucket == bucket && currentTsidOrd == aggCtx.getTsidOrd()) {
+                    collectExistingBucket(sub, doc, currentBucketOrdinal);
+                    return;
+                }
+
                 long bucketOrdinal = bucketOrds.add(bucket, aggCtx.getTsid());
                 if (bucketOrdinal < 0) { // already seen
                     bucketOrdinal = -1 - bucketOrdinal;
@@ -101,6 +122,10 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 } else {
                     collectBucket(sub, doc, bucketOrdinal);
                 }
+
+                currentBucketOrdinal = bucketOrdinal;
+                currentTsidOrd = aggCtx.getTsidOrd();
+                currentBucket = bucket;
             }
         };
     }

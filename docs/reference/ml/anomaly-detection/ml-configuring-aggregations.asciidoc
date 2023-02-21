@@ -34,6 +34,10 @@ to match. For example, if you use a `max` aggregation on a time field called
 descending order. Additional `composite` aggregation value sources are allowed, 
 such as `terms`.
 
+* The `size` parameter of the non-composite aggregations must match the 
+cardinality of your data. A greater value of the `size` parameter increases the 
+memory requirement of the aggregation.
+
 * If you set the `summary_count_field_name` property to a non-null value, the 
 {anomaly-job} expects to receive aggregated input. The property must be set to 
 the name of the field that contains the count of raw data points that have been 
@@ -439,3 +443,85 @@ the `error` field.
 ----------------------------------
 // NOTCONSOLE
 
+
+[discrete]
+[[aggs-amd-dfeeds]]
+== Using `aggregate_metric_double` field type in {dfeeds}
+
+
+NOTE: It is not currently possible to use `aggregate_metric_double` type fields 
+in {dfeeds} without aggregations. 
+
+You can use fields with the 
+{ref}/aggregate-metric-double.html[`aggregate_metric_double`] field type in a 
+{dfeed} with aggregations. It is required to retrieve the `value_count` of the 
+`aggregate_metric_double` filed in an aggregation and then use it as the 
+`summary_count_field_name` to provide the correct count that represents the 
+aggregation value.
+
+In the following example, `presum` is an `aggregate_metric_double` type field 
+that has all the possible metrics: `[ min, max, sum, value_count ]`. To use an 
+`avg` aggregation on this field, you need to perform a `value_count` aggregation 
+on `presum` and then set the field that contains the aggregated values 
+`my_count` as the `summary_count_field_name`: 
+
+
+[source,js]
+----------------------------------
+{
+  "analysis_config": {
+    "bucket_span": "1h",
+    "detectors": [
+      {
+        "function": "avg",
+        "field_name": "my_avg"
+      }
+    ],
+    "summary_count_field_name": "my_count" <1>
+  },
+  "data_description": {
+    "time_field": "timestamp"
+  },
+  "datafeed_config": {
+    "indices": [
+      "my_index"
+    ],
+    "datafeed_id": "datafeed-id",
+    "aggregations": {
+      "buckets": {
+        "date_histogram": {
+          "field": "time",
+          "fixed_interval": "360s",
+          "time_zone": "UTC"
+        },
+        "aggregations": {
+            "timestamp": {  
+                "max": {"field": "timestamp"}
+            },
+            "my_avg": {  <2>
+                "avg": {
+                    "field": "presum" 
+                }
+             },
+             "my_count": { <3>
+                 "value_count": {
+                     "field": "presum" 
+                 }
+             }
+          }
+        }
+     }
+  }
+}
+----------------------------------
+// NOTCONSOLE
+
+<1> The field `my_count` is set as the `summary_count_field_name`. This field 
+contains aggregated values from the `presum` `aggregate_metric_double` type 
+field (refer to footnote 3). 
+<2> The `avg` aggregation to use on the `presum` `aggregate_metric_double` type 
+field.
+<3> The `value_count` aggregation on the `presum` `aggregate_metric_double` type 
+field. This aggregated field must be set as the `summary_count_field_name` 
+(refer to footnote 1) to make it possible to use the `aggregate_metric_double` 
+type field in another aggregation.

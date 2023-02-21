@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;
@@ -39,8 +38,8 @@ public class JwtAlgorithmValidatorTests extends ESTestCase {
         final JwtAlgorithmValidator validator = new JwtAlgorithmValidator(randomList(1, 5, () -> randomAlphaOfLength(8)));
 
         final JWSHeader jwsHeader = JWSHeader.parse(Map.of("alg", algorithm));
-        final ElasticsearchSecurityException e = expectThrows(
-            ElasticsearchSecurityException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> validator.validate(jwsHeader, JWTClaimsSet.parse(Map.of()))
         );
         assertThat(e.getMessage(), containsString("invalid JWT algorithm"));

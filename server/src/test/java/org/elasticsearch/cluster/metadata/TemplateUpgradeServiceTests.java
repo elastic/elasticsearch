@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -189,7 +190,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         }
         Map<String, BytesReference> additions = Maps.newMapWithExpectedSize(additionsCount);
         for (int i = 0; i < additionsCount; i++) {
-            additions.put("add_template_" + i, new BytesArray(formatted("""
+            additions.put("add_template_" + i, new BytesArray(Strings.format("""
                 {"index_patterns" : "*", "order" : %s}
                 """, i)));
         }

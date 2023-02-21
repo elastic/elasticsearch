@@ -216,11 +216,12 @@ public class Querier {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
 
+        var totalHits = response.getHits().getTotalHits();
+        var hits = totalHits != null ? "hits " + totalHits.relation + " " + totalHits.value + ", " : "";
         logger.trace(
-            "Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+            "Got search response [{}{} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
-            response.getHits().getTotalHits().relation.toString(),
-            response.getHits().getTotalHits().value,
+            hits,
             aggs.size(),
             aggsNames,
             response.getFailedShards(),

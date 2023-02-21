@@ -37,6 +37,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static final GetHealthAction INSTANCE = new GetHealthAction();
@@ -93,7 +95,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         @SuppressWarnings("unchecked")
-        public Iterator<? extends ToXContent> toXContentChunked() {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
                 builder.startObject();
                 if (status != null) {
@@ -111,7 +113,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                                 // indicators however the affected resources which are the O(indices) fields are
                                 // flat mapped over all diagnoses within the indicator
                                 Iterators.single((ToXContent) (builder, params) -> builder.field(indicator.name())),
-                                indicator.toXContentChunked()
+                                indicator.toXContentChunked(outerParams)
                             )
                         )
                         .toArray(Iterator[]::new)
@@ -146,21 +148,25 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static class Request extends ActionRequest {
         private final String indicatorName;
         private final boolean verbose;
+        private final int size;
 
-        public Request(boolean verbose) {
-            // We never compute details if no indicator name is given because of the runtime cost:
-            this.indicatorName = null;
-            this.verbose = verbose;
+        public Request(boolean verbose, int size) {
+            this(null, verbose, size);
         }
 
-        public Request(String indicatorName, boolean verbose) {
+        public Request(String indicatorName, boolean verbose, int size) {
             this.indicatorName = indicatorName;
             this.verbose = verbose;
+            this.size = size;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (size < 0) {
+                validationException = addValidationError("The size parameter must be a positive integer", validationException);
+            }
+            return validationException;
         }
 
         @Override
@@ -195,11 +201,21 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
             assert task instanceof CancellableTask;
-            healthService.getHealth(client, request.indicatorName, request.verbose, responseListener.map(healthIndicatorResults -> {
-                Response response = new Response(clusterService.getClusterName(), healthIndicatorResults, request.indicatorName == null);
-                healthApiStats.track(request.verbose, response);
-                return response;
-            }));
+            healthService.getHealth(
+                client,
+                request.indicatorName,
+                request.verbose,
+                request.size,
+                responseListener.map(healthIndicatorResults -> {
+                    Response response = new Response(
+                        clusterService.getClusterName(),
+                        healthIndicatorResults,
+                        request.indicatorName == null
+                    );
+                    healthApiStats.track(request.verbose, response);
+                    return response;
+                })
+            );
         }
     }
 }

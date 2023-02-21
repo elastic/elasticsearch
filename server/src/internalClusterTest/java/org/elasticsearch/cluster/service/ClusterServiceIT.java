@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -366,7 +368,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(10));
         assertThat(response.pendingTasks().get(0).getSource().string(), equalTo("1"));
         assertThat(response.pendingTasks().get(0).isExecuting(), equalTo(true));
-        for (PendingClusterTask task : response) {
+        for (PendingClusterTask task : response.pendingTasks()) {
             controlSources.remove(task.getSource().string());
         }
         assertTrue(controlSources.isEmpty());
@@ -414,11 +416,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 });
             }
 
-            final var startNanoTime = System.nanoTime();
-            while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) <= 0) {
-                // noinspection BusyWait
-                Thread.sleep(100);
-            }
+            waitForTimeToElapse();
 
             pendingClusterTasks = clusterService.getMasterService().pendingTasks();
             assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
@@ -431,7 +429,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
             assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(5));
             controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
-            for (PendingClusterTask task : response) {
+            for (PendingClusterTask task : response.pendingTasks()) {
                 if (controlSources.remove(task.getSource().string())) {
                     assertThat(task.getTimeInQueueInMillis(), greaterThan(0L));
                 }
@@ -440,5 +438,29 @@ public class ClusterServiceIT extends ESIntegTestCase {
         } finally {
             block2.countDown();
         }
+    }
+
+    private static void waitForTimeToElapse() throws InterruptedException {
+        final ThreadPool[] threadPools = StreamSupport.stream(internalCluster().getInstances(ClusterService.class).spliterator(), false)
+            .map(ClusterService::threadPool)
+            .toArray(ThreadPool[]::new);
+        final long[] startTimes = Arrays.stream(threadPools).mapToLong(ThreadPool::relativeTimeInMillis).toArray();
+
+        final var startNanoTime = System.nanoTime();
+        while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) <= 100) {
+            // noinspection BusyWait
+            Thread.sleep(100);
+        }
+
+        outer: do {
+            for (int i = 0; i < threadPools.length; i++) {
+                if (threadPools[i].relativeTimeInMillis() <= startTimes[i]) {
+                    // noinspection BusyWait
+                    Thread.sleep(100);
+                    continue outer;
+                }
+            }
+            return;
+        } while (true);
     }
 }

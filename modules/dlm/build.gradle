@@ -1,0 +1,13 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'dlm'
+  description 'Elasticsearch Plugin - Data Lifecycle Management'
+  classname 'org.elasticsearch.dlm.DataLifecycle'
+}
+archivesBaseName = 'dlm'
+
+addQaCheckDependencies(project)

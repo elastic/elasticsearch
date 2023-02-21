@@ -1,5 +1,14 @@
 [[plugin-management]]
-== Plugin Management
+== Plugin management
+
+[discrete]
+=== Managing plugins on {ess}
+
+Refer to the {cloud}/ec-adding-plugins.html[{ess} documentation] for information
+about managing plugins on {ecloud}.
+
+[discrete]
+=== Managing plugins for self-managed deployments
 
 Use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is
 located in the `$ES_HOME/bin` directory by default but it may be in a
@@ -34,7 +43,7 @@ If you run {es} using Docker, you can manage plugins using a
 <<manage-plugins-using-configuration-file,configuration file>>.
 
 [[installation]]
-=== Installing Plugins
+=== Installing plugins
 
 The documentation for each plugin usually includes specific installation
 instructions for that plugin, but below we document the various available
@@ -139,7 +148,7 @@ that all the plugins will be installed, or none of the plugins will be installed
 if any installation fails.
 
 [[mandatory-plugins]]
-=== Mandatory Plugins
+=== Mandatory plugins
 
 If you rely on some plugins, you can define mandatory plugins by adding
 `plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
@@ -153,7 +162,7 @@ plugin.mandatory: analysis-icu,lang-js
 For safety reasons, a node will not start if it is missing a mandatory plugin.
 
 [[listing-removing-updating]]
-=== Listing, Removing and Updating Installed Plugins
+=== Listing, removing and updating installed plugins
 
 [discrete]
 === Listing plugins
@@ -188,6 +197,7 @@ purge the configuration files while removing a plugin, use `-p` or `--purge`.
 This can option can be used after a plugin is removed to remove any lingering
 configuration files.
 
+[discrete]
 [[removing-multiple-plugins]]
 === Removing multiple plugins
 
@@ -201,8 +211,9 @@ sudo bin/elasticsearch-plugin remove [pluginname] [pluginname] ... [pluginname]
 [discrete]
 === Updating plugins
 
-Plugins are built for a specific version of Elasticsearch, and therefore must be reinstalled
-each time Elasticsearch is updated.
+Except for text analysis plugins that are created using the
+<<creating-stable-plugins,stable plugin API>>, plugins are built for a specific
+version of {es}, and must be reinstalled each time {es} is updated.
 
 [source,shell]
 -----------------------------------
@@ -215,7 +226,7 @@ sudo bin/elasticsearch-plugin install [pluginname]
 The `plugin` scripts supports a number of other command line parameters:
 
 [discrete]
-=== Silent/Verbose mode
+=== Silent/verbose mode
 
 The `--verbose` parameter outputs more debug information, while the `--silent`
 parameter turns off all output including the progress bar. The script may

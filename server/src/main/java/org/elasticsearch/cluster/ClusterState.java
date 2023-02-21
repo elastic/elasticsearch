@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -21,12 +21,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -35,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -43,19 +41,23 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -92,7 +94,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * <p>
  * Cluster state updates can be used to trigger various actions via a {@link ClusterStateListener} rather than using a timer.
  * <p>
- * Implements {@link ToXContentFragment} to be exposed in REST APIs (e.g. {@code GET _cluster/state} and {@code POST _cluster/reroute}) and
+ * Implements {@link ChunkedToXContent} to be exposed in REST APIs (e.g. {@code GET _cluster/state} and {@code POST _cluster/reroute}) and
  * to be indexed by monitoring, mostly just for diagnostics purposes. The {@link XContent} representation does not need to be 100% faithful
  * since we never reconstruct a cluster state from its XContent representation, but the more faithful it is the more useful it is for
  * diagnostics. Note that the {@link XContent} representation of the {@link Metadata} portion does have to be faithful (in {@link
@@ -101,11 +103,11 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * Security-sensitive data such as passwords or private keys should not be stored in the cluster state, since the contents of the cluster
  * state are exposed in various APIs.
  */
-public class ClusterState implements ToXContentFragment, Diffable<ClusterState> {
+public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
         /**
          * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
@@ -121,7 +123,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * the more faithful it is the more useful it is for diagnostics.
          */
         @Override
-        XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+        Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params);
     }
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
@@ -517,114 +519,131 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
     }
 
+    private static <T> Iterator<ToXContent> chunkedSection(
+        boolean condition,
+        ToXContent before,
+        Iterator<T> items,
+        Function<T, Iterator<ToXContent>> fn,
+        ToXContent after
+    ) {
+        return condition
+            ? Iterators.concat(Iterators.single(before), Iterators.flatMap(items, fn::apply), Iterators.single(after))
+            : Collections.emptyIterator();
+    }
+
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        final var metrics = Metric.parseString(outerParams.param("metric", "_all"), true);
 
-        // always provide the cluster_uuid as part of the top-level response (also part of the metadata response)
-        builder.field("cluster_uuid", metadata().clusterUUID());
+        return Iterators.concat(
 
-        if (metrics.contains(Metric.VERSION)) {
-            builder.field("version", version);
-            builder.field("state_uuid", stateUUID);
-        }
+            // header chunk
+            Iterators.single(((builder, params) -> {
+                // always provide the cluster_uuid as part of the top-level response (also part of the metadata response)
+                builder.field("cluster_uuid", metadata().clusterUUID());
 
-        if (metrics.contains(Metric.MASTER_NODE)) {
-            builder.field("master_node", nodes().getMasterNodeId());
-        }
-
-        if (metrics.contains(Metric.BLOCKS)) {
-            builder.startObject("blocks");
-
-            if (blocks().global().isEmpty() == false) {
-                builder.startObject("global");
-                for (ClusterBlock block : blocks().global()) {
-                    block.toXContent(builder, params);
+                // state version info
+                if (metrics.contains(Metric.VERSION)) {
+                    builder.field("version", version);
+                    builder.field("state_uuid", stateUUID);
                 }
-                builder.endObject();
-            }
 
-            if (blocks().indices().isEmpty() == false) {
-                builder.startObject("indices");
-                for (Map.Entry<String, Set<ClusterBlock>> entry : blocks().indices().entrySet()) {
-                    builder.startObject(entry.getKey());
-                    for (ClusterBlock block : entry.getValue()) {
+                // master node
+                if (metrics.contains(Metric.MASTER_NODE)) {
+                    builder.field("master_node", nodes().getMasterNodeId());
+                }
+
+                return builder;
+            })),
+
+            // blocks
+            chunkedSection(metrics.contains(Metric.BLOCKS), (builder, params) -> {
+                builder.startObject("blocks");
+                if (blocks().global().isEmpty() == false) {
+                    builder.startObject("global");
+                    for (ClusterBlock block : blocks().global()) {
                         block.toXContent(builder, params);
                     }
                     builder.endObject();
                 }
-                builder.endObject();
-            }
+                if (blocks().indices().isEmpty() == false) {
+                    builder.startObject("indices");
+                }
+                return builder;
+            }, blocks.indices().entrySet().iterator(), entry -> Iterators.single((builder, params) -> {
+                builder.startObject(entry.getKey());
+                for (ClusterBlock block : entry.getValue()) {
+                    block.toXContent(builder, params);
+                }
+                return builder.endObject();
+            }), (builder, params) -> {
+                if (blocks().indices().isEmpty() == false) {
+                    builder.endObject();
+                }
+                return builder.endObject();
+            }),
 
-            builder.endObject();
-        }
+            // nodes
+            chunkedSection(
+                metrics.contains(Metric.NODES),
+                (builder, params) -> builder.startObject("nodes"),
+                nodes.iterator(),
+                Iterators::single,
+                (builder, params) -> builder.endObject()
+            ),
 
-        // nodes
-        if (metrics.contains(Metric.NODES)) {
-            builder.startObject("nodes");
-            for (DiscoveryNode node : nodes) {
-                node.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
+            // metadata
+            metrics.contains(Metric.METADATA) ? metadata.toXContentChunked(outerParams) : Collections.emptyIterator(),
 
-        // meta data
-        if (metrics.contains(Metric.METADATA)) {
-            metadata.toXContent(builder, params);
-        }
-
-        // routing table
-        if (metrics.contains(Metric.ROUTING_TABLE)) {
-            builder.startObject("routing_table");
-            builder.startObject("indices");
-            for (IndexRoutingTable indexRoutingTable : routingTable()) {
-                builder.startObject(indexRoutingTable.getIndex().getName());
-                builder.startObject("shards");
-                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
-                    builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                    for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
-                        indexShardRoutingTable.shard(copy).toXContent(builder, params);
+            // routing table
+            chunkedSection(
+                metrics.contains(Metric.ROUTING_TABLE),
+                (builder, params) -> builder.startObject("routing_table").startObject("indices"),
+                routingTable().iterator(),
+                indexRoutingTable -> Iterators.single((builder, params) -> {
+                    builder.startObject(indexRoutingTable.getIndex().getName());
+                    builder.startObject("shards");
+                    for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                        IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                        builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+                        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                            indexShardRoutingTable.shard(copy).toXContent(builder, params);
+                        }
+                        builder.endArray();
                     }
-                    builder.endArray();
-                }
-                builder.endObject();
-                builder.endObject();
-            }
-            builder.endObject();
-            builder.endObject();
-        }
+                    return builder.endObject().endObject();
+                }),
+                (builder, params) -> builder.endObject().endObject()
+            ),
 
-        // routing nodes
-        if (metrics.contains(Metric.ROUTING_NODES)) {
-            builder.startObject("routing_nodes");
-            builder.startArray("unassigned");
-            for (ShardRouting shardRouting : getRoutingNodes().unassigned()) {
-                shardRouting.toXContent(builder, params);
-            }
-            builder.endArray();
+            // routing nodes
+            chunkedSection(
+                metrics.contains(Metric.ROUTING_NODES),
+                (builder, params) -> builder.startObject("routing_nodes").startArray("unassigned"),
+                getRoutingNodes().unassigned().iterator(),
+                Iterators::single,
+                (builder, params) -> builder.endArray() // no endObject() here, continued in next chunkedSection()
+            ),
+            chunkedSection(
+                metrics.contains(Metric.ROUTING_NODES),
+                (builder, params) -> builder.startObject("nodes"),
+                getRoutingNodes().iterator(),
+                routingNode -> Iterators.concat(
+                    ChunkedToXContentHelper.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId()),
+                    routingNode.iterator(),
+                    ChunkedToXContentHelper.endArray()
+                ),
+                (builder, params) -> builder.endObject().endObject()
+            ),
 
-            builder.startObject("nodes");
-            for (RoutingNode routingNode : getRoutingNodes()) {
-                builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId());
-                for (ShardRouting shardRouting : routingNode) {
-                    shardRouting.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            builder.endObject();
-
-            builder.endObject();
-        }
-        if (metrics.contains(Metric.CUSTOMS)) {
-            for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
-                builder.startObject(cursor.getKey());
-                cursor.getValue().toXContent(builder, params);
-                builder.endObject();
-            }
-        }
-
-        return builder;
+            // customs
+            metrics.contains(Metric.CUSTOMS)
+                ? Iterators.flatMap(
+                    customs.entrySet().iterator(),
+                    cursor -> ChunkedToXContentHelper.wrapWithObject(cursor.getKey(), cursor.getValue().toXContentChunked(outerParams))
+                )
+                : Collections.emptyIterator()
+        );
     }
 
     public static Builder builder(ClusterName clusterName) {
@@ -822,7 +841,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
         return builder.build();
@@ -838,7 +857,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         nodes.writeTo(out);
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
     }
@@ -885,7 +904,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }
@@ -901,7 +920,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }

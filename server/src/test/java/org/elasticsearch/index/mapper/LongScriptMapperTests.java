@@ -21,11 +21,16 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
     private static LongFieldScript.Factory factory(Consumer<LongFieldScript> executor) {
         return new LongFieldScript.Factory() {
             @Override
-            public LongFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public LongFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new LongFieldScript.LeafFactory() {
                     @Override
                     public LongFieldScript newInstance(LeafReaderContext ctx) {
-                        return new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new LongFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);
@@ -67,11 +72,9 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
 
     @Override
     protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("LongPoint <field:1>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[1].toString());
-        assertEquals("LongPoint <field:2>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:2>", fields[3].toString());
+        assertEquals(2, fields.length);
+        assertEquals("LongField <field:1>", fields[0].toString());
+        assertEquals("LongField <field:2>", fields[1].toString());
     }
 
     @Override

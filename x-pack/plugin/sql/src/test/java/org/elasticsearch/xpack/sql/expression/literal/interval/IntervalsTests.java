@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.literal.interval;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals.TimeUnit;
@@ -86,7 +87,7 @@ public class IntervalsTests extends ESTestCase {
         int randomSeconds = randomNonNegativeInt();
         int randomMillis = randomBoolean() ? (randomBoolean() ? 0 : 999) : randomInt(999);
         String value = format(Locale.ROOT, "%s%d", sign, randomSeconds);
-        value += randomMillis > 0 ? formatted(".%03d", randomMillis) : "";
+        value += randomMillis > 0 ? Strings.format(".%03d", randomMillis) : "";
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_SECOND);
         assertEquals(maybeNegate(sign, Duration.ofSeconds(randomSeconds).plusMillis(randomMillis)), amount);
     }
@@ -131,7 +132,7 @@ public class IntervalsTests extends ESTestCase {
 
         boolean withMillis = randomBoolean();
         int randomMilli = withMillis ? randomInt(999) : 0;
-        String millisString = withMillis && randomMilli > 0 ? formatted(".%03d", randomMilli) : "";
+        String millisString = withMillis && randomMilli > 0 ? Strings.format(".%03d", randomMilli) : "";
 
         String value = format(Locale.ROOT, "%s%d %d:%d:%d%s", sign, randomDay, randomHour, randomMinute, randomSecond, millisString);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_DAY_TO_SECOND);
@@ -159,7 +160,7 @@ public class IntervalsTests extends ESTestCase {
 
         boolean withMillis = randomBoolean();
         int randomMilli = withMillis ? randomInt(999) : 0;
-        String millisString = withMillis && randomMilli > 0 ? formatted(".%03d", randomMilli) : "";
+        String millisString = withMillis && randomMilli > 0 ? Strings.format(".%03d", randomMilli) : "";
 
         String value = format(Locale.ROOT, "%s%d:%d:%d%s", sign, randomHour, randomMinute, randomSecond, millisString);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_HOUR_TO_SECOND);
@@ -175,7 +176,7 @@ public class IntervalsTests extends ESTestCase {
 
         boolean withMillis = randomBoolean();
         int randomMilli = withMillis ? randomInt(999) : 0;
-        String millisString = withMillis && randomMilli > 0 ? formatted(".%03d", randomMilli) : "";
+        String millisString = withMillis && randomMilli > 0 ? Strings.format(".%03d", randomMilli) : "";
 
         String value = format(Locale.ROOT, "%s%d:%d%s", sign, randomMinute, randomSecond, millisString);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_MINUTE_TO_SECOND);
@@ -273,11 +274,6 @@ public class IntervalsTests extends ESTestCase {
     public void testIntervalType() throws Exception {
         ParsingException pe = expectThrows(ParsingException.class, () -> intervalType(EMPTY, TimeUnit.DAY, TimeUnit.YEAR));
         assertEquals("line -1:0: Cannot determine datatype for combination [DAY] [YEAR]", pe.getMessage());
-    }
-
-    private static int randomNonNegativeInt() {
-        int random = randomInt();
-        return random == Integer.MIN_VALUE ? 0 : Math.abs(random);
     }
 
     private Object maybeNegate(String sign, TemporalAmount interval) {

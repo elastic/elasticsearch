@@ -18,6 +18,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
 
 /**
@@ -43,22 +44,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (size > Integer.MAX_VALUE / Integer.BYTES) {
-            throw new IllegalArgumentException();
-        }
-        int intSize = (int) size;
-        out.writeVInt(intSize * Integer.BYTES);
-        int lastPageEnd = intSize % INT_PAGE_SIZE;
-        if (lastPageEnd == 0) {
-            for (byte[] page : pages) {
-                out.write(page);
-            }
-            return;
-        }
-        for (int i = 0; i < pages.length - 1; i++) {
-            out.write(pages[i]);
-        }
-        out.write(pages[pages.length - 1], 0, lastPageEnd * Integer.BYTES);
+        writePages(out, (int) size, pages, Integer.BYTES, INT_PAGE_SIZE);
     }
 
     @Override

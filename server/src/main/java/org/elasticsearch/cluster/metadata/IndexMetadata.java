@@ -8,6 +8,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -82,6 +85,8 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
+
+    private static final Logger logger = LogManager.getLogger(IndexMetadata.class);
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(
         5,
@@ -530,9 +535,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
-    static final Version SYSTEM_INDEX_FLAG_ADDED = Version.V_7_10_0;
+    static final TransportVersion SYSTEM_INDEX_FLAG_ADDED = TransportVersion.V_7_10_0;
 
-    static final Version STATS_AND_FORECAST_ADDED = Version.V_8_6_0;
+    static final TransportVersion STATS_AND_FORECAST_ADDED = TransportVersion.V_8_6_0;
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -1402,7 +1407,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder;
     }
 
-    private static final Version SETTING_DIFF_VERSION = Version.V_8_5_0;
+    private static final TransportVersion SETTING_DIFF_VERSION = TransportVersion.V_8_5_0;
 
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
@@ -1483,13 +1488,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
                 aliasesVersion = in.readVLong();
             } else {
                 aliasesVersion = 1;
             }
             state = State.fromId(in.readByte());
-            if (in.getVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
                 settings = null;
                 settingsDiff = Settings.readSettingsDiffFromStream(in);
             } else {
@@ -1510,13 +1515,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getStringKeySerializer(),
                 ROLLOVER_INFO_DIFF_VALUE_READER
             );
-            if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 isSystem = in.readBoolean();
             } else {
                 isSystem = false;
             }
             timestampRange = IndexLongFieldRange.readFrom(in);
-            if (in.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
                 stats = in.readOptionalWriteable(IndexMetadataStats::new);
                 indexWriteLoadForecast = in.readOptionalDouble();
                 shardSizeInBytesForecast = in.readOptionalLong();
@@ -1534,13 +1539,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
                 out.writeVLong(aliasesVersion);
             }
             out.writeByte(state.id);
             assert settings != null
                 : "settings should always be non-null since this instance is not expected to have been read from another node";
-            if (out.getVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
                 settingsDiff.writeTo(out);
             } else {
                 settings.writeTo(out);
@@ -1551,11 +1556,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
-            if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
             }
             timestampRange.writeTo(out);
-            if (out.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
                 out.writeOptionalWriteable(stats);
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
@@ -1589,7 +1594,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
-            return builder.build();
+            return builder.build(true);
         }
     }
 
@@ -1607,7 +1612,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             builder.aliasesVersion(in.readVLong());
         }
         builder.setRoutingNumShards(in.readInt());
@@ -1616,7 +1621,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.primaryTerms(in.readVLongArray());
         int mappingsSize = in.readVInt();
         if (mappingsSize == 1) {
-            if (mappingLookup != null && in.getVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+            if (mappingLookup != null && in.getTransportVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
                 final String mappingHash = in.readString();
                 final MappingMetadata metadata = mappingLookup.apply(mappingHash);
                 assert metadata != null : "failed to find mapping [" + mappingHash + "] for [" + builder.index + "]";
@@ -1646,17 +1651,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
-        if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
         }
         builder.timestampRange(IndexLongFieldRange.readFrom(in));
 
-        if (in.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
             builder.stats(in.readOptionalWriteable(IndexMetadataStats::new));
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
-        return builder.build();
+        return builder.build(true);
     }
 
     /**
@@ -1667,7 +1672,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             out.writeVLong(aliasesVersion);
         }
         out.writeInt(routingNumShards);
@@ -1679,7 +1684,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeVInt(0);
         } else {
             out.writeVInt(1);
-            if (mappingsAsHash && out.getVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
+            if (mappingsAsHash && out.getTransportVersion().onOrAfter(Metadata.MAPPINGS_AS_HASH_VERSION)) {
                 out.writeString(mapping.getSha256());
             } else {
                 mapping.writeTo(out);
@@ -1693,11 +1698,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
         );
         out.writeCollection(rolloverInfos.values());
-        if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
         timestampRange.writeTo(out);
-        if (out.getVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
@@ -2012,6 +2017,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public IndexMetadata build() {
+            return build(false);
+        }
+
+        // package private for testing
+        IndexMetadata build(boolean repair) {
             /*
              * We expect that the metadata has been properly built to set the number of shards and the number of replicas, and do not rely
              * on the default values here. Those must have been set upstream.
@@ -2140,7 +2150,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             var aliasesMap = aliases.build();
             for (AliasMetadata alias : aliasesMap.values()) {
                 if (alias.alias().equals(index)) {
-                    throw new IllegalArgumentException("alias name [" + index + "] self-conflicts with index name");
+                    if (repair && indexCreatedVersion.equals(Version.V_8_5_0)) {
+                        var updatedBuilder = ImmutableOpenMap.builder(aliasesMap);
+                        final var brokenAlias = updatedBuilder.remove(index);
+                        final var fixedAlias = AliasMetadata.newAliasMetadata(brokenAlias, index + "-alias-corrupted-by-8-5");
+                        aliasesMap = updatedBuilder.fPut(fixedAlias.getAlias(), fixedAlias).build();
+                        logger.warn("Repaired corrupted alias with the same name as its index for [{}]", index);
+                        break;
+                    } else {
+                        throw new IllegalArgumentException("alias name [" + index + "] self-conflicts with index name");
+                    }
                 }
             }
 
@@ -2463,7 +2482,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
             assert indexCreatedVersion(builder.settings).before(Version.V_7_2_0) || aliasesVersion
                 : "aliases version should be present for indices created on or after 7.2.0";
-            return builder.build();
+            return builder.build(true);
         }
 
         /**
@@ -2574,7 +2593,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(MappingMetadata.EMPTY_MAPPINGS); // just make sure it's not empty so that _source can be read
             }
 
-            IndexMetadata indexMetadata = builder.build();
+            IndexMetadata indexMetadata = builder.build(true);
             assert indexMetadata.getCreationVersion().isLegacyIndexVersion();
             assert indexMetadata.getCompatibilityVersion().isLegacyIndexVersion();
             return indexMetadata;

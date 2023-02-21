@@ -35,10 +35,9 @@ public final class HighlightUtils {
     public static List<Object> loadFieldValues(
         MappedFieldType fieldType,
         SearchExecutionContext searchContext,
-        FetchSubPhase.HitContext hitContext,
-        boolean forceSource
+        FetchSubPhase.HitContext hitContext
     ) throws IOException {
-        if (forceSource == false && fieldType.isStored()) {
+        if (fieldType.isStored()) {
             List<Object> values = hitContext.loadedFields().get(fieldType.name());
             return values == null ? List.of() : values;
         }

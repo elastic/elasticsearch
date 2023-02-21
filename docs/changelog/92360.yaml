@@ -1,0 +1,5 @@
+pr: 92360
+summary: Fix missing override for matches in `ProfileWeight`
+area: Search
+type: bug
+issues: []

@@ -36,7 +36,7 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
     }
 
     @Override
-    protected NodesRemovalPrevalidation mutateInstance(NodesRemovalPrevalidation instance) throws IOException {
+    protected NodesRemovalPrevalidation mutateInstance(NodesRemovalPrevalidation instance) {
         return randomBoolean() ? mutateOverallResult(instance) : mutateNodes(instance);
     }
 
@@ -87,7 +87,6 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
     public static NodesRemovalPrevalidation randomNodesRemovalPrevalidation() {
         int noOfNodes = randomIntBetween(1, 10);
         List<NodesRemovalPrevalidation.NodeResult> nodes = new ArrayList<>(noOfNodes);
-        NodesRemovalPrevalidation.Result result = randomResult();
         for (int i = 0; i < noOfNodes; i++) {
             nodes.add(
                 new NodesRemovalPrevalidation.NodeResult(
@@ -102,6 +101,10 @@ public class NodesRemovalPrevalidationSerializationTests extends AbstractXConten
     }
 
     private static NodesRemovalPrevalidation.Result randomResult() {
-        return new NodesRemovalPrevalidation.Result(randomBoolean(), randomAlphaOfLengthBetween(0, 1000));
+        return new NodesRemovalPrevalidation.Result(
+            randomBoolean(),
+            randomFrom(NodesRemovalPrevalidation.Reason.values()),
+            randomAlphaOfLengthBetween(0, 1000)
+        );
     }
 }

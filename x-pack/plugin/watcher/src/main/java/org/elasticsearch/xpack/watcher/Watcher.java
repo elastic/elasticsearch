@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInput;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInputFactory;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Account;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
@@ -306,7 +307,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         if (enabled == false) {
             return Collections.emptyList();
@@ -341,11 +342,13 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
+        WebhookService webhookService = new WebhookService(settings, httpClient, clusterService.getClusterSettings());
 
         reloadableServices.add(emailService);
         reloadableServices.add(jiraService);
         reloadableServices.add(slackService);
         reloadableServices.add(pagerDutyService);
+        reloadableServices.add(webhookService);
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
         Map<String, EmailAttachmentParser<?>> emailAttachmentParsers = new HashMap<>();
@@ -386,7 +389,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
         actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
-        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
+        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(webhookService, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(templateEngine, jiraService));
@@ -595,6 +598,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
         settings.addAll(ReportingAttachmentParser.getSettings());
+        settings.addAll(WebhookService.getSettings());
 
         // http settings
         settings.addAll(HttpSettings.getSettings());

@@ -50,7 +50,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
                     final var listener = new ThreadedActionListener<Void>(
                         threadPool.executor(pool),
                         (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && rarely(),
-                        ActionListener.wrap(countdownLatch::countDown)
+                        ActionListener.running(countdownLatch::countDown)
                     );
                     synchronized (closeFlag) {
                         if (closeFlag.get() && shutdownUnsafePools.contains(pool)) {

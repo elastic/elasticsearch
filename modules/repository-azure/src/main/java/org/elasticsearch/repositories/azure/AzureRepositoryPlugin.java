@@ -60,11 +60,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     // protected for testing
     final SetOnce<AzureStorageService> azureStoreService = new SetOnce<>();
     private final Settings settings;
-    private final Map<String, AzureStorageSettings> initialClientSettings;
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        this.initialClientSettings = AzureStorageSettings.load(settings);
+        AzureStorageSettings.load(settings);
         this.settings = settings;
     }
 

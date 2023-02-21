@@ -14,6 +14,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.ConcurrentRegisterOperationException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -35,6 +36,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryStream;
@@ -380,7 +382,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
-    public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException {
+    public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException,
+        ConcurrentRegisterOperationException {
         try (
             FileChannel channel = openOrCreateAtomic(path.resolve(key));
             FileLock ignored1 = channel.lock();
@@ -412,6 +415,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 channel.force(true);
             }
             return found;
+        } catch (OverlappingFileLockException e) {
+            throw new ConcurrentRegisterOperationException(e);
         }
     }
 

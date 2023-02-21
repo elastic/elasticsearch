@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.ConcurrentRegisterOperationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,6 +88,10 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                 long initialValue;
                 try {
                     initialValue = blobContainer.getRegister(registerName);
+                } catch (ConcurrentRegisterOperationException e) {
+                    // Concurrent activity prevents us from even reading the initial value, but this is just a best-effort thing so we can
+                    // proceed anyway.
+                    initialValue = 0;
                 } catch (UnsupportedOperationException e) {
                     // Registers are not supported on all repository types, and that's ok. If it's not supported here then the final check
                     // will also be unsupported, so it doesn't matter that we didn't do anything before this successful response.
@@ -108,11 +113,17 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                             return;
                         }
 
-                        final var witness = blobContainer.compareAndExchangeRegister(registerName, currentValue, currentValue + 1);
-                        if (witness == currentValue) {
-                            listener.onResponse(null);
-                        } else {
-                            currentValue = witness;
+                        try {
+                            final var witness = blobContainer.compareAndExchangeRegister(registerName, currentValue, currentValue + 1);
+                            if (witness == currentValue) {
+                                listener.onResponse(null);
+                            } else {
+                                currentValue = witness;
+                                executor.execute(Execution.this);
+                            }
+                        } catch (ConcurrentRegisterOperationException e) {
+                            // Concurrent activity prevented us from updating the value, or even reading the concurrently-updated result,
+                            // so we must just try again.
                             executor.execute(Execution.this);
                         }
                     }

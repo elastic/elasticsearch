@@ -26,6 +26,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
@@ -64,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
@@ -192,7 +192,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
-        private Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
             SearchExecutionContext searchExecutionContext
         ) {
             if (searchExecutionContext.isSourceEnabled() == false) {

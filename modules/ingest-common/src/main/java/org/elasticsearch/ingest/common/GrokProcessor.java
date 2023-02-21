@@ -160,7 +160,7 @@ public final class GrokProcessor extends AbstractProcessor {
                 "ecs_compatibility",
                 DEFAULT_ECS_COMPATIBILITY_MODE
             );
-            if (Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+            if (GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 throw newConfigurationException(TYPE, processorTag, "ecs_compatibility", "unsupported mode '" + ecsCompatibility + "'");
             }
 
@@ -168,7 +168,7 @@ public final class GrokProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(Grok.getBuiltinPatterns(ecsCompatibility));
+            Map<String, String> patternBank = new HashMap<>(GrokBuiltinPatterns.get(ecsCompatibility));
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);
             }

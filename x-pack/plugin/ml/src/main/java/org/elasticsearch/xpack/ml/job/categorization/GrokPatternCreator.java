@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.job.categorization;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -286,7 +287,7 @@ public final class GrokPatternCreator {
             this.grokPatternName = grokPatternName;
             this.fieldName = fieldName;
             this.grok = new Grok(
-                Grok.getBuiltinPatterns(ECS_COMPATIBILITY),
+                GrokBuiltinPatterns.get(ECS_COMPATIBILITY),
                 "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" + postBreak + "%{GREEDYDATA:" + EPILOGUE + "}",
                 logger::warn
             );

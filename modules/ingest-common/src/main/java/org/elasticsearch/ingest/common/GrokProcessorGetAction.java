@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -126,7 +125,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            this(transportService, actionFilters, Grok.getBuiltinPatterns(false), Grok.getBuiltinPatterns(true));
+            this(transportService, actionFilters, GrokBuiltinPatterns.get(false), GrokBuiltinPatterns.get(true));
         }
 
         // visible for testing
@@ -173,7 +172,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             boolean sorted = request.paramAsBoolean("s", false);
             String ecsCompatibility = request.param("ecs_compatibility", GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE);
-            if (Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+            if (GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
             }
             Request grokPatternsRequest = new Request(sorted, ecsCompatibility);

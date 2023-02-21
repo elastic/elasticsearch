@@ -10,7 +10,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -756,7 +755,7 @@ public class TextStructure implements ToXContentObject, Writeable {
                     }
                     if (ecsCompatibility != null
                         && ecsCompatibility.isEmpty() == false
-                        && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                        && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                         throw new IllegalArgumentException(
                             ECS_COMPATIBILITY.getPreferredName()
                                 + "] must be one of ["

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
 import java.util.ArrayList;
@@ -233,9 +234,9 @@ public final class GrokPatternCreator {
         this.mappings = mappings;
         this.fieldStats = fieldStats;
         if (customGrokPatternDefinitions.isEmpty()) {
-            grokPatternDefinitions = Grok.getBuiltinPatterns(ecsCompatibility);
+            grokPatternDefinitions = GrokBuiltinPatterns.get(ecsCompatibility);
         } else {
-            grokPatternDefinitions = new HashMap<>(Grok.getBuiltinPatterns(ecsCompatibility));
+            grokPatternDefinitions = new HashMap<>(GrokBuiltinPatterns.get(ecsCompatibility));
             grokPatternDefinitions.putAll(customGrokPatternDefinitions);
         }
         this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
@@ -640,7 +641,7 @@ public final class GrokPatternCreator {
                 fieldName,
                 "\\b",
                 "\\b",
-                Grok.getBuiltinPatterns(ecsCompatibility)
+                GrokBuiltinPatterns.get(ecsCompatibility)
             );
         }
 
@@ -688,7 +689,7 @@ public final class GrokPatternCreator {
                 fieldName,
                 preBreak,
                 postBreak,
-                Grok.getBuiltinPatterns(ecsCompatibility)
+                GrokBuiltinPatterns.get(ecsCompatibility)
             );
         }
 
@@ -840,7 +841,7 @@ public final class GrokPatternCreator {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
             Grok grok = new Grok(
-                Grok.getBuiltinPatterns(ecsCompatibility),
+                GrokBuiltinPatterns.get(ecsCompatibility),
                 "(?m)%{DATA:" + PREFACE + "}\\b" + fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}",
                 TimeoutChecker.watchdog,
                 logger::warn
@@ -929,7 +930,7 @@ public final class GrokPatternCreator {
             return new FullMatchGrokPatternCandidate(
                 "%{" + grokPatternName + "}",
                 timeField,
-                Grok.getBuiltinPatterns(ECS_COMPATIBILITY_DISABLED)
+                GrokBuiltinPatterns.get(ECS_COMPATIBILITY_DISABLED)
             );
         }
 
@@ -937,7 +938,7 @@ public final class GrokPatternCreator {
             return new FullMatchGrokPatternCandidate(
                 "%{" + grokPatternName + "}",
                 timeField,
-                Grok.getBuiltinPatterns(ECS_COMPATIBILITY_ENABLED)
+                GrokBuiltinPatterns.get(ECS_COMPATIBILITY_ENABLED)
             );
         }
 
@@ -950,11 +951,11 @@ public final class GrokPatternCreator {
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternLegacy(String grokPattern, String timeField) {
-            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.getBuiltinPatterns(ECS_COMPATIBILITY_DISABLED));
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, GrokBuiltinPatterns.get(ECS_COMPATIBILITY_DISABLED));
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternEcs(String grokPattern, String timeField) {
-            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.getBuiltinPatterns(ECS_COMPATIBILITY_ENABLED));
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, GrokBuiltinPatterns.get(ECS_COMPATIBILITY_ENABLED));
         }
 
         static FullMatchGrokPatternCandidate fromGrokPattern(

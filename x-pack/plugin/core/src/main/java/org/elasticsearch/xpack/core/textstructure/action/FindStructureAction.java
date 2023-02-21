@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
@@ -360,7 +359,7 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
                 }
             }
 
-            if (ecsCompatibility != null && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+            if (ecsCompatibility != null && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 validationException = addValidationError(
                     "["
                         + ECS_COMPATIBILITY.getPreferredName()

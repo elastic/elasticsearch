@@ -29,7 +29,7 @@ public class TransportPutEngineAction extends HandledTransportAction<PutEngineAc
 
     @Override
     protected void doExecute(Task task, PutEngineAction.Request request, ActionListener<PutEngineAction.Response> listener) {
-        Engine engine = Engine.fromXContentBytes(request.getEngineId(), request.getContent(), request.getContentType());
+        Engine engine = request.getEngine();
         engineIndexService.putEngine(engine, new ActionListener<>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {

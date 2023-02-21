@@ -19,9 +19,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.entsearch.engine.Engine;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -36,35 +36,29 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
     public static class Request extends ActionRequest {
 
-        private final String engineId;
-        private final BytesReference content;
-
-        private final XContentType contentType;
+        private final Engine engine;
+        private XContentType xContentType = XContentType.JSON;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.engineId = in.readString();
-            this.content = in.readBytesReference();
-            this.contentType = in.readEnum(XContentType.class);
+            String engineId = in.readString();
+            final BytesReference bytesReference = in.readBytesReference();
+            xContentType = in.readEnum(XContentType.class);
+
+            this.engine = Engine.fromXContentBytes(engineId, bytesReference, xContentType);
         }
 
         public Request(String engineId, BytesReference content, XContentType contentType) {
-            this.engineId = engineId;
-            this.content = content;
-            this.contentType = contentType;
+            this.engine = Engine.fromXContentBytes(engineId, content, contentType);
+            xContentType = contentType;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            Map<String, Object> sourceMap = XContentHelper.convertToMap(content, false, contentType).v2();
-            if (sourceMap.containsKey("indices") == false) {
+            if (engine.indices().length == 0) {
                 validationException = addValidationError("indices are missing", validationException);
-            } else {
-                if (sourceMap.get("indices") instanceof Map == false) {
-                    validationException = addValidationError("indices should be an array", validationException);
-                }
             }
 
             return validationException;
@@ -73,21 +67,12 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(engineId);
-            out.writeBytesReference(content);
-            XContentHelper.writeTo(out, contentType);
+            engine.writeTo(out);
+            XContentHelper.writeTo(out, xContentType);
         }
 
-        public String getEngineId() {
-            return engineId;
-        }
-
-        public BytesReference getContent() {
-            return content;
-        }
-
-        public XContentType getContentType() {
-            return contentType;
+        public Engine getEngine() {
+            return engine;
         }
     }
 

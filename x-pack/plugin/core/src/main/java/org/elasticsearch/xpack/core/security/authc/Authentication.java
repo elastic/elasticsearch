@@ -51,7 +51,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -1156,21 +1155,18 @@ public final class Authentication implements ToXContentObject {
             return null;
         }
 
+        final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);
         final AtomicBoolean removedAtLeastOne = new AtomicBoolean(false);
-        final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes).entrySet()
-            .stream()
-            .map(entry -> {
-                if (entry.getValue() instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> roleDescriptor = (Map<String, Object>) entry.getValue();
-                    boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName()) != null;
-                    if (removed) {
-                        removedAtLeastOne.set(true);
-                    }
+        roleDescriptorsMap.entrySet().stream().forEach(entry -> {
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> roleDescriptor = (Map<String, Object>) entry.getValue();
+                boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName()) != null;
+                if (removed) {
+                    removedAtLeastOne.set(true);
                 }
-                return entry;
-            })
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+        });
 
         if (removedAtLeastOne.get()) {
             return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);

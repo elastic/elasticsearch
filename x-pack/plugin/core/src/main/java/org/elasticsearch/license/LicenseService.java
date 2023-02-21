@@ -37,7 +37,6 @@ import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.nio.charset.StandardCharsets;

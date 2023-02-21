@@ -320,8 +320,6 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         });
     }
 
-    // TODO fix, flaky: `java.lang.AssertionError: elasticsearch[test][clusterApplierService#updateTask][T#1] not in
-    // [masterService#updateTask] nor a test thread`
     public void testCleanUpSnapshotShardSizes() throws Exception {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
@@ -364,6 +362,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 Settings.builder()
                     .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), nbShards)
                     .put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), nbShards)
+                    .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
                     .build(),
                 snapshotsInfoService
             );

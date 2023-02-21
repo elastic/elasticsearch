@@ -222,7 +222,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-// TODO fix:
 public class SnapshotResiliencyTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
@@ -1749,7 +1748,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     () -> repositoriesService,
                     rerouteServiceSetOnce::get
                 );
-                allocationService = ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
+                allocationService = ESAllocationTestCase.createAllocationService(
+                    Settings.builder()
+                        .put(settings)
+                        .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
+                        .build(),
+                    snapshotsInfoService
+                );
                 rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(

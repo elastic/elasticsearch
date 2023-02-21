@@ -214,7 +214,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("boolean doesn't support ignore_malformed", ignoreMalformed);
+        assumeFalse("boolean doesn't support ignore_malformed with synthetic source", ignoreMalformed);
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();
 

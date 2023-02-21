@@ -40,7 +40,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -62,7 +62,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         try (var ignored = threadContext.stashContext()) {
             authenticateAndAssertExpectedErrorMessage(
                 service,
-                msg -> assertThat(msg, equalTo("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required"))
+                msg -> assertThat(msg, equalTo("remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] is required"))
             );
         }
 
@@ -74,9 +74,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                 msg -> assertThat(
                     msg,
                     equalTo(
-                        "remote access header ["
-                            + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
-                            + "] value must be a valid API key credential"
+                        "remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] value must be a valid API key credential"
                     )
                 )
             );
@@ -85,7 +83,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         try (var ignored = threadContext.stashContext()) {
             final String randomApiKey = Base64.getEncoder()
                 .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
-            threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, ApiKeyService.withApiKeyPrefix(randomApiKey));
+            threadContext.putHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, ApiKeyService.withApiKeyPrefix(randomApiKey));
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(msg, equalTo("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"))

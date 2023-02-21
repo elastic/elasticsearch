@@ -155,33 +155,44 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         String feature = null;
-        for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
-            if (token == Token.FIELD_NAME) {
-                feature = context.parser().currentName();
-            } else if (token == Token.VALUE_NULL) {
-                // ignore feature, this is consistent with numeric fields
-            } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                final String key = name() + "." + feature;
-                float value = context.parser().floatValue(true);
-                if (context.doc().getByKey(key) != null) {
+        try {
+            // make sure that we don't expand dots in field names while parsing
+            context.path().setWithinLeafObject(true);
+            for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
+                if (token == Token.FIELD_NAME) {
+                    feature = context.parser().currentName();
+                    if (feature.contains(".")) {
+                        throw new IllegalArgumentException(
+                            "[rank_features] fields do not support dots in feature names but found [" + feature + "]"
+                        );
+                    }
+                } else if (token == Token.VALUE_NULL) {
+                    // ignore feature, this is consistent with numeric fields
+                } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
+                    final String key = name() + "." + feature;
+                    float value = context.parser().floatValue(true);
+                    if (context.doc().getByKey(key) != null) {
+                        throw new IllegalArgumentException(
+                            "[rank_features] fields do not support indexing multiple values for the same "
+                                + "rank feature ["
+                                + key
+                                + "] in the same document"
+                        );
+                    }
+                    if (positiveScoreImpact == false) {
+                        value = 1 / value;
+                    }
+                    context.doc().addWithKey(key, new FeatureField(name(), feature, value));
+                } else {
                     throw new IllegalArgumentException(
-                        "[rank_features] fields do not support indexing multiple values for the same "
-                            + "rank feature ["
-                            + key
-                            + "] in the same document"
+                        "[rank_features] fields take hashes that map a feature to a strictly positive "
+                            + "float, but got unexpected token "
+                            + token
                     );
                 }
-                if (positiveScoreImpact == false) {
-                    value = 1 / value;
-                }
-                context.doc().addWithKey(key, new FeatureField(name(), feature, value));
-            } else {
-                throw new IllegalArgumentException(
-                    "[rank_features] fields take hashes that map a feature to a strictly positive "
-                        + "float, but got unexpected token "
-                        + token
-                );
             }
+        } finally {
+            context.path().setWithinLeafObject(false);
         }
     }
 

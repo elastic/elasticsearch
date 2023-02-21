@@ -473,7 +473,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.randomDataNodeSafe().client.admin()
                 .cluster()
                 .prepareDeleteSnapshot(repoName, snapshotName)
-                .execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
+                .execute(ActionListener.running(() -> snapshotDeleteResponded.set(true)));
         });
 
         runUntil(
@@ -1011,7 +1011,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             testClusterNodes.randomDataNodeSafe().client.admin()
                                 .cluster()
                                 .prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(ActionListener.wrap(() -> {
+                                .execute(ActionListener.running(() -> {
                                     createdSnapshot.set(true);
                                     testClusterNodes.randomDataNodeSafe().client.admin()
                                         .cluster()

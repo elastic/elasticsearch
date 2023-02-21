@@ -896,6 +896,16 @@ public class AuthorizationService {
         );
     }
 
+    public ElasticsearchSecurityException remoteActionDenied(Authentication authentication, String action, String clusterAlias) {
+        final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
+        return denialException(
+            authentication,
+            action,
+            () -> AuthorizationDenialMessages.remoteActionDenied(authentication, authorizationInfo, action, clusterAlias),
+            null
+        );
+    }
+
     private ElasticsearchSecurityException actionDenied(
         Authentication authentication,
         @Nullable AuthorizationInfo authorizationInfo,

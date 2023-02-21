@@ -21,10 +21,10 @@ import java.util.Arrays;
 public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
     private final ES87TSDBDocValuesEncoder encoder;
-    private final int blockSize = ES87TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE;
+    private final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 
     public ES87TSDBDocValuesEncoderTests() {
-        this.encoder = new ES87TSDBDocValuesEncoder(blockSize);
+        this.encoder = new ES87TSDBDocValuesEncoder();
     }
 
     public void testRandomValues() throws IOException {

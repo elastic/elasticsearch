@@ -32,20 +32,11 @@ configure(allprojects) {
     }
     project.tasks.withType(Test).configureEach { Test test ->
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            test.executable = "${BuildParams.runtimeJavaHome.canonicalPath}/bin/java" +
+            test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
                     (OS.current() == OS.WINDOWS ? '.exe' : '')
-
-            test.doFirst {
-                println "%%%%%%%% ${test.path} DEBUG START %%%%%%%"
-                println "executable ${test.executable}"
-                println "launcher ${test.javaLauncher.get().executablePath.asFile.path}"
-                println "%%%%%%%% ${test.path} DEBUG END   %%%%%%%"
-            }
-            println "test.path = ${test.path}  + ${test.executable} -- runtime java"
         } else {
             test.dependsOn(project.jdks.provisioned_runtime)
             test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
-            println "test.path = ${test.path}  + ${test.executable} -- no runtime java"
 
         }
     }

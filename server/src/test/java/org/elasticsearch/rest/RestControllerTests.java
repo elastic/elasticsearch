@@ -970,7 +970,7 @@ public class RestControllerTests extends ESTestCase {
     /*
      * Test that when serverless is disabled, all endpoints are available regardless of ServerlessScope annotations.
      */
-    public void testApiProtectionDisabled() {
+    public void testApiProtectionWithServerlessDisabled() {
         final RestController restController = new RestController(
             Set.of(),
             null,
@@ -995,7 +995,7 @@ public class RestControllerTests extends ESTestCase {
      * Test that when serverless is enabled, a normal user not using the X-elastic-internal-origin header can only access endpoints
      * annotated with a PUBLIC scope.
      */
-    public void testApiProtectionEnabledEndUser() {
+    public void testApiProtectionWithServerlessEnabledAsEndUser() {
         final RestController restController = new RestController(
             Set.of(),
             null,
@@ -1026,7 +1026,7 @@ public class RestControllerTests extends ESTestCase {
      * Test that when serverless is enabled, a system user using the X-elastic-internal-origin header can only access endpoints
      * annotated with a PUBLIC or INTERNAL scope.
      */
-    public void testApiProtectionEnabledInternalUser() {
+    public void testApiProtectionWithServerlessEnabledAsInternalUser() {
         final RestController restController = new RestController(
             Set.of(),
             null,

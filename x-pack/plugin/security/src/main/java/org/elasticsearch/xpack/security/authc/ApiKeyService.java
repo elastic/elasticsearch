@@ -194,8 +194,6 @@ public class ApiKeyService {
         Property.NodeScope
     );
 
-    public static final TransportVersion VERSION_REMOTE_INDICES_SUPPORTED = TransportVersion.V_8_8_0;
-
     private final Clock clock;
     private final Client client;
     private final SecurityIndexManager securityIndex;
@@ -304,12 +302,12 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final TransportVersion version = getMinNodeTransportVersion();
-            if (version.before(VERSION_REMOTE_INDICES_SUPPORTED) && hasRemoteIndices(request.getRoleDescriptors())) {
+            if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalStateException(
                         "all nodes must have version ["
-                            + VERSION_REMOTE_INDICES_SUPPORTED
+                            + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                             + "] or higher to support remote indices privileges for API keys"
                     )
                 );
@@ -415,12 +413,12 @@ public class ApiKeyService {
         }
 
         final TransportVersion version = getMinNodeTransportVersion();
-        if (version.before(VERSION_REMOTE_INDICES_SUPPORTED) && hasRemoteIndices(request.getRoleDescriptors())) {
+        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalStateException(
                     "all nodes must have version ["
-                        + VERSION_REMOTE_INDICES_SUPPORTED
+                        + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -521,14 +519,14 @@ public class ApiKeyService {
      * This method removes remote indices privileges from the given role descriptors
      * when we are in a mixed cluster in which some of the nodes do not support remote indices.
      * Storing these roles would cause parsing issues on old nodes
-     * (i.e. nodes running on version before {@link RoleDescriptor#VERSION_REMOTE_INDICES}).
+     * (i.e. nodes running on version before {@link Authentication#VERSION_API_KEYS_WITH_REMOTE_INDICES}).
      */
     static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,
         final TransportVersion version,
         final String... apiKeyIds
     ) {
-        if (version.before(VERSION_REMOTE_INDICES_SUPPORTED)) {
+        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
             final Set<String> affectedRoles = new LinkedHashSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
@@ -580,10 +578,10 @@ public class ApiKeyService {
             return "";
         }
         final int total = values.length;
-        final int omitted = limit < total ? total - limit : 0;
-        final int valuesToAppend = limit < total ? limit : total;
-        // Note: 5 is the number of additional info strings we append when omitting.
-        final int capacity = valuesToAppend + (omitted > 0 ? 5 : 0);
+        final int omitted = Math.max(0, total - limit);
+        final int valuesToAppend = Math.min(limit, total);
+        final int capacityForOmittedInfoText = 5; // The number of additional info strings we append when omitting.
+        final int capacity = valuesToAppend + (omitted > 0 ? capacityForOmittedInfoText : 0);
         final StringBuilder sb = new StringBuilder(capacity);
 
         int counter = 0;

@@ -516,6 +516,7 @@ subprojects { Project subProject ->
       args "save",
         "-o",
         tarFile,
+        "elasticsearch${base.suffix}:${project.version}",
         "elasticsearch${base.suffix}:${architecture.classifier}"
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { isArchitectureSupported(architecture) }

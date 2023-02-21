@@ -455,7 +455,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
     /**
      * {@see https://github.com/elastic/elasticsearch/issues/87279}
      */
-    public void testRebalance() {
+    public void testRebalanceShouldNotPerformUnnecessaryMovesWithMultipleConcurrentRebalances() {
         final var settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", randomIntBetween(3, 9))
             .build();

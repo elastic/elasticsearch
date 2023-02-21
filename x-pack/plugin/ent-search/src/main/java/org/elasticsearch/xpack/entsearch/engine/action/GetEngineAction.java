@@ -55,7 +55,7 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
         private final String engineId;
         private final String[] indices;
-        private final String analyticsCollectionName; // TODO should this be optional?
+        private final String analyticsCollectionName;
 
         public Response(StreamInput in) throws IOException {
             super(in);

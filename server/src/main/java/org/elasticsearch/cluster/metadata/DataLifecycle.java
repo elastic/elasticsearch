@@ -8,11 +8,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -30,10 +32,10 @@ import java.util.Objects;
  */
 public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentObject {
 
-    private static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.dlm_feature_flag_enabled"));
+    private static final boolean FEATURE_FLAG_ENABLED;
 
     public static boolean isEnabled() {
-        return FEATURE_FLAG_ENABLED;
+        return Build.CURRENT.isSnapshot() || FEATURE_FLAG_ENABLED;
     }
 
     public static final DataLifecycle EMPTY = new DataLifecycle();
@@ -47,6 +49,11 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     );
 
     static {
+        final String property = System.getProperty("es.dlm_feature_flag_enabled");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.dlm_feature_flag_enabled is only supported in non-snapshot builds");
+        }
+        FEATURE_FLAG_ENABLED = Booleans.parseBoolean(property, false);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),

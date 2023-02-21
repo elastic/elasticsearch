@@ -162,9 +162,6 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
             test.systemProperty("es.transport.cname_in_publish_address", "true");
 
-            // TODO: remove this once the DLM feature is ready to be released #93596
-            test.systemProperty("es.dlm_feature_flag_enabled", "true");
-
             // Set netty system properties to the properties we configure in jvm.options
             test.systemProperty("io.netty.noUnsafe", "true");
             test.systemProperty("io.netty.noKeySetOptimization", "true");

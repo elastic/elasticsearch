@@ -731,12 +731,18 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    private static void validateLifecycleIsOnlyAppliedOnDataStreams(Metadata metadata, String indexTemplateName, ComposableIndexTemplate template) {
+    private static void validateLifecycleIsOnlyAppliedOnDataStreams(
+        Metadata metadata,
+        String indexTemplateName,
+        ComposableIndexTemplate template
+    ) {
         boolean hasLifecycle = (template.template() != null && template.template().lifecycle() != null)
             || resolveLifecycle(template, metadata.componentTemplates()) != null;
         if (hasLifecycle && template.getDataStreamTemplate() == null) {
             throw new IllegalArgumentException(
-                "index template [" + indexTemplateName + "] specifies lifecycle configuration that can only be used in combination with a data stream"
+                "index template ["
+                    + indexTemplateName
+                    + "] specifies lifecycle configuration that can only be used in combination with a data stream"
             );
         }
     }

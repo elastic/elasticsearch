@@ -1151,8 +1151,8 @@ public final class Authentication implements ToXContentObject {
     }
 
     static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
-        if (roleDescriptorsBytes == null) {
-            return null;
+        if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
+            return roleDescriptorsBytes;
         }
 
         final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);

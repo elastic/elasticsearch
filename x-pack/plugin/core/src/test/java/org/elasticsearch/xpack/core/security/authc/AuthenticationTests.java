@@ -938,8 +938,8 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(null, equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
 
         // and an empty map
-        final BytesReference empty = new BytesArray("""
-            {}""");
+        final BytesReference empty = randomBoolean() ? new BytesArray("""
+            {}""") : new BytesArray("");
         assertThat(empty.toBytesRef(), equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(empty).toBytesRef()));
     }
 

@@ -107,7 +107,7 @@ public class FetchPhase {
         }
         storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
 
-        StoredFieldLoader storedFieldLoader = profiler.storedFields(buildStoredFieldsLoader(storedFieldsSpec));
+        StoredFieldLoader storedFieldLoader = profiler.storedFields(storedFieldsSpec.buildLoader());
         boolean requiresSource = storedFieldsSpec.requiresSource();
 
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
@@ -166,13 +166,6 @@ public class FetchPhase {
 
         TotalHits totalHits = context.queryResult().getTotalHits();
         return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
-    }
-
-    private static StoredFieldLoader buildStoredFieldsLoader(StoredFieldsSpec spec) {
-        if (spec.noRequirements()) {
-            return StoredFieldLoader.empty();
-        }
-        return StoredFieldLoader.create(spec.requiresSource(), spec.requiredStoredFields());
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {

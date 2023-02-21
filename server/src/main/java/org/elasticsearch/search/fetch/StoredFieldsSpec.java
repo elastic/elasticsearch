@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -43,5 +45,12 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
             this.requiresMetadata || other.requiresMetadata,
             mergedFields
         );
+    }
+
+    public StoredFieldLoader buildLoader() {
+        if (noRequirements()) {
+            return StoredFieldLoader.empty();
+        }
+        return StoredFieldLoader.create(requiresSource, requiredStoredFields);
     }
 }

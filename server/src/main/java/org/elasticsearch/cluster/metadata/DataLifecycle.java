@@ -34,10 +34,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     private static final boolean FEATURE_FLAG_ENABLED;
 
-    public static boolean isEnabled() {
-        return Build.CURRENT.isSnapshot() || FEATURE_FLAG_ENABLED;
-    }
-
     public static final DataLifecycle EMPTY = new DataLifecycle();
 
     private static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
@@ -60,6 +56,10 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
             DATA_RETENTION_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
+    }
+
+    public static boolean isEnabled() {
+        return Build.CURRENT.isSnapshot() || FEATURE_FLAG_ENABLED;
     }
 
     @Nullable
@@ -108,7 +108,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         dataRetention = in.readOptionalTimeValue();
     }
 
-    /** 
+    /**
      * When it comes to internode communication via the transport layer, different nodes can only sync their messages based on their
      * Version. We choose to always write and read the lifecycle when the version is after 8.8.0 to ensure stable communication, but we
      * discard the value read if the feature flag is disabled.

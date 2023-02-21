@@ -79,7 +79,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             case 4 -> {
                 if (isHidden) {
                     isHidden = false;
-                    isSystem = false; // A system data stream must always be hidden
+                    isSystem = false; // To ensure that we generate a valid combination, system indices should be always hidden
                 } else {
                     isHidden = true;
                 }

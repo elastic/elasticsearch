@@ -460,7 +460,10 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", randomIntBetween(3, 9))
             .build();
         final var allocationService = createAllocationService(settings);
-        assumeTrue("", allocationService.shardsAllocator instanceof DesiredBalanceShardsAllocator);
+        assumeTrue(
+            "Only fixed in DesiredBalanceShardsAllocator",
+            allocationService.shardsAllocator instanceof DesiredBalanceShardsAllocator
+        );
 
         final var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int nodeIndex = 0; nodeIndex < 3; nodeIndex++) {

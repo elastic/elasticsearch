@@ -20,7 +20,9 @@ import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.EmptySourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -80,10 +82,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         LuceneSourceOperatorFactory operatorFactory = new LuceneSourceOperatorFactory(matchedSearchContexts, ctx -> {
             Query query = ctx.toQuery(esQueryExec.query()).query();
-            // filter out nested documents
-            return new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
-                .build();
+            NestedLookup nestedLookup = ctx.nestedLookup();
+            if (nestedLookup != NestedLookup.EMPTY) {
+                NestedHelper nestedHelper = new NestedHelper(nestedLookup, ctx::isFieldMapped);
+                if (nestedHelper.mightMatchNestedDocs(query)) {
+                    // filter out nested documents
+                    query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+                        .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
+                        .build();
+                }
+            }
+            return query;
         },
             context.dataPartitioning(),
             context.taskConcurrency(),

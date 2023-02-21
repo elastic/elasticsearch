@@ -540,7 +540,7 @@ public class CompoundProcessorTests extends ESTestCase {
         CompoundProcessor compoundProcessor = new CompoundProcessor(
             false,
             List.of(processor1, processor2),
-            Collections.emptyList(),
+            List.of(),
             relativeTimeProvider
         );
         executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});
@@ -563,7 +563,7 @@ public class CompoundProcessorTests extends ESTestCase {
         CompoundProcessor compoundProcessor = new CompoundProcessor(
             false,
             List.of(processor1, processor2),
-            Collections.emptyList(),
+            List.of(),
             relativeTimeProvider
         );
         executeCompound(compoundProcessor, ingestDocument, (result, e) -> {});

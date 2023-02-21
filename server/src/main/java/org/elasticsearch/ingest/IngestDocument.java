@@ -861,7 +861,7 @@ public final class IngestDocument {
         Collections.reverse(pipelineStack);
         return pipelineStack;
     }
-  
+
     /**
      * @return Whether a self referencing check should be performed
      */

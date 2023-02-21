@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -106,7 +108,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
     public void testPartialSearchableSnapshotNotAllocatedToNodesWithoutCache() throws Exception {
         final MountSearchableSnapshotRequest req = prepareMountRequest();
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
+        assertThat(Optional.ofNullable(restoreSnapshotResponse.getRestoreInfo()).map(RestoreInfo::successfulShards).orElse(0), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
         assertTrue(state.toString(), state.routingTable().index(req.mountedIndexName()).allPrimaryShardsUnassigned());
 

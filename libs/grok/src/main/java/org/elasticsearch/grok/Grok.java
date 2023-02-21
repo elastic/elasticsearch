@@ -33,8 +33,6 @@ import java.util.function.Consumer;
 
 public final class Grok {
 
-    public static final String[] ECS_COMPATIBILITY_MODES = { "disabled", "v1" };
-
     /**
      * Patterns built in to the grok library.
      */
@@ -348,14 +346,14 @@ public final class Grok {
 
     public static Map<String, String> getBuiltinPatterns(String ecsCompatibility) {
         if (isValidEcsCompatibilityMode(ecsCompatibility)) {
-            return getBuiltinPatterns(ECS_COMPATIBILITY_MODES[1].equals(ecsCompatibility));
+            return getBuiltinPatterns(GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[1].equals(ecsCompatibility));
         } else {
             throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
         }
     }
 
     public static boolean isValidEcsCompatibilityMode(String ecsCompatibility) {
-        return Arrays.asList(ECS_COMPATIBILITY_MODES).contains(ecsCompatibility);
+        return Arrays.asList(GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES).contains(ecsCompatibility);
     }
 
     private static Map<String, String> loadPatterns(boolean ecsCompatibility) {

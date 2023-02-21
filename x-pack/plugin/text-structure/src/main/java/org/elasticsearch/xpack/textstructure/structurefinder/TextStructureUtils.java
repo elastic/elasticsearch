@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
@@ -228,7 +229,7 @@ public final class TextStructureUtils {
                         true,
                         true,
                         timeoutChecker,
-                        Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
+                        GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
                     );
                     try {
                         timestampFormatFinder.addSample(value.toString());
@@ -642,7 +643,7 @@ public final class TextStructureUtils {
             }
             grokProcessorSettings.put(
                 "ecs_compatibility",
-                (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility
+                (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility
             );
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));
         } else {

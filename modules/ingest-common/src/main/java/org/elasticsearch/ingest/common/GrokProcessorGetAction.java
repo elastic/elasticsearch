@@ -20,6 +20,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -147,7 +148,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             ActionListener.completeWith(
                 listener,
                 () -> new Response(
-                    request.getEcsCompatibility().equals(Grok.ECS_COMPATIBILITY_MODES[0])
+                    request.getEcsCompatibility().equals(GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0])
                         ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
                         : request.sorted() ? sortedEcsV1GrokPatterns
                         : ecsV1GrokPatterns

@@ -18,11 +18,13 @@ import java.io.IOException;
 
 public abstract class RankShardResult implements Writeable {
 
-    public static RankShardResult readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
+    public static RankShardResult readOptionalFrom(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            String name = in.readString();
 
-        if (RRFRankContextBuilder.NAME.getPreferredName().equals(name)) {
-            return new RRFRankShardResult(in);
+            if (RRFRankContextBuilder.NAME.getPreferredName().equals(name)) {
+                return new RRFRankShardResult(in);
+            }
         }
 
         return null;

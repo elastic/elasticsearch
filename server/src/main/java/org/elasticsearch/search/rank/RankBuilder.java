@@ -66,7 +66,7 @@ public class RankBuilder implements Writeable, ToXContent {
         if (in.readBoolean()) {
             String rankName = in.readString();
             if (RRFRankContextBuilder.NAME.getPreferredName().equals(rankName)) {
-                rankContextBuilder = in.readOptionalWriteable(RRFRankContextBuilder::new);
+                rankContextBuilder = new RRFRankContextBuilder(in);
             } else {
                 throw new IllegalStateException("unknown rank name [" + rankName + "]");
             }
@@ -80,7 +80,7 @@ public class RankBuilder implements Writeable, ToXContent {
         } else {
             out.writeBoolean(true);
             out.writeString(rankContextBuilder.name().getPreferredName());
-            out.writeWriteable(rankContextBuilder);
+            rankContextBuilder.writeTo(out);
         }
     }
 

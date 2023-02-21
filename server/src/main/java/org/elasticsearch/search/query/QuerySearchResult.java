@@ -384,7 +384,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 setRescoreDocIds(new RescoreDocIds(in));
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                rankShardResult = RankShardResult.readFrom(in);
+                rankShardResult = RankShardResult.readOptionalFrom(in);
             }
             success = true;
         } finally {

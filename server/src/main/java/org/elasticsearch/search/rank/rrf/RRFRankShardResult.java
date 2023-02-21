@@ -40,6 +40,6 @@ public class RRFRankShardResult extends RankShardResult {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeGenericList(topDocs, Lucene::writeOnlyTopDocs);
+        out.writeCollection(topDocs, Lucene::writeOnlyTopDocs);
     }
 }

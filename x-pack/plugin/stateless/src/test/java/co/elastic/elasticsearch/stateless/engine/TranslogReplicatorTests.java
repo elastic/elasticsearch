@@ -148,12 +148,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         doAnswer(invocation -> {
             try {
                 var metadata = invocation.<BytesReference>getArgument(1).streamInput().readMap(ShardId::new, TranslogMetadata::new);
-                if (metadata.get(shardId).getMaxSeqNo() == 1L) {
+                if (metadata.get(shardId).maxSeqNo() == 1L) {
                     firstSyncCompleter.set(invocation.getArgument(2));
                     intermediateStartedLatch.countDown();
                     return null;
                 }
-                if (metadata.get(shardId).getMaxSeqNo() == 3L) {
+                if (metadata.get(shardId).maxSeqNo() == 3L) {
                     finalSyncStartedLatch.countDown();
                 }
             } catch (IOException e) {

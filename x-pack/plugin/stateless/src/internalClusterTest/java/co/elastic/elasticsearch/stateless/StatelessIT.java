@@ -131,8 +131,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                             Map<ShardId, TranslogMetadata> map = remote.readMap(ShardId::new, TranslogMetadata::new);
                             if (map.containsKey(objShardId)) {
                                 TranslogMetadata translogMetadata = map.get(objShardId);
-                                maxSeqNo = SequenceNumbers.max(maxSeqNo, translogMetadata.getMaxSeqNo());
-                                totalOps += translogMetadata.getTotalOps();
+                                maxSeqNo = SequenceNumbers.max(maxSeqNo, translogMetadata.maxSeqNo());
+                                totalOps += translogMetadata.totalOps();
                             }
                         }
                     }

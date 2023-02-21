@@ -38,26 +38,6 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
         out.writeLong(totalOps);
     }
 
-    public long getOffset() {
-        return offset;
-    }
-
-    public long getSize() {
-        return size;
-    }
-
-    public long getMinSeqNo() {
-        return minSeqNo;
-    }
-
-    public long getMaxSeqNo() {
-        return maxSeqNo;
-    }
-
-    public long getTotalOps() {
-        return totalOps;
-    }
-
     @Override
     public String toString() {
         return "TranslogMetadata{"

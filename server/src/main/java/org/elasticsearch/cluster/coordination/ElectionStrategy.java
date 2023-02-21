@@ -39,7 +39,7 @@ public abstract class ElectionStrategy {
     /**
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
      */
-    public final boolean isElectionQuorum(
+    public boolean isElectionQuorum(
         DiscoveryNode localNode,
         long localCurrentTerm,
         long localAcceptedTerm,

@@ -337,7 +337,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         private volatile long nanoTimeOverride = -1L;
 
-        private final GatewayAllocator gatewayAllocator;
+        public final GatewayAllocator gatewayAllocator;
+        public final ShardsAllocator shardsAllocator;
 
         public MockAllocationService(
             AllocationDeciders allocationDeciders,
@@ -355,6 +356,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
             this.gatewayAllocator = gatewayAllocator;
+            this.shardsAllocator = shardsAllocator;
         }
 
         public void setNanoTimeOverride(long nanoTime) {
@@ -364,10 +366,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         @Override
         protected long currentNanoTime() {
             return nanoTimeOverride == -1L ? super.currentNanoTime() : nanoTimeOverride;
-        }
-
-        public GatewayAllocator getGatewayAllocator() {
-            return gatewayAllocator;
         }
     }
 

@@ -42,7 +42,13 @@ def runTaskCluster = testClusters.register('runTask') {
 
 tasks.named('javaRestTest').configure {
   onlyIf { serviceAccountFile && BuildParams.inFipsJvm == false }
-
+  doFirst {
+      println "-------"
+      println "executable ${executable}"
+      println "-------"
+      println "javaLauncher ${javaLauncher.get().executablePath.asFile}"
+      println "-------"
+  }
   testLogging {
     showStandardStreams = true
   }

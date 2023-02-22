@@ -33,7 +33,7 @@ import java.util.Objects;
 import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
 
 /**
- * An index template is comprised of a set of index patterns, an optional template, and a list of
+ * An index template consists of a set of index patterns, an optional template, and a list of
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
  */

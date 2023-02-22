@@ -43,6 +43,7 @@ data between repositories.
 +
 --
 // tag::multi-cluster-repo[]
+Clusters should only register a particular snapshot repository bucket once. 
 If you register the same snapshot repository with multiple clusters, only one
 cluster should have write access to the repository. On other clusters, register
 the repository as read-only.

@@ -148,41 +148,6 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a listener that listens for a response (or failure) and executes the
-     * corresponding consumer when the response (or failure) is received.
-     *
-     * @param onResponse the checked consumer of the response, when the listener receives one
-     * @param onFailure the consumer of the failure, when the listener receives one
-     * @param <Response> the type of the response
-     * @return a listener that listens for responses and invokes the consumer when received
-     */
-    static <Response> ActionListener<Response> wrap(
-        CheckedConsumer<Response, ? extends Exception> onResponse,
-        Consumer<Exception> onFailure
-    ) {
-        return new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    onResponse.accept(response);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                onFailure.accept(e);
-            }
-
-            @Override
-            public String toString() {
-                return "WrappedActionListener{" + onResponse + "}{" + onFailure + "}";
-            }
-        };
-    }
-
-    /**
      * Creates a listener that delegates all responses it receives to this instance.
      *
      * @param bc BiConsumer invoked with delegate listener and exception
@@ -260,18 +225,17 @@ public interface ActionListener<Response> {
      * Creates a listener which releases the given resource on completion (whether success or failure)
      */
     static <Response> ActionListener<Response> releasing(Releasable releasable) {
-        return assertOnce(wrap(runnableFromReleasable(releasable)));
+        return assertOnce(running(runnableFromReleasable(releasable)));
     }
 
     /**
-     * Creates a listener that listens for a response (or failure) and executes the
-     * corresponding runnable when the response (or failure) is received.
+     * Creates a listener that executes the given runnable on completion (whether successful or otherwise).
      *
-     * @param runnable the runnable that will be called in event of success or failure
-     * @param <Response> the type of the response
-     * @return a listener that listens for responses and invokes the runnable when received
+     * @param runnable the runnable that will be called in event of success or failure. This must not throw.
+     * @param <Response> the type of the response, which is ignored.
+     * @return a listener that executes the given runnable on completion (whether successful or otherwise).
      */
-    static <Response> ActionListener<Response> wrap(Runnable runnable) {
+    static <Response> ActionListener<Response> running(Runnable runnable) {
         return new ActionListener<>() {
             @Override
             public void onResponse(Response response) {
@@ -302,8 +266,54 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * @deprecated in favour of {@link #running(Runnable)} because this implementation doesn't "wrap" exceptions from {@link #onResponse}
+     * into {@link #onFailure}.
+     */
+    @Deprecated(forRemoval = true)
+    static <Response> ActionListener<Response> wrap(Runnable runnable) {
+        return running(runnable);
+    }
+
+    /**
+     * Creates a listener that executes the appropriate consumer when the response (or failure) is received. This listener is "wrapped" in
+     * the sense that an exception from the {@code onResponse} consumer is passed into the {@code onFailure} consumer.
+     *
+     * @param onResponse the checked consumer of the response, executed when the listener is completed successfully. If it throws an
+     *                   exception, the exception is passed to the {@code onFailure} consumer.
+     * @param onFailure the consumer of the failure, executed when the listener is completed with an exception (or it is completed
+     *                  successfully but the {@code onResponse} consumer threw an exception).
+     * @param <Response> the type of the response
+     * @return a listener that executes the appropriate consumer when the response (or failure) is received.
+     */
+    static <Response> ActionListener<Response> wrap(
+        CheckedConsumer<Response, ? extends Exception> onResponse,
+        Consumer<Exception> onFailure
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    onResponse.accept(response);
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                onFailure.accept(e);
+            }
+
+            @Override
+            public String toString() {
+                return "WrappedActionListener{" + onResponse + "}{" + onFailure + "}";
+            }
+        };
+    }
+
+    /**
      * Adds a wrapper around a listener which catches exceptions thrown by its {@link #onResponse} method and feeds them to its
-     * {@link #onFailure}.
+     * {@link #onFailure} method.
      */
     static <DelegateResponse, Response extends DelegateResponse> ActionListener<Response> wrap(ActionListener<DelegateResponse> delegate) {
         return new ActionListener<>() {

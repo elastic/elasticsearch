@@ -66,16 +66,21 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final int DEFAULT_DEBUG_PORT = 5007;
 
-    private final Path baseWorkingDir;
     private final DistributionResolver distributionResolver;
+    private Path baseWorkingDir;
 
-    public LocalClusterFactory(Path baseWorkingDir, DistributionResolver distributionResolver) {
-        this.baseWorkingDir = baseWorkingDir;
+    public LocalClusterFactory(DistributionResolver distributionResolver) {
         this.distributionResolver = distributionResolver;
     }
 
     @Override
     public LocalClusterHandle create(LocalClusterSpec spec) {
+        try {
+            this.baseWorkingDir = Files.createTempDirectory(spec.getName());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         return new LocalClusterHandle(spec.getName(), spec.getNodes().stream().map(Node::new).toList());
     }
 
@@ -95,7 +100,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         public Node(LocalNodeSpec spec) {
             this.spec = spec;
-            this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
+            this.workingDir = baseWorkingDir.resolve(spec.getName());
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -166,15 +171,25 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             return readPortsFile(portsFile).get(0);
         }
 
+        public String getRemoteClusterServerEndpoint() {
+            Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
+            if (Files.notExists(portsFile)) {
+                waitUntilReady();
+            }
+            return readPortsFile(portsFile).get(0);
+        }
+
         public void deletePortsFiles() {
             try {
                 Path hostsFile = workingDir.resolve("config").resolve("unicast_hosts.txt");
                 Path httpPortsFile = workingDir.resolve("logs").resolve("http.ports");
                 Path transportPortsFile = workingDir.resolve("logs").resolve("transport.ports");
+                Path remoteClusterServerPortsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
 
                 Files.deleteIfExists(hostsFile);
                 Files.deleteIfExists(httpPortsFile);
                 Files.deleteIfExists(transportPortsFile);
+                Files.deleteIfExists(remoteClusterServerPortsFile);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + this, e);
             }
@@ -271,7 +286,8 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         private boolean canUseSharedDistribution() {
             return OS.current() != WINDOWS // Issues with long file paths on Windows in CI
                 && System.getProperty(TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP) == null
-                && (distributionDescriptor.getType() == DEFAULT || (getSpec().getPlugins().isEmpty() && getSpec().getModules().isEmpty()));
+                && getSpec().getPlugins().isEmpty()
+                && (distributionDescriptor.getType() == DEFAULT || getSpec().getModules().isEmpty());
         }
 
         private void copyExtraJarFiles() {
@@ -357,7 +373,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private void addKeystoreSettings() {
-            spec.getKeystoreSettings().forEach((key, value) -> {
+            spec.resolveKeystore().forEach((key, value) -> {
                 String input = spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()
                     ? value
                     : spec.getKeystorePassword() + "\n" + value;
@@ -594,20 +610,19 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private Map<String, String> getJvmOptionsReplacements() {
-            Path relativeLogsDir = workingDir.relativize(logsDir);
             return Map.of(
                 "-XX:HeapDumpPath=data",
-                "-XX:HeapDumpPath=" + relativeLogsDir,
+                "-XX:HeapDumpPath=" + logsDir,
                 "logs/gc.log",
-                relativeLogsDir.resolve("gc.log").toString(),
+                logsDir.resolve("gc.log").toString(),
                 "-XX:ErrorFile=logs/hs_err_pid%p.log",
-                "-XX:ErrorFile=" + relativeLogsDir.resolve("hs_err_pid%p.log")
+                "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log")
             );
         }
 
         private void runToolScript(String tool, String input, String... args) {
             try {
-                ProcessUtils.exec(
+                int exit = ProcessUtils.exec(
                     input,
                     distributionDir,
                     distributionDir.resolve("bin")
@@ -616,13 +631,17 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     false,
                     args
                 ).waitFor();
+
+                if (exit != 0) {
+                    throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
 
         private String getServiceName() {
-            return baseWorkingDir.getFileName() + "-" + spec.getCluster().getName() + "-" + spec.getName();
+            return baseWorkingDir.getFileName() + "-" + spec.getName();
         }
 
         @Override

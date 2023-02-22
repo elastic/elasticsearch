@@ -601,7 +601,7 @@ public final class ConfigurationUtils {
                     );
                 }
                 if (onFailureProcessors.size() > 0 || ignoreFailure) {
-                    processor = new CompoundProcessor(ignoreFailure, List.of(processor), onFailureProcessors);
+                    processor = new OnFailureProcessor(ignoreFailure, processor, onFailureProcessors);
                 }
                 if (conditionalScript != null) {
                     processor = new ConditionalProcessor(tag, description, conditionalScript, scriptService, processor);

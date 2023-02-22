@@ -308,8 +308,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 docs.add(
                     List.of(
                         new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
-                        new SortedSetDocValuesField("k1", aBytes),
-                        new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
                         new Field("k1", aBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new Field("k1", d < useC ? bBytes : cBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new SortedNumericDocValuesField("n", n++)

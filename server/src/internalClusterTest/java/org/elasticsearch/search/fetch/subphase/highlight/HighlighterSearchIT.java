@@ -94,7 +94,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -736,71 +735,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         );
         assertHighlight(searchResponse, 0, "field-fvh", 0, 1, equalTo("This is the <xxx>test</xxx> with term_vectors"));
         assertHighlight(searchResponse, 0, "field-plain", 0, 1, equalTo("This is the <xxx>test</xxx> for the plain highlighter"));
-    }
-
-    public void testForceSourceWithSourceDisabled() throws Exception {
-        assertAcked(
-            prepareCreate("test").setMapping(
-                jsonBuilder().startObject()
-                    .startObject("_doc")
-                    .startObject("_source")
-                    .field("enabled", false)
-                    .endObject()
-                    .startObject("properties")
-                    .startObject("field1")
-                    .field("type", "text")
-                    .field("store", true)
-                    .field("index_options", "offsets")
-                    .field("term_vector", "with_positions_offsets")
-                    .endObject()
-                    .startObject("field2")
-                    .field("type", "text")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-        );
-
-        ensureGreen();
-
-        client().prepareIndex("test")
-            .setSource("field1", "The quick brown fox jumps over the lazy dog", "field2", "second field content")
-            .get();
-        refresh();
-
-        // works using stored field
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(termQuery("field1", "quick"))
-            .highlighter(new HighlightBuilder().field(new Field("field1").preTags("<xxx>").postTags("</xxx>")))
-            .get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
-
-        assertFailures(
-            client().prepareSearch("test")
-                .setQuery(termQuery("field1", "quick"))
-                .highlighter(new HighlightBuilder().field(new Field("field1").preTags("<xxx>").postTags("</xxx>").forceSource(true))),
-            RestStatus.BAD_REQUEST,
-            containsString("source is forced for fields [field1] but _source is disabled")
-        );
-
-        SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
-            .query(termQuery("field1", "quick"))
-            .highlighter(highlight().forceSource(true).field("field1"));
-        assertFailures(
-            client().prepareSearch("test").setSource(searchSource),
-            RestStatus.BAD_REQUEST,
-            containsString("source is forced for fields [field1] but _source is disabled")
-        );
-
-        searchSource = SearchSourceBuilder.searchSource()
-            .query(termQuery("field1", "quick"))
-            .highlighter(highlight().forceSource(true).field("field*"));
-        assertFailures(
-            client().prepareSearch("test").setSource(searchSource),
-            RestStatus.BAD_REQUEST,
-            matches("source is forced for fields \\[field\\d, field\\d\\] but _source is disabled")
-        );
     }
 
     public void testPlainHighlighter() throws Exception {

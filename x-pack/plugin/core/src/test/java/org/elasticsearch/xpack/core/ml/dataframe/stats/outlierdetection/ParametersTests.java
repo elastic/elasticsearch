@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -29,7 +29,7 @@ public class ParametersTests extends AbstractBWCSerializationTestCase<Parameters
     }
 
     @Override
-    protected Parameters mutateInstanceForVersion(Parameters instance, Version version) {
+    protected Parameters mutateInstanceForVersion(Parameters instance, TransportVersion version) {
         return instance;
     }
 

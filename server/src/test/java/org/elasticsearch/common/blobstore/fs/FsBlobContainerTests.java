@@ -11,6 +11,7 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -92,6 +93,48 @@ public class FsBlobContainerTests extends ESTestCase {
     public void testIsTempBlobName() {
         final String tempBlobName = FsBlobContainer.tempBlobName(randomAlphaOfLengthBetween(1, 20));
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
+    }
+
+    public void testCompareAndExchange() throws Exception {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+
+        final String key = randomAlphaOfLength(10);
+        final AtomicLong expectedValue = new AtomicLong();
+
+        for (int i = 0; i < 5; i++) {
+            switch (between(1, 4)) {
+                case 1 -> assertEquals(expectedValue.get(), container.getRegister(key));
+                case 2 -> assertFalse(
+                    container.compareAndSetRegister(key, randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong), randomLong())
+                );
+                case 3 -> assertEquals(
+                    expectedValue.get(),
+                    container.compareAndExchangeRegister(
+                        key,
+                        randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong),
+                        randomLong()
+                    )
+                );
+                case 4 -> {/* no-op */}
+            }
+
+            final var newValue = randomLong();
+            if (randomBoolean()) {
+                assertTrue(container.compareAndSetRegister(key, expectedValue.get(), newValue));
+            } else {
+                assertEquals(expectedValue.get(), container.compareAndExchangeRegister(key, expectedValue.get(), newValue));
+            }
+            expectedValue.set(newValue);
+        }
+
+        final byte[] corruptContents = new byte[9];
+        container.writeBlob(key, new BytesArray(corruptContents, 0, randomFrom(1, 7, 9)), false);
+        expectThrows(IllegalStateException.class, () -> container.compareAndExchangeRegister(key, expectedValue.get(), 0));
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

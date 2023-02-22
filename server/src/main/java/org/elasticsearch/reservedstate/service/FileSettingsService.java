@@ -103,11 +103,13 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     @Override
     protected void doStop() {
         logger.debug("Stopping file settings service");
-        stopWatcher();
+        this.fileWatchService.doStop();
     }
 
     @Override
-    protected void doClose() {}
+    protected void doClose() throws IOException {
+        this.fileWatchService.doClose();
+    }
 
     private boolean currentNodeMaster(ClusterState clusterState) {
         return clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId());

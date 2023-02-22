@@ -81,8 +81,8 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        this.active = false;
-        logger.debug("Stopping file settings service");
+        active = false;
+        logger.debug("Stopping file watch service");
         stopWatcher();
     }
 
@@ -207,7 +207,6 @@ public class FileWatchService extends AbstractLifecycleComponent {
     }
 
     synchronized void stopWatcher() {
-        active = false;
         if (watching()) {
             logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever

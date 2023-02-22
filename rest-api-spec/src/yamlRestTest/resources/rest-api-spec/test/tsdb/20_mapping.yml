@@ -1,7 +1,7 @@
 ecs style:
   - skip:
       version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      reason: index.mode and routing_path introduced in 8.1.0
 
   - do:
       indices.create:
@@ -538,8 +538,8 @@ source include/exclude:
 ---
 Unsupported metric type position:
   - skip:
-      version: "8.8.0 - "
-      reason: "position introduced in 8.8.0"
+      version: " - 8.0.99, 8.8.0 - "
+      reason: index.mode and routing_path introduced in 8.1.0 and time series metric position introduced in 8.8.0
 
   - do:
       catch: '/unknown parameter \[time_series_metric\] on mapper \[location\] of type \[geo_point\]/'

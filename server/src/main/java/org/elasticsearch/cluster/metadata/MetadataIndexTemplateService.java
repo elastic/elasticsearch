@@ -288,7 +288,12 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = new Template(finalSettings, wrappedMappings, template.template().aliases());
+        final Template finalTemplate = new Template(
+            finalSettings,
+            wrappedMappings,
+            template.template().aliases(),
+            template.template().lifecycle()
+        );
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(finalTemplate, template.version(), template.metadata());
 
         if (finalComponentTemplate.equals(existing)) {
@@ -308,6 +313,11 @@ public class MetadataIndexTemplateService {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
+                    validateLifecycleIsOnlyAppliedOnDataStreams(
+                        tempStateWithComponentTemplateAdded.metadata(),
+                        composableTemplateName,
+                        composableTemplate
+                    );
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -586,8 +596,7 @@ public class MetadataIndexTemplateService {
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-
-            final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases());
+            final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
             finalIndexTemplate = new ComposableIndexTemplate(
                 template.indexPatterns(),
                 finalTemplate,
@@ -690,7 +699,8 @@ public class MetadataIndexTemplateService {
             new Template(
                 finalSettings.build(),
                 finalTemplate.map(Template::mappings).orElse(null),
-                finalTemplate.map(Template::aliases).orElse(null)
+                finalTemplate.map(Template::aliases).orElse(null),
+                finalTemplate.map(Template::lifecycle).orElse(null)
             ),
             indexTemplate.composedOf(),
             indexTemplate.priority(),
@@ -703,6 +713,7 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
+        validateLifecycleIsOnlyAppliedOnDataStreams(currentState.metadata(), name, templateToValidate);
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
@@ -716,6 +727,22 @@ public class MetadataIndexTemplateService {
                     + (indexTemplate.composedOf().size() > 0 ? "with component templates " + indexTemplate.composedOf() + " " : "")
                     + "is invalid",
                 e
+            );
+        }
+    }
+
+    private static void validateLifecycleIsOnlyAppliedOnDataStreams(
+        Metadata metadata,
+        String indexTemplateName,
+        ComposableIndexTemplate template
+    ) {
+        boolean hasLifecycle = (template.template() != null && template.template().lifecycle() != null)
+            || resolveLifecycle(template, metadata.componentTemplates()) != null;
+        if (hasLifecycle && template.getDataStreamTemplate() == null) {
+            throw new IllegalArgumentException(
+                "index template ["
+                    + indexTemplateName
+                    + "] specifies lifecycle configuration that can only be used in combination with a data stream"
             );
         }
     }
@@ -1377,6 +1404,42 @@ public class MetadataIndexTemplateService {
         // of precedence (with the index template first)
         Collections.reverse(aliases);
         return Collections.unmodifiableList(aliases);
+    }
+
+    /**
+     * Resolve the given v2 template into a {@link DataLifecycle} object
+     */
+    @Nullable
+    public static DataLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
+        final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
+        assert template != null
+            : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
+        if (template == null) {
+            return null;
+        }
+        return resolveLifecycle(template, metadata.componentTemplates());
+    }
+
+    /**
+     * Resolve the provided v2 template and component templates into a {@link DataLifecycle} object
+     */
+    @Nullable
+    public static DataLifecycle resolveLifecycle(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
+        Objects.requireNonNull(template, "attempted to resolve lifecycle for a null template");
+        Objects.requireNonNull(componentTemplates, "attempted to resolve lifecycle with null component templates");
+        // The actual index template's lifecycle takes the highest precedence.
+        if (template.template() != null && template.template().lifecycle() != null) {
+            return template.template().lifecycle();
+        }
+        List<DataLifecycle> componentLifecycle = template.composedOf()
+            .stream()
+            .map(componentTemplates::get)
+            .filter(Objects::nonNull)
+            .map(ComponentTemplate::template)
+            .map(Template::lifecycle)
+            .filter(Objects::nonNull)
+            .toList();
+        return componentLifecycle.isEmpty() ? null : componentLifecycle.get(componentLifecycle.size() - 1);
     }
 
     /**

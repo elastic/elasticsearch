@@ -333,7 +333,7 @@ public class EsExecutors {
                     boolean offer = super.offer(e);
                     assert offer;
                     // check after queuing.
-                    // if all threads are no longer active, see if we can pull item off queue and retry.
+                    // if any thread is no longer active, see if we can pull item off queue and retry.
                     if (executor.getActiveCount() == executor.getMaximumPoolSize()) {
                         return offer;
                     } else {

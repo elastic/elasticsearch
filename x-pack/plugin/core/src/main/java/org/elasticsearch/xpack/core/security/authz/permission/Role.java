@@ -17,6 +17,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -39,6 +40,9 @@ import java.util.Objects;
 import java.util.Set;
 
 public interface Role {
+
+    // TODO move once we have a dedicated class for RCS 2.0 constants
+    String REMOTE_USER_ROLE_NAME = "_remote_user";
 
     Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
 
@@ -159,6 +163,15 @@ public interface Role {
         Map<String, IndexAbstraction> aliasAndIndexLookup,
         FieldPermissionsCache fieldPermissionsCache
     );
+
+    /**
+     * Returns the intersection of role descriptors defined for a remote cluster with the given alias.
+     *
+     * @param remoteClusterAlias the remote cluster alias for which to return a role descriptors intersection
+     * @return an intersection of defined role descriptors for the remote access to a given cluster,
+     *         otherwise an empty intersection if remote privileges are not defined
+     */
+    RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(String remoteClusterAlias);
 
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.

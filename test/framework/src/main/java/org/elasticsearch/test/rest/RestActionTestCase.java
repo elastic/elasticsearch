@@ -46,7 +46,8 @@ public abstract class RestActionTestCase extends ESTestCase {
             verifyingClient,
             new NoneCircuitBreakerService(),
             new UsageService(),
-            Tracer.NOOP
+            Tracer.NOOP,
+            false
         );
     }
 

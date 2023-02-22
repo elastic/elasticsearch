@@ -77,8 +77,7 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
         ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
         ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
         ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
-        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), type + "-" + dataset + "-" + namespace);
-        ingestDocument.skipCurrentPipeline();
+        ingestDocument.redirect(type + "-" + dataset + "-" + namespace);
         return ingestDocument;
     }
 

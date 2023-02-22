@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.ann.Experimental;
@@ -29,7 +27,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -863,9 +860,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testEmptyIndex() {
-        assertAcked(
-            client().admin().indices().prepareCreate("test_empty").setMapping("k", "type=keyword", "v", "type=long").get()
-        );
+        assertAcked(client().admin().indices().prepareCreate("test_empty").setMapping("k", "type=keyword", "v", "type=long").get());
         EsqlQueryResponse results = run("from test_empty");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("k", "keyword"), new ColumnInfo("v", "long"))));
         assertThat(results.values(), empty());
@@ -937,7 +932,8 @@ public class EsqlActionIT extends ESIntegTestCase {
         }
     }
 
-    private void addDocumentsToNestedMappingIndices(List<String> indices, int docsCount, int[] countValuesGreaterThanFifty) throws IOException {
+    private void addDocumentsToNestedMappingIndices(List<String> indices, int docsCount, int[] countValuesGreaterThanFifty)
+        throws IOException {
         XContentBuilder builder;
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
         for (int i = 0; i < indices.size(); i++) {

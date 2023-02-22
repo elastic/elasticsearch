@@ -139,7 +139,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testRemoteAccessCanAccessResourceOf() throws IOException {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         final RemoteAccessAuthentication remoteAccessAuthentication1 = randomValueOtherThanMany(
-            ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()),
+            ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()) || ra.getAuthentication().isApiKey(),
             () -> AuthenticationTestHelper.randomRemoteAccessAuthentication()
         );
         final Authentication authentication = AuthenticationTestHelper.builder()

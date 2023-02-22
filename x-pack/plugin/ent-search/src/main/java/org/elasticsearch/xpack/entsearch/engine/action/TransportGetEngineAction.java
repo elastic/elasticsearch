@@ -29,7 +29,6 @@ public class TransportGetEngineAction extends HandledTransportAction<GetEngineAc
     @Override
     protected void doExecute(Task task, GetEngineAction.Request request, ActionListener<GetEngineAction.Response> listener) {
         engineIndexService.getEngine(request.getEngineId(), new ActionListener<>() {
-            // TODO - Create/update dates
             @Override
             public void onResponse(Engine engine) {
                 listener.onResponse(new GetEngineAction.Response(engine));

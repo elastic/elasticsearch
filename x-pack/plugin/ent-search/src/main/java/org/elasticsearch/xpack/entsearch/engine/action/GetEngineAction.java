@@ -74,8 +74,8 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
             this.engine = engine;
         }
 
-        public Response(String engineId, String[] indices, String analyticsCollectionName, TimeValue createdAt, TimeValue updatedAt) {
-            this.engine = new Engine(engineId, indices, analyticsCollectionName, createdAt, updatedAt);
+        public Response(String engineId, String[] indices, String analyticsCollectionName, TimeValue updatedAt) {
+            this.engine = new Engine(engineId, indices, analyticsCollectionName, updatedAt);
         }
 
         @Override

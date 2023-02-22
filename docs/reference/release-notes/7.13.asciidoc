@@ -3,6 +3,7 @@
 
 Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 
+
 [discrete]
 [[security-updates-7.13.4]]
 === Security updates
@@ -23,6 +24,8 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=2021-22145[CVE-2021-22145]
 include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[bug-7.13.4]]
 [float]
@@ -58,6 +61,8 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22144[CVE-2021-22144]
 include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[bug-7.13.3]]
 [float]
@@ -113,6 +118,8 @@ Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[bug-7.13.2]]
 [float]
@@ -179,6 +186,8 @@ _snapshot/<repository name>/*`, or move to a fresh repository. For more
 details, see {es-issue}75598[#75598].
 // end::snapshot-repo-corruption-75598-known-issue[]
 
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
 [[bug-7.13.1]]
 [discrete]
 === Bug fixes
@@ -233,6 +242,7 @@ API internally, requests to CCS index patterns will also fail.
 This issue is fixed in {es} version 7.13.3 and later. For more details, see
 {es-issue}74504[#74504].
 
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[deprecation-7.13.0]]
 [float]

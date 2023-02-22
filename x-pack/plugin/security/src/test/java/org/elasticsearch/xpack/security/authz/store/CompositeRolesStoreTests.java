@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -104,7 +106,6 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.BaseMatcher;
@@ -2053,13 +2054,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             version
         );
         final boolean emptyRemoteRole = randomBoolean();
-        final Authentication authentication = apiKeyAuthentication.toRemoteAccess(
+        Authentication authentication = apiKeyAuthentication.toRemoteAccess(
             AuthenticationTestHelper.randomRemoteAccessAuthentication(
                 emptyRemoteRole
                     ? RoleDescriptorsIntersection.EMPTY
                     : new RoleDescriptorsIntersection(
                         new RoleDescriptor(
-                            RBACEngine.REMOTE_USER_ROLE_NAME,
+                            Role.REMOTE_USER_ROLE_NAME,
                             null,
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
@@ -2073,6 +2074,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     )
             )
         );
+
+        // Randomly serialize and deserialize the authentication object to simulate authentication getting sent across nodes
+        if (randomBoolean()) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                authentication.writeTo(out);
+                final StreamInput in = out.bytes().streamInput();
+                authentication = new Authentication(in);
+            }
+        }
 
         final PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);

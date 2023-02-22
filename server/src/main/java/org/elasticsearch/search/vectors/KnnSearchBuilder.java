@@ -194,6 +194,15 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return k;
     }
 
+    public QueryVectorBuilder getQueryVectorBuilder() {
+        return queryVectorBuilder;
+    }
+
+    // for testing only
+    public float[] getQueryVector() {
+        return queryVector;
+    }
+
     public KnnSearchBuilder addFilterQuery(QueryBuilder filterQuery) {
         Objects.requireNonNull(filterQuery);
         this.filterQueries.add(filterQuery);

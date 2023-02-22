@@ -1384,7 +1384,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final RefreshResponse refresh(String... indices) {
         waitForRelocation();
-        // TODO RANDOMIZE with flush?
         RefreshResponse actionGet = client().admin()
             .indices()
             .prepareRefresh(indices)
@@ -2057,6 +2056,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Returns {@code true} if this test cluster can use the {@link MockFSIndexStore} test plugin. Defaults to true.
+     */
+    protected boolean addMockFSIndexStore() {
+        return true;
+    }
+
+    /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
      * framework. By default this method returns an identity function {@link Function#identity()}.
@@ -2072,7 +2078,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }
-            if (randomBoolean()) {
+            if (addMockFSIndexStore() && randomBoolean()) {
                 mocks.add(MockFSIndexStore.TestPlugin.class);
             }
             if (randomBoolean()) {
@@ -2263,21 +2269,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     *  After the cluster is stopped, there are a few netty threads that can linger, so we wait for them to finish otherwise these
-     *  lingering threads can intermittently trigger the thread leak detector.
+     *  After the cluster is stopped, there are a few netty threads that can linger, so we make sure we don't leak any tasks on them.
      */
-    static void awaitGlobalNettyThreadsFinish() {
-        try {
-            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IllegalStateException e) {
-            if (e.getMessage().equals("thread was not started") == false) {
-                throw e;
-            }
-            // ignore since the thread was never started
-        }
-
+    static void awaitGlobalNettyThreadsFinish() throws Exception {
+        // Don't use GlobalEventExecutor#awaitInactivity. It will waste up to 1s for every call and we expect no tasks queued for it
+        // except for the odd scheduled shutdown task.
+        assertBusy(() -> assertEquals(0, GlobalEventExecutor.INSTANCE.pendingTasks()));
         try {
             ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {

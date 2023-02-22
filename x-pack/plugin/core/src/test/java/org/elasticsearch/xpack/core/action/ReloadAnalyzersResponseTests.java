@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 
@@ -79,7 +79,7 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
             response,
             writableRegistry(),
             ReloadAnalyzersResponse::new,
-            VersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion(random())
         );
         assertEquals(response.getReloadDetails(), copy.getReloadDetails());
     }

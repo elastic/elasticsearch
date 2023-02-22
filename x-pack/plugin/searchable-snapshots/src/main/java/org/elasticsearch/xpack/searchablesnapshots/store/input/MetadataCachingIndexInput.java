@@ -16,11 +16,12 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,18 +33,18 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 
+import static org.elasticsearch.blobcache.BlobCacheUtils.throwEOF;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
+import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -52,7 +53,9 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIndexInput {
 
-    protected static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
+    protected static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
+        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
+    );
 
     protected final CacheFileReference cacheFileReference;
 
@@ -273,15 +276,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         assert assertFileChannelOpen(fc);
         final int bytesRead = Channels.readFromFileChannel(fc, position, buffer);
         if (bytesRead == -1) {
-            throw new EOFException(
-                String.format(
-                    Locale.ROOT,
-                    "unexpected EOF reading [%d-%d] from %s",
-                    position,
-                    position + buffer.remaining(),
-                    cacheFileReference
-                )
-            );
+            throwEOF(position, buffer.remaining(), cacheFileReference);
         }
         stats.addCachedBytesRead(bytesRead);
         return bytesRead;
@@ -292,16 +287,17 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         assert assertFileChannelOpen(fc);
         assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         final long length = end - start;
-        final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", start, end, cacheFileReference));
+        final ByteBuffer copyBuffer = writeBuffer.get().clear();
+        logger.trace("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference);
 
         long bytesCopied = 0L;
         long remaining = end - start;
         final long startTimeNanos = stats.currentTimeNanos();
         try (InputStream input = openInputStreamFromBlobStore(start, length)) {
             while (remaining > 0L) {
-                final int bytesRead = readSafe(input, copyBuffer, start, end, remaining, cacheFileReference);
-                positionalWrite(fc, start + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
+                final int bytesRead = BlobCacheUtils.readSafe(input, copyBuffer, start, remaining, cacheFileReference);
+                positionalWrite(fc, start + bytesCopied, copyBuffer.flip());
+                copyBuffer.clear();
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
                 progressUpdater.accept(start + bytesCopied);
@@ -326,17 +322,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
             byteBuffer.flip();
             final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss, content, new ActionListener<>() {
-                @Override
-                public void onResponse(Void response) {
-                    onCacheFillComplete.close();
-                }
-
-                @Override
-                public void onFailure(Exception e1) {
-                    onCacheFillComplete.close();
-                }
-            });
+            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss, content, ActionListener.releasing(onCacheFillComplete));
             return indexCacheMissLength;
         });
 
@@ -346,38 +332,6 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             // case, simply move on.
             onCacheFillComplete.close();
         }
-    }
-
-    /**
-     * Perform a single {@code read()} from {@code inputStream} into {@code copyBuffer}, handling an EOF by throwing an {@link EOFException}
-     * rather than returning {@code -1}. Returns the number of bytes read, which is always positive.
-     *
-     * Most of its arguments are there simply to make the message of the {@link EOFException} more informative.
-     */
-    protected static int readSafe(
-        InputStream inputStream,
-        byte[] copyBuffer,
-        long rangeStart,
-        long rangeEnd,
-        long remaining,
-        Object cacheFileReference
-    ) throws IOException {
-        final int len = (remaining < copyBuffer.length) ? toIntBytes(remaining) : copyBuffer.length;
-        final int bytesRead = inputStream.read(copyBuffer, 0, len);
-        if (bytesRead == -1) {
-            throw new EOFException(
-                String.format(
-                    Locale.ROOT,
-                    "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
-                    rangeStart,
-                    rangeEnd,
-                    remaining,
-                    cacheFileReference
-                )
-            );
-        }
-        assert bytesRead > 0 : bytesRead;
-        return bytesRead;
     }
 
     protected static boolean assertFileChannelOpen(FileChannel fileChannel) {
@@ -396,40 +350,19 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
             try {
                 // cache file was evicted during the range fetching, read bytes directly from blob container
-                final long length = b.remaining();
-                final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-                logger.trace(
-                    () -> format("direct reading of range [%s-%s] for cache file [%s]", position, position + length, cacheFileReference)
-                );
+                final int length = b.remaining();
+                logger.trace("direct reading of range [{}-{}] for cache file [{}]", position, position + length, cacheFileReference);
 
-                int bytesCopied = 0;
                 final long startTimeNanos = stats.currentTimeNanos();
                 try (InputStream input = openInputStreamFromBlobStore(position, length)) {
-                    long remaining = length;
-                    while (remaining > 0) {
-                        final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
-                        int bytesRead = input.read(copyBuffer, 0, len);
-                        if (bytesRead == -1) {
-                            throw new EOFException(
-                                String.format(
-                                    Locale.ROOT,
-                                    "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
-                                    position,
-                                    position + length,
-                                    remaining,
-                                    cacheFileReference
-                                )
-                            );
-                        }
-                        b.put(copyBuffer, 0, bytesRead);
-                        bytesCopied += bytesRead;
-                        remaining -= bytesRead;
-                        assert remaining == b.remaining() : remaining + " vs " + b.remaining();
+                    final int bytesRead = Streams.read(input, b, length);
+                    if (bytesRead < length) {
+                        throwEOF(position, length - bytesRead, cacheFileReference);
                     }
                     final long endTimeNanos = stats.currentTimeNanos();
-                    stats.addDirectBytesRead(bytesCopied, endTimeNanos - startTimeNanos);
+                    stats.addDirectBytesRead(bytesRead, endTimeNanos - startTimeNanos);
+                    return bytesRead;
                 }
-                return bytesCopied;
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
@@ -440,19 +373,12 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     protected abstract long getDefaultRangeSize();
 
     protected ByteRange computeRange(long position) {
-        final long rangeSize = getDefaultRangeSize();
-        long start = (position / rangeSize) * rangeSize;
-        long end = Math.min(start + rangeSize, fileInfo.length());
-        return ByteRange.of(start, end);
+        return BlobCacheUtils.computeRange(getDefaultRangeSize(), position, fileInfo.length());
     }
 
     @Override
     protected void seekInternal(long pos) throws IOException {
-        if (pos > length()) {
-            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length() + "] for " + toString());
-        } else if (pos < 0L) {
-            throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
-        }
+        BlobCacheUtils.ensureSeek(pos, this);
         final long position = pos + this.offset;
         stats.incrementSeeks(lastSeekPosition, position);
         lastSeekPosition = position;
@@ -460,20 +386,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
 
     @Override
     public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
-        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
-            throw new IllegalArgumentException(
-                "slice() "
-                    + sliceName
-                    + " out of bounds: offset="
-                    + sliceOffset
-                    + ",length="
-                    + sliceLength
-                    + ",fileLength="
-                    + length()
-                    + ": "
-                    + this
-            );
-        }
+        BlobCacheUtils.ensureSlice(sliceName, sliceOffset, sliceLength, this);
 
         // Are we creating a slice from a CFS file?
         final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")

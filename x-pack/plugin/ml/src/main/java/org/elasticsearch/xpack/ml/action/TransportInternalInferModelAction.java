@@ -267,6 +267,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     request.getInferenceTimeout()
                 );
             }
+            deploymentRequest.setHighPriority(request.isHighPriority());
             deploymentRequest.setNodes(node.v1());
             deploymentRequest.setParentTask(parentTaskId);
 

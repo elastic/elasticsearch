@@ -67,7 +67,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupTask(id, type, action, parentTaskId, targetIndex, downsampleConfig, headers);
+            return new DownsampleTask(id, type, action, parentTaskId, targetIndex, downsampleConfig, headers);
         }
 
         @Override

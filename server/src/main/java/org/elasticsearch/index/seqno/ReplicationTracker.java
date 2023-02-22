@@ -1491,53 +1491,50 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * prior to {@link Version#V_7_4_0} that does not create peer-recovery retention leases.
      */
     public void createMissingPeerRecoveryRetentionLeases() {
-        if (checkHasAllRecoveryRetentionLeases()) return;
-        threadPool.generic().execute(() -> {
-            if (checkHasAllRecoveryRetentionLeases()) return;
-            synchronized (this) {
-                if (checkHasAllRecoveryRetentionLeases()) return;
-                final List<ShardRouting> shardRoutings = routingTable.assignedShards()
-                    .stream()
-                    .filter(ShardRouting::isPromotableToPrimary)
-                    .toList();
-                final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(
-                    shardRoutings.size(),
-                    ActionListener.wrap(vs -> {
-                        setHasAllPeerRecoveryRetentionLeases();
-                        logger.trace("created missing peer recovery retention leases");
-                    }, e -> logger.debug("failed creating missing peer recovery retention leases", e))
-                );
-                for (ShardRouting shardRouting : shardRoutings) {
-                    if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
-                        groupedActionListener.onResponse(null);
-                    } else {
-                        final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
-                        if (checkpointState.tracked == false) {
-                            groupedActionListener.onResponse(null);
-                        } else {
-                            logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
-                            try {
-                                addPeerRecoveryRetentionLease(
-                                    shardRouting.currentNodeId(),
-                                    Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
-                                    groupedActionListener
-                                );
-                            } catch (Exception e) {
-                                groupedActionListener.onFailure(e);
-                            }
-                        }
+        if (hasAllPeerRecoveryRetentionLeases) {
+            logger.trace("createMissingPeerRecoveryRetentionLeases: nothing to do");
+            return;
+        }
+        threadPool.generic().execute(this::doCreateMissingPeerRecoveryRetentionLeases);
+    }
+
+    private synchronized void doCreateMissingPeerRecoveryRetentionLeases() {
+        if (hasAllPeerRecoveryRetentionLeases) {
+            logger.trace("createMissingPeerRecoveryRetentionLeases: nothing to do");
+            return;
+        }
+        final List<ShardRouting> shardRoutings = routingTable.assignedShards()
+            .stream()
+            .filter(ShardRouting::isPromotableToPrimary)
+            .toList();
+        final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(
+            shardRoutings.size(),
+            ActionListener.wrap(vs -> {
+                setHasAllPeerRecoveryRetentionLeases();
+                logger.trace("created missing peer recovery retention leases");
+            }, e -> logger.debug("failed creating missing peer recovery retention leases", e))
+        );
+        for (ShardRouting shardRouting : shardRoutings) {
+            if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
+                groupedActionListener.onResponse(null);
+            } else {
+                final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
+                if (checkpointState.tracked == false) {
+                    groupedActionListener.onResponse(null);
+                } else {
+                    logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
+                    try {
+                        addPeerRecoveryRetentionLease(
+                            shardRouting.currentNodeId(),
+                            Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
+                            groupedActionListener
+                        );
+                    } catch (Exception e) {
+                        groupedActionListener.onFailure(e);
                     }
                 }
             }
-        });
-    }
-
-    private boolean checkHasAllRecoveryRetentionLeases() {
-        if (hasAllPeerRecoveryRetentionLeases) {
-            logger.trace("createMissingPeerRecoveryRetentionLeases: nothing to do");
-            return true;
         }
-        return false;
     }
 
     private Runnable getMasterUpdateOperationFromCurrentState() {

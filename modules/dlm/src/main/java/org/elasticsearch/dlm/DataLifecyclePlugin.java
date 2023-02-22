@@ -8,11 +8,15 @@
 
 package org.elasticsearch.dlm;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -30,14 +34,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
+
 /**
  * Plugin encapsulating Data Lifecycle Management Service.
  */
-public class DataLifecycle extends Plugin implements ActionPlugin {
+public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
+    private final SetOnce<DataLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
 
-    public DataLifecycle(Settings settings) {
+    public DataLifecyclePlugin(Settings settings) {
         this.settings = settings;
     }
 
@@ -66,20 +73,28 @@ public class DataLifecycle extends Plugin implements ActionPlugin {
         Tracer tracer,
         AllocationService allocationService
     ) {
-        return super.createComponents(
-            client,
-            clusterService,
-            threadPool,
-            resourceWatcherService,
-            scriptService,
-            xContentRegistry,
-            environment,
-            nodeEnvironment,
-            namedWriteableRegistry,
-            indexNameExpressionResolver,
-            repositoriesServiceSupplier,
-            tracer,
-            allocationService
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+        dataLifecycleInitialisationService.set(
+            new DataLifecycleService(
+                settings,
+                new OriginSettingClient(client, DLM_ORIGIN),
+                clusterService,
+                getClock(),
+                threadPool,
+                threadPool::absoluteTimeInMillis
+            )
         );
+        return List.of(dataLifecycleInitialisationService.get());
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
+        return List.of(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
     }
 }

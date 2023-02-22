@@ -69,6 +69,26 @@ $endif$
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[block=" + block + "]";
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName());
+        sb.append("[positions=" + getPositionCount() + ", values=[");
+        appendValues(sb);
+        sb.append("]]");
+        return sb.toString();
+    }
+
+    private void appendValues(StringBuilder sb) {
+        final int positionsIndex = getPositionCount() - 1;
+        for (int i = 0;; i++) {
+$if(BytesRef)$
+            sb.append(get$Type$(i, new BytesRef()));
+$else$
+            sb.append(get$Type$(i));
+$endif$
+            if (i == positionsIndex) {
+                return;
+            }
+            sb.append(", ");
+        }
     }
 }

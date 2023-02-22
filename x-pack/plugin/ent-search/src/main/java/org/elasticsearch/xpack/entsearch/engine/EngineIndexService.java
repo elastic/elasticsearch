@@ -15,6 +15,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -23,9 +25,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -57,6 +61,9 @@ import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -75,6 +82,8 @@ public class EngineIndexService {
     public static final String ENGINE_ALIAS_NAME = ".engine";
     public static final String ENGINE_CONCRETE_INDEX_NAME = ".engine-1";
     public static final String ENGINE_INDEX_NAME_PATTERN = ".engine-*";
+
+    public static final String ENGINE_ALIAS_PREFIX = "engine-";
 
     private final Client clientWithOrigin;
     private final ClusterService clusterService;
@@ -177,6 +186,10 @@ public class EngineIndexService {
         }));
     }
 
+    private static String getEngineAliasName(Engine engine) {
+        return ENGINE_ALIAS_PREFIX + engine.name();
+    }
+
     /**
      * Creates or updates the {@link Engine} in the underlying index.
      *
@@ -184,6 +197,57 @@ public class EngineIndexService {
      * @param listener The action listener to invoke on response/failure.
      */
     public void putEngine(Engine engine, ActionListener<IndexResponse> listener) {
+        validateIndices(engine);
+
+        createOrUpdateAlias(engine, listener.delegateFailure((l, aliasResponse) -> { updateEngine(engine, l); }));
+
+    }
+
+    private void createOrUpdateAlias(Engine engine, ActionListener<AcknowledgedResponse> listener) {
+
+        final Metadata metadata = clusterService.state().metadata();
+        final String engineAliasName = getEngineAliasName(engine);
+
+        IndicesAliasesRequestBuilder requestBuilder = null;
+        if (metadata.hasAlias(engineAliasName)) {
+            Set<String> currentAliases = metadata.aliasedIndices(engineAliasName)
+                .stream()
+                .map(index -> index.getName())
+                .collect(Collectors.toSet());
+            Set<String> targetAliases = Set.of(engine.indices());
+
+            if (currentAliases.equals(targetAliases)) {
+                return;
+            }
+            requestBuilder = updateAliasIndices(currentAliases, targetAliases, engineAliasName);
+
+        } else {
+            requestBuilder = clientWithOrigin.admin().indices().prepareAliases().addAlias(engine.indices(), engineAliasName);
+        }
+
+        requestBuilder.execute(listener);
+    }
+
+    private IndicesAliasesRequestBuilder updateAliasIndices(Set<String> currentAliases, Set<String> targetAliases, String engineAliasName) {
+
+        Set<String> newIndices = new HashSet<>(targetAliases);
+        newIndices.removeAll(currentAliases);
+        Set<String> deleteIndices = new HashSet<>(currentAliases);
+        deleteIndices.removeAll(targetAliases);
+
+        IndicesAliasesRequestBuilder aliasesRequestBuilder = clientWithOrigin.admin().indices().prepareAliases();
+
+        for (String newIndex : newIndices) {
+            aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(engineAliasName));
+        }
+        for (String deleteIndex : deleteIndices) {
+            aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(deleteIndex).alias(engineAliasName));
+        }
+
+        return aliasesRequestBuilder;
+    }
+
+    private void updateEngine(Engine engine, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
@@ -195,7 +259,6 @@ public class EngineIndexService {
                     )
                     .endObject();
             }
-            // TODO Validate indices exist?
             final IndexRequest indexRequest = new IndexRequest(ENGINE_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(engine.name())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -203,6 +266,15 @@ public class EngineIndexService {
             clientWithOrigin.index(indexRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    private void validateIndices(Engine engine) {
+        for (String index : engine.indices()) {
+            final IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
+            if (indexMetadata == null) {
+                throw new IllegalArgumentException("Index [" + index + "] not found; it cannot be added to engine");
+            }
         }
     }
 

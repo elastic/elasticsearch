@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RolloverConfiguration;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Tuple;
@@ -116,17 +117,17 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                 consumer.setForceMergeMaxNumberOfSegments(forceMergeAction.getMaxNumSegments());
             }
             case RolloverAction.NAME -> {
-                RolloverAction rolloverAction = (RolloverAction) action;
-                consumer.setRolloverMaxAge(rolloverAction.getMaxAge());
-                consumer.setRolloverMaxDocs(rolloverAction.getMaxDocs());
-                consumer.setRolloverMaxPrimaryShardDocs(rolloverAction.getMaxPrimaryShardDocs());
-                consumer.setRolloverMaxPrimaryShardSize(rolloverAction.getMaxPrimaryShardSize());
-                consumer.setRolloverMaxSize(rolloverAction.getMaxSize());
-                consumer.setRolloverMinAge(rolloverAction.getMinAge());
-                consumer.setRolloverMinDocs(rolloverAction.getMinDocs());
-                consumer.setRolloverMinPrimaryShardDocs(rolloverAction.getMinPrimaryShardDocs());
-                consumer.setRolloverMinPrimaryShardSize(rolloverAction.getMinPrimaryShardSize());
-                consumer.setRolloverMinSize(rolloverAction.getMinSize());
+                RolloverConfiguration rolloverConfiguration = ((RolloverAction) action).getConfiguration();
+                consumer.setRolloverMaxAge(rolloverConfiguration.getMaxAge());
+                consumer.setRolloverMaxDocs(rolloverConfiguration.getMaxDocs());
+                consumer.setRolloverMaxPrimaryShardDocs(rolloverConfiguration.getMaxPrimaryShardDocs());
+                consumer.setRolloverMaxPrimaryShardSize(rolloverConfiguration.getMaxPrimaryShardSize());
+                consumer.setRolloverMaxSize(rolloverConfiguration.getMaxSize());
+                consumer.setRolloverMinAge(rolloverConfiguration.getMinAge());
+                consumer.setRolloverMinDocs(rolloverConfiguration.getMinDocs());
+                consumer.setRolloverMinPrimaryShardDocs(rolloverConfiguration.getMinPrimaryShardDocs());
+                consumer.setRolloverMinPrimaryShardSize(rolloverConfiguration.getMinPrimaryShardSize());
+                consumer.setRolloverMinSize(rolloverConfiguration.getMinSize());
             }
             case SetPriorityAction.NAME -> {
                 SetPriorityAction setPriorityAction = (SetPriorityAction) action;

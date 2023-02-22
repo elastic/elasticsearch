@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,13 +25,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Contains the conditions that determine if an index can be rolled over or not. Mainly used in
  * Index Lifecycle Management and Data Lifecycle Management.
  */
-public class RolloverConfiguration implements Writeable, ToXContentObject {
+public class RolloverConditions implements Writeable, ToXContentObject {
     public static final String NAME = "rollover";
     public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
     public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
@@ -43,9 +48,9 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     public static final ParseField MIN_AGE_FIELD = new ParseField("min_age");
     public static final ParseField MIN_PRIMARY_SHARD_DOCS_FIELD = new ParseField("min_primary_shard_docs");
 
-    private static final ConstructingObjectParser<RolloverConfiguration, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RolloverConditions, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new RolloverConfiguration(
+        a -> new RolloverConditions(
             (ByteSizeValue) a[0],
             (ByteSizeValue) a[1],
             (TimeValue) a[2],
@@ -113,11 +118,11 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     private final TimeValue minAge;
     private final Long minPrimaryShardDocs;
 
-    public static RolloverConfiguration parse(XContentParser parser) {
+    public static RolloverConditions parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RolloverConfiguration(
+    public RolloverConditions(
         @Nullable ByteSizeValue maxSize,
         @Nullable ByteSizeValue maxPrimaryShardSize,
         @Nullable TimeValue maxAge,
@@ -146,7 +151,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         this.minPrimaryShardDocs = minPrimaryShardDocs;
     }
 
-    public RolloverConfiguration(StreamInput in) throws IOException {
+    public RolloverConditions(StreamInput in) throws IOException {
         maxSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxAge = in.readOptionalTimeValue();
@@ -168,6 +173,81 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
             minAge = null;
             minDocs = null;
             minPrimaryShardDocs = null;
+        }
+    }
+
+    public static RolloverConditions parseSetting(String value, String setting) {
+        Map<String, String> map = Pattern.compile(",")
+            .splitAsStream(value)
+            .map(p -> p.split("="))
+            .collect(Collectors.toMap(p -> p[0].trim(), p -> p[1].trim()));
+        var maxSize = extractCondition(map, MAX_SIZE_FIELD.getPreferredName(), setting, ByteSizeValue::parseBytesSizeValue);
+        var maxPrimaryShardSize = extractCondition(
+            map,
+            MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+            setting,
+            ByteSizeValue::parseBytesSizeValue
+        );
+        var maxAge = extractCondition(map, MAX_AGE_FIELD.getPreferredName(), setting, TimeValue::parseTimeValue);
+        var maxDocs = extractCondition(map, MAX_DOCS_FIELD.getPreferredName(), setting, RolloverConditions::parseLong);
+        var maxPrimaryShardDocs = extractCondition(
+            map,
+            MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(),
+            setting,
+            RolloverConditions::parseLong
+        );
+
+        var minSize = extractCondition(map, MIN_SIZE_FIELD.getPreferredName(), setting, ByteSizeValue::parseBytesSizeValue);
+        var minPrimaryShardSize = extractCondition(
+            map,
+            MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+            setting,
+            ByteSizeValue::parseBytesSizeValue
+        );
+        var minAge = extractCondition(map, MIN_AGE_FIELD.getPreferredName(), setting, TimeValue::parseTimeValue);
+        var minDocs = extractCondition(map, MIN_DOCS_FIELD.getPreferredName(), setting, RolloverConditions::parseLong);
+        var minPrimaryShardDocs = extractCondition(
+            map,
+            MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(),
+            setting,
+            RolloverConditions::parseLong
+        );
+        return new RolloverConditions(
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs,
+            minSize,
+            minPrimaryShardSize,
+            minAge,
+            minDocs,
+            minPrimaryShardDocs
+        );
+    }
+
+    private static <T> T extractCondition(
+        Map<String, String> map,
+        String conditionName,
+        String settingName,
+        BiFunction<String, String, T> parse
+    ) {
+        if (map.containsKey(conditionName)) {
+            return parse.apply(map.get(conditionName), settingName);
+        }
+        return null;
+    }
+
+    private static Long parseLong(String sValue, String settingName) {
+        try {
+            return Long.parseLong(sValue);
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException(
+                "failed to parse setting [{}] with value [{}] as a long: {}",
+                e.getMessage(),
+                settingName,
+                sValue
+            );
         }
     }
 
@@ -266,7 +346,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public static RolloverConfiguration fromXContent(XContentParser parser) throws IOException {
+    public static RolloverConditions fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -294,7 +374,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         if (obj.getClass() != getClass()) {
             return false;
         }
-        RolloverConfiguration other = (RolloverConfiguration) obj;
+        RolloverConditions other = (RolloverConditions) obj;
         return Objects.equals(maxSize, other.maxSize)
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)

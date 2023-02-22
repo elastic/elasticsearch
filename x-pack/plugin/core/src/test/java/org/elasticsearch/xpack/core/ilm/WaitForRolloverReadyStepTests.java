@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.RolloverConditions;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -99,7 +99,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
     @Override
     protected WaitForRolloverReadyStep mutateInstance(WaitForRolloverReadyStep instance) {
         Step.StepKey key = instance.getKey();
-        RolloverConfiguration configuration = instance.getConfiguration();
+        RolloverConditions configuration = instance.getConditions();
         Step.StepKey nextKey = instance.getNextStepKey();
         ByteSizeValue maxSize = configuration.getMaxSize();
         ByteSizeValue maxPrimaryShardSize = configuration.getMaxPrimaryShardSize();
@@ -168,7 +168,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             instance.getKey(),
             instance.getNextStepKey(),
             instance.getClient(),
-            instance.getConfiguration()
+            instance.getConditions()
         );
     }
 
@@ -186,7 +186,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
     private static Set<Condition<?>> getExpectedConditions(WaitForRolloverReadyStep step, boolean maybeAddMinDocs) {
         Set<Condition<?>> expectedConditions = new HashSet<>();
-        RolloverConfiguration configuration = step.getConfiguration();
+        RolloverConditions configuration = step.getConditions();
         if (configuration.getMaxSize() != null) {
             expectedConditions.add(new MaxSizeCondition(configuration.getMaxSize()));
         }

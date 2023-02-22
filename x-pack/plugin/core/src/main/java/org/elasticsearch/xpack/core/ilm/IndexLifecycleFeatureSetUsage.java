@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.RolloverConditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -494,50 +494,50 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 || rolloverMinPrimaryShardSize != null) {
                 builder.startObject(RolloverAction.NAME);
                 if (rolloverMaxAge != null) {
-                    builder.field(RolloverConfiguration.MAX_AGE_FIELD.getPreferredName(), rolloverMaxAge.getStringRep());
-                    builder.field(RolloverConfiguration.MAX_AGE_FIELD.getPreferredName() + "_millis", rolloverMaxAge.getMillis());
+                    builder.field(RolloverConditions.MAX_AGE_FIELD.getPreferredName(), rolloverMaxAge.getStringRep());
+                    builder.field(RolloverConditions.MAX_AGE_FIELD.getPreferredName() + "_millis", rolloverMaxAge.getMillis());
                 }
                 if (rolloverMaxDocs != null) {
-                    builder.field(RolloverConfiguration.MAX_DOCS_FIELD.getPreferredName(), rolloverMaxDocs);
+                    builder.field(RolloverConditions.MAX_DOCS_FIELD.getPreferredName(), rolloverMaxDocs);
                 }
                 if (rolloverMaxPrimaryShardDocs != null) {
-                    builder.field(RolloverConfiguration.MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMaxPrimaryShardDocs);
+                    builder.field(RolloverConditions.MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMaxPrimaryShardDocs);
                 }
                 if (rolloverMaxSize != null) {
-                    builder.field(RolloverConfiguration.MAX_SIZE_FIELD.getPreferredName(), rolloverMaxSize.getStringRep());
-                    builder.field(RolloverConfiguration.MAX_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMaxSize.getBytes());
+                    builder.field(RolloverConditions.MAX_SIZE_FIELD.getPreferredName(), rolloverMaxSize.getStringRep());
+                    builder.field(RolloverConditions.MAX_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMaxSize.getBytes());
                 }
                 if (rolloverMaxPrimaryShardSize != null) {
                     builder.field(
-                        RolloverConfiguration.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+                        RolloverConditions.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
                         rolloverMaxPrimaryShardSize.getStringRep()
                     );
                     builder.field(
-                        RolloverConfiguration.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
+                        RolloverConditions.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
                         rolloverMaxPrimaryShardSize.getBytes()
                     );
                 }
                 if (rolloverMinAge != null) {
-                    builder.field(RolloverConfiguration.MIN_AGE_FIELD.getPreferredName(), rolloverMinAge.getStringRep());
-                    builder.field(RolloverConfiguration.MIN_AGE_FIELD.getPreferredName() + "_millis", rolloverMinAge.getMillis());
+                    builder.field(RolloverConditions.MIN_AGE_FIELD.getPreferredName(), rolloverMinAge.getStringRep());
+                    builder.field(RolloverConditions.MIN_AGE_FIELD.getPreferredName() + "_millis", rolloverMinAge.getMillis());
                 }
                 if (rolloverMinDocs != null) {
-                    builder.field(RolloverConfiguration.MIN_DOCS_FIELD.getPreferredName(), rolloverMinDocs);
+                    builder.field(RolloverConditions.MIN_DOCS_FIELD.getPreferredName(), rolloverMinDocs);
                 }
                 if (rolloverMinPrimaryShardDocs != null) {
-                    builder.field(RolloverConfiguration.MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMinPrimaryShardDocs);
+                    builder.field(RolloverConditions.MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMinPrimaryShardDocs);
                 }
                 if (rolloverMinSize != null) {
-                    builder.field(RolloverConfiguration.MIN_SIZE_FIELD.getPreferredName(), rolloverMinSize.getStringRep());
-                    builder.field(RolloverConfiguration.MIN_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMinSize.getBytes());
+                    builder.field(RolloverConditions.MIN_SIZE_FIELD.getPreferredName(), rolloverMinSize.getStringRep());
+                    builder.field(RolloverConditions.MIN_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMinSize.getBytes());
                 }
                 if (rolloverMinPrimaryShardSize != null) {
                     builder.field(
-                        RolloverConfiguration.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+                        RolloverConditions.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
                         rolloverMinPrimaryShardSize.getStringRep()
                     );
                     builder.field(
-                        RolloverConfiguration.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
+                        RolloverConditions.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
                         rolloverMinPrimaryShardSize.getBytes()
                     );
                 }

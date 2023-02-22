@@ -13,10 +13,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.entsearch.engine.Engine;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
@@ -38,7 +42,13 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+
+            if (engineId == null || engineId.isEmpty()) {
+                validationException = addValidationError("engineId missing", validationException);
+            }
+
+            return validationException;
         }
 
         public Request(String engineId) {
@@ -53,38 +63,29 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
     // TODO add CreatedAt, UpdatedAt
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final String engineId;
-        private final String[] indices;
-        private final String analyticsCollectionName;
+        private final Engine engine;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.engineId = in.readString();
-            this.indices = in.readStringArray();
-            this.analyticsCollectionName = in.readOptionalString();
+            this.engine = new Engine(in);
         }
 
-        public Response(String engineId, String[] indices, String analyticsCollectionName) {
-            this.engineId = engineId;
-            this.indices = indices;
-            this.analyticsCollectionName = analyticsCollectionName;
+        public Response(Engine engine) {
+            this.engine = engine;
+        }
+
+        public Response(String engineId, String[] indices, String analyticsCollectionName, TimeValue createdAt, TimeValue updatedAt) {
+            this.engine = new Engine(engineId, indices, analyticsCollectionName, createdAt, updatedAt);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(engineId);
-            out.writeStringArray(indices);
-            out.writeOptionalString(analyticsCollectionName);
+            engine.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("engine_id", this.engineId);
-            builder.array("indices", this.indices);
-            builder.field("analytics_collection_name", this.analyticsCollectionName);
-            builder.endObject();
-            return builder;
+            return engine.toXContent(builder, params);
         }
 
     }

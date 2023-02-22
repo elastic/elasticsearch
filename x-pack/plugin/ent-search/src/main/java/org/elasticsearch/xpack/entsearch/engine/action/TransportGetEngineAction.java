@@ -32,11 +32,7 @@ public class TransportGetEngineAction extends HandledTransportAction<GetEngineAc
             // TODO - Create/update dates
             @Override
             public void onResponse(Engine engine) {
-                String engineName = engine.name();
-                String[] indices = engine.indices();
-                String analyticsCollectionName = engine.analyticsCollectionName();
-
-                listener.onResponse(new GetEngineAction.Response(engineName, indices, analyticsCollectionName));
+                listener.onResponse(new GetEngineAction.Response(engine));
             }
 
             @Override

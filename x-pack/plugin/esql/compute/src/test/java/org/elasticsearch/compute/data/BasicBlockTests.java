@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -20,6 +23,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -645,6 +649,56 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(b.build().isNonDecreasing(), is(hardSet));
     }
 
+    public void testToStringSmall() {
+        final int estimatedSize = randomIntBetween(1024, 4096);
+
+        var boolBlock = BooleanBlock.newBlockBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build();
+        var boolVector = BooleanVector.newVectorBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build();
+        for (Object obj : List.of(boolVector, boolBlock, boolBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("[true, false]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var intBlock = IntBlock.newBlockBuilder(estimatedSize).appendInt(1).appendInt(2).build();
+        var intVector = IntVector.newVectorBuilder(estimatedSize).appendInt(1).appendInt(2).build();
+        for (Object obj : List.of(intVector, intBlock, intBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("[1, 2]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var longBlock = LongBlock.newBlockBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
+        var longVector = LongVector.newVectorBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
+        for (Object obj : List.of(longVector, longBlock, longBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("[10, 20]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var doubleBlock = DoubleBlock.newBlockBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build();
+        var doubleVector = DoubleVector.newVectorBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build();
+        for (Object obj : List.of(doubleVector, doubleBlock, doubleBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("[3.3, 4.4]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("2b").toString().equals("[32 62]");
+        var bytesRefBlock = BytesRefBlock.newBlockBuilder(estimatedSize)
+            .appendBytesRef(new BytesRef("1a"))
+            .appendBytesRef(new BytesRef("2b"))
+            .build();
+        var bytesRefVector = BytesRefVector.newVectorBuilder(estimatedSize)
+            .appendBytesRef(new BytesRef("1a"))
+            .appendBytesRef(new BytesRef("2b"))
+            .build();
+        for (Object obj : List.of(bytesRefVector, bytesRefVector, bytesRefBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("positions=2"));
+        }
+    }
+
     public static List<List<Object>> valuesAtPositions(Block block, int from, int to) {
         List<List<Object>> result = new ArrayList<>(to - from);
         for (int p = from; p < to; p++) {
@@ -749,5 +803,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     static final Class<UnsupportedOperationException> UOE = UnsupportedOperationException.class;
+
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
 
 }

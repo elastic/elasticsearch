@@ -58,7 +58,9 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
         if (valueCount == 1) {
             return new ConstantIntVector(values[0], 1);
         }
-        // TODO: may wanna trim the array, if there N% unused tail space
+        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+            values = Arrays.copyOf(values, valueCount);
+        }
         return new IntArrayVector(values, valueCount, nonDecreasing);
     }
 }

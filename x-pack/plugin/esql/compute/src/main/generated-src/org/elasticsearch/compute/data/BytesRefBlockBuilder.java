@@ -130,7 +130,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
         } else {
-            // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
                 return new BytesRefArrayVector(values, positionCount).asBlock();
             } else {

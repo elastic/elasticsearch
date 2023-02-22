@@ -44,7 +44,9 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
         if (valueCount == 1) {
             return new ConstantDoubleVector(values[0], 1);
         }
-        // TODO: may wanna trim the array, if there N% unused tail space
+        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+            values = Arrays.copyOf(values, valueCount);
+        }
         return new DoubleArrayVector(values, valueCount);
     }
 }

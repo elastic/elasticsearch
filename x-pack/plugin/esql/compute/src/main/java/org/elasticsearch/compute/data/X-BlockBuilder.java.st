@@ -170,11 +170,14 @@ $endif$
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
 $if(BytesRef)$
             return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
+        } else {
 $else$
             return new Constant$Type$Vector(values[0], 1).asBlock();
-$endif$
         } else {
-            // TODO: may wanna trim the array, if there N% unused tail space
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+$endif$
             if (isDense() && singleValued()) {
 $if(int)$
                 return new $Type$ArrayVector(values, valueCount, null).asBlock();

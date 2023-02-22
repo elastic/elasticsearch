@@ -115,7 +115,9 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantBooleanVector(values[0], 1).asBlock();
         } else {
-            // TODO: may wanna trim the array, if there N% unused tail space
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
             if (isDense() && singleValued()) {
                 return new BooleanArrayVector(values, positionCount).asBlock();
             } else {

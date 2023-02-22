@@ -878,8 +878,11 @@ public class EsqlActionIT extends ESIntegTestCase {
         int docsCount = randomIntBetween(50, 100);
         int[] countValuesGreaterThanFifty = new int[indices.size()];
 
-        createNestedMappingIndices(indices);
-        addDocumentsToNestedMappingIndices(indices, docsCount, countValuesGreaterThanFifty);
+        for (int i = 0; i < indices.size(); i++) {
+            String indexName = indices.get(i);
+            createNestedMappingIndex(indexName);
+            countValuesGreaterThanFifty[i] = indexDocsIntoNestedMappingIndex(indexName, docsCount);
+        }
         createAlias(indices, alias);
 
         var indexToTest = randomIntBetween(0, indices.size() - 1);
@@ -894,7 +897,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertNoNestedDocuments("from " + alias + " | where data >= 50", Arrays.stream(countValuesGreaterThanFifty).sum(), 50L, 100L);
     }
 
-    private void createNestedMappingIndices(List<String> indices) throws IOException {
+    private void createNestedMappingIndex(String indexName) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         {
@@ -920,46 +923,42 @@ public class EsqlActionIT extends ESIntegTestCase {
         }
         builder.endObject();
 
-        for (String indexName : indices) {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareCreate(indexName)
-                    .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
-                    .setMapping(builder)
-                    .get()
-            );
-        }
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
+                .setMapping(builder)
+                .get()
+        );
     }
 
-    private void addDocumentsToNestedMappingIndices(List<String> indices, int docsCount, int[] countValuesGreaterThanFifty)
-        throws IOException {
-        XContentBuilder builder;
+    private int indexDocsIntoNestedMappingIndex(String indexName, int docsCount) throws IOException {
+        int countValuesGreaterThanFifty = 0;
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        for (int i = 0; i < indices.size(); i++) {
-            String indexName = indices.get(i);
-            for (int j = 0; j < docsCount; j++) {
-                builder = JsonXContent.contentBuilder();
-                int randomValue = randomIntBetween(0, 100);
-                countValuesGreaterThanFifty[i] = countValuesGreaterThanFifty[i] + (randomValue >= 50 ? 1 : 0);
-                builder.startObject();
+        for (int j = 0; j < docsCount; j++) {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            int randomValue = randomIntBetween(0, 100);
+            countValuesGreaterThanFifty += randomValue >= 50 ? 1 : 0;
+            builder.startObject();
+            {
+                builder.field("data", randomValue);
+                builder.startArray("nested");
                 {
-                    builder.field("data", randomValue);
-                    builder.startArray("nested");
-                    {
-                        for (int k = 0, max = randomIntBetween(1, 5); k < max; k++) {
-                            // nested values are all greater than any non-nested values found in the "data" long field
-                            builder.startObject().field("foo", randomIntBetween(1000, 10000)).endObject();
-                        }
+                    for (int k = 0, max = randomIntBetween(1, 5); k < max; k++) {
+                        // nested values are all greater than any non-nested values found in the "data" long field
+                        builder.startObject().field("foo", randomIntBetween(1000, 10000)).endObject();
                     }
-                    builder.endArray();
                 }
-                builder.endObject();
-                bulkBuilder.add(new IndexRequest(indexName).id(Integer.toString(j)).source(builder));
+                builder.endArray();
             }
-            bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-            ensureYellow(indexName);
+            builder.endObject();
+            bulkBuilder.add(new IndexRequest(indexName).id(Integer.toString(j)).source(builder));
         }
+        bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        ensureYellow(indexName);
+
+        return countValuesGreaterThanFifty;
     }
 
     private void createAlias(List<String> indices, String alias) throws InterruptedException, ExecutionException {

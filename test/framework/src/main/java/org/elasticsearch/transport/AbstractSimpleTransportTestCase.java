@@ -190,8 +190,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     private MockTransportService buildService(
-        final String name,
-        final Version version,
+        String name,
+        Version version,
         @Nullable ClusterSettings clusterSettings,
         Settings settings,
         boolean acceptRequests,
@@ -225,8 +225,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     protected MockTransportService buildService(
-        final String name,
-        final Version version,
+        String name,
+        Version version,
         @Nullable ClusterSettings clusterSettings,
         Settings settings,
         boolean acceptRequests,
@@ -235,13 +235,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return buildService(name, version, clusterSettings, settings, acceptRequests, doHandshake, NOOP_TRANSPORT_INTERCEPTOR);
     }
 
-    protected MockTransportService buildService(final String name, final Version version, Settings settings) {
+    protected MockTransportService buildService(String name, Version version, Settings settings) {
         return buildService(name, version, null, settings);
     }
 
     protected MockTransportService buildService(
-        final String name,
-        final Version version,
+        String name,
+        Version version,
         ClusterSettings clusterSettings,
         Settings settings
     ) {

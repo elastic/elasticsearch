@@ -174,6 +174,7 @@ public class XContentHelper {
      * @deprecated if {@param xContentType} is null, this method relies on auto-detection of content type.  Provide a non-null XContentType
      *             instead.
      */
+    @Deprecated
     public static <T> Tuple<XContentType, T> parseToType(
         XContentTypeExtractor<T> extractor,
         BytesReference bytes,

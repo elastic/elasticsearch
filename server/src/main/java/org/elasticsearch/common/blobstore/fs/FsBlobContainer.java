@@ -418,7 +418,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     private record LockedFileChannel(FileChannel fileChannel, Closeable fileLock) implements Closeable {
 
-        // avoid concurrently opening/closing locked files
+        // Avoid concurrently opening/closing locked files, because this can trip an assertion within the JDK (see #93955 for details).
+        // Perhaps it would work with finer-grained locks too, but we don't currently need to be fancy here.
         private static final Object mutex = new Object();
 
         static LockedFileChannel open(Path path) throws IOException {

@@ -23,13 +23,9 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 
-// Settings have a path, a file update state, and a watch key
-// TODO[wrb]: is this really a service? does it need start/stop logic? Since it manages a thread,
-//   probably...
 public class FileWatchService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(FileWatchService.class);
-    // TODO[wrb]: add settings file name constant?
     final String settingsFileName;
     private static final int REGISTER_RETRY_COUNT = 5;
 
@@ -106,20 +102,16 @@ public class FileWatchService extends AbstractLifecycleComponent {
          *  - any changes to files inside the operator directory if it exists, filtering for settings.json
          */
         try {
-            // TODO[wrb]: can we assume that all our settings are on the same filesystem? for now throw error if this isn't the case
-            List<Path> settingsDirPathList = List.of(operatorSettingsDir);
-            assert settingsDirPathList.stream().map(Path::getParent).map(Path::getFileSystem).distinct().count() == 1;
-            Path settingsDirPath = settingsDirPathList.stream().findAny().orElseThrow();
-            this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
-            if (Files.exists(settingsDirPath)) {
-                this.settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDirPath);
+            this.watchService = operatorSettingsDir.getParent().getFileSystem().newWatchService();
+            if (Files.exists(operatorSettingsDir)) {
+                this.settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, operatorSettingsDir);
             } else {
-                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
+                logger.debug("operator settings directory [{}] not found, will watch for its creation...", operatorSettingsDir);
             }
             // We watch the config directory always, even if initially we had an operator directory
             // it can be deleted and created later. The config directory never goes away, we only
             // register it once for watching.
-            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, settingsDirPath.getParent());
+            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, operatorSettingsDir.getParent());
         } catch (Exception e) {
             if (watchService != null) {
                 try {

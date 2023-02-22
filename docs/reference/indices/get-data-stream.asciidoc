@@ -170,14 +170,14 @@ the stream's backing indices.
 .Values for `status`
 [%collapsible%open]
 =====
-`green`:::
+`GREEN`:::
 All shards are assigned.
 
-`yellow`:::
+`YELLOW`:::
 All primary shards are assigned, but one or more replica shards are
 unassigned.
 
-`red`:::
+`RED`:::
 One or more primary shards are unassigned, so some data is unavailable.
 =====
 

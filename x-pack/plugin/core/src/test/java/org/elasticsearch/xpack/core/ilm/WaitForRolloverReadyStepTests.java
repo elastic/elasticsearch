@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RolloverConfiguration;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -98,17 +99,18 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
     @Override
     protected WaitForRolloverReadyStep mutateInstance(WaitForRolloverReadyStep instance) {
         Step.StepKey key = instance.getKey();
+        RolloverConfiguration configuration = instance.getConfiguration();
         Step.StepKey nextKey = instance.getNextStepKey();
-        ByteSizeValue maxSize = instance.getMaxSize();
-        ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
-        TimeValue maxAge = instance.getMaxAge();
-        Long maxDocs = instance.getMaxDocs();
-        Long maxPrimaryShardDocs = instance.getMaxPrimaryShardDocs();
-        ByteSizeValue minSize = instance.getMinSize();
-        ByteSizeValue minPrimaryShardSize = instance.getMinPrimaryShardSize();
-        TimeValue minAge = instance.getMinAge();
-        Long minDocs = instance.getMinDocs();
-        Long minPrimaryShardDocs = instance.getMinPrimaryShardDocs();
+        ByteSizeValue maxSize = configuration.getMaxSize();
+        ByteSizeValue maxPrimaryShardSize = configuration.getMaxPrimaryShardSize();
+        TimeValue maxAge = configuration.getMaxAge();
+        Long maxDocs = configuration.getMaxDocs();
+        Long maxPrimaryShardDocs = configuration.getMaxPrimaryShardDocs();
+        ByteSizeValue minSize = configuration.getMinSize();
+        ByteSizeValue minPrimaryShardSize = configuration.getMinPrimaryShardSize();
+        TimeValue minAge = configuration.getMinAge();
+        Long minDocs = configuration.getMinDocs();
+        Long minPrimaryShardDocs = configuration.getMinPrimaryShardDocs();
 
         switch (between(0, 11)) {
             case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
@@ -166,16 +168,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             instance.getKey(),
             instance.getNextStepKey(),
             instance.getClient(),
-            instance.getMaxSize(),
-            instance.getMaxPrimaryShardSize(),
-            instance.getMaxAge(),
-            instance.getMaxDocs(),
-            instance.getMaxPrimaryShardDocs(),
-            instance.getMinSize(),
-            instance.getMinPrimaryShardSize(),
-            instance.getMinAge(),
-            instance.getMinDocs(),
-            instance.getMinPrimaryShardDocs()
+            instance.getConfiguration()
         );
     }
 
@@ -193,39 +186,40 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
     private static Set<Condition<?>> getExpectedConditions(WaitForRolloverReadyStep step, boolean maybeAddMinDocs) {
         Set<Condition<?>> expectedConditions = new HashSet<>();
-        if (step.getMaxSize() != null) {
-            expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+        RolloverConfiguration configuration = step.getConfiguration();
+        if (configuration.getMaxSize() != null) {
+            expectedConditions.add(new MaxSizeCondition(configuration.getMaxSize()));
         }
-        if (step.getMaxPrimaryShardSize() != null) {
-            expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
+        if (configuration.getMaxPrimaryShardSize() != null) {
+            expectedConditions.add(new MaxPrimaryShardSizeCondition(configuration.getMaxPrimaryShardSize()));
         }
-        if (step.getMaxAge() != null) {
-            expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
+        if (configuration.getMaxAge() != null) {
+            expectedConditions.add(new MaxAgeCondition(configuration.getMaxAge()));
         }
-        if (step.getMaxDocs() != null) {
-            expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+        if (configuration.getMaxDocs() != null) {
+            expectedConditions.add(new MaxDocsCondition(configuration.getMaxDocs()));
         }
-        if (step.getMaxPrimaryShardDocs() != null) {
-            expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
+        if (configuration.getMaxPrimaryShardDocs() != null) {
+            expectedConditions.add(new MaxPrimaryShardDocsCondition(configuration.getMaxPrimaryShardDocs()));
         }
-        if (step.getMinSize() != null) {
-            expectedConditions.add(new MinSizeCondition(step.getMinSize()));
+        if (configuration.getMinSize() != null) {
+            expectedConditions.add(new MinSizeCondition(configuration.getMinSize()));
         }
-        if (step.getMinPrimaryShardSize() != null) {
-            expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
+        if (configuration.getMinPrimaryShardSize() != null) {
+            expectedConditions.add(new MinPrimaryShardSizeCondition(configuration.getMinPrimaryShardSize()));
         }
-        if (step.getMinAge() != null) {
-            expectedConditions.add(new MinAgeCondition(step.getMinAge()));
+        if (configuration.getMinAge() != null) {
+            expectedConditions.add(new MinAgeCondition(configuration.getMinAge()));
         }
-        if (step.getMinDocs() != null) {
-            expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
+        if (configuration.getMinDocs() != null) {
+            expectedConditions.add(new MinDocsCondition(configuration.getMinDocs()));
         }
-        if (step.getMinPrimaryShardDocs() != null) {
-            expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
+        if (configuration.getMinPrimaryShardDocs() != null) {
+            expectedConditions.add(new MinPrimaryShardDocsCondition(configuration.getMinPrimaryShardDocs()));
         }
 
         // if no minimum document condition was specified, then a default min_docs: 1 condition will be injected (if desired)
-        if (maybeAddMinDocs && step.getMinDocs() == null && step.getMinPrimaryShardDocs() == null) {
+        if (maybeAddMinDocs && configuration.getMinDocs() == null && configuration.getMinPrimaryShardDocs() == null) {
             expectedConditions.add(new MinDocsCondition(1L));
         }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RolloverConfiguration;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -34,16 +35,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     public static final String NAME = "check-rollover-ready";
 
-    private final ByteSizeValue maxSize;
-    private final ByteSizeValue maxPrimaryShardSize;
-    private final TimeValue maxAge;
-    private final Long maxDocs;
-    private final Long maxPrimaryShardDocs;
-    private final ByteSizeValue minSize;
-    private final ByteSizeValue minPrimaryShardSize;
-    private final TimeValue minAge;
-    private final Long minDocs;
-    private final Long minPrimaryShardDocs;
+    private final RolloverConfiguration configuration;
 
     public WaitForRolloverReadyStep(
         StepKey key,
@@ -61,16 +53,23 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         Long minPrimaryShardDocs
     ) {
         super(key, nextStepKey, client);
-        this.maxSize = maxSize;
-        this.maxPrimaryShardSize = maxPrimaryShardSize;
-        this.maxAge = maxAge;
-        this.maxDocs = maxDocs;
-        this.maxPrimaryShardDocs = maxPrimaryShardDocs;
-        this.minSize = minSize;
-        this.minPrimaryShardSize = minPrimaryShardSize;
-        this.minAge = minAge;
-        this.minDocs = minDocs;
-        this.minPrimaryShardDocs = minPrimaryShardDocs;
+        configuration = new RolloverConfiguration(
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs,
+            minSize,
+            minPrimaryShardSize,
+            minAge,
+            minDocs,
+            minPrimaryShardDocs
+        );
+    }
+
+    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, RolloverConfiguration configuration) {
+        super(key, nextStepKey, client);
+        this.configuration = configuration;
     }
 
     @Override
@@ -228,98 +227,50 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (maxSize != null) {
-            rolloverRequest.addMaxIndexSizeCondition(maxSize);
+        if (configuration.getMaxSize() != null) {
+            rolloverRequest.addMaxIndexSizeCondition(configuration.getMaxSize());
         }
-        if (maxPrimaryShardSize != null) {
-            rolloverRequest.addMaxPrimaryShardSizeCondition(maxPrimaryShardSize);
+        if (configuration.getMaxPrimaryShardSize() != null) {
+            rolloverRequest.addMaxPrimaryShardSizeCondition(configuration.getMaxPrimaryShardSize());
         }
-        if (maxAge != null) {
-            rolloverRequest.addMaxIndexAgeCondition(maxAge);
+        if (configuration.getMaxAge() != null) {
+            rolloverRequest.addMaxIndexAgeCondition(configuration.getMaxAge());
         }
-        if (maxDocs != null) {
-            rolloverRequest.addMaxIndexDocsCondition(maxDocs);
+        if (configuration.getMaxDocs() != null) {
+            rolloverRequest.addMaxIndexDocsCondition(configuration.getMaxDocs());
         }
-        if (maxPrimaryShardDocs != null) {
-            rolloverRequest.addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs);
+        if (configuration.getMaxPrimaryShardDocs() != null) {
+            rolloverRequest.addMaxPrimaryShardDocsCondition(configuration.getMaxPrimaryShardDocs());
         }
-        if (minSize != null) {
-            rolloverRequest.addMinIndexSizeCondition(minSize);
+        if (configuration.getMinSize() != null) {
+            rolloverRequest.addMinIndexSizeCondition(configuration.getMinSize());
         }
-        if (minPrimaryShardSize != null) {
-            rolloverRequest.addMinPrimaryShardSizeCondition(minPrimaryShardSize);
+        if (configuration.getMinPrimaryShardSize() != null) {
+            rolloverRequest.addMinPrimaryShardSizeCondition(configuration.getMinPrimaryShardSize());
         }
-        if (minAge != null) {
-            rolloverRequest.addMinIndexAgeCondition(minAge);
+        if (configuration.getMinAge() != null) {
+            rolloverRequest.addMinIndexAgeCondition(configuration.getMinAge());
         }
-        if (minDocs != null) {
-            rolloverRequest.addMinIndexDocsCondition(minDocs);
+        if (configuration.getMinDocs() != null) {
+            rolloverRequest.addMinIndexDocsCondition(configuration.getMinDocs());
         }
-        if (minPrimaryShardDocs != null) {
-            rolloverRequest.addMinPrimaryShardDocsCondition(minPrimaryShardDocs);
+        if (configuration.getMinPrimaryShardDocs() != null) {
+            rolloverRequest.addMinPrimaryShardDocsCondition(configuration.getMinPrimaryShardDocs());
         }
 
-        if (rolloverOnlyIfHasDocuments && (minDocs == null && minPrimaryShardDocs == null)) {
+        if (rolloverOnlyIfHasDocuments && (configuration.getMinDocs() == null && configuration.getMinPrimaryShardDocs() == null)) {
             rolloverRequest.addMinIndexDocsCondition(1L);
         }
         return rolloverRequest;
     }
 
-    ByteSizeValue getMaxSize() {
-        return maxSize;
-    }
-
-    ByteSizeValue getMaxPrimaryShardSize() {
-        return maxPrimaryShardSize;
-    }
-
-    TimeValue getMaxAge() {
-        return maxAge;
-    }
-
-    Long getMaxDocs() {
-        return maxDocs;
-    }
-
-    Long getMaxPrimaryShardDocs() {
-        return maxPrimaryShardDocs;
-    }
-
-    ByteSizeValue getMinSize() {
-        return minSize;
-    }
-
-    ByteSizeValue getMinPrimaryShardSize() {
-        return minPrimaryShardSize;
-    }
-
-    TimeValue getMinAge() {
-        return minAge;
-    }
-
-    Long getMinDocs() {
-        return minDocs;
-    }
-
-    Long getMinPrimaryShardDocs() {
-        return minPrimaryShardDocs;
+    public RolloverConfiguration getConfiguration() {
+        return configuration;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            super.hashCode(),
-            maxSize,
-            maxPrimaryShardSize,
-            maxAge,
-            maxDocs,
-            maxPrimaryShardDocs,
-            minSize,
-            minPrimaryShardSize,
-            minAge,
-            minDocs,
-            minPrimaryShardDocs
-        );
+        return Objects.hash(super.hashCode(), configuration);
     }
 
     @Override
@@ -331,17 +282,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             return false;
         }
         WaitForRolloverReadyStep other = (WaitForRolloverReadyStep) obj;
-        return super.equals(obj)
-            && Objects.equals(maxSize, other.maxSize)
-            && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
-            && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs)
-            && Objects.equals(maxPrimaryShardDocs, other.maxPrimaryShardDocs)
-            && Objects.equals(minSize, other.minSize)
-            && Objects.equals(minPrimaryShardSize, other.minPrimaryShardSize)
-            && Objects.equals(minAge, other.minAge)
-            && Objects.equals(minDocs, other.minDocs)
-            && Objects.equals(minPrimaryShardDocs, other.minPrimaryShardDocs);
+        return super.equals(obj) && Objects.equals(configuration, other.configuration);
     }
 
     // We currently have no information to provide for this AsyncWaitStep, so this is an empty object

@@ -60,18 +60,17 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
         Long minPrimaryShardDocs = (minSize == null && minPrimaryShardSize == null && minAge == null && minDocs == null || randomBoolean())
             ? randomNonNegativeLong()
             : null;
-        return
-            new RolloverConfiguration(
-                maxSize,
-                maxPrimaryShardSize,
-                maxAge,
-                maxDocs,
-                maxPrimaryShardDocs,
-                minSize,
-                minPrimaryShardSize,
-                minAge,
-                minDocs,
-                minPrimaryShardDocs
+        return new RolloverConfiguration(
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs,
+            minSize,
+            minPrimaryShardSize,
+            minAge,
+            minDocs,
+            minPrimaryShardDocs
         );
     }
 
@@ -118,18 +117,17 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
             case 9 -> minPrimaryShardDocs = minPrimaryShardDocs == null ? randomNonNegativeLong() : minPrimaryShardDocs + 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return
-            new RolloverConfiguration(
-                maxSize,
-                maxPrimaryShardSize,
-                maxAge,
-                maxDocs,
-                maxPrimaryShardDocs,
-                minSize,
-                minPrimaryShardSize,
-                minAge,
-                minDocs,
-                minPrimaryShardDocs
+        return new RolloverConfiguration(
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs,
+            minSize,
+            minPrimaryShardSize,
+            minAge,
+            minDocs,
+            minPrimaryShardDocs
         );
     }
 

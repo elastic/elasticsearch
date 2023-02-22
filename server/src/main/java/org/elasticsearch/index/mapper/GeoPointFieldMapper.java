@@ -186,7 +186,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 (parser) -> GeoUtils.parseGeoPoint(parser, ignoreZValue.get().value()),
                 nullValue.get(),
                 ignoreZValue.get().value(),
-                ignoreMalformed.get().value()
+                ignoreMalformed.get().value(),
+                metric.get() != TimeSeriesParams.MetricType.POSITION
             );
             GeoPointFieldType ft = new GeoPointFieldType(
                 context.buildFullName(name),
@@ -503,9 +504,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             CheckedFunction<XContentParser, GeoPoint, IOException> objectParser,
             GeoPoint nullValue,
             boolean ignoreZValue,
-            boolean ignoreMalformed
+            boolean ignoreMalformed,
+            boolean allowMultipleValues
         ) {
-            super(field, objectParser, nullValue, ignoreZValue, ignoreMalformed);
+            super(field, objectParser, nullValue, ignoreZValue, ignoreMalformed, allowMultipleValues);
         }
 
         protected GeoPoint validate(GeoPoint in) {

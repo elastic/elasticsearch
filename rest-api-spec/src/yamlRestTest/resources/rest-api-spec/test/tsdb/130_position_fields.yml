@@ -46,6 +46,25 @@ setup:
       indices.refresh: { }
 
 ---
+multi-valued fields unsupported:
+  - do:
+      bulk:
+        index: locations
+        refresh: true
+        body: |
+          {"index" : {}}
+          {"@timestamp": "2023-01-01T12:00:00Z", "city": "Rock", "name": "On", "location": {"lat": 13.0, "lon" : 34.0} }
+          {"index" : {}}
+          {"@timestamp": "2023-01-01T12:00:00Z", "city": "Hey", "name": "There", "location": [{"lat": 13.0, "lon" : 34.0}] }
+          {"index" : {}}
+          {"@timestamp": "2023-01-01T12:00:00Z", "city": "Boo", "name": "Hoo", "location": [{"lat": 13.0, "lon" : 34.0}, {"lat": 14.0, "lon" : 35.0}] }
+  - match: { errors: true }
+  - match: { items.0.index.result: "created" }
+  - match: { items.1.index.result: "created" }
+  - match: { items.2.index.error.reason: "failed to parse" }
+  - match: { items.2.index.error.caused_by.reason: "field type for [location] does not accept more than single value" }
+
+---
 "avg aggregation on position field unsupported":
   - do:
       catch: /Field \[location\] of type \[geo_point\] is not supported for aggregation \[avg\]/

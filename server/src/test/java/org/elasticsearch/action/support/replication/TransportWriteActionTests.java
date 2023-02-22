@@ -77,6 +77,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -166,11 +167,14 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
             result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
-            assertNotNull(listener.response);
-            assertNull(listener.failure);
-            assertTrue(listener.response.forcedRefresh);
-            verify(indexShard).refresh("refresh_flag_index");
-            verify(indexShard, never()).addRefreshListener(any(), any());
+
+            @SuppressWarnings({ "unchecked", "rawtypes" })
+            ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
+            verify(testAction.postWriteRefresh).refreshShard(eq(RefreshPolicy.IMMEDIATE), eq(indexShard), any(), refreshListener.capture());
+
+            // Now we can fire the listener manually and we'll get a response
+            refreshListener.getValue().onResponse(true);
+            assertEquals(true, listener.response.forcedRefresh);
         }));
     }
 
@@ -200,15 +204,17 @@ public class TransportWriteActionTests extends ESTestCase {
             assertNull(listener.response); // Haven't really responded yet
 
             @SuppressWarnings({ "unchecked", "rawtypes" })
-            ArgumentCaptor<Consumer<RefreshListeners.AsyncRefreshResult>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
-            verify(indexShard, never()).refresh(any());
-            verify(indexShard).addRefreshListener(any(), refreshListener.capture());
+            ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
+            verify(testAction.postWriteRefresh).refreshShard(
+                eq(RefreshPolicy.WAIT_UNTIL),
+                eq(indexShard),
+                any(),
+                refreshListener.capture()
+            );
 
             // Now we can fire the listener manually and we'll get a response
             boolean forcedRefresh = randomBoolean();
-            refreshListener.getValue().accept(new RefreshListeners.AsyncRefreshResult(forcedRefresh, 1));
-            assertNotNull(listener.response);
-            assertNull(listener.failure);
+            refreshListener.getValue().onResponse(forcedRefresh);
             assertEquals(forcedRefresh, listener.response.forcedRefresh);
         }));
     }
@@ -386,6 +392,8 @@ public class TransportWriteActionTests extends ESTestCase {
         private final boolean withDocumentFailureOnPrimary;
         private final boolean withDocumentFailureOnReplica;
 
+        private final PostWriteRefresh postWriteRefresh = mock(PostWriteRefresh.class);
+
         protected TestAction() {
             this(false, false);
         }
@@ -462,14 +470,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 if (withDocumentFailureOnPrimary) {
                     throw new RuntimeException("simulated");
                 } else {
-                    return new WritePrimaryResult<>(
-                        request,
-                        new TestResponse(),
-                        location,
-                        primary,
-                        logger,
-                        new PostWriteRefresh(transportService)
-                    );
+                    return new WritePrimaryResult<>(request, new TestResponse(), location, primary, logger, postWriteRefresh);
                 }
             });
         }

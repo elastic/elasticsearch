@@ -23,18 +23,3 @@ dependencies {
 }
 
 addQaCheckDependencies(project)
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/xpack/autoscaling/capacity/FixedAutoscalingDeciderService\$FixedReason","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/action/PutAutoscalingPolicyAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/AutoscalingMetadata\$AutoscalingMetadataDiff","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/action/GetAutoscalingCapacityAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/storage/FrozenStorageDeciderService\$FrozenReason","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/shards/FrozenShardsDeciderService\$FrozenShardsReason","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/action/DeleteAutoscalingPolicyAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/storage/ReactiveStorageDeciderService\$ReactiveReason","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService\$ProactiveReason","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/action/GetAutoscalingPolicyAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/existence/FrozenExistenceDeciderService\$FrozenExistenceReason","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/action/GetAutoscalingPolicyAction\$Response","missing test")
-  task.skipTest("org/elasticsearch/xpack/autoscaling/action/GetAutoscalingCapacityAction\$Response","missing test")
-}

@@ -97,6 +97,10 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         skipClasses.add(classNameToPath(className));
     }
 
+    public void skipTest(String className, String reason) {
+        skipClasses.add(classNameToPath(className));
+    }
+
     private String classNameToPath(String className) {
         return className.replace('.', File.separatorChar);
     }
@@ -140,8 +144,9 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             ClassHierarchyScanner transportTestsScanner = new ClassHierarchyScanner();
             ClassReaders.forEach(testClasses, cr -> cr.accept(transportTestsScanner, ClassReader.SKIP_CODE));
             String transportTestCase = "org/elasticsearch/test/AbstractWireTestCase";
+            String queryTestCase = "org/elasticsearch/test/AbstractQueryTestCase";
             Map<String, String> subclassesOfTransportTestCase = testClassPathScanner.allFoundSubclasses(
-                Map.of(transportTestCase, transportTestCase)
+                Map.of(transportTestCase, transportTestCase, queryTestCase, queryTestCase)
             );
             Set<String> transportTestClasses = transportTestsScanner.getConcreteSubclasses(subclassesOfTransportTestCase);
             System.out.println(transportClasses);

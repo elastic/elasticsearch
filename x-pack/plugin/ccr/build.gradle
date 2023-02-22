@@ -42,18 +42,3 @@ dependencies {
   testImplementation(project(":modules:analysis-common"))
   testImplementation(project(":modules:data-streams"))
 }
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/xpack/ccr/action/repositories/DeleteInternalCcrRepositoryRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/index/engine/AlreadyProcessedFollowingEngineException","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/repositories/PutInternalCcrRepositoryRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/repositories/GetCcrRestoreFileChunkAction\$GetCcrRestoreFileChunkResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/ShardChangesAction\$Response","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/repositories/GetCcrRestoreFileChunkRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/bulk/BulkShardOperationsResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/repositories/PutCcrRestoreSessionAction\$PutCcrRestoreSessionResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/ShardChangesAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/bulk/BulkShardOperationsRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/repositories/ClearCcrRestoreSessionRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/action/repositories/PutCcrRestoreSessionRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/ccr/CCRInfoTransportAction\$Usage","missing test")
-}

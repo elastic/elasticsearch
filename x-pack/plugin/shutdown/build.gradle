@@ -26,9 +26,3 @@ testClusters.configureEach {
   user username: "x_pack_rest_user", password: "x-pack-test-password"
 }
 
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/xpack/shutdown/DeleteShutdownNodeAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/shutdown/GetShutdownStatusAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/shutdown/GetShutdownStatusAction\$Response","missing test")
-  task.skipTest("org/elasticsearch/xpack/shutdown/PutShutdownNodeAction\$Request","missing test")
-}

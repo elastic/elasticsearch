@@ -80,7 +80,9 @@ public class ClassHierarchyScanner extends ClassVisitor {
     }
 
     public Map<String, String> allFoundSubclasses(Map<String, String> root) {
-        return findSubclasses(root);
+        Map<String, String> subclasses = findSubclasses(root);
+        subclasses.putAll(root);
+        return subclasses;
     }
 
     // map of class to its superclass/interface

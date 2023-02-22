@@ -95,15 +95,3 @@ tasks.named('splitPackagesAudit').configure {
   onlyIf { false }
 }
 
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/transport/AbstractSimpleTransportTestCase\$Version1Request","missing test")
-  task.skipTest("org/elasticsearch/transport/AbstractSimpleTransportTestCase\$Version0Request","missing test")
-  task.skipTest("org/elasticsearch/transport/AbstractSimpleTransportTestCase\$StringMessageRequest","missing test")
-  task.skipTest("org/elasticsearch/transport/TestRequest","missing test")
-  task.skipTest("org/elasticsearch/search/FailBeforeCurrentVersionQueryBuilder","missing test")
-  task.skipTest("org/elasticsearch/transport/TestResponse","missing test")
-  task.skipTest("org/elasticsearch/transport/AbstractSimpleTransportTestCase\$TestRequest","missing test")
-  task.skipTest("org/elasticsearch/search/aggregations/AggregatorTestCase\$InternalAggCardinalityUpperBound","missing test")
-  task.skipTest("org/elasticsearch/common/settings/MockSecureSettings","missing test")
-  task.skipTest("org/elasticsearch/search/DummyQueryBuilder","missing test")
-}

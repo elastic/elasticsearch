@@ -41,7 +41,7 @@ public class ClassHierarchyScannerTests {
         // for inner classes report their enclosing class instead
         assertThat(
             transportClasses,
-            Matchers.contains("org/elasticsearch/gradle/internal/precommit/transport/test_classes/EnclosingInnerTransport")
+            Matchers.contains("org/elasticsearch/gradle/internal/precommit/transport/test_classes/EnclosingInnerTransport$Transport")
         );
 
     }
@@ -114,4 +114,29 @@ public class ClassHierarchyScannerTests {
         );
     }
 
+    @Test
+    public void testFindAllSubclassesIncludingRoot() throws IOException {
+        // tests should be concrete instances
+        ClassHierarchyScanner interfaceScanner = new ClassHierarchyScanner();
+
+        ClassReader writeable = new ClassReader(Writeable.class.getCanonicalName());
+        ClassReader subInterfaceWriteable = new ClassReader(WriteableSubInterface.class.getCanonicalName());
+
+        Stream.of(writeable, subInterfaceWriteable).forEach(cr -> cr.accept(interfaceScanner, ClassReader.SKIP_CODE));
+
+        String className = classNameToPath(Writeable.class.getCanonicalName());
+        Map<String, String> allSubclasses = interfaceScanner.allFoundSubclasses(Map.of(className, className));
+
+        ClassHierarchyScanner scanner = new ClassHierarchyScanner();
+
+        ClassReader cr3 = new ClassReader(ExampleImpl.class.getCanonicalName());
+        Stream.of(cr3).forEach(cr -> cr.accept(scanner, ClassReader.SKIP_CODE));
+
+        Set<String> transportClasses = scanner.getConcreteSubclasses(allSubclasses);
+
+        assertThat(
+            transportClasses,
+            Matchers.containsInAnyOrder("org/elasticsearch/gradle/internal/precommit/transport/test_classes/ExampleImpl")
+        );
+    }
 }

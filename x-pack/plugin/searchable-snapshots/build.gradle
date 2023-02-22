@@ -27,21 +27,3 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '256k'
 }
 
-tasks.named("transportTestExistCheck").configure { task ->
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/SearchableSnapshotsStatsRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotCacheStoresAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotsNodeCachesStatsAction\$NodeCachesStatsResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/SearchableSnapshotsStatsResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotCacheStoresAction\$NodesCacheFilesMetadata","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotCacheStoresAction\$NodeRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/FrozenCacheInfoNodeAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotsNodeCachesStatsAction\$NodeRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/ClearSearchableSnapshotsCacheRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/ClearSearchableSnapshotsCacheResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/recovery/SearchableSnapshotRecoveryState","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/FrozenCacheInfoAction\$Request","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotsNodeCachesStatsAction\$NodesCachesStatsResponse","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotCacheStoresAction\$NodeCacheFilesMetadata","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotsNodeCachesStatsAction\$NodesRequest","missing test")
-  task.skipTest("org/elasticsearch/xpack/searchablesnapshots/action/cache/FrozenCacheInfoResponse","missing test")
-}

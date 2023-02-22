@@ -58,19 +58,16 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
         final String datasetFallback;
         final String namespaceFallback;
         int indexOfFirstDash = indexName.indexOf('-');
-        String illegalDataStreamNameMessage = "invalid data stream name: ["
-            + indexName
-            + "]; must follow naming scheme <type>-<dataset>-<namespace>";
         if (indexOfFirstDash < 0) {
-            throw new IllegalArgumentException(illegalDataStreamNameMessage);
+            throw createInvalidDataStreamNameException(indexName);
         }
-        type = indexName.substring(0, indexOfFirstDash);
         int indexOfSecondDash = indexName.indexOf('-', indexOfFirstDash + 1);
         if (indexOfSecondDash < 0) {
-            throw new IllegalArgumentException(illegalDataStreamNameMessage);
+            throw createInvalidDataStreamNameException(indexName);
         }
-        datasetFallback = indexName.substring(indexOfFirstDash + 1, indexOfSecondDash);
-        namespaceFallback = indexName.substring(indexOfSecondDash + 1);
+        type = parseDataStreamType(indexName, indexOfFirstDash);
+        datasetFallback = parseDataStreamDataset(indexName, indexOfFirstDash, indexOfSecondDash);
+        namespaceFallback = parseDataStreamNamespace(indexName, indexOfSecondDash);
 
         String dataset = getDataset(ingestDocument, datasetFallback);
         String namespace = getNamespace(ingestDocument, namespaceFallback);
@@ -79,6 +76,24 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
         ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
         ingestDocument.redirect(type + "-" + dataset + "-" + namespace);
         return ingestDocument;
+    }
+
+    private static IllegalArgumentException createInvalidDataStreamNameException(String indexName) {
+        return new IllegalArgumentException(
+            "invalid data stream name: [" + indexName + "]; must follow naming scheme <type>-<dataset>-<namespace>"
+        );
+    }
+
+    private static String parseDataStreamType(String dataStreamName, int indexOfFirstDash) {
+        return dataStreamName.substring(0, indexOfFirstDash);
+    }
+
+    private static String parseDataStreamDataset(String dataStreamName, int indexOfFirstDash, int indexOfSecondDash) {
+        return dataStreamName.substring(indexOfFirstDash + 1, indexOfSecondDash);
+    }
+
+    private static String parseDataStreamNamespace(String dataStreamName, int indexOfSecondDash) {
+        return dataStreamName.substring(indexOfSecondDash + 1);
     }
 
     private String getDataset(IngestDocument ingestDocument, String datasetFallback) {

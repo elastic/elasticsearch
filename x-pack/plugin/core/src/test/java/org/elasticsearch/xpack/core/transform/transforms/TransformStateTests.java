@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -78,10 +78,10 @@ public class TransformStateTests extends AbstractXContentSerializingTestCase<Tra
             false
         ); // Will be false after BWC deserialization
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_7_5_0);
+            output.setTransportVersion(TransportVersion.V_7_5_0);
             state.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                in.setVersion(Version.V_7_5_0);
+                in.setTransportVersion(TransportVersion.V_7_5_0);
                 TransformState streamedState = new TransformState(in);
                 assertEquals(state, streamedState);
             }

@@ -7,7 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -205,11 +205,11 @@ public class LicenseTests extends ESTestCase {
             final License license1 = randomLicense(type).signature(signature).version(version).build();
 
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(Version.CURRENT);
+            out.setTransportVersion(TransportVersion.CURRENT);
             license1.writeTo(out);
 
             final StreamInput in = out.bytes().streamInput();
-            in.setVersion(Version.CURRENT);
+            in.setTransportVersion(TransportVersion.CURRENT);
             final License license2 = License.readLicense(in);
             assertThat(in.read(), Matchers.equalTo(-1));
 

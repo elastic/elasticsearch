@@ -331,13 +331,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             var oldAssignment = old.getAssignment(shardId);
             var updatedAssignment = updated.getAssignment(shardId);
             if (Objects.equals(oldAssignment, updatedAssignment) == false) {
-                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
+                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
             }
         }
         for (ShardId shardId : diff) {
             var oldAssignment = old.getAssignment(shardId);
             var updatedAssignment = updated.getAssignment(shardId);
-            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
+            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
     }

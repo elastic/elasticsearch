@@ -441,7 +441,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             shardId,
             null,
             successfulShardStatus(nodeId),
-            ActionListener.wrap(() -> fail("should not complete publication"))
+            ActionListener.running(() -> fail("should not complete publication"))
         );
     }
 
@@ -451,7 +451,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             null,
             shardId,
             successfulShardStatus(nodeId),
-            ActionListener.wrap(() -> fail("should not complete publication"))
+            ActionListener.running(() -> fail("should not complete publication"))
         );
     }
 

@@ -258,10 +258,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             false,
             false,
             ApplyCommitRequest::new,
-            (request, channel, task) -> handleApplyCommit(
-                request,
-                new ChannelActionListener<>(channel, COMMIT_STATE_ACTION_NAME, request).map(r -> Empty.INSTANCE)
-            )
+            (request, channel, task) -> handleApplyCommit(request, new ChannelActionListener<>(channel).map(r -> Empty.INSTANCE))
         );
         this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry, this::handlePublishRequest);
         this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);

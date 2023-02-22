@@ -1484,6 +1484,75 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
     }
 
+    public void testResolveLifecycle() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        DataLifecycle dataLifecycle1 = new DataLifecycle(TimeValue.timeValueDays(1));
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, null, null, dataLifecycle1), null, null);
+        DataLifecycle dataLifecycle2 = new DataLifecycle(TimeValue.timeValueDays(30));
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, null, null, dataLifecycle2), null, null);
+        ComponentTemplate ctNoLifecycle = new ComponentTemplate(new Template(null, null, null, null), null, null);
+
+        state = service.addComponentTemplate(state, true, "ct_high", ct1);
+        state = service.addComponentTemplate(state, true, "ct_low", ct2);
+        state = service.addComponentTemplate(state, true, "ct_no_lifecycle", ctNoLifecycle);
+        {
+            // Respect the order the templates are defined
+            ComposableIndexTemplate it = new ComposableIndexTemplate(
+                List.of("i1*"),
+                new Template(null, null, null),
+                List.of("ct_low", "ct_high"),
+                0L,
+                1L,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            );
+            state = service.addIndexTemplateV2(state, true, "my-template-1", it);
+
+            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-1");
+            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
+        }
+        {
+            // If the lifecycle is missing of the latest template we take the one from the previous
+            ComposableIndexTemplate it = new ComposableIndexTemplate(
+                List.of("i2*"),
+                new Template(null, null, null),
+                List.of("ct_high", "ct_no_lifecycle"),
+                0L,
+                1L,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            );
+            state = service.addIndexTemplateV2(state, true, "my-template-2", it);
+
+            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-2");
+
+            // Based on precedence only the latest
+            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
+        }
+        {
+            ComposableIndexTemplate it = new ComposableIndexTemplate(
+                List.of("i3*"),
+                new Template(null, null, null, dataLifecycle2),
+                List.of("ct_no_lifecycle", "ct_high"),
+                0L,
+                1L,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            );
+            state = service.addIndexTemplateV2(state, true, "my-template-3", it);
+
+            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-3");
+
+            // Based on precedence only the latest
+            assertThat(resolvedLifecycle, equalTo(dataLifecycle2));
+        }
+    }
+
     public void testAddInvalidTemplate() throws Exception {
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             Collections.singletonList("a"),
@@ -1655,6 +1724,36 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(
             e.getCause().getCause().getMessage(),
             containsString("can't merge a non object mapping [field2] with an object mapping")
+        );
+    }
+
+    /**
+     * Tests that we check that when there is lifecycle configuration this index template can only
+     * create data streams.
+     */
+    public void testIndexTemplateFailsToAdd() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct = new ComponentTemplate(
+            new Template(null, null, null, new DataLifecycle(randomMillisUpToYear9999())),
+            null,
+            null
+        );
+        state = service.addComponentTemplate(state, true, "ct", ct);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), null, List.of("ct"), null, null, null);
+
+        final ClusterState finalState = state;
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.addIndexTemplateV2(finalState, randomBoolean(), "my-template", it)
+        );
+
+        assertThat(
+            e.getMessage(),
+            matchesRegex(
+                "index template \\[my-template\\] specifies lifecycle configuration that can only be used in combination with a data stream"
+            )
         );
     }
 

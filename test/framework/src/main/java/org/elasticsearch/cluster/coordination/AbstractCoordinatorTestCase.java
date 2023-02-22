@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
@@ -955,7 +956,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     } else {
                         nodeEnvironment = null;
                         BytesStreamOutput outStream = new BytesStreamOutput();
-                        outStream.setVersion(Version.CURRENT);
+                        outStream.setTransportVersion(TransportVersion.CURRENT);
 
                         final long persistedCurrentTerm;
 

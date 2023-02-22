@@ -84,7 +84,6 @@ import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -121,9 +120,6 @@ public class RBACEngine implements AuthorizationEngine {
     private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
-    // TODO move once we have a dedicated class for RCS 2.0 constants
-    public static final String REMOTE_USER_ROLE_NAME = "_remote_user";
-
     private final Settings settings;
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
@@ -672,86 +668,14 @@ public class RBACEngine implements AuthorizationEngine {
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo rbacAuthzInfo) {
+            final Role role = rbacAuthzInfo.getRole();
+            listener.onResponse(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias));
+        } else {
             listener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+                new IllegalArgumentException("unsupported authorization info: " + authorizationInfo.getClass().getSimpleName())
             );
-            return;
         }
-
-        final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-        final RemoteIndicesPermission remoteIndicesPermission;
-        try {
-            remoteIndicesPermission = role.remoteIndices().forCluster(remoteClusterAlias);
-        } catch (UnsupportedOperationException e) {
-            // TODO we will need to implement this to support API keys with assigned role descriptors
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "cannot retrieve remote access role descriptors for API keys with assigned role descriptors.",
-                    e
-                )
-            );
-            return;
-        }
-
-        if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
-            listener.onResponse(RoleDescriptorsIntersection.EMPTY);
-            return;
-        }
-
-        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
-        for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
-            for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
-                indicesPrivileges.add(toIndicesPrivileges(indicesGroup));
-            }
-        }
-
-        listener.onResponse(
-            new RoleDescriptorsIntersection(
-                List.of(
-                    Set.of(
-                        new RoleDescriptor(
-                            REMOTE_USER_ROLE_NAME,
-                            null,
-                            // The role descriptors constructed here may be cached in raw byte form, using a hash of their content as a
-                            // cache key; we therefore need deterministic order when constructing them here, to ensure cache hits for
-                            // equivalent role descriptors
-                            indicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null
-                        )
-                    )
-                )
-            )
-        );
-    }
-
-    private static RoleDescriptor.IndicesPrivileges toIndicesPrivileges(final IndicesPermission.Group indicesGroup) {
-        final Set<BytesReference> queries = indicesGroup.getQuery();
-        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
-        assert queries == null || queries.size() <= 1
-            : "translation from an indices permission group to indices privileges supports up to one DLS query but multiple queries found";
-        assert fieldGrantExcludeGroups.size() <= 1
-            : "translation from an indices permission group to indices privileges supports up to one FLS field-grant-exclude group"
-                + " but multiple groups found";
-
-        final BytesReference query = (queries == null || false == queries.iterator().hasNext()) ? null : queries.iterator().next();
-        final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-            // Sort because these index privileges will be part of role descriptors that may be cached in raw byte form;
-            // we need deterministic order to ensure cache hits for equivalent role descriptors
-            .indices(Arrays.stream(indicesGroup.indices()).sorted().collect(Collectors.toList()))
-            .privileges(indicesGroup.privilege().name().stream().sorted().collect(Collectors.toList()))
-            .allowRestrictedIndices(indicesGroup.allowRestrictedIndices())
-            .query(query);
-        if (false == fieldGrantExcludeGroups.isEmpty()) {
-            final FieldPermissionsDefinition.FieldGrantExcludeGroup fieldGrantExcludeGroup = fieldGrantExcludeGroups.iterator().next();
-            builder.grantedFields(fieldGrantExcludeGroup.getGrantedFields()).deniedFields(fieldGrantExcludeGroup.getExcludedFields());
-        }
-
-        return builder.build();
     }
 
     static GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {

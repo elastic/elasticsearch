@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -107,7 +108,8 @@ public final class Authentication implements ToXContentObject {
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
-    public static final TransportVersion VERSION_API_KEYS_WITH_REMOTE_INDICES = TransportVersion.V_8_8_0;
+    public static final Version VERSION_API_KEYS_WITH_REMOTE_INDICES = Version.V_8_8_0;
+    public static final TransportVersion TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES = TransportVersion.V_8_8_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -1060,8 +1062,8 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
-            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEYS_WITH_REMOTE_INDICES)
-                && streamVersion.before(VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)
+                && streamVersion.before(TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,

@@ -44,7 +44,9 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
         if (valueCount == 1) {
             return new ConstantBooleanVector(values[0], 1);
         }
-        // TODO: may wanna trim the array, if there N% unused tail space
+        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+            values = Arrays.copyOf(values, valueCount);
+        }
         return new BooleanArrayVector(values, valueCount);
     }
 }

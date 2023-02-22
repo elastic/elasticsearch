@@ -82,3 +82,65 @@ from test | stats min = min(hire_date), max = max(hire_date);
 min:date                  | max:date
 1985-02-18T00:00:00.000Z  | 1999-04-30T00:00:00.000Z
 ;
+
+evalDateTruncIntervalExpressionPeriod
+from test | sort hire_date | eval x = date_trunc(hire_date, 1 month) | project emp_no, hire_date, x | limit 5;
+
+emp_no:integer | hire_date:date                | x:date                    
+10009          | 1985-02-18T00:00:00.000Z      | 1985-02-01T00:00:00.000Z         
+10048          | 1985-02-24T00:00:00.000Z      | 1985-02-01T00:00:00.000Z                  
+10098          | 1985-05-13T00:00:00.000Z      | 1985-05-01T00:00:00.000Z                  
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z                 
+10061          | 1985-09-17T00:00:00.000Z      | 1985-09-01T00:00:00.000Z                  
+;
+
+evalDateTruncIntervalExpressionDuration
+from test | sort hire_date | eval x = date_trunc(hire_date, 240 hours) | project emp_no, hire_date, x | limit 5;
+
+emp_no:integer | hire_date:date                | x:date                  
+10009          | 1985-02-18T00:00:00.000Z      | 1985-02-11T00:00:00.000Z       
+10048          | 1985-02-24T00:00:00.000Z      | 1985-02-21T00:00:00.000Z                  
+10098          | 1985-05-13T00:00:00.000Z      | 1985-05-12T00:00:00.000Z               
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z                
+10061          | 1985-09-17T00:00:00.000Z      | 1985-09-09T00:00:00.000Z                  
+;
+
+evalDateTruncWeeklyInterval
+from test | sort hire_date | eval x = date_trunc(hire_date, 1 week) | project emp_no, hire_date, x | limit 5;
+
+emp_no:integer | hire_date:date                | x:date                  
+10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18T00:00:00.000Z       
+10048          | 1985-02-24T00:00:00.000Z      | 1985-02-18T00:00:00.000Z                  
+10098          | 1985-05-13T00:00:00.000Z      | 1985-05-13T00:00:00.000Z               
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-08T00:00:00.000Z                
+10061          | 1985-09-17T00:00:00.000Z      | 1985-09-16T00:00:00.000Z                  
+;
+
+evalDateTruncQuarterlyInterval
+from test | sort hire_date | eval x = date_trunc(hire_date, 3 month) | project emp_no, hire_date, x | limit 5;
+
+emp_no:integer | hire_date:date                | x:date                    
+10009          | 1985-02-18T00:00:00.000Z      | 1985-01-01T00:00:00.000Z         
+10048          | 1985-02-24T00:00:00.000Z      | 1985-01-01T00:00:00.000Z                  
+10098          | 1985-05-13T00:00:00.000Z      | 1985-04-01T00:00:00.000Z                  
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z                 
+10061          | 1985-09-17T00:00:00.000Z      | 1985-07-01T00:00:00.000Z                  
+;
+
+evalDateTruncNullDate
+from test | where emp_no == 10040 | eval x = date_trunc(birth_date, 1 day) | project emp_no, birth_date, x;
+
+emp_no:integer | birth_date:date               | x:date
+10040          | null                          | null  
+;
+
+evalDateTruncGrouping
+from test | eval y = date_trunc(hire_date, 1 year) | stats count(emp_no) by y | sort y | project y, count(emp_no) | limit 5;
+
+y:date                        | count(emp_no):long
+1985-01-01T00:00:00.000Z      | 11       
+1986-01-01T00:00:00.000Z      | 11                  
+1987-01-01T00:00:00.000Z      | 15                 
+1988-01-01T00:00:00.000Z      | 9                
+1989-01-01T00:00:00.000Z      | 13                  
+;

@@ -10,8 +10,12 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
@@ -19,6 +23,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -151,11 +156,15 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            IntVector.Builder blockBuilder = IntVector.newVectorBuilder(
+            IntBlock.Builder blockBuilder = IntBlock.newBlockBuilder(1);
+            IntBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+
+            IntVector.Builder vectorBuilder = IntVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            IntStream.range(0, positionCount).forEach(blockBuilder::appendInt);
-            IntVector vector = blockBuilder.build();
+            IntStream.range(0, positionCount).forEach(vectorBuilder::appendInt);
+            IntVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
         }
     }
@@ -212,11 +221,15 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            LongVector.Builder blockBuilder = LongVector.newVectorBuilder(
+            LongBlock.Builder blockBuilder = LongBlock.newBlockBuilder(1);
+            LongBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+
+            LongVector.Builder vectorBuilder = LongVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            LongStream.range(0, positionCount).forEach(blockBuilder::appendLong);
-            LongVector vector = blockBuilder.build();
+            LongStream.range(0, positionCount).forEach(vectorBuilder::appendLong);
+            LongVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
         }
     }
@@ -273,11 +286,15 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            DoubleVector.Builder blockBuilder = DoubleVector.newVectorBuilder(
+            DoubleBlock.Builder blockBuilder = DoubleBlock.newBlockBuilder(1);
+            DoubleBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+
+            DoubleVector.Builder vectorBuilder = DoubleVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(blockBuilder::appendDouble);
-            DoubleVector vector = blockBuilder.build();
+            IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(vectorBuilder::appendDouble);
+            DoubleVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
         }
     }
@@ -347,11 +364,15 @@ public class BasicBlockTests extends ESTestCase {
             );
         }
 
-        BytesRefVector.Builder blockBuilder = BytesRefVector.newVectorBuilder(
+        BytesRefBlock.Builder blockBuilder = BytesRefBlock.newBlockBuilder(1);
+        BytesRefBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+        assertThat(copy, equalTo(block));
+
+        BytesRefVector.Builder vectorBuilder = BytesRefVector.newVectorBuilder(
             randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
         );
-        IntStream.range(0, positionCount).mapToObj(ii -> new BytesRef(randomAlphaOfLength(5))).forEach(blockBuilder::appendBytesRef);
-        BytesRefVector vector = blockBuilder.build();
+        IntStream.range(0, positionCount).mapToObj(ii -> new BytesRef(randomAlphaOfLength(5))).forEach(vectorBuilder::appendBytesRef);
+        BytesRefVector vector = vectorBuilder.build();
         assertSingleValueDenseBlock(vector.asBlock());
     }
 
@@ -452,11 +473,15 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            DoubleVector.Builder blockBuilder = DoubleVector.newVectorBuilder(
+            BooleanBlock.Builder blockBuilder = BooleanBlock.newBlockBuilder(1);
+            BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+
+            BooleanVector.Builder vectorBuilder = BooleanVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
-            IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(blockBuilder::appendDouble);
-            DoubleVector vector = blockBuilder.build();
+            IntStream.range(0, positionCount).mapToObj(ii -> randomBoolean()).forEach(vectorBuilder::appendBoolean);
+            BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
         }
     }
@@ -624,6 +649,109 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(b.build().isNonDecreasing(), is(hardSet));
     }
 
+    public void testToStringSmall() {
+        final int estimatedSize = randomIntBetween(1024, 4096);
+
+        var boolBlock = BooleanBlock.newBlockBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build();
+        var boolVector = BooleanVector.newVectorBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build();
+        for (Object obj : List.of(boolVector, boolBlock, boolBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("[true, false]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var intBlock = IntBlock.newBlockBuilder(estimatedSize).appendInt(1).appendInt(2).build();
+        var intVector = IntVector.newVectorBuilder(estimatedSize).appendInt(1).appendInt(2).build();
+        for (Object obj : List.of(intVector, intBlock, intBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("[1, 2]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var longBlock = LongBlock.newBlockBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
+        var longVector = LongVector.newVectorBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
+        for (Object obj : List.of(longVector, longBlock, longBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("[10, 20]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var doubleBlock = DoubleBlock.newBlockBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build();
+        var doubleVector = DoubleVector.newVectorBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build();
+        for (Object obj : List.of(doubleVector, doubleBlock, doubleBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("[3.3, 4.4]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("2b").toString().equals("[32 62]");
+        var bytesRefBlock = BytesRefBlock.newBlockBuilder(estimatedSize)
+            .appendBytesRef(new BytesRef("1a"))
+            .appendBytesRef(new BytesRef("2b"))
+            .build();
+        var bytesRefVector = BytesRefVector.newVectorBuilder(estimatedSize)
+            .appendBytesRef(new BytesRef("1a"))
+            .appendBytesRef(new BytesRef("2b"))
+            .build();
+        for (Object obj : List.of(bytesRefVector, bytesRefVector, bytesRefBlock.asVector())) {
+            String s = obj.toString();
+            assertThat(s, containsString("positions=2"));
+        }
+    }
+
+    public static List<List<Object>> valuesAtPositions(Block block, int from, int to) {
+        List<List<Object>> result = new ArrayList<>(to - from);
+        for (int p = from; p < to; p++) {
+            if (block.isNull(p)) {
+                result.add(null);
+                continue;
+            }
+            int count = block.getValueCount(p);
+            List<Object> positionValues = new ArrayList<>(count);
+            int i = block.getFirstValueIndex(p);
+            for (int v = 0; v < count; v++) {
+                positionValues.add(switch (block.elementType()) {
+                    case INT -> ((IntBlock) block).getInt(i++);
+                    case LONG -> ((LongBlock) block).getLong(i++);
+                    case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
+                    case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
+                    case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
+                    default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
+                });
+            }
+            result.add(positionValues);
+        }
+        return result;
+    }
+
+    public static Block randomBlock(ElementType elementType, int positionCount, boolean nullAllowed, int maxValuesPerPosition) {
+        var builder = elementType.newBlockBuilder(positionCount);
+        for (int p = 0; p < positionCount; p++) {
+            if (nullAllowed && randomBoolean()) {
+                builder.appendNull();
+                continue;
+            }
+            int valueCount = between(1, maxValuesPerPosition);
+            if (valueCount > 1) {
+                builder.beginPositionEntry();
+            }
+            for (int v = 0; v < valueCount; v++) {
+                switch (elementType) {
+                    case INT -> ((IntBlock.Builder) builder).appendInt(randomInt());
+                    case LONG -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                    case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
+                    case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomRealisticUnicodeOfLength(4)));
+                    case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
+                    default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
+                }
+            }
+            if (valueCount > 1) {
+                builder.endPositionEntry();
+            }
+        }
+        return builder.build();
+    }
+
     interface BlockBuilderFactory<B extends Block.Builder> {
         B create(int estimatedSize);
     }
@@ -675,5 +803,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     static final Class<UnsupportedOperationException> UOE = UnsupportedOperationException.class;
+
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
 
 }

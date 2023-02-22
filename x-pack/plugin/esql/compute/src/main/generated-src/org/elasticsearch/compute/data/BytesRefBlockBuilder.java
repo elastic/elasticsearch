@@ -73,6 +73,56 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
+    public BytesRefBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        return copyFrom((BytesRefBlock) block, beginInclusive, endExclusive);
+    }
+
+    /**
+     * Copy the values in {@code block} from {@code beginInclusive} to
+     * {@code endExclusive} into this builder.
+     */
+    public BytesRefBlockBuilder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive) {
+        if (endExclusive > block.getPositionCount()) {
+            throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
+        }
+        BytesRefVector vector = block.asVector();
+        if (vector != null) {
+            copyFromVector(vector, beginInclusive, endExclusive);
+        } else {
+            copyFromBlock(block, beginInclusive, endExclusive);
+        }
+        return this;
+    }
+
+    private void copyFromBlock(BytesRefBlock block, int beginInclusive, int endExclusive) {
+        BytesRef scratch = new BytesRef();
+        for (int p = beginInclusive; p < endExclusive; p++) {
+            if (block.isNull(p)) {
+                appendNull();
+                continue;
+            }
+            int count = block.getValueCount(p);
+            if (count > 1) {
+                beginPositionEntry();
+            }
+            int i = block.getFirstValueIndex(p);
+            for (int v = 0; v < count; v++) {
+                appendBytesRef(block.getBytesRef(i++, scratch));
+            }
+            if (count > 1) {
+                endPositionEntry();
+            }
+        }
+    }
+
+    private void copyFromVector(BytesRefVector vector, int beginInclusive, int endExclusive) {
+        BytesRef scratch = new BytesRef();
+        for (int p = beginInclusive; p < endExclusive; p++) {
+            appendBytesRef(vector.getBytesRef(p, scratch));
+        }
+    }
+
+    @Override
     public BytesRefBlock build() {
         if (positionEntryIsOpen) {
             endPositionEntry();
@@ -80,7 +130,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
         } else {
-            // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
                 return new BytesRefArrayVector(values, positionCount).asBlock();
             } else {

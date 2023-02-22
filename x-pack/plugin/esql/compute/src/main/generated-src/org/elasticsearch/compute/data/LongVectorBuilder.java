@@ -44,7 +44,9 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
         if (valueCount == 1) {
             return new ConstantLongVector(values[0], 1);
         }
-        // TODO: may wanna trim the array, if there N% unused tail space
+        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+            values = Arrays.copyOf(values, valueCount);
+        }
         return new LongArrayVector(values, valueCount);
     }
 }

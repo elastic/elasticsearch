@@ -60,6 +60,22 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[block=" + block + "]";
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName());
+        sb.append("[positions=" + getPositionCount() + ", values=[");
+        appendValues(sb);
+        sb.append("]]");
+        return sb.toString();
+    }
+
+    private void appendValues(StringBuilder sb) {
+        final int positionsIndex = getPositionCount() - 1;
+        for (int i = 0;; i++) {
+            sb.append(getInt(i));
+            if (i == positionsIndex) {
+                return;
+            }
+            sb.append(", ");
+        }
     }
 }

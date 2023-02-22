@@ -103,6 +103,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public TestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            builder.copyFrom(block, beginInclusive, endExclusive);
+            return this;
+        }
+
+        @Override
         public IntBlock build() {
             return builder.build();
         }
@@ -137,6 +143,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public TestBlockBuilder endPositionEntry() {
             builder.endPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            builder.copyFrom(block, beginInclusive, endExclusive);
             return this;
         }
 
@@ -179,6 +191,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public TestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            builder.copyFrom(block, beginInclusive, endExclusive);
+            return this;
+        }
+
+        @Override
         public DoubleBlock build() {
             return builder.build();
         }
@@ -213,6 +231,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public TestBlockBuilder endPositionEntry() {
             builder.endPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            builder.copyFrom(block, beginInclusive, endExclusive);
             return this;
         }
 

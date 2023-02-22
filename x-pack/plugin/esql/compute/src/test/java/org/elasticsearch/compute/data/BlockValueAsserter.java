@@ -21,7 +21,7 @@ public class BlockValueAsserter {
         assertThat(block.getPositionCount(), is(equalTo(expectedBlockValues.size())));
         for (int pos = 0; pos < expectedBlockValues.size(); pos++) {
             List<Object> expectedRowValues = expectedBlockValues.get(pos);
-            if (expectedRowValues.isEmpty()) {
+            if (expectedRowValues == null || expectedRowValues.isEmpty()) { // TODO empty is not the same as null
                 assertThat(block.isNull(pos), is(equalTo(true)));
                 assertThat(block.getValueCount(pos), is(equalTo(0)));
             } else {
@@ -34,6 +34,8 @@ public class BlockValueAsserter {
                     case LONG -> assertLongRowValues((LongBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case DOUBLE -> assertDoubleRowValues((DoubleBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case BYTES_REF -> assertBytesRefRowValues((BytesRefBlock) block, firstValueIndex, valueCount, expectedRowValues);
+                    case BOOLEAN -> assertBooleanRowValues((BooleanBlock) block, firstValueIndex, valueCount, expectedRowValues);
+                    default -> throw new IllegalArgumentException("Unsupported element type [" + block.elementType() + "]");
                 }
             }
         }
@@ -62,8 +64,21 @@ public class BlockValueAsserter {
 
     private static void assertBytesRefRowValues(BytesRefBlock block, int firstValueIndex, int valueCount, List<Object> expectedRowValues) {
         for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-            BytesRef expectedValue = new BytesRef(expectedRowValues.get(valueIndex).toString());
+            Object value = expectedRowValues.get(valueIndex);
+            BytesRef expectedValue;
+            if (value instanceof BytesRef b) {
+                expectedValue = b;
+            } else {
+                expectedValue = new BytesRef(expectedRowValues.get(valueIndex).toString());
+            }
             assertThat(block.getBytesRef(firstValueIndex + valueIndex, new BytesRef()), is(equalTo(expectedValue)));
+        }
+    }
+
+    private static void assertBooleanRowValues(BooleanBlock block, int firstValueIndex, int valueCount, List<Object> expectedRowValues) {
+        for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+            boolean expectedValue = (Boolean) expectedRowValues.get(valueIndex);
+            assertThat(block.getBoolean(firstValueIndex + valueIndex), is(equalTo(expectedValue)));
         }
     }
 }

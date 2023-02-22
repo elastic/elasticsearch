@@ -7,10 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.BitSet;
+import java.util.List;
 import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class FilteredBlockTests extends ESTestCase {
 
@@ -146,7 +156,62 @@ public class FilteredBlockTests extends ESTestCase {
 
     }
 
+    public void testFilterToStringSimple() {
+        BitSet nulls = BitSet.valueOf(new byte[] { 0x08 });  // any non-empty bitset, that does not affect the filter, should suffice
+
+        var boolVector = new BooleanArrayVector(new boolean[] { true, false, false, true }, 4);
+        var boolBlock = new BooleanArrayBlock(new boolean[] { true, false, false, true }, 4, null, nulls);
+        for (Object obj : List.of(boolVector.filter(0, 2), boolVector.asBlock().filter(0, 2), boolBlock.filter(0, 2))) {
+            String s = obj.toString();
+            assertThat(s, containsString("[true, false]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var intVector = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4, false);
+        var intBlock = new IntArrayBlock(new int[] { 10, 20, 30, 40 }, 4, null, nulls);
+        for (Object obj : List.of(intVector.filter(0, 2), intVector.asBlock().filter(0, 2), intBlock.filter(0, 2))) {
+            String s = obj.toString();
+            assertThat(s, containsString("[10, 30]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var longVector = new LongArrayVector(new long[] { 100L, 200L, 300L, 400L }, 4);
+        var longBlock = new LongArrayBlock(new long[] { 100L, 200L, 300L, 400L }, 4, null, nulls);
+        for (Object obj : List.of(longVector.filter(0, 2), longVector.asBlock().filter(0, 2), longBlock.filter(0, 2))) {
+            String s = obj.toString();
+            assertThat(s, containsString("[100, 300]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        var doubleVector = new DoubleArrayVector(new double[] { 1.1, 2.2, 3.3, 4.4 }, 4);
+        var doubleBlock = new DoubleArrayBlock(new double[] { 1.1, 2.2, 3.3, 4.4 }, 4, null, nulls);
+        for (Object obj : List.of(doubleVector.filter(0, 2), doubleVector.asBlock().filter(0, 2), doubleBlock.filter(0, 2))) {
+            String s = obj.toString();
+            assertThat(s, containsString("[1.1, 3.3]"));
+            assertThat(s, containsString("positions=2"));
+        }
+
+        assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("3c").toString().equals("[33 63]");
+        try (var bytesRefArray = arrayOf("1a", "2b", "3c", "4d")) {
+            var bytesRefVector = new BytesRefArrayVector(bytesRefArray, 4);
+            var bytesRefBlock = new BytesRefArrayBlock(bytesRefArray, 4, null, nulls);
+            for (Object obj : List.of(bytesRefVector.filter(0, 2), bytesRefVector.asBlock().filter(0, 2), bytesRefBlock.filter(0, 2))) {
+                String s = obj.toString();
+                assertThat(s, containsString("[[31 61], [33 63]]"));
+                assertThat(s, containsString("positions=2"));
+            }
+        }
+    }
+
     static int randomPosition(int positionCount) {
         return positionCount == 1 ? 0 : randomIntBetween(0, positionCount - 1);
     }
+
+    BytesRefArray arrayOf(String... values) {
+        var array = new BytesRefArray(values.length, bigArrays);
+        Arrays.stream(values).map(BytesRef::new).forEach(array::append);
+        return array;
+    }
+
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
 }

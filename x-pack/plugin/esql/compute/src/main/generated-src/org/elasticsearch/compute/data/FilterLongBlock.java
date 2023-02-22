@@ -60,6 +60,22 @@ final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[block=" + block + "]";
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.getClass().getSimpleName());
+        sb.append("[positions=" + getPositionCount() + ", values=[");
+        appendValues(sb);
+        sb.append("]]");
+        return sb.toString();
+    }
+
+    private void appendValues(StringBuilder sb) {
+        final int positionsIndex = getPositionCount() - 1;
+        for (int i = 0;; i++) {
+            sb.append(getLong(i));
+            if (i == positionsIndex) {
+                return;
+            }
+            sb.append(", ");
+        }
     }
 }

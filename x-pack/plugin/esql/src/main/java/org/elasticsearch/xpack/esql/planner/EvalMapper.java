@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -66,6 +67,7 @@ final class EvalMapper {
         new RoundFunction(),
         new LengthFunction(),
         new DateFormatFunction(),
+        new Mapper<>(DateTrunc.class),
         new StartsWithFunction(),
         new Mapper<>(Concat.class)
     );

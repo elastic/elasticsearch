@@ -202,6 +202,12 @@ $endif$
          */
         Builder append$Type$($type$ value);
 
+        /**
+         * Copy the values in {@code block} from {@code beginInclusive} to
+         * {@code endExclusive} into this builder.
+         */
+        Builder copyFrom($Type$Block block, int beginInclusive, int endExclusive);
+
         @Override
         Builder appendNull();
 
@@ -210,6 +216,9 @@ $endif$
 
         @Override
         Builder endPositionEntry();
+
+        @Override
+        Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
         $Type$Block build();

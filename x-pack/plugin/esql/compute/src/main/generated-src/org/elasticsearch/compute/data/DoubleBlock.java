@@ -166,6 +166,12 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock,Doub
          */
         Builder appendDouble(double value);
 
+        /**
+         * Copy the values in {@code block} from {@code beginInclusive} to
+         * {@code endExclusive} into this builder.
+         */
+        Builder copyFrom(DoubleBlock block, int beginInclusive, int endExclusive);
+
         @Override
         Builder appendNull();
 
@@ -174,6 +180,9 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock,Doub
 
         @Override
         Builder endPositionEntry();
+
+        @Override
+        Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
         DoubleBlock build();

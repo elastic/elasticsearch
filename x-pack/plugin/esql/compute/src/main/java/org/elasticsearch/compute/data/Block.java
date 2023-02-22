@@ -121,6 +121,12 @@ public interface Block extends NamedWriteable {
         Builder endPositionEntry();
 
         /**
+         * Copy the values in {@code block} from {@code beginInclusive} to
+         * {@code endExclusive} into this builder.
+         */
+        Builder copyFrom(Block block, int beginInclusive, int endExclusive);
+
+        /**
          * Builds the block. This method can be called multiple times.
          */
         Block build();

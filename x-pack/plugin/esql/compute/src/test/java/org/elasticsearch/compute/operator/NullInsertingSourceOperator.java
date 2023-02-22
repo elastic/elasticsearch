@@ -33,20 +33,7 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
         }
         Block.Builder[] builders = new Block.Builder[page.getBlockCount()];
         for (int b = 0; b < builders.length; b++) {
-            ElementType elementType = page.getBlock(b).elementType();
-            switch (elementType) {
-                case LONG:
-                    builders[b] = LongBlock.newBlockBuilder(page.getPositionCount());
-                    break;
-                case INT:
-                    builders[b] = IntBlock.newBlockBuilder(page.getPositionCount());
-                    break;
-                case DOUBLE:
-                    builders[b] = DoubleBlock.newBlockBuilder(page.getPositionCount());
-                    break;
-                default:
-                    throw new IllegalArgumentException("unknown block type " + elementType);
-            }
+            builders[b] = page.getBlock(b).elementType().newBlockBuilder(page.getPositionCount());
         }
         for (int position = 0; position < page.getPositionCount(); position++) {
             for (int nulls = between(0, 3); nulls > 0; nulls--) {
@@ -55,7 +42,7 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
                     if (b == nullIndex) {
                         builders[b].appendNull();
                     } else {
-                        copyValues(page.getBlock(b), position, builders[b]);
+                        builders[b].copyFrom(page.getBlock(b), position, position + 1);
                     }
                 }
             }

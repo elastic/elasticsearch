@@ -635,7 +635,7 @@ class IndexLifecycleRunner {
             final Tuple<Index, StepKey> dedupKey = Tuple.tuple(task.index, task.currentStepKey);
             // index+step-key combination on a best-effort basis to skip checking for more work for an index on CS application
             busyIndices.add(dedupKey);
-            task.addListener(ActionListener.wrap(() -> {
+            task.addListener(ActionListener.running(() -> {
                 final boolean removed = executingTasks.remove(task);
                 busyIndices.remove(dedupKey);
                 assert removed : "tried to unregister unknown task [" + task + "]";

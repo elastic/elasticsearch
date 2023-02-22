@@ -61,6 +61,23 @@ public abstract class StoredFieldLoader {
     }
 
     /**
+     * Creates a StoredFieldLoader tuned for sequential reads of _source
+     */
+    public static StoredFieldLoader sequentialSource() {
+        return new StoredFieldLoader() {
+            @Override
+            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) {
+                return new ReaderStoredFieldLoader(sequentialReader(ctx), true, Set.of());
+            }
+
+            @Override
+            public List<String> fieldsToLoad() {
+                return List.of();
+            }
+        };
+    }
+
+    /**
      * Creates a no-op StoredFieldLoader that will not load any fields from disk
      */
     public static StoredFieldLoader empty() {
@@ -82,8 +99,16 @@ public abstract class StoredFieldLoader {
         if (docs == null) {
             return leafReader::document;
         }
-        if (leafReader instanceof SequentialStoredFieldsLeafReader lf && docs.length > 10 && hasSequentialDocs(docs)) {
-            return lf.getSequentialStoredFieldsReader()::visitDocument;
+        if (docs.length > 10 && hasSequentialDocs(docs)) {
+            return sequentialReader(ctx);
+        }
+        return leafReader::document;
+    }
+
+    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> sequentialReader(LeafReaderContext ctx) {
+        LeafReader leafReader = ctx.reader();
+        if (leafReader instanceof SequentialStoredFieldsLeafReader lf) {
+            return lf.getSequentialStoredFieldsReader()::document;
         }
         return leafReader::document;
     }

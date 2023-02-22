@@ -1,6 +1,0 @@
-pr: 92173
-summary: In file based settings, wait until security index is ready for role mappings
-area: Infra/Core
-type: bug
-issues:
- - 91939

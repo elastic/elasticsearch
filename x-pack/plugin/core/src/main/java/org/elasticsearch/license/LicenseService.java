@@ -24,23 +24,21 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -121,11 +119,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private final Clock clock;
 
     /**
-     * File watcher for operation mode changes
-     */
-    private final OperationModeFileWatcher operationModeFileWatcher;
-
-    /**
      * Callbacks to notify relative to license expiry
      */
     private final List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
@@ -157,8 +150,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        Environment env,
-        ResourceWatcherService resourceWatcherService,
         XPackLicenseState licenseState
     ) {
         this.settings = settings;
@@ -177,12 +168,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
         this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
-        this.operationModeFileWatcher = new OperationModeFileWatcher(
-            resourceWatcherService,
-            XPackPlugin.resolveConfigFile(env, "license_mode"),
-            logger,
-            () -> updateLicenseState(getLicensesMetadata())
-        );
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
@@ -519,17 +504,21 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
             final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
-            if (logger.isDebugEnabled()) {
-                logger.debug("previous [{}]", prevLicensesMetadata);
-                logger.debug("current [{}]", currentLicensesMetadata);
-            }
             // notify all interested plugins
             if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || prevLicensesMetadata == null) {
                 if (currentLicensesMetadata != null) {
+                    logger.debug("state recovered: previous license [{}]", prevLicensesMetadata);
+                    logger.debug("state recovered: current license [{}]", currentLicensesMetadata);
                     onUpdate(currentLicensesMetadata);
+                } else {
+                    logger.trace("state recovered: no current license");
                 }
             } else if (prevLicensesMetadata.equals(currentLicensesMetadata) == false) {
+                logger.debug("previous [{}]", prevLicensesMetadata);
+                logger.debug("current [{}]", currentLicensesMetadata);
                 onUpdate(currentLicensesMetadata);
+            } else {
+                logger.trace("license unchanged [{}]", currentLicensesMetadata);
             }
 
             License currentLicense = null;
@@ -553,12 +542,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             }
         } else if (logger.isDebugEnabled()) {
             logger.debug("skipped license notifications reason: [{}]", GatewayService.STATE_NOT_RECOVERED_BLOCK);
-        }
-    }
-
-    private void updateLicenseState(LicensesMetadata licensesMetadata) {
-        if (licensesMetadata != null) {
-            updateLicenseState(getLicense(licensesMetadata));
         }
     }
 
@@ -617,7 +600,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             final License previousLicense = currentLicenseHolder.get();
             if (license.equals(previousLicense) == false) {
                 currentLicenseHolder.set(license);
-                license.setOperationModeFileWatcher(operationModeFileWatcher);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(
@@ -626,10 +608,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                             (startTime, now) -> expirationCallback.nextScheduledTimeForExpiry(getExpiryDate(license), startTime, now)
                         )
                     );
-                }
-                if (previousLicense != null) {
-                    // remove operationModeFileWatcher to gc the old license object
-                    previousLicense.removeOperationModeFileWatcher();
                 }
                 logger.info("license [{}] mode [{}] - valid", license.uid(), license.operationMode().name().toLowerCase(Locale.ROOT));
             }

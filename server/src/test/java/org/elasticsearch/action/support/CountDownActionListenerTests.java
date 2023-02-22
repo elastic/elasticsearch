@@ -115,7 +115,6 @@ public class CountDownActionListenerTests extends ESTestCase {
 
         // can't use a null listener or runnable
         expectThrows(NullPointerException.class, () -> new CountDownActionListener(1, (ActionListener<Void>) null));
-        expectThrows(NullPointerException.class, () -> new CountDownActionListener(1, (Runnable) null));
 
         final int overage = randomIntBetween(1, 10);
         AtomicInteger assertionsTriggered = new AtomicInteger();

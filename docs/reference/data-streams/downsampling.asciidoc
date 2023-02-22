@@ -1,8 +1,6 @@
 [[downsampling]]
 === Downsampling a time series data stream
 
-preview::[]
-
 Downsampling provides a method to reduce the footprint of your <<tsds,time
 series data>> by storing it at reduced granularity.
 
@@ -72,18 +70,14 @@ To downsample a time series index, use the
 <<indices-downsample-data-stream,Downsample API>> and set `fixed_interval` to
 the level of granularity that you'd like:
 
-```
-POST /<source_index>/_downsample/<new_index>
-{
-    "fixed_interval": "1d"
-}
-```
+include::../indices/downsample-data-stream.asciidoc[tag=downsample-example]
 
 To downsample time series data as part of ILM, include a
 <<ilm-downsample,Downsample action>> in your ILM policy and set `fixed_interval`
 to the level of granularity that you'd like:
 
-```
+[source,console]
+----
 PUT _ilm/policy/my_policy
 {
   "policy": {
@@ -98,7 +92,7 @@ PUT _ilm/policy/my_policy
     }
   }
 }
-```
+----
 
 [discrete]
 [[querying-downsampled-indices]]

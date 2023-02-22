@@ -9,13 +9,12 @@
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
@@ -35,11 +34,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -377,7 +374,6 @@ public class MasterServiceTests extends ESTestCase {
     @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1 start",
@@ -470,9 +466,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
 
-        Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
-        try (MasterService masterService = createMasterService(true)) {
+        try (var ignored = mockAppender.capturing(MasterService.class); var masterService = createMasterService(true)) {
             masterService.submitUnbatchedStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -535,9 +529,6 @@ public class MasterServiceTests extends ESTestCase {
                 }
             });
             assertBusy(mockAppender::assertAllExpectationsMatched);
-        } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -1102,7 +1093,7 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     public void testBlockingCallInClusterStateTaskListenerFails() throws InterruptedException {
-        assumeTrue("assertions must be enabled for this test to work", BaseFuture.class.desiredAssertionStatus());
+        assumeTrue("assertions must be enabled for this test to work", PlainActionFuture.class.desiredAssertionStatus());
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<AssertionError> assertionRef = new AtomicReference<>();
 
@@ -1110,8 +1101,7 @@ public class MasterServiceTests extends ESTestCase {
             masterService.createTaskQueue("testBlockingCallInClusterStateTaskListenerFails", Priority.NORMAL, batchExecutionContext -> {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     taskContext.success(() -> {
-                        BaseFuture<Void> future = new BaseFuture<Void>() {
-                        };
+                        PlainActionFuture<Void> future = new PlainActionFuture<>();
                         try {
                             if (randomBoolean()) {
                                 future.get(1L, TimeUnit.SECONDS);
@@ -1138,7 +1128,6 @@ public class MasterServiceTests extends ESTestCase {
     @TestLogging(value = "org.elasticsearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "test1 shouldn't log because it was fast enough",
@@ -1188,13 +1177,12 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
 
-        Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
         final Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
             .build();
         try (
+            var ignored = mockAppender.capturing(MasterService.class);
             MasterService masterService = new MasterService(
                 settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -1367,11 +1355,8 @@ public class MasterServiceTests extends ESTestCase {
                 }
             });
             latch.await();
-        } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
-            mockAppender.stop();
+            mockAppender.assertAllExpectationsMatched();
         }
-        mockAppender.assertAllExpectationsMatched();
     }
 
     public void testAcking() throws InterruptedException {
@@ -1703,11 +1688,7 @@ public class MasterServiceTests extends ESTestCase {
         final long taskDurationMillis = TimeValue.timeValueSeconds(1).millis();
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-
-        Logger clusterLogger = LogManager.getLogger(MasterService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
-        try (MasterService masterService = createMasterService(true)) {
+        try (MasterService masterService = createMasterService(true); var ignored = mockAppender.capturing(MasterService.class)) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
 
             final Runnable await = new Runnable() {
@@ -1809,10 +1790,6 @@ public class MasterServiceTests extends ESTestCase {
             keepRunning.set(false);
             awaitNextTask.run();
             assertTrue(starvedTaskExecuted.await(10, TimeUnit.SECONDS));
-
-        } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -1822,11 +1799,7 @@ public class MasterServiceTests extends ESTestCase {
     )
     public void testBatchedUpdateSummaryLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-
-        Logger masterServiceLogger = LogManager.getLogger(MasterService.class);
-        Loggers.addAppender(masterServiceLogger, mockAppender);
-        try (MasterService masterService = createMasterService(true)) {
+        try (var ignored = mockAppender.capturing(MasterService.class); var masterService = createMasterService(true)) {
 
             final var barrier = new CyclicBarrier(2);
             final var blockingTask = new ClusterStateUpdateTask() {
@@ -1942,9 +1915,6 @@ public class MasterServiceTests extends ESTestCase {
             assertTrue(manySourceExecutor.semaphore.tryAcquire(2048, 10, TimeUnit.SECONDS));
             assertTrue(manyTasksPerSourceExecutor.semaphore.tryAcquire(2048, 10, TimeUnit.SECONDS));
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(masterServiceLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

@@ -10,7 +10,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,7 +33,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -135,7 +134,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         docId = -1;
         score = in.readFloat();
         id = in.readOptionalText();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readOptionalText();
         }
         nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
@@ -149,7 +148,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             documentFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
             metaFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
         } else {
@@ -234,7 +233,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(score);
         out.writeOptionalText(id);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeOptionalText(SINGLE_MAPPING_TYPE);
         }
         out.writeOptionalWriteable(nestedIdentity);
@@ -248,7 +247,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
             out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
         } else {
@@ -402,7 +401,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source);
+        sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
     }
 
@@ -1106,6 +1105,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
                 if (nestedParsedSource == null) {
                     return Source.empty(root.sourceContentType());
+                }
+                if (nested.getOffset() > nestedParsedSource.size() - 1) {
+                    throw new IllegalStateException("Error retrieving path " + this.field);
                 }
                 rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
                 if (nested.getChild() == null) {

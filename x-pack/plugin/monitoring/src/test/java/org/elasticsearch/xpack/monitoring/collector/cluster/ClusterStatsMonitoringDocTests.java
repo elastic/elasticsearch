@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -400,7 +401,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             shardId,
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            unassignedInfo
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);
@@ -423,7 +425,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             emptyList(),
             MappingStats.of(metadata, () -> {}),
             AnalysisStats.of(metadata, () -> {}),
-            VersionStats.of(metadata, singletonList(mockNodeResponse))
+            VersionStats.of(metadata, singletonList(mockNodeResponse)),
+            ClusterSnapshotStats.EMPTY
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -448,6 +451,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         Object[] args = new Object[] {
             needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
             mockNodeVersion,
+            Version.CURRENT,
             Version.CURRENT,
             apmIndicesExist };
         final String expectedJson = Strings.format("""
@@ -717,6 +721,16 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "limit_in_bytes": 0
                     }
                   }
+                },
+                "snapshots": {
+                  "current_counts": {
+                    "snapshots": 0,
+                    "shard_snapshots": 0,
+                    "snapshot_deletions": 0,
+                    "concurrent_operations": 0,
+                    "cleanups": 0
+                  },
+                  "repositories": {}
                 }
               },
               "cluster_state": {
@@ -737,7 +751,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     },
                     "roles": [
                       "master"
-                    ]
+                    ],
+                    "version": "%s"
                   }
                 }
               },

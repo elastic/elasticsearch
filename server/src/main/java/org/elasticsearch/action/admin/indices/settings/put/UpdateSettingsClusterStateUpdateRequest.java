@@ -11,6 +11,8 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Arrays;
+
 /**
  * Cluster state update request that allows to update settings for some indices
  */
@@ -50,5 +52,10 @@ public class UpdateSettingsClusterStateUpdateRequest extends IndicesClusterState
     public UpdateSettingsClusterStateUpdateRequest settings(Settings settings) {
         this.settings = settings;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return Arrays.toString(indices()) + settings;
     }
 }

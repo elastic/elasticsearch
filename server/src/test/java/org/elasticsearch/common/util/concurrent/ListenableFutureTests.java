@@ -8,9 +8,11 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.junit.After;
 
 import java.util.concurrent.BrokenBarrierException;
@@ -38,7 +40,7 @@ public class ListenableFutureTests extends ESTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
+            future.addListener(ActionListener.running(notifications::incrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
         }
 
         future.onResponse("");
@@ -123,5 +125,24 @@ public class ListenableFutureTests extends ESTestCase {
 
         assertEquals(numberOfThreads - 1, numResponses.get());
         assertEquals(0, numExceptions.get());
+    }
+
+    public void testAddedListenersReleasedOnCompletion() {
+        final ListenableFuture<Void> future = new ListenableFuture<>();
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+
+        for (int i = between(1, 3); i > 0; i--) {
+            future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
+        }
+        reachabilityChecker.checkReachable();
+        if (randomBoolean()) {
+            future.onResponse(null);
+        } else {
+            future.onFailure(new ElasticsearchException("simulated"));
+        }
+        reachabilityChecker.ensureUnreachable();
+
+        future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
+        reachabilityChecker.ensureUnreachable();
     }
 }

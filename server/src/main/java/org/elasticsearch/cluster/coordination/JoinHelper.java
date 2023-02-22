@@ -92,7 +92,7 @@ public class JoinHelper {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
-            new JoinTaskExecutor(allocationService, rerouteService)
+            new NodeJoinExecutor(allocationService, rerouteService)
         );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -109,7 +109,7 @@ public class JoinHelper {
             JoinRequest::new,
             (request, channel, task) -> joinHandler.accept(
                 request,
-                new ChannelActionListener<Empty, JoinRequest>(channel, JOIN_ACTION_NAME, request).map(ignored -> Empty.INSTANCE)
+                new ChannelActionListener<Empty>(channel).map(ignored -> Empty.INSTANCE)
             )
         );
 

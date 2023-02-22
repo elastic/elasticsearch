@@ -152,7 +152,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -603,6 +602,12 @@ public final class InternalTestCluster extends TestCluster {
             );
         }
 
+        if (random.nextBoolean()) {
+            // Nodes may fail to join a cluster within the default 30s timeout so we must sometimes skip that wait to ensure there's nothing
+            // in the startup process which relies on having joined a cluster.
+            builder.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s");
+        }
+
         return builder.build();
     }
 
@@ -730,14 +735,6 @@ public final class InternalTestCluster extends TestCluster {
         // force certain settings
         updatedSettings.put("node.name", name);
         updatedSettings.put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
-
-        if (autoManageMasterNodes) {
-            assertThat(
-                "if master nodes are automatically managed then nodes must complete a join cycle when starting",
-                updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()),
-                nullValue()
-            );
-        }
 
         return updatedSettings.build();
     }
@@ -1778,6 +1775,10 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public Collection<Path> configPaths() {
+        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configFile()).toList();
+    }
+
     private void stopNodesAndClient(NodeAndClient nodeAndClient) throws IOException {
         stopNodesAndClients(Collections.singleton(nodeAndClient));
     }
@@ -2515,9 +2516,9 @@ public final class InternalTestCluster extends TestCluster {
                                 "All incoming requests on node ["
                                     + nodeAndClient.name
                                     + "] should have finished. "
-                                    + "Expected 0 but got "
+                                    + "Expected 0 bytes for requests in-flight but got "
                                     + bytesUsed
-                                    + "; pending tasks ["
+                                    + " bytes; pending tasks ["
                                     + pendingTasks
                                     + "]"
                             );

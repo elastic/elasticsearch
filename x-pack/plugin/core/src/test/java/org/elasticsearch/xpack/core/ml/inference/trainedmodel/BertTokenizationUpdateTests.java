@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -68,8 +68,13 @@ public class BertTokenizationUpdateTests extends AbstractBWCWireSerializationTes
     }
 
     @Override
-    protected BertTokenizationUpdate mutateInstanceForVersion(BertTokenizationUpdate instance, Version version) {
-        if (version.before(Version.V_8_2_0)) {
+    protected BertTokenizationUpdate mutateInstance(BertTokenizationUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected BertTokenizationUpdate mutateInstanceForVersion(BertTokenizationUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_2_0)) {
             return new BertTokenizationUpdate(instance.getTruncate(), null);
         }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  */
 public class FeatureMigrationResults implements Metadata.Custom {
     public static final String TYPE = "system_index_migration";
-    public static final Version MIGRATION_ADDED_VERSION = Version.V_8_0_0;
+    public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersion.V_8_0_0;
 
     private static final ParseField RESULTS_FIELD = new ParseField("results");
 
@@ -122,7 +122,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public TransportVersion getMinimalSupportedVersion() {
         return MIGRATION_ADDED_VERSION;
     }
 
@@ -192,7 +192,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return MIGRATION_ADDED_VERSION;
         }
 

@@ -31,13 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
     @Override
     protected ComponentTemplate makeTestChanges(ComponentTemplate testInstance) {
-        try {
-            return mutateInstance(testInstance);
-        } catch (IOException e) {
-            logger.error(e);
-            fail("mutating should not throw an exception, but got: " + e);
-            return null;
-        }
+        return mutateInstance(testInstance);
     }
 
     @Override
@@ -125,7 +119,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     @Override
-    protected ComponentTemplate mutateInstance(ComponentTemplate orig) throws IOException {
+    protected ComponentTemplate mutateInstance(ComponentTemplate orig) {
         return mutateTemplate(orig);
     }
 

@@ -83,14 +83,12 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         Task task,
         UpdateDesiredNodesRequest request,
         ClusterState state,
-        ActionListener<UpdateDesiredNodesResponse> listener
+        ActionListener<UpdateDesiredNodesResponse> responseListener
     ) throws Exception {
-        try {
+        ActionListener.run(responseListener, listener -> {
             settingsValidator.validate(request.getNodes());
             taskQueue.submitTask("update-desired-nodes", new UpdateDesiredNodesTask(request, listener), request.masterNodeTimeout());
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        });
     }
 
     @Override

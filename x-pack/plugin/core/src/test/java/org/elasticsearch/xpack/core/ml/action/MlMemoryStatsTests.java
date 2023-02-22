@@ -34,6 +34,11 @@ public class MlMemoryStatsTests extends AbstractWireSerializingTestCase<MlMemory
         return createTestInstance(node);
     }
 
+    @Override
+    protected MlMemoryStats mutateInstance(MlMemoryStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static MlMemoryStats createTestInstance(DiscoveryNode node) {
         return new MlMemoryStats(
             node,

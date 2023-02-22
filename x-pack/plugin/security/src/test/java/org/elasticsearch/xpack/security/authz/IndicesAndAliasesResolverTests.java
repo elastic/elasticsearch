@@ -711,14 +711,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testResolveExplicitIndicesIgnoreUnavailable() {
-        SearchRequest request = new SearchRequest("missing", "bar", "barbaz");
+        SearchRequest request = new SearchRequest("missing", "missing-and-unauthorized", "bar", "barbaz");
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] replacedIndices = new String[] { "bar" };
-        assertThat(indices, hasSize(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertThat(indices, containsInAnyOrder("bar", "missing"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "missing"));
     }
 
     public void testResolveNoAuthorizedIndicesAllowNoIndices() {
@@ -749,14 +746,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testResolveMissingIndexIgnoreUnavailable() {
-        SearchRequest request = new SearchRequest("bar*", "missing");
+        SearchRequest request = new SearchRequest("bar*", "missing", "missing-and-unauthorized");
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        String[] expectedIndices = new String[] { "bar" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(request.indices().length, equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), equalTo(expectedIndices));
+        assertThat(indices, containsInAnyOrder("bar", "missing"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "missing"));
     }
 
     public void testResolveNonMatchingIndicesAndExplicit() {
@@ -1071,11 +1065,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.aliases("alias2");
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        // the union of all indices and aliases gets returned, missing is not an existing index/alias but that doesn't make any difference
-        String[] expectedIndices = new String[] { "alias2", "missing" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
+        // explicit names, regardless of whether they are missing or unauthorized,
+        // are not erased from the request if `ignoreUnavailable` is `false`
+        assertThat(indices, containsInAnyOrder("alias2", "missing"));
         assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias2"));
+        request.indices("missing-and-unauthorized");
+        indices = resolveIndices(request, authorizedIndices).getLocal();
+        assertThat(indices, containsInAnyOrder("alias2", "missing-and-unauthorized"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("missing-and-unauthorized"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias2"));
     }
 
@@ -1084,11 +1082,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
         request.indices("missing");
         request.aliases("alias2");
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)).getLocal();
+        // missing is authorized, so it is not "unavailable" from Security's POV
+        assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
+        assertThat(indices, containsInAnyOrder("missing", "alias2"));
+        // but this one is both missing and unauthorized, and because it is unauthorized it counts as "unavailable"
+        request.indices("missing-and-unauthorized");
         IndexNotFoundException exception = expectThrows(
             IndexNotFoundException.class,
             () -> resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)).getLocal()
         );
-        assertEquals("no such index [[missing]]", exception.getMessage());
+        assertEquals("no such index [[missing-and-unauthorized]]", exception.getMessage());
     }
 
     public void testGetAliasesRequestMissingIndexIgnoreUnavailableAllowNoIndices() {
@@ -1096,6 +1100,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean()));
         request.indices("missing");
         request.aliases("alias2");
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)).getLocal();
+        // missing is authorized, so it is not "unavailable" from Security's POV
+        assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
+        assertThat(indices, containsInAnyOrder("missing", "alias2"));
+        // but this one is both missing and unauthorized, and because it is unauthorized it counts as "unavailable"
+        request.indices("missing-and-unauthorized");
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)));
     }
 
@@ -1147,17 +1157,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsGetAliasesRequestLenientExpandOpen() {
         GetAliasesRequest request = new GetAliasesRequest();
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, false));
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         request.aliases("alias1");
         request.indices("foo*", "bar", "missing");
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         // the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
-        String[] expectedIndices = new String[] { "alias1", "foofoo", "foofoobar", "foobarfoo", "bar" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
+        assertThat(indices, containsInAnyOrder("alias1", "foofoo", "foofoobar", "foobarfoo", "bar", "missing"));
         // wildcards get replaced on each single action
-        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "bar"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "bar", "missing"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
@@ -2175,7 +2183,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(authorizedIndices.check("logs-foobar"), is(false));
         DataStream dataStream = metadata.dataStreams().get("logs-foobar");
         assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
-        assertThat(authorizedIndices.check(indexName), is(false));
+        // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
+        assertThat(authorizedIndices.check(indexName), is(true));
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
@@ -2191,8 +2200,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         assertThat(resolvedIndices.getLocal(), not(hasItem(dataStream.getName())));
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
     }
 
@@ -2237,7 +2245,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(authorizedIndices.check("logs-foobar"), is(false));
         DataStream dataStream = metadata.dataStreams().get("logs-foobar");
         assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
-        assertThat(authorizedIndices.check(indexName), is(false));
+        // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
+        assertThat(authorizedIndices.check(indexName), is(true));
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
@@ -2253,8 +2262,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         assertThat(resolvedIndices.getLocal(), not(hasItem(dataStream.getName())));
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
     }
 

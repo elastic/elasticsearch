@@ -44,6 +44,11 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     @Override
+    protected LatestConfig mutateInstance(LatestConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<LatestConfig> instanceReader() {
         return LatestConfig::new;
     }

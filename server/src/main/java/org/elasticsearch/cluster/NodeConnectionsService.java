@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -21,7 +21,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -29,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -98,28 +96,25 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             return;
         }
 
-        final CountDownActionListener listener = new CountDownActionListener(discoveryNodes.getSize(), onCompletion);
-
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
-        synchronized (mutex) {
-            for (final DiscoveryNode discoveryNode : discoveryNodes) {
-                ConnectionTarget connectionTarget = targetsByNode.get(discoveryNode);
-                final boolean isNewNode = connectionTarget == null;
-                if (isNewNode) {
-                    connectionTarget = new ConnectionTarget(discoveryNode);
-                    targetsByNode.put(discoveryNode, connectionTarget);
-                }
+        try (var refs = new RefCountingRunnable(onCompletion)) {
+            synchronized (mutex) {
+                for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                    ConnectionTarget connectionTarget = targetsByNode.get(discoveryNode);
+                    final boolean isNewNode = connectionTarget == null;
+                    if (isNewNode) {
+                        connectionTarget = new ConnectionTarget(discoveryNode);
+                        targetsByNode.put(discoveryNode, connectionTarget);
+                    }
 
-                if (isNewNode) {
-                    logger.debug("connecting to {}", discoveryNode);
-                    runnables.add(
-                        connectionTarget.connect(ActionListener.runAfter(listener, () -> logger.debug("connected to {}", discoveryNode)))
-                    );
-                } else {
-                    // known node, try and ensure it's connected but do not wait
-                    logger.trace("checking connection to existing node [{}]", discoveryNode);
-                    runnables.add(connectionTarget.connect(null));
-                    runnables.add(() -> listener.onResponse(null));
+                    if (isNewNode) {
+                        logger.debug("connecting to {}", discoveryNode);
+                        runnables.add(connectionTarget.connect(refs.acquire()));
+                    } else {
+                        // known node, try and ensure it's connected but do not wait
+                        logger.trace("checking connection to existing node [{}]", discoveryNode);
+                        runnables.add(connectionTarget.connect(null));
+                    }
                 }
             }
         }
@@ -151,15 +146,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      */
     void ensureConnections(Runnable onCompletion) {
         final List<Runnable> runnables = new ArrayList<>();
-        synchronized (mutex) {
-            final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();
-            if (connectionTargets.isEmpty()) {
-                runnables.add(onCompletion);
-            } else {
+        try (var refs = new RefCountingRunnable(onCompletion)) {
+            synchronized (mutex) {
                 logger.trace("ensureConnections: {}", targetsByNode);
-                final CountDownActionListener listener = new CountDownActionListener(connectionTargets.size(), onCompletion);
-                for (final ConnectionTarget connectionTarget : connectionTargets) {
-                    runnables.add(connectionTarget.connect(listener));
+                for (ConnectionTarget connectionTarget : targetsByNode.values()) {
+                    runnables.add(connectionTarget.connect(refs.acquire()));
                 }
             }
         }
@@ -221,11 +212,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
 
         // all access to these fields is synchronized
-        private ActionListener<Void> pendingListener;
+        private List<Releasable> pendingRefs;
         private boolean connectionInProgress;
 
         // placeholder listener for a fire-and-forget connection attempt
-        private static final ActionListener<Void> NOOP = ActionListener.noop();
+        private static final List<Releasable> NOOP = List.of();
 
         ConnectionTarget(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
@@ -235,38 +226,35 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             Releasables.close(connectionRef.getAndSet(connectionReleasable));
         }
 
-        Runnable connect(ActionListener<Void> listener) {
+        Runnable connect(Releasable onCompletion) {
             return () -> {
-                registerListener(listener);
+                registerRef(onCompletion);
                 doConnect();
             };
         }
 
-        private synchronized void registerListener(ActionListener<Void> listener) {
-            if (listener == null) {
-                pendingListener = pendingListener == null ? NOOP : pendingListener;
-            } else if (pendingListener == null || pendingListener == NOOP) {
-                pendingListener = listener;
-            } else if (pendingListener instanceof ListenableFuture<Void> listenableFuture) {
-                listenableFuture.addListener(listener);
-            } else {
-                var wrapper = new ListenableFuture<Void>();
-                wrapper.addListener(pendingListener);
-                wrapper.addListener(listener);
-                pendingListener = wrapper;
+        private synchronized void registerRef(Releasable ref) {
+            if (ref == null) {
+                pendingRefs = pendingRefs == null ? NOOP : pendingRefs;
+                return;
             }
+
+            if (pendingRefs == null || pendingRefs == NOOP) {
+                pendingRefs = new ArrayList<>();
+            }
+            pendingRefs.add(ref);
         }
 
-        private synchronized ActionListener<Void> acquireListener() {
+        private synchronized Releasable acquireRefs() {
             // Avoid concurrent connection attempts because they don't necessarily complete in order otherwise, and out-of-order completion
             // might mean we end up disconnected from a node even though we triggered a call to connect() after all close() calls had
             // finished.
             if (connectionInProgress == false) {
-                var listener = pendingListener;
-                if (listener != null) {
-                    pendingListener = null;
+                var refs = pendingRefs;
+                if (refs != null) {
+                    pendingRefs = null;
                     connectionInProgress = true;
-                    return listener;
+                    return Releasables.wrap(refs);
                 }
             }
             return null;
@@ -278,8 +266,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         private void doConnect() {
-            var listener = acquireListener();
-            if (listener == null) {
+            // noinspection resource
+            var refs = acquireRefs();
+            if (refs == null) {
                 return;
             }
 
@@ -312,7 +301,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         logger.debug("connected to stale {} - releasing stale connection", discoveryNode);
                         setConnectionRef(null);
                     }
-                    listener.onResponse(null);
+                    Releasables.closeExpectNoException(refs);
                 }
 
                 @Override
@@ -322,7 +311,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
                     logger.log(level, () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount), e);
                     setConnectionRef(null);
-                    listener.onFailure(e);
+                    Releasables.closeExpectNoException(refs);
                 }
             }, () -> {
                 releaseListener();

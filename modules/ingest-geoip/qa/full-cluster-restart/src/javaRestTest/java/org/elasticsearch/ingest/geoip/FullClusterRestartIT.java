@@ -7,10 +7,21 @@
  */
 package org.elasticsearch.ingest.geoip;
 
+import fixture.geoip.GeoIpHttpFixture;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,7 +31,33 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 
-public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
+
+    private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == false;
+
+    private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(2)
+        .setting("indices.memory.shard_inactive_time", "60m")
+        .setting("xpack.security.enabled", "false")
+        .settings(s -> useFixture ? Map.of("ingest.geoip.downloader.endpoint", fixture.getAddress()) : Map.of())
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
+
+    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
 
     public void testGeoIpSystemFeaturesMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {

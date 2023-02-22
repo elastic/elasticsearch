@@ -95,7 +95,7 @@ public class SecurityRestFilter implements RestHandler {
         }
 
         if (enabled == false) {
-            doHandleRequest(request, channel, client);
+            restHandler.handleRequest(request, channel, client);
             return;
         }
 

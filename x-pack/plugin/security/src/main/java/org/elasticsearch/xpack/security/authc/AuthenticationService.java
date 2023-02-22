@@ -394,7 +394,7 @@ public class AuthenticationService {
         @Override
         ElasticsearchSecurityException tamperedRequest() {
             auditTrail.tamperedRequest(requestId, request);
-            return new ElasticsearchSecurityException("rest request attempted to inject a user");
+            return new ElasticsearchSecurityException("http request attempted to inject a user");
         }
 
         @Override
@@ -427,7 +427,7 @@ public class AuthenticationService {
 
         @Override
         public String toString() {
-            return "rest request uri [" + request.uri() + "]";
+            return "http request uri [" + request.uri() + "]";
         }
     }
 

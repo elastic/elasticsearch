@@ -1680,7 +1680,7 @@ public class Security extends Plugin
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        return handler -> new SecurityRestFilter(enabled, threadContext, authcService.get(), secondayAuthc.get(), handler);
+        return handler -> new SecurityRestFilter(enabled, securityContext.get(), auditTrailService.get(), secondayAuthc.get(), handler);
     }
 
     @Override

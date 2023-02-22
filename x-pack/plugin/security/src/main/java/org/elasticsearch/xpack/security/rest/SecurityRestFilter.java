@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
@@ -22,7 +23,11 @@ import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.util.List;
@@ -36,10 +41,10 @@ public class SecurityRestFilter implements RestHandler {
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
     private final RestHandler restHandler;
-    private final AuthenticationService authenticationService;
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final boolean enabled;
-    private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
+    private final AuditTrailService auditTrailService;
 
     public enum ActionType {
         Authentication("Authentication"),
@@ -60,14 +65,14 @@ public class SecurityRestFilter implements RestHandler {
 
     public SecurityRestFilter(
         boolean enabled,
-        ThreadContext threadContext,
-        AuthenticationService authenticationService,
+        SecurityContext securityContext,
+        AuditTrailService auditTrailService,
         SecondaryAuthenticator secondaryAuthenticator,
         RestHandler restHandler
     ) {
         this.enabled = enabled;
-        this.threadContext = threadContext;
-        this.authenticationService = authenticationService;
+        this.securityContext = securityContext;
+        this.auditTrailService = auditTrailService;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.restHandler = restHandler;
     }
@@ -94,32 +99,53 @@ public class SecurityRestFilter implements RestHandler {
             return;
         }
 
+        // this only lazily wraps the http request body to ensure sensitive info doesn't end up in the audit log
         final HttpRequest httpRequest = wrapHttpContent(request.getHttpRequest(), request.getXContentType());
-        authenticationService.authenticate(httpRequest, ActionListener.wrap(authentication -> {
-            if (authentication == null) {
-                logger.trace("No authentication available for REST request [{}]", httpRequest.uri());
-            } else {
-                logger.trace("Authenticated REST request [{}] as {}", httpRequest.uri(), authentication);
+        // ensures request is authenticated and audits the request body
+        try {
+            final String requestId = AuditUtil.extractRequestId(securityContext.getThreadContext());
+            if (requestId == null) {
+                throw new IllegalStateException("Audit request id not found");
             }
-            secondaryAuthenticator.authenticateAndAttachToContext(httpRequest, ActionListener.wrap(secondaryAuthentication -> {
-                if (secondaryAuthentication != null) {
-                    logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, httpRequest.uri());
-                }
-                try {
-                    doHandleRequest(request, channel, client);
-                } catch (Exception e) {
-                    handleException(ActionType.RequestHandling, request, channel, e);
-                }
-            }, e -> handleException(ActionType.SecondaryAuthentication, request, channel, e)));
-        }, e -> handleException(ActionType.Authentication, request, channel, e)));
+            final AuditTrail auditTrail = auditTrailService.get();
+            final Authentication authentication;
+            try {
+                authentication = securityContext.getAuthentication();
+            } catch (Exception e) {
+                logger.error(() -> format("caught exception while trying to read authentication from request [%s]", httpRequest.uri()), e);
+                auditTrail.tamperedRequest(requestId, httpRequest);
+                throw new ElasticsearchSecurityException("http request could not be authenticated", e);
+            }
+            if (authentication == null) {
+                logger.error(() -> format("No authentication available for REST request [%s]", httpRequest.uri()));
+                auditTrail.tamperedRequest(requestId, httpRequest);
+                throw new ElasticsearchSecurityException("http request could not be authenticated");
+            }
+            logger.trace(() -> format("Authenticated REST request [%s] as %s", httpRequest.uri(), authentication));
+            auditTrail.authenticationSuccess(requestId, authentication, httpRequest);
+        } catch (Exception e) {
+            handleException(ActionType.Authentication, channel, e, securityContext.getThreadContext());
+            return;
+        }
+
+        secondaryAuthenticator.authenticateAndAttachToContext(httpRequest, ActionListener.wrap(secondaryAuthentication -> {
+            if (secondaryAuthentication != null) {
+                logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, httpRequest.uri());
+            }
+            try {
+                doHandleRequest(request, channel, client);
+            } catch (Exception e) {
+                handleException(ActionType.RequestHandling, channel, e, securityContext.getThreadContext());
+            }
+        }, e -> handleException(ActionType.SecondaryAuthentication, channel, e, securityContext.getThreadContext())));
     }
 
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        threadContext.sanitizeHeaders();
+        securityContext.getThreadContext().sanitizeHeaders();
         restHandler.handleRequest(request, channel, client);
     }
 
-    protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
+    private static void handleException(ActionType actionType, RestChannel channel, Exception e, ThreadContext threadContext) {
         threadContext.sanitizeHeaders();
         handleException(actionType, channel, e);
     }

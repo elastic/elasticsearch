@@ -835,6 +835,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
+                ingestDocument.resetPipelineSkipping();
 
                 if (e != null) {
                     logger.debug(

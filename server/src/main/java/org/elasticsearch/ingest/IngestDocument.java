@@ -62,10 +62,9 @@ public final class IngestDocument {
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
-    private boolean skipCurrentPipeline = false;
-
     private boolean doNoSelfReferencesCheck = false;
     private boolean invokeDefaultPipelineOfDestination = false;
+    private boolean skipCurrentPipeline = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -83,6 +82,7 @@ public final class IngestDocument {
             deepCopyMap(other.ingestMetadata)
         );
         this.invokeDefaultPipelineOfDestination = other.invokeDefaultPipelineOfDestination;
+        this.skipCurrentPipeline = other.skipCurrentPipeline;
     }
 
     /**
@@ -841,7 +841,6 @@ public final class IngestDocument {
         if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
-                skipCurrentPipeline = false;
                 executedPipelines.remove(pipeline.getId());
                 if (previousPipeline != null) {
                     ingestMetadata.put("pipeline", previousPipeline);
@@ -913,12 +912,16 @@ public final class IngestDocument {
         skipCurrentPipeline = true;
     }
 
-    public boolean isInvokeDefaultPipelineOfDestination() {
+    boolean isInvokeDefaultPipelineOfDestination() {
         return invokeDefaultPipelineOfDestination;
     }
 
-    public boolean isSkipCurrentPipeline() {
+    boolean isSkipCurrentPipeline() {
         return skipCurrentPipeline;
+    }
+
+    void resetPipelineSkipping() {
+        skipCurrentPipeline = false;
     }
 
     public enum Metadata {

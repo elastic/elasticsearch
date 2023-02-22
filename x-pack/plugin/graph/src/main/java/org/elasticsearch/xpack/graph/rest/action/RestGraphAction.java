@@ -20,6 +20,8 @@ import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
 /**
  * @see GraphExploreRequest
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGraphAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGraphAction.class);

@@ -585,8 +585,7 @@ public abstract class MappedFieldType {
      * @return null or an enumeration of matching terms
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter)
-        throws IOException {
+    public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
         return null;
     }
 

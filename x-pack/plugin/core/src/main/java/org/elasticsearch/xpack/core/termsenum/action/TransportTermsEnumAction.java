@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
@@ -689,8 +688,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         }
     }
 
-    private void asyncNodeOperation(NodeTermsEnumRequest request, ActionListener<NodeTermsEnumResponse> listener)
-        throws IOException {
+    private void asyncNodeOperation(NodeTermsEnumRequest request, ActionListener<NodeTermsEnumResponse> listener) throws IOException {
         // Start the clock ticking on the data node using the data node's local current time.
         request.startTimerOnDataNode();
 

@@ -547,16 +547,16 @@ public class ApiKeyService {
             }).collect(Collectors.toSet());
 
             if (false == affectedRoles.isEmpty()) {
+                final List<String> sortedAffectedRoles = affectedRoles.stream().sorted().toList();
                 logger.info(
-                    "removed remote indices privileges from role(s) [{}] for API key(s) [{}]",
-                    affectedRoles,
+                    "removed remote indices privileges from role(s) {} for API key(s) [{}]",
+                    sortedAffectedRoles,
                     buildDelimitedStringWithLimit(10, apiKeyIds)
                 );
-
                 HeaderWarning.addWarning(
-                    "Removed API key's remote indices privileges from role(s) ["
-                        + affectedRoles
-                        + "]. Remote indices are not supported by all nodes in the cluster. "
+                    "Removed API key's remote indices privileges from role(s) "
+                        + sortedAffectedRoles
+                        + ". Remote indices are not supported by all nodes in the cluster. "
                         + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
                 );
             }

@@ -97,6 +97,7 @@ public class FileWatchServiceTests extends ESTestCase {
 
         verify(service, times(2)).retryDelayMillis(anyInt());
     }
+
     public void testOperatorSettingsDir() {
         assertThat(fileWatchService.operatorSettingsDir(), equalTo(directory));
     }

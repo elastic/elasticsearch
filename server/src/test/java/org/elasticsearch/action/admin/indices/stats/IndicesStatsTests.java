@@ -195,6 +195,14 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures, clusterState);
+        return new IndicesStatsResponse(
+            shards,
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures,
+            clusterState.getMetadata(),
+            clusterState.routingTable()
+        );
     }
 }

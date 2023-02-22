@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -19,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -89,7 +91,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertEquals(1, versions.size());
     }
 
-    public void testResolveRemoteClusterAlias() {
+    public void testResolveRemoteClusterAlias() throws ExecutionException, InterruptedException {
         DiscoveryNode remoteNode1 = new DiscoveryNode("remote-node-1", address, Version.CURRENT);
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         remoteConnectionManager.connectToRemoteClusterNode(remoteNode1, validator, future);
@@ -105,6 +107,10 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         Transport.Connection proxyConnection = remoteConnectionManager.getConnection(remoteNode2);
         assertThat(proxyConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
         assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(proxyConnection).get(), equalTo("remote-cluster"));
+
+        PlainActionFuture<Transport.Connection> future2 = PlainActionFuture.newFuture();
+        remoteConnectionManager.openConnection(remoteNode1, null, future2);
+        assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(future2.get()).get(), equalTo("remote-cluster"));
     }
 
     private static class TestRemoteConnection extends CloseableConnection {
@@ -123,6 +129,11 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         @Override
         public Version getVersion() {
             return node.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

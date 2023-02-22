@@ -277,12 +277,6 @@ public class MasterService extends AbstractLifecycleComponent {
             previousClusterState,
             executeTasks(previousClusterState, executionResults, executor, summary, threadPool.getThreadContext())
         );
-        // fail all tasks that have failed
-        for (final var executionResult : executionResults) {
-            if (executionResult.failure != null) {
-                executionResult.updateTask.onFailure(executionResult.failure, executionResult::restoreResponseHeaders);
-            }
-        }
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
 
@@ -950,7 +944,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         void onPublishSuccess(ClusterState newClusterState) {
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
-                assert failure != null;
+                notifyFailure();
                 return;
             }
             try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
@@ -967,7 +961,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         void onClusterStateUnchanged(ClusterState clusterState) {
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
-                assert failure != null;
+                notifyFailure();
                 return;
             }
             try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
@@ -985,6 +979,10 @@ public class MasterService extends AbstractLifecycleComponent {
         void onPublishFailure(FailedToCommitClusterStateException e) {
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
+                var taskFailure = failure;
+                failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+                failure.addSuppressed(taskFailure);
+                notifyFailure();
                 return;
             }
             try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
@@ -996,9 +994,14 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
+        void notifyFailure() {
+            assert failure != null;
+            this.updateTask.onFailure(this.failure, this::restoreResponseHeaders);
+        }
+
         ContextPreservingAckListener getContextPreservingAckListener() {
             assert incomplete() == false;
-            return updateTask.wrapInTaskContext(clusterStateAckListener, this::restoreResponseHeaders);
+            return failure == null ? updateTask.wrapInTaskContext(clusterStateAckListener, this::restoreResponseHeaders) : null;
         }
 
         @Override

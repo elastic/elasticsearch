@@ -32,6 +32,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -307,8 +308,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 docs.add(
                     List.of(
                         new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
-                        new SortedSetDocValuesField("k1", aBytes),
-                        new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
                         new Field("k1", aBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new Field("k1", d < useC ? bBytes : cBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new SortedNumericDocValuesField("n", n++)
@@ -859,7 +858,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         fullDocCount.clear();
         fullDocCount.putAll(skeletonDocCount);
         for (int minute = 3; minute < 15; minute++) {
-            fullDocCount.put(formatted("2017-02-01T09:%02d:00.000Z", minute), 0);
+            fullDocCount.put(Strings.format("2017-02-01T09:%02d:00.000Z", minute), 0);
         }
         testSearchCase(
             DEFAULT_QUERY,

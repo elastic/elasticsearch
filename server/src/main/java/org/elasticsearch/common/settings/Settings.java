@@ -1503,7 +1503,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
 
         @Override
-        public SecureString getString(String setting) throws GeneralSecurityException {
+        public SecureString getString(String setting) {
             return delegate.getString(addPrefix.apply(setting));
         }
 
@@ -1520,6 +1520,11 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         @Override
         public void close() throws IOException {
             delegate.close();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new IllegalStateException("Unsupported operation");
         }
     }
 

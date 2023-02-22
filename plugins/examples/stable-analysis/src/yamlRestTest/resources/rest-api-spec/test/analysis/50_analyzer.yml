@@ -2,23 +2,62 @@
 
 #todo this can be expanded with parameters once settings support is added
 ---
-"Stable analyzer provider plugin. It combines a underscore tokenizer, token filter which skips 1 and char filter which replaces # with 3":
+"Stable analyzer provider plugin. It combines a underscore tokenizer, token filter which skips 0 and char filter which replaces # with 3":
+#analyze request only allows analyzer field to be string (cannot be a NameOrDefinition)
+#tokenizes by _, replaces space with 0 and skips tokens staring with 0
   - do:
       indices.analyze:
         body:
-          text: 1x_y_#z
+          text: 0x_y_ z
           analyzer: example_analyzer_factory
-  - length: { tokens: 2 }
+  - length: { tokens: 1 }
   - match:  { tokens.0.token: "y" }
-  - match:  { tokens.1.token: "3z" }
 
   - do:
       indices.analyze:
         body:
-          text: 1x_y_#z
+          text: 0x_y_ z
           explain: true
           analyzer: example_analyzer_factory
   - match:  { detail.custom_analyzer: false } #?? why not custom?
-  - length: { detail.analyzer.tokens: 2 }
+  - length: { detail.analyzer.tokens: 1 }
   - match:  { detail.analyzer.tokens.0.token: "y" }
-  - match:  { detail.analyzer.tokens.1.token: "3z" }
+
+
+---
+"Index and search with stable plugin analyzer":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              analyzer:
+                my_analyzer:
+                  type: example_analyzer_factory
+                  old_char: "#"
+                  new_number: 3
+                  tokenizer_list_of_chars: [ "_", " " ]
+                  token_filter_number: 2
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: my_analyzer
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "text": "1x_y_#z" }
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              text: 3z
+  - match: { hits.total: 1 }

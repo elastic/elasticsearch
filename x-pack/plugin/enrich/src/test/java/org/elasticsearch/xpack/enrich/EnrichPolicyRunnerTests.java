@@ -38,6 +38,7 @@ import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MapperService;
@@ -429,7 +430,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(formatted("""
+                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(Strings.format("""
                     {
                       "idx": %s,
                       "key": "key%s",
@@ -518,7 +519,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest().index(sourceIndex).id(collidingDocId).routing(collidingDocId + idx).source(formatted("""
+                new IndexRequest().index(sourceIndex).id(collidingDocId).routing(collidingDocId + idx).source(Strings.format("""
                     {
                       "idx": %s,
                       "key": "key%s",
@@ -622,7 +623,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(formatted("""
+                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(Strings.format("""
                     {
                       "idx": %s,
                       "key": "key",

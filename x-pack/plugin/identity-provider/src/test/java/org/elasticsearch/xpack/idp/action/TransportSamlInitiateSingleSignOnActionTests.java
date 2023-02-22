@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.tasks.Task;
@@ -225,7 +226,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
     }
 
     private void assertContainsAttributeWithValue(String message, String attribute, String value) {
-        assertThat(message, containsString(formatted("""
+        assertThat(message, containsString(Strings.format("""
             <saml2:Attribute FriendlyName="%s" Name="https://saml.elasticsearch.org/attributes/%s" \
             NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml2:AttributeValue \
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xsd:string">%s</saml2:AttributeValue>\

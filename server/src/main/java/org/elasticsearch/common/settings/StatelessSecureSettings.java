@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -62,7 +63,7 @@ public class StatelessSecureSettings implements SecureSettings {
     }
 
     @Override
-    public SecureString getString(String setting) throws GeneralSecurityException {
+    public SecureString getString(String setting) {
         return new SecureString(STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).toCharArray());
     }
 
@@ -74,11 +75,16 @@ public class StatelessSecureSettings implements SecureSettings {
     }
 
     @Override
-    public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
+    public byte[] getSHA256Digest(String setting) {
         return MessageDigests.sha256()
             .digest(STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
     public void close() throws IOException {}
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new IllegalStateException("Unsupported operation");
+    }
 }

@@ -251,9 +251,15 @@ public final class IndexSettings {
         Property.IndexScope
     );
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
+    public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "node._internal.default_refresh_interval",
+        DEFAULT_REFRESH_INTERVAL,
+        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        Property.NodeScope
+    );
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "index.refresh_interval",
-        DEFAULT_REFRESH_INTERVAL,
+        NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
         new TimeValue(-1, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope
@@ -774,7 +780,11 @@ public final class IndexSettings {
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
 
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
+        scopedSettings.addSettingsUpdateConsumer(
+            MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+            mergePolicyConfig::setCompoundFormatThreshold
+        );
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING, mergePolicyConfig::setMergePolicyType);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
             mergePolicyConfig::setDeletesPctAllowed
@@ -799,6 +809,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
             mergePolicyConfig::setSegmentsPerTier
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
+            mergePolicyConfig::setMergeFactor
         );
 
         scopedSettings.addSettingsUpdateConsumer(
@@ -1207,8 +1221,8 @@ public final class IndexSettings {
     /**
      * Returns the merge policy that should be used for this index.
      */
-    public MergePolicy getMergePolicy() {
-        return mergePolicyConfig.getMergePolicy();
+    public MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
+        return mergePolicyConfig.getMergePolicy(isTimeBasedIndex);
     }
 
     public <T> T getValue(Setting<T> setting) {

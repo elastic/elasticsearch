@@ -250,7 +250,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return randomBoolean() ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : TsidExtractingIdFieldMapper.FIELD_TYPE;
     }
 
-    public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
+    public static EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
@@ -260,7 +260,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -277,7 +277,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 
@@ -291,7 +291,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -308,7 +308,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 
@@ -322,7 +322,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -339,7 +339,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 
@@ -863,7 +863,7 @@ public abstract class EngineTestCase extends ESTestCase {
             null,
             System::nanoTime,
             indexCommitListener,
-            false
+            true
         );
     }
 
@@ -902,7 +902,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 

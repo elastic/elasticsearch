@@ -58,6 +58,7 @@ public class DataLoader {
     public static final String TEST_EXTRA_INDEX = "extra";
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
     public static final String TEST_SAMPLE = "sample1,sample2,sample3";
+    public static final String TEST_SAMPLE_MULTI = "sample-multi";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 
@@ -102,6 +103,7 @@ public class DataLoader {
         // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
         load(client, TEST_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p);
         load(client, TEST_SAMPLE, null, null, p);
+        load(client, TEST_SAMPLE_MULTI, null, null, p);
     }
 
     private static void load(

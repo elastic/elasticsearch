@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -40,12 +41,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -96,6 +99,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
@@ -1599,7 +1603,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomAlphaOfLength(8),
             apiKeyCreatorRealm,
             "file",
-            Version.CURRENT
+            TransportVersion.CURRENT
         );
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication)), contains(apiKeyCreatorRealm));
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.token())), contains(apiKeyCreatorRealm));
@@ -2026,6 +2030,96 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("authentication realm must be [_es_api_key]"));
     }
 
+    public void testMaybeRemoveRemoteIndicesPrivilegesWithUnsupportedVersion() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean()))
+        );
+
+        // Selecting random unsupported version.
+        final TransportVersion minNodeVersion = randomFrom(
+            Version.getDeclaredVersions(Version.class)
+                .stream()
+                .filter(v -> v.transportVersion.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
+                .map(v -> v.transportVersion)
+                .toList()
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, minNodeVersion, apiKeyId);
+        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
+        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
+
+        // Roles for which warning headers are added.
+        final String[] userRoleNamesWithRemoteIndicesPrivileges = userRoleDescriptors.stream()
+            .filter(RoleDescriptor::hasRemoteIndicesPrivileges)
+            .map(RoleDescriptor::getName)
+            .toArray(String[]::new);
+
+        if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
+            assertWarnings(
+                "Removed API key's remote indices privileges from role(s) ["
+                    + Arrays.stream(userRoleNamesWithRemoteIndicesPrivileges).collect(Collectors.toSet())
+                    + "]. Remote indices are not supported by all nodes in the cluster. "
+                    + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
+            );
+        }
+    }
+
+    public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(randomList(1, 3, () -> randomRoleDescriptorWithRemoteIndexPrivileges()));
+
+        // Selecting random supported version.
+        final TransportVersion minNodeVersion = randomFrom(
+            Version.getDeclaredVersions(Version.class)
+                .stream()
+                .filter(v -> v.transportVersion.onOrAfter(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
+                .map(v -> v.transportVersion)
+                .toList()
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, minNodeVersion, apiKeyId);
+
+        // User roles should be unchanged.
+        assertThat(result, equalTo(userRoleDescriptors));
+    }
+
+    public void testBuildDelimitedStringWithLimit() {
+        int limit = 2;
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit), equalTo(""));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, new String[] {}), equalTo(""));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1"), equalTo("id-1"));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2"), equalTo("id-1, id-2"));
+        assertThat(
+            ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2", "id-3"),
+            equalTo("id-1, id-2... (3 in total, 1 omitted)")
+        );
+        assertThat(
+            ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2", "id-3", "id-4"),
+            equalTo("id-1, id-2... (4 in total, 2 omitted)")
+        );
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyService.buildDelimitedStringWithLimit(randomIntBetween(-5, 0), "not-relevant-for-this-test")
+        );
+        assertThat(e.getMessage(), equalTo("limit must be positive number"));
+    }
+
+    private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
+        return new RoleDescriptor(
+            randomAlphaOfLengthBetween(3, 90),
+            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTests.randomApplicationPrivileges(),
+            RoleDescriptorTests.randomClusterPrivileges(),
+            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
+            RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
+            Map.of(),
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3)
+        );
+    }
+
     public static class Utils {
 
         private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();
@@ -2035,7 +2129,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             Authentication authentication,
             Set<RoleDescriptor> userRoles,
             List<RoleDescriptor> keyRoles,
-            Version version
+            TransportVersion version
         ) throws Exception {
             XContentBuilder keyDocSource = ApiKeyService.newDocument(
                 getFastStoredHashAlgoForTests().hash(new SecureString(randomAlphaOfLength(16).toCharArray())),
@@ -2104,7 +2198,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 authentication,
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
                 null,
-                Version.CURRENT
+                TransportVersion.CURRENT
             );
         }
     }
@@ -2119,12 +2213,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(baseSettings)
             .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
         final ApiKeyService service = new ApiKeyService(
             settings,
             clock,
             client,
             securityIndex,
-            ClusterServiceUtils.createClusterService(threadPool),
+            ClusterServiceUtils.createClusterService(threadPool, clusterSettings),
             cacheInvalidatorRegistry,
             threadPool
         );

@@ -13,13 +13,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -58,10 +58,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
             assertEquals(Explanations.Allocation.AWAITING_INFO, noDecision.getExplanation());
         } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            assertThat(
-                noDecision.getExplanation(),
-                equalTo(String.format(Locale.ROOT, Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE, "0s"))
-            );
+            assertThat(noDecision.getExplanation(), equalTo(Strings.format(Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE, "0s")));
         } else {
             assertThat(noDecision.getExplanation(), equalTo(Explanations.Allocation.NO_COPIES));
         }

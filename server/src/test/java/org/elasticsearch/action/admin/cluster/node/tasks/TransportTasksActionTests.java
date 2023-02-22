@@ -487,7 +487,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
-        Task task = startBlockingTestNodesAction(checkLatch, ActionListener.wrap(responseLatch::countDown));
+        Task task = startBlockingTestNodesAction(checkLatch, ActionListener.running(responseLatch::countDown));
         String actionName = "internal:testAction"; // only pick the main action
 
         // Try to cancel main task using action name
@@ -892,9 +892,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         if (byParents) {
             DiscoveryNodes nodes = testNodes[0].clusterService.state().nodes();
-            ChunkedToXContent.wrapAsXContentObject(response.groupedByNode(() -> nodes)).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response.groupedByNode(() -> nodes)).toXContent(builder, ToXContent.EMPTY_PARAMS);
         } else {
-            ChunkedToXContent.wrapAsXContentObject(response.groupedByParent()).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response.groupedByParent()).toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         builder.flush();
         logger.info(Strings.toString(builder));

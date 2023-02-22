@@ -25,9 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-
 public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
 
     private String fallbackSub;
@@ -38,7 +35,6 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
         noFallback();
 
         jwtIssuerAndRealms = generateJwtIssuerRealmPairs(
-            createJwtRealmsSettingsBuilder(),
             randomIntBetween(1, 1), // realms
             randomIntBetween(0, 1), // authz
             randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algorithms
@@ -60,7 +56,6 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
         randomFallbacks();
 
         jwtIssuerAndRealms = generateJwtIssuerRealmPairs(
-            createJwtRealmsSettingsBuilder(),
             randomIntBetween(1, 1), // realms
             randomIntBetween(0, 1), // authz
             randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algorithms
@@ -122,8 +117,15 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
                 otherClaims.put(fallbackSub, randomValueOtherThan(subClaimValue, () -> randomAlphaOfLength(15)));
             }
         }
-        // TODO: fallback aud
         List<String> audClaimValue = JwtRealmInspector.getAllowedAudiences(jwtIssuerAndRealm.realm());
+        if (fallbackAud != null) {
+            if (randomBoolean()) {
+                otherClaims.put(fallbackAud, audClaimValue);
+                audClaimValue = null;
+            } else {
+                otherClaims.put(fallbackAud, randomValueOtherThanMany(audClaimValue::contains, () -> randomAlphaOfLength(15)));
+            }
+        }
 
         // A bogus auth_time but access_token type does not check it
         if (randomBoolean()) {
@@ -150,8 +152,7 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
             randomBoolean() ? null : new Nonce(32).toString(),
             otherClaims
         );
-        final SecureString signedJWT = JwtValidateUtil.signJwt(jwk, unsignedJwt);
-        assertThat(JwtValidateUtil.verifyJwt(jwk, SignedJWT.parse(signedJWT.toString())), is(equalTo(true)));
+        final SecureString signedJWT = signJwt(jwk, unsignedJwt);
         return signedJWT;
     }
 

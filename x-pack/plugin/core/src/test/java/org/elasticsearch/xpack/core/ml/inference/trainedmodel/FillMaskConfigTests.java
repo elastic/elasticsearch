@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -22,7 +22,7 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
         return true;
     }
 
-    public static FillMaskConfig mutateForVersion(FillMaskConfig instance, Version version) {
+    public static FillMaskConfig mutateForVersion(FillMaskConfig instance, TransportVersion version) {
         return new FillMaskConfig(
             instance.getVocabularyConfig(),
             InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
@@ -52,7 +52,12 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
     }
 
     @Override
-    protected FillMaskConfig mutateInstanceForVersion(FillMaskConfig instance, Version version) {
+    protected FillMaskConfig mutateInstance(FillMaskConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected FillMaskConfig mutateInstanceForVersion(FillMaskConfig instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

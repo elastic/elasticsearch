@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -18,7 +18,7 @@ import java.util.function.Predicate;
 
 public class TextSimilarityConfigTests extends InferenceConfigItemTestCase<TextSimilarityConfig> {
 
-    public static TextSimilarityConfig mutateForVersion(TextSimilarityConfig instance, Version version) {
+    public static TextSimilarityConfig mutateForVersion(TextSimilarityConfig instance, TransportVersion version) {
         return new TextSimilarityConfig(
             instance.getVocabularyConfig(),
             InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
@@ -53,7 +53,12 @@ public class TextSimilarityConfigTests extends InferenceConfigItemTestCase<TextS
     }
 
     @Override
-    protected TextSimilarityConfig mutateInstanceForVersion(TextSimilarityConfig instance, Version version) {
+    protected TextSimilarityConfig mutateInstance(TextSimilarityConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected TextSimilarityConfig mutateInstanceForVersion(TextSimilarityConfig instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

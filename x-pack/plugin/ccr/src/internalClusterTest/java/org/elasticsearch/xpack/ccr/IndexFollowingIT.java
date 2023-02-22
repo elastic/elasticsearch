@@ -65,6 +65,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -319,7 +320,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int firstBatchNumDocs = randomIntBetween(2, 64);
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            final String source = formatted("{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -366,7 +367,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
-            final String source = formatted("{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Long.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -379,7 +380,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            final String source = formatted("{\"k\":%d}", i);
+            final String source = Strings.format("{\"k\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Long.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -522,7 +523,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
-                final String source = formatted("{\"f\":%d}", counter++);
+                Object[] args = new Object[] { counter++ };
+                final String source = Strings.format("{\"f\":%d}", args);
                 IndexRequest indexRequest = new IndexRequest("index1").source(source, XContentType.JSON)
                     .timeout(TimeValue.timeValueSeconds(1));
                 bulkProcessor.add(indexRequest);
@@ -638,7 +640,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int numDocs = between(10, 1024);
         logger.info("Indexing [{}] docs", numDocs);
         for (int i = 0; i < numDocs; i++) {
-            final String source = formatted("{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -1155,7 +1157,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            final String source = formatted("{\"new_field\":\"value %d\"}", i);
+            final String source = Strings.format("{\"new_field\":\"value %d\"}", i);
             leaderClient().prepareIndex("leader").setSource(source, XContentType.JSON).get();
         }
 
@@ -1403,7 +1405,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int numDocs = randomIntBetween(2, 64);
         logger.info("Indexing [{}] docs as first batch", numDocs);
         for (int i = 0; i < numDocs; i++) {
-            final String source = formatted("{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -1423,7 +1425,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         afterPausingFollower.run();
 
         for (int i = 0; i < numDocs; i++) {
-            final String source = formatted("{\"f\":%d}", i * 2);
+            final String source = Strings.format("{\"f\":%d}", i * 2);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
         leaderClient().prepareDelete("index1", "1").get();

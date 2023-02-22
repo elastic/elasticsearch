@@ -10,6 +10,7 @@ package org.elasticsearch.common.lucene.uid;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -19,6 +20,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -52,7 +54,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, false);
         // found doc
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
@@ -65,7 +67,7 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, false);
         assertNull(lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment));
         reader.close();
         writer.close();
@@ -88,7 +90,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, false);
         // return the last doc when there are duplicates
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
@@ -99,7 +101,7 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, false);
         result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
@@ -109,8 +111,43 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, false);
         assertNull(lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment));
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    public void testLoadTimestampRange() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
+        Document doc = new Document();
+        doc.add(new Field(IdFieldMapper.NAME, "6", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
+        writer.addDocument(doc);
+        doc = new Document();
+        doc.add(new Field(IdFieldMapper.NAME, "8", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000_000));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
+        writer.addDocument(doc);
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        LeafReaderContext segment = reader.leaves().get(0);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, true);
+        assertTrue(lookup.loadedTimestampRange);
+        assertEquals(lookup.minTimestamp, 1_000L);
+        assertEquals(lookup.maxTimestamp, 1_000_000L);
+
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME, false);
+        assertFalse(lookup.loadedTimestampRange);
+        assertEquals(lookup.minTimestamp, 0L);
+        assertEquals(lookup.maxTimestamp, Long.MAX_VALUE);
+
         reader.close();
         writer.close();
         dir.close();

@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.NAME;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.SLM_NOT_RUNNING;
+import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.checkRecentlyFailedSnapshots;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -223,7 +224,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                     + "] repeated failures without successful execution since ["
                                     + FORMATTER.formatMillis(execTime)
                                     + "]",
-                                "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/policy-id?human"
+                                "Check the snapshot lifecycle policy for detailed failure info:\n- GET /_slm/policy/policy-id?human"
                             ),
                             List.of(new Diagnosis.Resource(Type.SLM_POLICY, List.of("test-policy")))
                         )
@@ -281,6 +282,17 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(15L, slmPolicyMetadata), is(false));
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(5L, slmPolicyMetadata), is(false));
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
+    }
+
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(SlmHealthIndicatorService.NAME, equalTo("slm"));
+        assertThat(
+            checkRecentlyFailedSnapshots("cause", "action").getUniqueId(),
+            equalTo("elasticsearch:health:slm:diagnosis:check_recent_snapshot_failures")
+        );
+        assertThat(SLM_NOT_RUNNING.definition().getUniqueId(), equalTo("elasticsearch:health:slm:diagnosis:slm_disabled"));
     }
 
     private static ClusterState createClusterStateWith(SnapshotLifecycleMetadata metadata) {

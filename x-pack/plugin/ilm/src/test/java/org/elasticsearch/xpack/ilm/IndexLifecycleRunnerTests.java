@@ -370,7 +370,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("failed to register ILM history"));
-        assertThat(historyItem.toString(), containsString(formatted("""
+        assertThat(historyItem.toString(), containsString(Strings.format("""
             {
               "index": "test",
               "policy": "foo",
@@ -1268,7 +1268,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private final List<ILMHistoryItem> items = new CopyOnWriteArrayList<>();
 
         NoOpHistoryStore(Client noopClient, ClusterService clusterService) {
-            super(noopClient, clusterService, null);
+            super(noopClient, clusterService, clusterService.threadPool());
         }
 
         public List<ILMHistoryItem> getItems() {

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -19,8 +19,8 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
 
     private boolean lenient;
 
-    public static BertTokenization mutateForVersion(BertTokenization instance, Version version) {
-        if (version.before(Version.V_8_2_0)) {
+    public static BertTokenization mutateForVersion(BertTokenization instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_2_0)) {
             return new BertTokenization(
                 instance.doLowerCase,
                 instance.withSpecialTokens,
@@ -53,7 +53,12 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
     }
 
     @Override
-    protected BertTokenization mutateInstanceForVersion(BertTokenization instance, Version version) {
+    protected BertTokenization mutateInstance(BertTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected BertTokenization mutateInstanceForVersion(BertTokenization instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

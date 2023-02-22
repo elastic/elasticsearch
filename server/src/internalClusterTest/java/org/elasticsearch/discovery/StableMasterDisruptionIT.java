@@ -135,7 +135,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
     private void assertMasterStability(Client client, HealthStatus expectedStatus, Matcher<String> expectedMatcher) throws Exception {
         assertBusy(() -> {
-            GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true)).get();
+            GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
+                .get();
             String debugInformation = xContentToString(healthResponse);
             assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").status(), equalTo(expectedStatus));
             assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").symptom(), expectedMatcher);

@@ -8,14 +8,13 @@ import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin
 import org.elasticsearch.gradle.internal.docker.DockerSupportService
 import org.elasticsearch.gradle.internal.docker.ShellRetry
 import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
-import org.elasticsearch.gradle.internal.dra.DraResolvePlugin
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'
@@ -75,11 +74,12 @@ configurations {
   log4jConfig
   tini
   allPlugins
-  filebeat
-  metricbeat
+  filebeat_aarch64
+  filebeat_x86_64
+  metricbeat_aarch64
+  metricbeat_x86_64
 }
 
-String beatsArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'x86_64'
 String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'amd64'
 
 dependencies {
@@ -88,8 +88,10 @@ dependencies {
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
-  filebeat "beats:filebeat:${VersionProperties.elasticsearch}:linux-${beatsArch}@tar.gz"
-  metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:linux-${beatsArch}@tar.gz"
+  filebeat_aarch64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
+  filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
+  metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -273,8 +275,8 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
 
         if (includeBeats) {
-          from configurations.filebeat
-          from configurations.metricbeat
+          from configurations.getByName("filebeat_${architecture.classifier}")
+          from configurations.getByName("metricbeat_${architecture.classifier}")
         }
         // For some reason, the artifact name can differ depending on what repository we used.
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
@@ -548,5 +550,5 @@ subprojects { Project subProject ->
 
 tasks.named('resolveAllDependencies') {
   // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
-  configs = configurations.matching { it.name.endsWith('beat') == false }
+  configs = configurations.matching { it.name.contains('beat') == false }
 }

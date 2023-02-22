@@ -11,13 +11,13 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.NodeValidationException;
 
 import java.io.PrintStream;
-
-import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
 
 /**
  * A container for transient state during bootstrap of the Elasticsearch process.
@@ -71,10 +71,10 @@ class Bootstrap {
         return nodeEnv.get();
     }
 
-    void exitWithUserException(int exitCode, Exception e) {
-        err.print(USER_EXCEPTION_MARKER);
-        err.println(e.getMessage());
-        gracefullyExit(exitCode);
+    void exitWithNodeValidationException(NodeValidationException e) {
+        Logger logger = LogManager.getLogger(Elasticsearch.class);
+        logger.error("node validation exception\n{}", e.getMessage());
+        gracefullyExit(ExitCodes.CONFIG);
     }
 
     void exitWithUnknownException(Throwable e) {

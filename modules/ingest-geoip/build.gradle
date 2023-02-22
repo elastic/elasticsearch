@@ -8,7 +8,7 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -29,7 +29,11 @@ dependencies {
   api('com.maxmind.db:maxmind-db:1.3.1')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
-  internalClusterTestImplementation project(path: ":modules:reindex")
+  internalClusterTestImplementation project(':modules:reindex')
+  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
+
+  clusterModules project(':modules:reindex')
 }
 
 restResources {
@@ -38,57 +42,8 @@ restResources {
   }
 }
 
-def useFixture = providers.environmentVariable("geoip_use_service")
-  .map { s -> Boolean.parseBoolean(s) == false }
-  .getOrElse(true)
-
-def fixtureAddress = {
-  assert useFixture: 'closure should not be used without a fixture'
-  int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture.tcp.80"
-  assert ephemeralPort > 0
-  return "http://127.0.0.1:${ephemeralPort}/"
-}
-
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(':test:fixtures:geoip-fixture', 'geoip-fixture')
-}
-
-tasks.named("internalClusterTest").configure {
-  if (useFixture) {
-    nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
-  }
-}
-
-tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {
-  from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }
-  into "${project.buildDir}/ingest-geoip"
-  include "*.mmdb"
-}
-
-tasks.named("bundlePlugin").configure {
-  dependsOn("copyDefaultGeoIp2DatabaseFiles")
-  from("${project.buildDir}/ingest-geoip") {
-    into '/'
-  }
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
-    'org.apache.http.HttpEntity',
-    'org.apache.http.HttpResponse',
-    'org.apache.http.StatusLine',
-    'org.apache.http.client.config.RequestConfig$Builder',
-    'org.apache.http.client.config.RequestConfig',
-    'org.apache.http.client.methods.CloseableHttpResponse',
-    'org.apache.http.client.methods.HttpGet',
-    'org.apache.http.client.utils.URIBuilder',
-    'org.apache.http.impl.auth.BasicScheme',
-    'org.apache.http.impl.client.CloseableHttpClient',
-    'org.apache.http.impl.client.HttpClientBuilder',
-    'org.apache.http.util.EntityUtils'
-  )
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
 }
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {

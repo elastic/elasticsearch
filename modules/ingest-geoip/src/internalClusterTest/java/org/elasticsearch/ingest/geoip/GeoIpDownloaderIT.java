@@ -63,13 +63,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
-    protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        if (ENDPOINT != null) {
-            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
+        if (getEndpoint() != null) {
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
         }
         return settings.build();
     }
@@ -91,7 +89,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -159,7 +157,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testUpdatedTimestamp() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         testGeoIpDatabasesDownload();
         long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastCheck();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
@@ -230,7 +228,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74358")
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         // setup:
         putPipeline();
 

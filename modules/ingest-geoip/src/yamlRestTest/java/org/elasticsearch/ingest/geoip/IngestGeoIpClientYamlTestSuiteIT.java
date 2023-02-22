@@ -8,13 +8,41 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import fixture.geoip.GeoIpHttpFixture;
+
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+
+import java.util.Map;
 
 public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;
+
+    private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("reindex")
+        .module("ingest-geoip")
+        .systemProperty("ingest.geoip.downloader.enabled.default", "true")
+        .settings(s -> useFixture ? Map.of("ingest.geoip.downloader.endpoint", fixture.getAddress()) : Map.of())
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public IngestGeoIpClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

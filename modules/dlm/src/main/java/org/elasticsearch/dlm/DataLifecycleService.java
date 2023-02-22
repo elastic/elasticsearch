@@ -131,12 +131,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
     }
 
-    // default visibility for testing purposes
-
     /**
      * Iterates over the DLM managed data streams and executes the needed operations
      * to satisfy the configured Lifecycle.
      */
+    // default visibility for testing purposes
     void run(ClusterState state) {
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
             if (dataStream.getLifecycle() == null) {

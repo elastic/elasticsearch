@@ -848,6 +848,27 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
+    public void testToRemoteAccess() {
+        final User creator = randomUser();
+        final String apiKeyId = randomAlphaOfLength(42);
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey(apiKeyId).user(creator).build(false);
+        final RemoteAccessAuthentication remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+
+        final Authentication actualAuthentication = apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication);
+
+        assertThat(actualAuthentication.isRemoteAccess(), is(true));
+        assertThat(actualAuthentication.getEffectiveSubject().getUser(), equalTo(AuthenticationTestHelper.stripRoles(creator)));
+        assertThat(actualAuthentication.getAuthenticatingSubject().getMetadata(), hasEntry(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
+        assertThat(
+            actualAuthentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication())
+        );
+        assertThat(
+            actualAuthentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthentication.getRoleDescriptorsBytesList())
+        );
+    }
+
     public void testMaybeRewriteRealmRef() {
         final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
         assertThat(realmRefWithDomain.getDomain(), notNullValue());

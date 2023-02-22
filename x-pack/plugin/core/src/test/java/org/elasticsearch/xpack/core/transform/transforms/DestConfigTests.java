@@ -50,6 +50,11 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     }
 
     @Override
+    protected DestConfig mutateInstance(DestConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<DestConfig> instanceReader() {
         return DestConfig::new;
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -72,6 +73,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomMap;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -98,7 +100,7 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null);
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -240,7 +242,8 @@ public final class DataStreamTestHelper {
             false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
             randomBoolean(),
-            randomBoolean() ? IndexMode.STANDARD : null // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
+            randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
+            randomBoolean() ? new DataLifecycle(randomMillisUpToYear9999()) : null
         );
     }
 
@@ -451,6 +454,7 @@ public final class DataStreamTestHelper {
         when(env.sharedDataFile()).thenReturn(null);
         AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
+        when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         MappingLookup mappingLookup = null;
         if (dataStream != null) {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);

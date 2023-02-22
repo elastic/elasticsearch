@@ -1,5 +1,0 @@
-pr: 92221
-summary: Support stored authentication headers prior to version 6.7
-area: Authentication
-type: bug
-issues: []

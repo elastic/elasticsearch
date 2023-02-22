@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -86,7 +86,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
      */
     public TermQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
         }
     }
@@ -94,7 +94,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
         }
     }
@@ -225,7 +225,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -85,6 +86,11 @@ public class JoinValidationServiceTests extends ESTestCase {
                         @Override
                         public DiscoveryNode getNode() {
                             return node;
+                        }
+
+                        @Override
+                        public TransportVersion getTransportVersion() {
+                            return TransportVersion.CURRENT;
                         }
 
                         @Override
@@ -243,8 +249,8 @@ public class JoinValidationServiceTests extends ESTestCase {
             }
 
             @Override
-            public Version getMinimalSupportedVersion() {
-                return Version.CURRENT;
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.CURRENT;
             }
 
             @Override

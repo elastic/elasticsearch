@@ -271,6 +271,15 @@
         },
         "incomplete_bucket_penalty": {
           "type": "boolean"
+        },
+        "multimodal_distribution": {
+          "type": "boolean"
+        },
+        "by_field_first_occurrence": {
+          "type": "boolean"
+        },
+        "by_field_relative_rarity": {
+          "type": "double"
         }
       }
     },

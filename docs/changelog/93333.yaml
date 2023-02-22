@@ -1,0 +1,5 @@
+pr: 93333
+summary: "Script: Metadata `validateMetadata` optimization"
+area: Infra/Scripting
+type: enhancement
+issues: []

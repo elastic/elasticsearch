@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.util.Arrays;
 import java.util.List;
@@ -141,5 +145,102 @@ public class SimpleRoleTests extends ESTestCase {
             // If all are wildcards, then we necessarily get a grant, otherwise expect a denial
             is(wildcardApplication && wildcardPrivileges && wildcardResources)
         );
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersection() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        SimpleRole role = Role.builder(RESTRICTED_INDICES, randomAlphaOfLength(6))
+            .addRemoteGroup(
+                Set.of("remote-cluster-a"),
+                FieldPermissions.DEFAULT,
+                null,
+                IndexPrivilege.READ,
+                true,
+                "remote-index-a-1",
+                "remote-index-a-2"
+            )
+            .addRemoteGroup(Set.of("remote-*-a"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-a-3")
+            // This privilege should be ignored
+            .addRemoteGroup(
+                Set.of("remote-cluster-b"),
+                FieldPermissions.DEFAULT,
+                null,
+                IndexPrivilege.READ,
+                false,
+                "remote-index-b-1",
+                "remote-index-b-2"
+            )
+            // This privilege should be ignored
+            .addRemoteGroup(
+                Set.of(randomAlphaOfLength(8)),
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { randomAlphaOfLength(5) }, null)),
+                null,
+                IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names()))),
+                randomBoolean(),
+                randomAlphaOfLength(9)
+            )
+            .build();
+
+        RoleDescriptorsIntersection intersection = role.getRemoteAccessRoleDescriptorsIntersection("remote-cluster-a");
+
+        assertThat(intersection.roleDescriptorsList().isEmpty(), equalTo(false));
+        assertThat(
+            intersection,
+            equalTo(
+                new RoleDescriptorsIntersection(
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(IndexPrivilege.READ.name())
+                                .indices("remote-index-a-3")
+                                .allowRestrictedIndices(false)
+                                .build(),
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(IndexPrivilege.READ.name())
+                                .indices("remote-index-a-1", "remote-index-a-2")
+                                .allowRestrictedIndices(true)
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                )
+            )
+        );
+
+        // Requesting role descriptors intersection for a cluster alias
+        // that has no remote access defined should result in an empty intersection.
+        assertThat(
+            role.getRemoteAccessRoleDescriptorsIntersection("non-existing-cluster-alias"),
+            equalTo(RoleDescriptorsIntersection.EMPTY)
+        );
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutRemoteIndicesPermissions() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final SimpleRole role = Role.buildFromRoleDescriptor(
+            new RoleDescriptor(
+                randomAlphaOfLengthBetween(3, 8),
+                new String[] { randomFrom(ClusterPrivilegeResolver.names()) },
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .privileges(randomFrom(IndexPrivilege.names()))
+                        .indices(randomAlphaOfLengthBetween(4, 6), randomAlphaOfLengthBetween(4, 6))
+                        .allowRestrictedIndices(randomBoolean())
+                        .grantedFields(randomAlphaOfLength(4))
+                        .build() },
+                new String[] { randomAlphaOfLength(7) }
+            ),
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
+
+        assertThat(role.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLength(8)), equalTo(RoleDescriptorsIntersection.EMPTY));
     }
 }

@@ -197,7 +197,7 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public Version getMinimalSupportedNodeVersion() {
         return Version.V_8_0_0;
     }
 

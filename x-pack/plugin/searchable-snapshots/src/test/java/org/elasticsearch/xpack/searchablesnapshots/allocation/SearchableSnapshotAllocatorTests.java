@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -63,7 +64,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
@@ -137,7 +138,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
@@ -176,7 +177,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId, builder -> builder.put(SNAPSHOT_PARTIAL_SETTING.getKey(), true));
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);

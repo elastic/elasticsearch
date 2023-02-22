@@ -23,6 +23,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -48,6 +50,7 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -148,7 +151,17 @@ public final class IndexModule {
      * created by {@link org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory}.
      */
     @FunctionalInterface
-    public interface DirectoryWrapper extends CheckedFunction<Directory, Directory, IOException> {}
+    public interface DirectoryWrapper {
+        /**
+         * Wrap a given {@link Directory}
+         *
+         * @param directory the {@link Directory} to wrap
+         * @param shardRouting the {@link ShardRouting} associated with the {@link Directory} or {@code null} is unknown
+         * @return a {@link Directory}
+         * @throws IOException
+         */
+        Directory wrap(Directory directory, @Nullable ShardRouting shardRouting) throws IOException;
+    }
 
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
@@ -575,7 +588,18 @@ public final class IndexModule {
         final DirectoryWrapper directoryWrapper = this.indexDirectoryWrapper.get();
         assert frozen.get() : "IndexModule configuration not frozen";
         if (directoryWrapper != null) {
-            return (idxSettings, shardPath) -> directoryWrapper.apply(factory.newDirectory(idxSettings, shardPath));
+            return new IndexStorePlugin.DirectoryFactory() {
+                @Override
+                public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                    return newDirectory(indexSettings, shardPath, null);
+                }
+
+                @Override
+                public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, ShardRouting shardRouting)
+                    throws IOException {
+                    return directoryWrapper.wrap(factory.newDirectory(indexSettings, shardPath, shardRouting), shardRouting);
+                }
+            };
         }
         return factory;
     }

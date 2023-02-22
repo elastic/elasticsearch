@@ -8,18 +8,14 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowStatsAction.StatsResponses> {
 
@@ -31,6 +27,11 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
     @Override
     protected FollowStatsAction.StatsResponses createTestInstance() {
         return createStatsResponse();
+    }
+
+    @Override
+    protected FollowStatsAction.StatsResponses mutateInstance(FollowStatsAction.StatsResponses instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     static FollowStatsAction.StatsResponses createStatsResponse() {
@@ -73,18 +74,14 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
         return new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), responses);
     }
 
-    public void testChunking() throws IOException {
-        final var instance = createTestInstance();
-        int chunkCount = 0;
-        try (var builder = jsonBuilder()) {
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-        } // closing the builder verifies that the XContent is well-formed
-
-        var indexCount = instance.getStatsResponses().stream().map(s -> s.status().followerIndex()).distinct().count();
-        assertEquals(instance.getStatsResponses().size() + indexCount * 2 + 2, chunkCount);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createTestInstance(),
+            instance -> Math.toIntExact(
+                2 * instance.getStatsResponses().stream().map(s -> s.status().followerIndex()).distinct().count() + instance
+                    .getStatsResponses()
+                    .size() + 2
+            )
+        );
     }
 }

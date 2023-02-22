@@ -55,6 +55,11 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     }
 
     @Override
+    protected TransformConfigUpdate mutateInstance(TransformConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformConfigUpdate> instanceReader() {
         return TransformConfigUpdate::new;
     }

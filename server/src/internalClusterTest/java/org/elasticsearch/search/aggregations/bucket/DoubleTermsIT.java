@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -520,7 +521,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            String key = formatted("%07.2f", (double) i);
+            String key = Strings.format("%07.2f", (double) i);
             DoubleTerms.Bucket bucket = terms.getBucketByKey(key);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo(key));

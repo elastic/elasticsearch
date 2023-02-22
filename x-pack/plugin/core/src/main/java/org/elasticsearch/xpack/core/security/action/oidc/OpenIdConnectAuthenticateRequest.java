@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -54,7 +54,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         redirectUri = in.readString();
         state = in.readString();
         nonce = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
             realm = in.readOptionalString();
         }
 
@@ -113,7 +113,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         out.writeString(redirectUri);
         out.writeString(state);
         out.writeString(nonce);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
             out.writeOptionalString(realm);
         }
     }

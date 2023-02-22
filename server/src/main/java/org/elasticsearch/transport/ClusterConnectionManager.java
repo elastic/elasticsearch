@@ -215,6 +215,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             ActionListener.wrap(
                 conn -> connectionValidator.validate(conn, resolvedProfile, ActionListener.runAfter(ActionListener.wrap(ignored -> {
                     assert Transports.assertNotTransportThread("connection validator success");
+                    final var managerRefs = AbstractRefCounted.of(conn::onRemoved);
                     try {
                         if (connectedNodes.putIfAbsent(node, conn) != null) {
                             assert false : "redundant connection to " + node;
@@ -222,16 +223,17 @@ public class ClusterConnectionManager implements ConnectionManager {
                             IOUtils.closeWhileHandlingException(conn);
                         } else {
                             logger.debug("connected to node [{}]", node);
+                            managerRefs.incRef();
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                conn.addCloseListener(ActionListener.running(() -> {
                                     connectedNodes.remove(node, conn);
                                     connectionListener.onNodeDisconnected(node, conn);
-                                    conn.onRemoved();
+                                    managerRefs.decRef();
                                 }));
 
-                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                conn.addCloseListener(ActionListener.running(() -> {
                                     if (connectingRefCounter.hasReferences() == false) {
                                         logger.trace("connection manager shut down, closing transport connection to [{}]", node);
                                     } else if (conn.hasReferences()) {
@@ -249,6 +251,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                     } finally {
                         ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
                         assert future == currentListener : "Listener in pending map is different than the expected listener";
+                        managerRefs.decRef();
                         releaseOnce.run();
                         future.onResponse(conn);
                     }
@@ -363,7 +366,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             try {
                 connectionListener.onConnectionOpened(connection);
             } finally {
-                connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
+                connection.addCloseListener(ActionListener.running(() -> connectionListener.onConnectionClosed(connection)));
             }
             if (connection.isClosed()) {
                 throw new ConnectTransportException(node, "a channel closed while connecting");

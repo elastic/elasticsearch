@@ -52,4 +52,9 @@ public class MlMemoryActionResponseTests extends AbstractWireSerializingTestCase
         }
         return new MlMemoryAction.Response(ClusterName.DEFAULT, nodes, failures);
     }
+
+    @Override
+    protected MlMemoryAction.Response mutateInstance(MlMemoryAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

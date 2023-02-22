@@ -216,9 +216,6 @@ public class EngineIndexService {
                 .collect(Collectors.toSet());
             Set<String> targetAliases = Set.of(engine.indices());
 
-            if (currentAliases.equals(targetAliases)) {
-                return;
-            }
             requestBuilder = updateAliasIndices(currentAliases, targetAliases, engineAliasName);
 
         } else {
@@ -230,14 +227,13 @@ public class EngineIndexService {
 
     private IndicesAliasesRequestBuilder updateAliasIndices(Set<String> currentAliases, Set<String> targetAliases, String engineAliasName) {
 
-        Set<String> newIndices = new HashSet<>(targetAliases);
-        newIndices.removeAll(currentAliases);
         Set<String> deleteIndices = new HashSet<>(currentAliases);
         deleteIndices.removeAll(targetAliases);
 
         IndicesAliasesRequestBuilder aliasesRequestBuilder = clientWithOrigin.admin().indices().prepareAliases();
 
-        for (String newIndex : newIndices) {
+        // Always re-add aliases, as an index could have been removed manually and it must be restored
+        for (String newIndex : targetAliases) {
             aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(engineAliasName));
         }
         for (String deleteIndex : deleteIndices) {
@@ -288,6 +284,7 @@ public class EngineIndexService {
      */
     public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
         try {
+            // TODO Delete alias when Engine is deleted
             final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             clientWithOrigin.delete(deleteRequest, listener);

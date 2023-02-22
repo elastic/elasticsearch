@@ -36,6 +36,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * The REST handler for get source and head source APIs.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetSourceAction extends BaseRestHandler {
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSourceAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source "

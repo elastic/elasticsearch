@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -176,7 +177,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static <T> Tuple<XContentType, T> parseToType(
-        XContentTypeExtractor<T> extractor,
+        CheckedFunction<XContentParser, T, IOException> extractor,
         BytesReference bytes,
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
@@ -614,14 +615,5 @@ public class XContentHelper {
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
-    }
-
-    /**
-     * Extract a java type from an {@link XContentParser}.
-     * @param <T> the type to extract
-     */
-    @FunctionalInterface
-    public interface XContentTypeExtractor<T> {
-        T apply(XContentParser parser) throws IOException;
     }
 }

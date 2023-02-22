@@ -24,11 +24,11 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
@@ -190,7 +190,6 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
     }
 
-    @Ignore("https://github.com/elastic/elasticsearch/issues/93908")
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {
         // Start with no metadata available
         assertAllMetadataUnavailable();
@@ -233,6 +232,7 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
         req.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().map(body)));
         var resp = entityAsMap(client().performRequest(req));
         assertThat(resp.get("username"), equalTo(username));
+        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml" + realmNumber));
     }
 
     private static Path getDataResource(String relativePath) throws URISyntaxException {

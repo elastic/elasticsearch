@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.ann.Experimental;
@@ -36,6 +39,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -43,12 +47,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -71,7 +76,7 @@ public class EsqlActionIT extends ESIntegTestCase {
 
     @Before
     public void setupIndex() {
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("test")
@@ -660,7 +665,7 @@ public class EsqlActionIT extends ESIntegTestCase {
 
     public void testRefreshSearchIdleShards() throws Exception {
         String indexName = "test_refresh";
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
@@ -702,7 +707,7 @@ public class EsqlActionIT extends ESIntegTestCase {
 
     public void testESFilter() throws Exception {
         String indexName = "test_filter";
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
@@ -739,7 +744,7 @@ public class EsqlActionIT extends ESIntegTestCase {
 
     public void testExtractFields() throws Exception {
         String indexName = "test_extract_fields";
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
@@ -807,7 +812,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         String[] indexNames = { "test_index_patterns_1", "test_index_patterns_2", "test_index_patterns_3" };
         int i = 0;
         for (String indexName : indexNames) {
-            ElasticsearchAssertions.assertAcked(
+            assertAcked(
                 client().admin()
                     .indices()
                     .prepareCreate(indexName)
@@ -858,7 +863,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testEmptyIndex() {
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin().indices().prepareCreate("test_empty").setMapping("k", "type=keyword", "v", "type=long").get()
         );
         EsqlQueryResponse results = run("from test_empty");
@@ -866,73 +871,113 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), empty());
     }
 
-    public void testReturnNoNestedDocuments() throws IOException {
-        String indexName = "test_nested_docs";
+    /*
+     * Create two indices that both have nested documents in them. Create an alias pointing to the two indices.
+     * Query an individual index, then query the alias checking that no nested documents are returned.
+     */
+    public void testReturnNoNestedDocuments() throws IOException, ExecutionException, InterruptedException {
+        var indexName1 = "test_nested_docs_1";
+        var indexName2 = "test_nested_docs_2";
+        var indices = List.of(indexName1, indexName2);
+        var alias = "test-alias";
         int docsCount = randomIntBetween(50, 100);
-        int valuesGreaterThanFifty = 0;
-        /*
-        "nested":{
-            "type": "nested",
-            "properties":{
-                "foo": {
-                    "type":"long"
-                }
-            }
-         },
-         "data": {
-            "type": "integer"
-         }
-         */
-        ElasticsearchAssertions.assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
-                .setMapping(
-                    jsonBuilder().startObject()
-                        .startObject("properties")
-                        .startObject("nested")
-                        .field("type", "nested")
-                        .startObject("properties")
-                        .startObject("foo")
-                        .field("type", "long")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .startObject("data")
-                        .field("type", "long")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
-                .get()
-        );
+        int[] countValuesGreaterThanFifty = new int[indices.size()];
 
-        BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        for (int i = 0; i < docsCount; i++) {
-            XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
-            int randomValue = randomIntBetween(0, 100);
-            valuesGreaterThanFifty = valuesGreaterThanFifty + (randomValue >= 50 ? 1 : 0);
-            jsonBuilder.startObject().field("data", randomValue).startArray("nested");
-            for (int j = 0; j < randomIntBetween(1, 5); j++) {
-                // nested values are all greater than any non-nested values found in the "data" long field
-                jsonBuilder.startObject().field("foo", randomIntBetween(1000, 10000)).endObject();
-            }
-            jsonBuilder.endArray().endObject();
-            bulkBuilder.add(new IndexRequest(indexName).id(Integer.toString(i)).source(jsonBuilder));
-        }
-        bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        ensureYellow(indexName);
+        createNestedMappingIndices(indices);
+        addDocumentsToNestedMappingIndices(indices, docsCount, countValuesGreaterThanFifty);
+        createAlias(indices, alias);
 
+        var indexToTest = randomIntBetween(0, indices.size() - 1);
+        var indexNameToTest = indices.get(indexToTest);
         // simple query
-        assertNoNestedDocuments("from " + indexName, docsCount, 0L, 100L);
+        assertNoNestedDocuments("from " + indexNameToTest, docsCount, 0L, 100L);
         // simple query with filter that gets pushed to ES
-        assertNoNestedDocuments("from " + indexName + " | where data >= 50", valuesGreaterThanFifty, 50L, 100L);
+        assertNoNestedDocuments("from " + indexNameToTest + " | where data >= 50", countValuesGreaterThanFifty[indexToTest], 50L, 100L);
+        // simple query against alias
+        assertNoNestedDocuments("from " + alias, docsCount * 2, 0L, 100L);
+        // simple query against alias with filter that gets pushed to ES
+        assertNoNestedDocuments("from " + alias + " | where data >= 50", Arrays.stream(countValuesGreaterThanFifty).sum(), 50L, 100L);
+    }
+
+    private void createNestedMappingIndices(List<String> indices) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        {
+            builder.startObject("properties");
+            {
+                builder.startObject("nested");
+                {
+                    builder.field("type", "nested");
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("foo");
+                        builder.field("type", "long");
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject("data");
+                builder.field("type", "long");
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        for (String indexName : indices) {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(indexName)
+                    .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
+                    .setMapping(builder)
+                    .get()
+            );
+        }
+    }
+
+    private void addDocumentsToNestedMappingIndices(List<String> indices, int docsCount, int[] countValuesGreaterThanFifty) throws IOException {
+        XContentBuilder builder;
+        BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        for (int i = 0; i < indices.size(); i++) {
+            String indexName = indices.get(i);
+            for (int j = 0; j < docsCount; j++) {
+                builder = JsonXContent.contentBuilder();
+                int randomValue = randomIntBetween(0, 100);
+                countValuesGreaterThanFifty[i] = countValuesGreaterThanFifty[i] + (randomValue >= 50 ? 1 : 0);
+                builder.startObject();
+                {
+                    builder.field("data", randomValue);
+                    builder.startArray("nested");
+                    {
+                        for (int k = 0, max = randomIntBetween(1, 5); k < max; k++) {
+                            // nested values are all greater than any non-nested values found in the "data" long field
+                            builder.startObject().field("foo", randomIntBetween(1000, 10000)).endObject();
+                        }
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
+                bulkBuilder.add(new IndexRequest(indexName).id(Integer.toString(j)).source(builder));
+            }
+            bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            ensureYellow(indexName);
+        }
+    }
+
+    private void createAlias(List<String> indices, String alias) throws InterruptedException, ExecutionException {
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
+        for (String indexName : indices) {
+            aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(alias));
+        }
+        assertAcked(admin().indices().aliases(aliasesRequest).get());
     }
 
     private void assertNoNestedDocuments(String query, int docsCount, long minValue, long maxValue) {
         EsqlQueryResponse results = run(query);
         assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
+        assertThat(results.columns().size(), is(1));
         assertThat(results.values().size(), is(docsCount));
         for (List<Object> row : results.values()) {
             assertThat(row.size(), is(1));

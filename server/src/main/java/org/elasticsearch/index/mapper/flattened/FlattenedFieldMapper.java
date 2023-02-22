@@ -311,9 +311,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
                 // Field does not exist on this shard.
@@ -322,9 +320,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
             Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
             if (caseInsensitive) {
-                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(string));
+                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(prefix));
             } else {
-                a = Operations.concatenate(a, Automata.makeString(string));
+                a = Operations.concatenate(a, Automata.makeString(prefix));
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);

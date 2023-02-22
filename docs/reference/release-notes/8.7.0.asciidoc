@@ -22,8 +22,8 @@ Aggregations::
 
 Allocation::
 * Fallback to the actual shard size when forecast is not available {es-pull}93461[#93461]
-* Only simulate legal desired moves {es-pull}93635[#93635] (issue: {es-issue}93271[#93271])
 * Skip `DiskThresholdMonitor` when cluster state is not recovered {es-pull}93699[#93699]
+* Suppress response headers in `AllocationActionMultiListener` {es-pull}93777[#93777] (issue: {es-issue}93773[#93773])
 
 Authentication::
 * Correctly remove domain from realm when rewriting `Authentication` for compatibility with node versions that don't
@@ -49,11 +49,11 @@ Geo::
 * Fix bug when clipping Geometry collections in vector tiles {es-pull}93562[#93562]
 
 Health::
-* Health API fix the reporting of initializing shards {es-pull}93502[#93502] (issue: {es-issue}90327[#90327])
 * Take into account `max_headroom` in disk watermark calculations {es-pull}93157[#93157] (issue: {es-issue}93155[#93155])
 
 ILM+SLM::
 * Avoiding `BulkProcessor` deadlock in ILMHistoryStore {es-pull}91238[#91238] (issues: {es-issue}68468[#68468], {es-issue}50440[#50440])
+* Fixed changing only the `forceMerge` flag in `SearchableSnapshotAction` wouldn't update the policy {es-pull}93847[#93847]
 * Preventing ILM and SLM runtime state from being stored in a snapshot {es-pull}92252[#92252]
 
 Infra/CLI::
@@ -61,13 +61,13 @@ Infra/CLI::
 
 Infra/Core::
 * Add `jdk.internal.reflect` permission to es codebase {es-pull}92387[#92387] (issue: {es-issue}92356[#92356])
-* Don't report MIGRATION_NEEDED for 7.x indices {es-pull}93666[#93666]
 * Ensure one-shot wrappers release their delegates {es-pull}92928[#92928]
 * Fix `InputStream#readAllBytes` on `InputStreamIndexInput` {es-pull}92680[#92680]
 * Fix indices resolver for datemath with colon {es-pull}92973[#92973]
 * Make `FilterStreamInput` less trappy {es-pull}92422[#92422]
 
 Infra/Plugins::
+* Ensure ordering of plugin initialization {es-pull}93882[#93882] (issue: {es-issue}93851[#93851])
 * Fix unclosed directory stream in `ClassReaders` {es-pull}92890[#92890] (issue: {es-issue}92866[#92866])
 * Update the version of asm used by plugin scanner {es-pull}92784[#92784] (issue: {es-issue}92782[#92782])
 
@@ -81,7 +81,6 @@ Ingest Node::
 * Better names and types for ingest stats {es-pull}93533[#93533] (issue: {es-issue}80763[#80763])
 * Correctly handle an exception case for ingest failure {es-pull}92455[#92455]
 * Download the geoip databases only when needed {es-pull}92335[#92335] (issue: {es-issue}90673[#90673])
-* Fix geo ip database file leak when processing IP arrays {es-pull}93177[#93177]
 * Forwarding simulate calls to ingest nodes {es-pull}92171[#92171]
 * Grok returns a list of matches for repeated pattern names #92092 {es-pull}92586[#92586] (issue: {es-issue}92092[#92092])
 * Handle a default/request pipeline and a final pipeline with minimal additional overhead {es-pull}93329[#93329] (issues: {es-issue}92843[#92843], {es-issue}81244[#81244], {es-issue}93118[#93118])
@@ -115,12 +114,15 @@ Rollup::
 
 Search::
 * Annotated highlighter does not match when search contains both annotation and annotated term {es-pull}92920[#92920] (issue: {es-issue}91944[#91944])
+* Clear field caps index responses on cancelled {es-pull}93716[#93716] (issue: {es-issue}93029[#93029])
 * Fix missing override for matches in `ProfileWeight` {es-pull}92360[#92360]
 * Nested path info shouldn't be added during `copy_to` {es-pull}93340[#93340] (issue: {es-issue}93117[#93117])
 * Use all profiling events on startup {es-pull}92087[#92087]
 * [Profiling] Ensure responses are only sent once {es-pull}93692[#93692] (issue: {es-issue}93691[#93691])
+* [Profiling] Handle response processing errors {es-pull}93860[#93860]
 
 Snapshot/Restore::
+* Fix unhandled exception when blobstore repository contains unexpected file {es-pull}93914[#93914]
 * Support for GCS proxies everywhere in the GCS API {es-pull}92192[#92192] (issue: {es-issue}91952[#91952])
 
 Stats::
@@ -134,6 +136,9 @@ Task Management::
 
 Transform::
 * Integrate "sourceHasChanged" call into failure handling and retry logic {es-pull}92762[#92762] (issue: {es-issue}92133[#92133])
+
+Vector Search::
+* Fix explain for kNN search matches {es-pull}93876[#93876]
 
 [[enhancement-8.7.0]]
 [float]

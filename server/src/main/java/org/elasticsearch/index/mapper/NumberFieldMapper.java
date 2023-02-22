@@ -10,6 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntField;
@@ -18,13 +20,17 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
@@ -93,6 +99,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final Parameter<Boolean> hasTerms = Parameter.hasTermsParam(m -> toType(m).hasTerms, false);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -279,6 +286,62 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
+    private static BytesRef serializeInteger(int value) {
+        return new BytesRef(Numbers.intToBytes(value));
+    }
+
+    private static BytesRef serializeLong(long value) {
+        return new BytesRef(Numbers.longToBytes(value));
+    }
+
+    private static BytesRef serializeDouble(double value) {
+        return new BytesRef(Numbers.longToBytes(Double.doubleToLongBits(value)));
+    }
+
+    private static BytesRef serializeFloat(float value) {
+        return new BytesRef(Numbers.intToBytes(Float.floatToIntBits(value)));
+    }
+
+    private static FieldType getTermsFieldType() {
+        FieldType fieldType = new FieldType();
+        fieldType.setTokenized(false);
+        fieldType.setOmitNorms(true);
+        fieldType.setStoreTermVectors(false);
+        fieldType.setIndexOptions(IndexOptions.DOCS);
+        fieldType.freeze();
+        return fieldType;
+    }
+
+    private static class IntTermField extends Field {
+        private IntTermField(String field, int term) {
+            super(field, serializeInteger(term), getTermsFieldType());
+        }
+    }
+
+    private static class LongTermField extends Field {
+        private LongTermField(String field, long term) {
+            super(field, serializeLong(term), getTermsFieldType());
+        }
+    }
+
+    private static class DoubleTermField extends Field {
+        private DoubleTermField(String field, double term) {
+            super(field, serializeDouble(term), getTermsFieldType());
+        }
+    }
+
+    private static class FloatTermField extends Field {
+        private FloatTermField(String field, float term) {
+            super(field, serializeFloat(term), getTermsFieldType());
+        }
+    }
+
+    private static class HalfFloatTermField extends Field {
+        private HalfFloatTermField(String field, float term) {
+            super(field, serializeFloat(term), getTermsFieldType());
+        }
+    }
+
     public enum NumberType {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
@@ -327,9 +390,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasTerms) {
                 float v = parseToFloat(value);
                 if (isIndexed) {
+                    if (hasTerms) {
+                        return new TermQuery(new Term(field, serializeFloat(v)));
+                    }
                     return HalfFloatPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
@@ -337,13 +403,22 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
-                float[] v = new float[values.size()];
-                int pos = 0;
-                for (Object value : values) {
-                    v[pos++] = parseToFloat(value);
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasTerms) {
+                if (isIndexed && hasTerms) {
+                    BytesRef[] v = new BytesRef[values.size()];
+                    int pos = 0;
+                    for (Object value : values) {
+                        v[pos++] = serializeFloat(parseToFloat(value));
+                    }
+                    return new TermInSetQuery(field, v);
+                } else {
+                    float[] v = new float[values.size()];
+                    int pos = 0;
+                    for (Object value : values) {
+                        v[pos++] = parseToFloat(value);
+                    }
+                    return HalfFloatPoint.newSetQuery(field, v);
                 }
-                return HalfFloatPoint.newSetQuery(field, v);
             }
 
             @Override
@@ -395,9 +470,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored, boolean hasTerms) {
                 final float f = value.floatValue();
                 if (indexed) {
+                    if (hasTerms) {
+                        document.add(new HalfFloatTermField(name, f));
+                    }
                     document.add(new HalfFloatPoint(name, f));
                 }
                 if (docValued) {
@@ -480,9 +558,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasTerms) {
                 float v = parse(value, false);
                 if (isIndexed) {
+                    if (hasTerms) {
+                        return new TermQuery(new Term(field, serializeFloat(v)));
+                    }
                     return FloatPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
@@ -490,13 +571,22 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
-                float[] v = new float[values.size()];
-                int pos = 0;
-                for (Object value : values) {
-                    v[pos++] = parse(value, false);
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasTerms) {
+                if (isIndexed && hasTerms) {
+                    BytesRef[] v = new BytesRef[values.size()];
+                    int pos = 0;
+                    for (Object value : values) {
+                        v[pos++] = serializeFloat(parse(value, false));
+                    }
+                    return new TermInSetQuery(field, v);
+                } else {
+                    float[] v = new float[values.size()];
+                    int pos = 0;
+                    for (Object value : values) {
+                        v[pos++] = parse(value, false);
+                    }
+                    return FloatPoint.newSetQuery(field, v);
                 }
-                return FloatPoint.newSetQuery(field, v);
             }
 
             @Override
@@ -546,8 +636,15 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored, boolean hasTerms) {
                 final float f = value.floatValue();
+
+                if (indexed && hasTerms) {
+                    if (hasTerms) {
+                        document.add(new FloatTermField(name, f));
+                    }
+                }
+
                 if (indexed && docValued) {
                     document.add(new FloatField(name, f));
                 } else if (docValued) {
@@ -626,9 +723,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasTerms) {
                 double v = parse(value, false);
                 if (isIndexed) {
+                    if (hasTerms) {
+                        return new TermQuery(new Term(field, serializeDouble(v)));
+                    }
                     return DoublePoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
@@ -636,9 +736,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
-                double[] v = values.stream().mapToDouble(value -> parse(value, false)).toArray();
-                return DoublePoint.newSetQuery(field, v);
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasTerms) {
+                if (isIndexed && hasTerms) {
+                    BytesRef[] v = new BytesRef[values.size()];
+                    int pos = 0;
+                    for (Object value : values) {
+                        v[pos++] = serializeDouble(parse(value, false));
+                    }
+                    return new TermInSetQuery(field, v);
+                } else {
+                    double[] v = values.stream().mapToDouble(value -> parse(value, false)).toArray();
+                    return DoublePoint.newSetQuery(field, v);
+                }
             }
 
             @Override
@@ -676,8 +785,15 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored, boolean hasTerms) {
                 final double d = value.doubleValue();
+
+                if (indexed && hasTerms) {
+                    if (hasTerms) {
+                        document.add(new DoubleTermField(name, d));
+                    }
+                }
+
                 if (indexed && docValued) {
                     document.add(new DoubleField(name, d));
                 } else if (docValued) {
@@ -761,13 +877,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
-                return INTEGER.termQuery(field, value, isIndexed);
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasTerms) {
+                return INTEGER.termQuery(field, value, isIndexed, hasTerms);
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
-                return INTEGER.termsQuery(field, values);
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasTerms) {
+                return INTEGER.termsQuery(field, values, isIndexed, hasTerms);
             }
 
             @Override
@@ -785,8 +901,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                INTEGER.addFields(document, name, value, indexed, docValued, stored);
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored, boolean hasTerms) {
+                INTEGER.addFields(document, name, value, indexed, docValued, stored, hasTerms);
             }
 
             @Override
@@ -850,13 +966,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
-                return INTEGER.termQuery(field, value, isIndexed);
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasTerms) {
+                return INTEGER.termQuery(field, value, isIndexed, hasTerms);
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
-                return INTEGER.termsQuery(field, values);
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasTerms) {
+                return INTEGER.termsQuery(field, values, isIndexed, hasTerms);
             }
 
             @Override
@@ -874,8 +990,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                INTEGER.addFields(document, name, value, indexed, docValued, stored);
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored, boolean hasTerms) {
+                INTEGER.addFields(document, name, value, indexed, docValued, stored, hasTerms);
             }
 
             @Override
@@ -939,12 +1055,15 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasTerms) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 int v = parse(value, true);
                 if (isIndexed) {
+                    if (hasTerms) {
+                        return new TermQuery(new Term(field, serializeInteger(v)));
+                    }
                     return IntPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
@@ -952,7 +1071,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasTerms) {
                 int[] v = new int[values.size()];
                 int upTo = 0;
 
@@ -968,7 +1087,16 @@ public class NumberFieldMapper extends FieldMapper {
                 if (upTo != v.length) {
                     v = Arrays.copyOf(v, upTo);
                 }
-                return IntPoint.newSetQuery(field, v);
+
+                if (isIndexed && hasTerms) {
+                    BytesRef[] termBytes = new BytesRef[v.length];
+                    for (int i = 0; i < v.length; i++) {
+                        termBytes[i] = serializeInteger(v[i]);
+                    }
+                    return new TermInSetQuery(field, termBytes);
+                } else {
+                    return IntPoint.newSetQuery(field, v);
+                }
             }
 
             @Override
@@ -1026,8 +1154,15 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored, boolean hasTerms) {
                 final int i = value.intValue();
+
+                if (indexed && hasTerms) {
+                    if (hasTerms) {
+                        document.add(new IntTermField(name, i));
+                    }
+                }
+
                 if (indexed && docValued) {
                     document.add(new IntField(name, i));
                 } else if (docValued) {
@@ -1091,12 +1226,15 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed) {
+            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasTerms) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 long v = parse(value, true);
                 if (isIndexed) {
+                    if (hasTerms) {
+                        return new TermQuery(new Term(field, serializeLong(v)));
+                    }
                     return LongPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
@@ -1104,7 +1242,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, Collection<?> values) {
+            public Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasTerms) {
                 long[] v = new long[values.size()];
                 int upTo = 0;
 
@@ -1120,7 +1258,16 @@ public class NumberFieldMapper extends FieldMapper {
                 if (upTo != v.length) {
                     v = Arrays.copyOf(v, upTo);
                 }
-                return LongPoint.newSetQuery(field, v);
+
+                if (isIndexed && hasTerms) {
+                    BytesRef[] termBytes = new BytesRef[v.length];
+                    for (int i = 0; i < v.length; i++) {
+                        termBytes[i] = serializeLong(v[i]);
+                    }
+                    return new TermInSetQuery(field, termBytes);
+                } else {
+                    return LongPoint.newSetQuery(field, v);
+                }
             }
 
             @Override
@@ -1153,8 +1300,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored, boolean hasTerms) {
                 final long l = value.longValue();
+                if (indexed && hasTerms) {
+                    document.add(new LongTermField(name, l));
+                }
                 if (indexed && docValued) {
                     document.add(new LongField(name, l));
                 } else if (docValued) {
@@ -1228,9 +1378,9 @@ public class NumberFieldMapper extends FieldMapper {
             return parser;
         }
 
-        public abstract Query termQuery(String field, Object value, boolean isIndexed);
+        public abstract Query termQuery(String field, Object value, boolean isIndexed, boolean hasTerms);
 
-        public abstract Query termsQuery(String field, Collection<?> values);
+        public abstract Query termsQuery(String field, Collection<?> values, boolean isIndexed, boolean hasTerms);
 
         public abstract Query rangeQuery(
             String field,
@@ -1266,7 +1416,8 @@ public class NumberFieldMapper extends FieldMapper {
             Number value,
             boolean indexed,
             boolean docValued,
-            boolean stored
+            boolean stored,
+            boolean hasTerms
         );
 
         public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
@@ -1461,6 +1612,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final NumberType type;
         private final boolean coerce;
+        private final boolean hasTerms;
         private final Number nullValue;
         private final FieldValues<Number> scriptValues;
         private final boolean isDimension;
@@ -1474,6 +1626,7 @@ public class NumberFieldMapper extends FieldMapper {
             boolean isStored,
             boolean hasDocValues,
             boolean coerce,
+            boolean hasTerms,
             Number nullValue,
             Map<String, String> meta,
             FieldValues<Number> script,
@@ -1484,6 +1637,7 @@ public class NumberFieldMapper extends FieldMapper {
             super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
+            this.hasTerms = hasTerms;
             this.nullValue = nullValue;
             this.scriptValues = script;
             this.isDimension = isDimension;
@@ -1499,6 +1653,7 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.stored.getValue(),
                 builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(),
+                builder.hasTerms.getValue(),
                 builder.nullValue.getValue(),
                 builder.meta.getValue(),
                 builder.scriptValues(),
@@ -1513,7 +1668,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type, boolean isIndexed) {
-            this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null, null);
+            this(name, type, isIndexed, false, true, false, isIndexed, null, Collections.emptyMap(), null, false, null, null);
         }
 
         @Override
@@ -1552,14 +1707,14 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, isIndexed());
+            return type.termQuery(name(), value, isIndexed(), hasTerms);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
-                return type.termsQuery(name(), values);
+                return type.termsQuery(name(), values, isIndexed(), hasTerms);
             } else {
                 return super.termsQuery(values, context);
             }
@@ -1678,6 +1833,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final NumberType type;
     private final boolean indexed;
     private final boolean hasDocValues;
+    private final boolean hasTerms;
     private final boolean stored;
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
@@ -1707,6 +1863,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
+        this.hasTerms = builder.hasTerms.getValue();
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
@@ -1795,7 +1952,7 @@ public class NumberFieldMapper extends FieldMapper {
         if (dimension && numericValue != null) {
             context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }
-        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored, hasTerms);
 
         if (false == allowMultipleValues && (indexed || hasDocValues || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added

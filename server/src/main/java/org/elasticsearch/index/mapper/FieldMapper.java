@@ -1071,6 +1071,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> hasTermsParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return Parameter.boolParam("terms", false, initializer, defaultValue);
+        }
+
         /**
          * Defines a script parameter
          * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges

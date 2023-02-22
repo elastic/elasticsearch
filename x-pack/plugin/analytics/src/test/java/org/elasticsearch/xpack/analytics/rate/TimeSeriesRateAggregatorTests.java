@@ -133,6 +133,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             false,
             true,
             false,
+            true,
             null,
             Collections.emptyMap(),
             null,

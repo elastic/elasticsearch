@@ -37,6 +37,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
 public class TokenCountFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "token_count";
 
+    private static final boolean HAS_TERMS = false;
+
     private static TokenCountFieldMapper toType(FieldMapper in) {
         return (TokenCountFieldMapper) in;
     }
@@ -109,6 +111,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 isStored,
                 hasDocValues,
                 false,
+                HAS_TERMS,
                 nullValue,
                 meta,
                 null,
@@ -167,7 +170,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
+        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store, HAS_TERMS);
     }
 
     /**

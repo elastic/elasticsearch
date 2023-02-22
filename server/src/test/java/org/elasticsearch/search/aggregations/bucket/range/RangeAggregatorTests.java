@@ -233,7 +233,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
         testCase(iw -> {
             LuceneDocument doc = new LuceneDocument();
-            NumberType.FLOAT.addFields(doc, fieldName, 0.04F, false, true, false);
+            NumberType.FLOAT.addFields(doc, fieldName, 0.04F, false, true, false, false);
             iw.addDocument(doc);
         }, result -> {
             InternalRange<?, ?> range = (InternalRange<?, ?>) result;
@@ -257,7 +257,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.HALF_FLOAT);
         testCase(iw -> {
             LuceneDocument doc = new LuceneDocument();
-            NumberType.HALF_FLOAT.addFields(doc, fieldName, 0.0152F, false, true, false);
+            NumberType.HALF_FLOAT.addFields(doc, fieldName, 0.0152F, false, true, false, false);
             iw.addDocument(doc);
         }, result -> {
             InternalRange<?, ?> range = (InternalRange<?, ?>) result;
@@ -304,6 +304,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     randomBoolean(),
                     randomBoolean(),
                     true,
+                    false,
                     false,
                     null,
                     Collections.emptyMap(),
@@ -420,6 +421,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             false,
             true,
             false,
+            true,
             null,
             Collections.emptyMap(),
             null,
@@ -705,6 +707,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             randomBoolean(),
             randomBoolean(),
             true,
+            false,
             false,
             null,
             Collections.emptyMap(),

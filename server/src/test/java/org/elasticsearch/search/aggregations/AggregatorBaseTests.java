@@ -85,6 +85,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             false,
             true,
             false,
+            indexed,
             null,
             Collections.emptyMap(),
             null,

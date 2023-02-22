@@ -36,13 +36,18 @@ import static org.elasticsearch.xpack.entsearch.engine.EngineIndexService.ENGINE
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class EngineIndexServiceTests extends ESSingleNodeTestCase {
+    private static final int NUM_INDICES = 10;
+
     private EngineIndexService engineService;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         this.engineService = new EngineIndexService(client(), clusterService, writableRegistry(), bigArrays);
+        for (int i = 0; i < NUM_INDICES; i++) {
+            client().admin().indices().prepareCreate("index_" + i).execute().get();
+        }
     }
 
     @Override
@@ -74,7 +79,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
             assertThat(getEngine, equalTo(engine));
         }
 
-        final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" }, "my_engine_analytics_collection");
+        final Engine engine = new Engine("my_engine", new String[] { "index_3", "index_4" }, "my_engine_analytics_collection");
         IndexResponse newResp = awaitPutEngine(engine);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));

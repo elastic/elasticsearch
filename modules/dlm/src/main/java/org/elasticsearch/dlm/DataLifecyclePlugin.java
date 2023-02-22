@@ -33,11 +33,11 @@ import java.util.function.Supplier;
 /**
  * Plugin encapsulating Data Lifecycle Management Service.
  */
-public class DataLifecycle extends Plugin implements ActionPlugin {
+public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
 
-    public DataLifecycle(Settings settings) {
+    public DataLifecyclePlugin(Settings settings) {
         this.settings = settings;
     }
 

@@ -1238,7 +1238,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 enableRewriteAggsToFilterByFilter,
                 source.aggregations().isInSortOrderExecutionRequired()
             );
-            context.addReleasable(aggContext);
+            context.addQuerySearchResultReleasable(aggContext);
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
                 context.aggregations(new SearchContextAggregations(factories));

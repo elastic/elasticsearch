@@ -104,7 +104,7 @@ public class FsBlobContainerTests extends ESTestCase {
     }
 
     private static <T> T getAsync(Consumer<ActionListener<T>> consumer) {
-        return PlainActionFuture.<T, RuntimeException>get(consumer::accept, 10, TimeUnit.SECONDS);
+        return PlainActionFuture.<T, RuntimeException>get(consumer::accept, 0, TimeUnit.SECONDS);
     }
 
     public void testCompareAndExchange() throws Exception {

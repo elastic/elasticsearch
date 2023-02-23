@@ -38,7 +38,12 @@ import java.util.Comparator;
 import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
 
 public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScoreDocQueryBuilder> {
 
@@ -158,6 +163,48 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
     @Override
     public void testUnknownField() {
         // Test isn't relevant, since query is never parsed from xContent
+    }
+
+    public void testScoreDocQueryWeightCount() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            for (int i = 0; i < 30; i++) {
+                Document doc = new Document();
+                doc.add(new StringField("field", "value" + i, Field.Store.NO));
+                iw.addDocument(doc);
+                if (i % 10 == 0) {
+                    iw.flush();
+                }
+            }
+            try (IndexReader reader = iw.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                SearchExecutionContext context = createSearchExecutionContext(searcher);
+
+                List<ScoreDoc> scoreDocsList = new ArrayList<>();
+                for (int doc = 0; doc < 10; doc++) {
+                    ScoreDoc scoreDoc = new ScoreDoc(doc, randomFloat());
+                    scoreDocsList.add(scoreDoc);
+                }
+                ScoreDoc[] scoreDocs = scoreDocsList.toArray(new ScoreDoc[0]);
+
+                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs);
+                Query query = queryBuilder.doToQuery(context);
+                final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
+                for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
+                    int count = w.count(leafReaderContext);
+                    final Scorer scorer = w.scorer(leafReaderContext);
+                    if (count > 0) {
+                        assertThat(scorer, is(notNullValue()));
+                        int iteratorCount = 0;
+                        while (scorer.iterator().nextDoc() != NO_MORE_DOCS) {
+                            iteratorCount++;
+                        }
+                        assertThat(count, equalTo(iteratorCount));
+                    } else {
+                        assertThat(scorer, is(nullValue()));
+                    }
+                }
+            }
+        }
     }
 
     public void testScoreDocQuery() throws IOException {

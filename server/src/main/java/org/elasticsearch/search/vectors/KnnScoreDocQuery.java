@@ -72,6 +72,12 @@ class KnnScoreDocQuery extends Query {
             throw new IllegalStateException("This KnnScoreDocQuery was created by a different reader");
         }
         return new Weight(this) {
+
+            @Override
+            public int count(LeafReaderContext context) {
+                return segmentStarts[context.ord + 1] - segmentStarts[context.ord];
+            }
+
             @Override
             public Explanation explain(LeafReaderContext context, int doc) {
                 int found = Arrays.binarySearch(docs, doc + context.docBase);
@@ -83,7 +89,11 @@ class KnnScoreDocQuery extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) {
-
+                // Segment starts indicate how many docs are in the segment,
+                // upper equalling lower indicates no documents for this segment
+                if (segmentStarts[context.ord] == segmentStarts[context.ord + 1]) {
+                    return null;
+                }
                 return new Scorer(this) {
                     final int lower = segmentStarts[context.ord];
                     final int upper = segmentStarts[context.ord + 1];

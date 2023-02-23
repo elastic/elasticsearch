@@ -17,7 +17,7 @@ import java.util.List;
 
 public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
 
-    private AggregateDoubleMetricFieldType aggMetricFieldType;
+    private final AggregateDoubleMetricFieldType aggMetricFieldType;
 
     private final AbstractDownsampleFieldProducer rollupFieldProducer;
 

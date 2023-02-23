@@ -26,16 +26,31 @@ public final class TimeSeriesParams {
     public enum MetricType {
         GAUGE(new String[] { "max", "min", "value_count", "sum" }),
         COUNTER(new String[] { "last_value" }),
-        POSITION(new String[] { "last_value", "geo_line" });
+        POSITION(new String[] { "last_value", "geo_line" }, false);
 
         private final String[] supportedAggs;
+        private final boolean scalar;
 
         MetricType(String[] supportedAggs) {
+            this(supportedAggs, true);
+        }
+
+        MetricType(String[] supportedAggs, boolean scalar) {
             this.supportedAggs = supportedAggs;
+            this.scalar = scalar;
         }
 
         public String[] supportedAggs() {
             return supportedAggs;
+        }
+
+        public static MetricType[] scalar() {
+            Object[] objs = Arrays.stream(MetricType.values()).filter(m -> m.scalar).toArray();
+            MetricType[] scalar = new MetricType[objs.length];
+            for (int i = 0; i < scalar.length; i++) {
+                scalar[i] = (MetricType) objs[i];
+            }
+            return scalar;
         }
 
         @Override

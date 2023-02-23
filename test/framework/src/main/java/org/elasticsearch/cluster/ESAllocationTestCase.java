@@ -53,6 +53,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
@@ -85,25 +86,66 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {
-        return createAllocationService(settings, createBuiltInClusterSettings(settings));
-    }
-
-    public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) {
-        return new MockAllocationService(
-            randomAllocationDeciders(settings, clusterSettings),
+        return createAllocationService(
+            settings,
             new TestGatewayAllocator(),
-            createShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
-    private static ShardsAllocator createShardsAllocator(Settings settings) {
-        return switch (randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR)) {
+    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
+        return createAllocationService(
+            settings,
+            gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+    }
+
+    public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
+        return createAllocationService(settings, new TestGatewayAllocator(), clusterInfoService, SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+    }
+
+    public static MockAllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
+        return createAllocationService(settings, new TestGatewayAllocator(), EmptyClusterInfoService.INSTANCE, snapshotsInfoService);
+    }
+
+    public static MockAllocationService createAllocationService(
+        Settings settings,
+        GatewayAllocator gatewayAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService
+    ) {
+        return new MockAllocationService(
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
+            gatewayAllocator,
+            createShardsAllocator(settings),
+            clusterInfoService,
+            snapshotsInfoService
+        );
+    }
+
+    public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        List<AllocationDecider> deciders = new ArrayList<>(
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
+        );
+        Collections.shuffle(deciders, random());
+        return new AllocationDeciders(deciders);
+    }
+
+    protected static ShardsAllocator createShardsAllocator(Settings settings) {
+        return switch (pickShardsAllocator(settings)) {
             case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
             case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
             default -> throw new AssertionError("Unknown allocator");
         };
+    }
+
+    private static String pickShardsAllocator(Settings settings) {
+        return SHARDS_ALLOCATOR_TYPE_SETTING.exists(settings)
+            ? SHARDS_ALLOCATOR_TYPE_SETTING.get(settings)
+            : randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR);
     }
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
@@ -135,47 +177,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 super.reconcile(desiredBalance, lastAllocation);
             }
         };
-    }
-
-    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
-        return createAllocationService(
-            settings,
-            gatewayAllocator,
-            EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
-        );
-    }
-
-    public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
-        return createAllocationService(settings, new TestGatewayAllocator(), clusterInfoService, SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
-    }
-
-    public static MockAllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
-        return createAllocationService(settings, new TestGatewayAllocator(), EmptyClusterInfoService.INSTANCE, snapshotsInfoService);
-    }
-
-    public static MockAllocationService createAllocationService(
-        Settings settings,
-        GatewayAllocator gatewayAllocator,
-        ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
-    ) {
-        var clusterSettings = createBuiltInClusterSettings(settings);
-        return new MockAllocationService(
-            randomAllocationDeciders(settings, clusterSettings),
-            gatewayAllocator,
-            new BalancedShardsAllocator(clusterSettings, WriteLoadForecaster.DEFAULT),
-            clusterInfoService,
-            snapshotsInfoService
-        );
-    }
-
-    public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
-        );
-        Collections.shuffle(deciders, random());
-        return new AllocationDeciders(deciders);
     }
 
     protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);

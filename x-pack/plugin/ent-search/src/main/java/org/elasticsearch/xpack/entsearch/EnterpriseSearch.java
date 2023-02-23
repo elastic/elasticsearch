@@ -111,10 +111,12 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
+        // TODO Don't implement this as a component, instantiate it when needed
         final EngineIndexService engineService = new EngineIndexService(
             client,
             clusterService,
             namedWriteableRegistry,
+            // TODO We need to use use a real BigArrays which recycles pages here
             BigArrays.NON_RECYCLING_INSTANCE
         );
         return Collections.singletonList(engineService);

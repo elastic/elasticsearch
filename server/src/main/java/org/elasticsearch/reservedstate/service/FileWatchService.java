@@ -21,7 +21,6 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.List;
 
 public class FileWatchService extends AbstractLifecycleComponent {
 
@@ -138,9 +137,8 @@ public class FileWatchService extends AbstractLifecycleComponent {
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
-            List<Path> operatorSettingsFiles = List.of(operatorSettingsDir.resolve(settingsFileName));
-            if (operatorSettingsFiles.stream().anyMatch(Files::exists)) {
-                logger.debug("found initial operator settings file [{}], applying...", operatorSettingsFiles);
+            if (Files.exists(operatorSettingsFile())) {
+                logger.debug("found initial operator settings file [{}], applying...", operatorSettingsFile());
                 processFileSettingsAction.run();
             } else {
                 // Notify everyone we don't have any initial file settings
@@ -163,9 +161,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
                  * After we get an indication that something has changed, we check the timestamp, file id,
                  * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
                  */
-                List<Path> settingsPathList = List.of(operatorSettingsDir);
-
-                if (settingsPathList.stream().anyMatch(Files::exists)) {
+                if (Files.exists(operatorSettingsFile())) {
                     try {
                         if (logger.isDebugEnabled()) {
                             key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
@@ -180,11 +176,9 @@ public class FileWatchService extends AbstractLifecycleComponent {
                         // the WatchService is platform dependent.
                         settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, operatorSettingsDir);
 
-                        for (Path path : operatorSettingsFiles) {
-                            if (watchedFileChanged(path)) {
-                                processFileSettingsAction.run();
-                                break;
-                            }
+                        if (watchedFileChanged(operatorSettingsFile())) {
+                            processFileSettingsAction.run();
+                            break;
                         }
                     } catch (IOException e) {
                         logger.warn("encountered I/O error while watching file settings", e);

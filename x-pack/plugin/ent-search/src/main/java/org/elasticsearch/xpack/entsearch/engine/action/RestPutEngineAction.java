@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.entsearch.EnterpriseSearch;
 
@@ -37,6 +38,11 @@ public class RestPutEngineAction extends BaseRestHandler {
             restRequest.content(),
             restRequest.getXContentType()
         );
-        return channel -> client.execute(PutEngineAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutEngineAction.INSTANCE, request, new RestToXContentListener<>(channel) {
+            @Override
+            protected RestStatus getStatus(PutEngineAction.Response response) {
+                return response.status();
+            }
+        });
     }
 }

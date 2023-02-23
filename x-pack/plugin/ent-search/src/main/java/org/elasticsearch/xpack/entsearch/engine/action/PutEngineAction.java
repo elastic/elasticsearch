@@ -17,7 +17,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
@@ -35,7 +36,7 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         super(NAME, PutEngineAction.Response::new);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         private final Engine engine;
 
@@ -46,6 +47,10 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
         public Request(String engineId, BytesReference content, XContentType contentType) {
             this.engine = Engine.fromXContentBytes(engineId, content, contentType);
+        }
+
+        public Request(Engine engine) {
+            this.engine = engine;
         }
 
         @Override
@@ -71,6 +76,11 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         }
 
         @Override
+        public IndicesRequest indices(String... indices) {
+            return new Request(new Engine(engine.name(), indices, engine.analyticsCollectionName()));
+        }
+
+        @Override
         public IndicesOptions indicesOptions() {
             return IndicesOptions.fromOptions(false, false, false, false, false, false, false, false);
         }
@@ -80,7 +90,7 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements StatusToXContentObject {
 
         final DocWriteResponse.Result result;
 
@@ -104,6 +114,15 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
             builder.field("result", this.result.getLowercase());
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public RestStatus status() {
+            return switch (result) {
+                case CREATED -> RestStatus.CREATED;
+                case NOT_FOUND -> RestStatus.NOT_FOUND;
+                default -> RestStatus.OK;
+            };
         }
     }
 

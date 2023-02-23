@@ -29,11 +29,13 @@ import org.objectweb.asm.ClassReader;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -143,10 +145,15 @@ public abstract class TransportTestExistTask extends PrecommitTask {
 
             ClassHierarchyScanner transportTestsScanner = new ClassHierarchyScanner();
             ClassReaders.forEach(testClasses, cr -> cr.accept(transportTestsScanner, ClassReader.SKIP_CODE));
-            String transportTestCase = "org/elasticsearch/test/AbstractWireTestCase";
-            String queryTestCase = "org/elasticsearch/test/AbstractQueryTestCase";
             Map<String, String> subclassesOfTransportTestCase = testClassPathScanner.allFoundSubclasses(
-                Map.of(transportTestCase, transportTestCase, queryTestCase, queryTestCase)
+                mapOfPairs(
+                    "org/elasticsearch/test/AbstractWireTestCase",
+                    "org/elasticsearch/test/AbstractQueryTestCase",
+                    "org/elasticsearch/search/aggregations/BaseAggregationTestCase",
+                    "org/elasticsearch/search/aggregations/BasePipelineAggregationTestCase",
+                    "org/elasticsearch/test/AbstractQueryVectorBuilderTestCase"
+
+                )
             );
             Set<String> transportTestClasses = transportTestsScanner.getConcreteSubclasses(subclassesOfTransportTestCase);
             transportClasses.removeAll(skipClasses);
@@ -157,7 +164,9 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             }
             if (classesWithoutTests.size() > 0) {
                 throw new GradleException(
-                    "Missing tests for classes\n"
+                    "There are "
+                        + classesWithoutTests.size()
+                        + " missing tests for classes\n"
                         + "tasks.named(\"transportTestExistCheck\").configure { task ->\n"
                         + classesWithoutTests.stream()
                             .map(s -> "task.skipMissingTransportTest(\"" + s + "\",\"missing test\")")
@@ -165,6 +174,10 @@ public abstract class TransportTestExistTask extends PrecommitTask {
                         + "\n}"
                 );
             }
+        }
+
+        private Map<String, String> mapOfPairs(String... className) {
+            return Arrays.stream(className).collect(Collectors.toMap(Function.identity(), Function.identity()));
         }
 
         private void findTest(

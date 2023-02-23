@@ -20,19 +20,18 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
 
     @Override
     default TransportVersion getMinimalSupportedVersion() {
-        /*
-         * TODO: This method existed before it inherited from VersionedNamedWriteable,
-         *  so we need to look at this closely when we migrate the bulk of the ML code,
-         *  whether this actually means the transport version or the actual node version
-         *  on the other end
-         */
-        return getMinimalSupportedNodeVersion().transportVersion;
+        return getMinimalSupportedTransportVersion();
     }
 
     /**
      * All nodes in the cluster must be at least this version
      */
     Version getMinimalSupportedNodeVersion();
+
+    /**
+     * All communication in the cluster must use at least this version
+     */
+    TransportVersion getMinimalSupportedTransportVersion();
 
     default boolean requestingImportance() {
         return false;

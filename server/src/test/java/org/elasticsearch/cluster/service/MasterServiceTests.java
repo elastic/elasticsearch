@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -1077,7 +1077,7 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     public void testBlockingCallInClusterStateTaskListenerFails() throws InterruptedException {
-        assumeTrue("assertions must be enabled for this test to work", BaseFuture.class.desiredAssertionStatus());
+        assumeTrue("assertions must be enabled for this test to work", PlainActionFuture.class.desiredAssertionStatus());
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<AssertionError> assertionRef = new AtomicReference<>();
 
@@ -1089,8 +1089,7 @@ public class MasterServiceTests extends ESTestCase {
                 batchExecutionContext -> {
                     for (final var taskContext : batchExecutionContext.taskContexts()) {
                         taskContext.success(() -> {
-                            BaseFuture<Void> future = new BaseFuture<Void>() {
-                            };
+                            PlainActionFuture<Void> future = new PlainActionFuture<>();
                             try {
                                 if (randomBoolean()) {
                                     future.get(1L, TimeUnit.SECONDS);

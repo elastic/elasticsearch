@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ql.index;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -19,6 +20,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 public final class VersionCompatibilityChecks {
 
     public static final Version INTRODUCING_UNSIGNED_LONG = V_8_2_0;
+    public static final TransportVersion INTRODUCING_UNSIGNED_LONG_TRANSPORT = TransportVersion.V_8_2_0;
     public static final Version INTRODUCING_VERSION_FIELD_TYPE = V_8_4_0;
 
     private VersionCompatibilityChecks() {}

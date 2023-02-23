@@ -292,7 +292,7 @@ public class ShardStateAction {
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
             logger.debug(() -> format("%s received shard failed for [%s]", request.getShardId(), request), request.failure);
-            var update = new FailedShardUpdateTask(request, new ChannelActionListener<>(channel, TASK_SOURCE, request));
+            var update = new FailedShardUpdateTask(request, new ChannelActionListener<>(channel));
             clusterService.submitStateUpdateTask(
                 TASK_SOURCE,
                 update,
@@ -586,11 +586,7 @@ public class ShardStateAction {
         @Override
         public void messageReceived(StartedShardEntry request, TransportChannel channel, Task task) throws Exception {
             logger.debug("{} received shard started for [{}]", request.shardId, request);
-            final ChannelActionListener<TransportResponse.Empty, StartedShardEntry> listener = new ChannelActionListener<>(
-                channel,
-                SHARD_STARTED_ACTION_NAME,
-                request
-            );
+            final ChannelActionListener<TransportResponse.Empty> listener = new ChannelActionListener<>(channel);
 
             var update = new StartedShardUpdateTask(request, listener);
 

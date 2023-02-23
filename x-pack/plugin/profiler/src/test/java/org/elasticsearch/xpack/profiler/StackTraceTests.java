@@ -16,6 +16,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -31,30 +33,30 @@ public class StackTraceTests extends ESTestCase {
     public void testRunlengthDecodeUniqueValues() {
         // 0 - 9 (reversed)
         String encodedFrameTypes = "AQkBCAEHAQYBBQEEAQMBAgEBAQA";
-        int[] actual = StackTrace.runLengthDecodeBase64Url(encodedFrameTypes, encodedFrameTypes.length(), 10);
-        assertArrayEquals(new int[] { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 }, actual);
+        List<Integer> actual = StackTrace.runLengthDecodeBase64Url(encodedFrameTypes, encodedFrameTypes.length(), 10);
+        assertEquals(List.of(9, 8, 7, 6, 5, 4, 3, 2, 1, 0), actual);
     }
 
     public void testRunlengthDecodeSingleValue() {
         // "4", repeated ten times
         String encodedFrameTypes = "CgQ";
-        int[] actual = StackTrace.runLengthDecodeBase64Url(encodedFrameTypes, encodedFrameTypes.length(), 10);
-        assertArrayEquals(new int[] { 4, 4, 4, 4, 4, 4, 4, 4, 4, 4 }, actual);
+        List<Integer> actual = StackTrace.runLengthDecodeBase64Url(encodedFrameTypes, encodedFrameTypes.length(), 10);
+        assertEquals(List.of(4, 4, 4, 4, 4, 4, 4, 4, 4, 4), actual);
     }
 
     public void testRunlengthDecodeFillsGap() {
         // "2", repeated three times
         String encodedFrameTypes = "AwI";
-        int[] actual = StackTrace.runLengthDecodeBase64Url(encodedFrameTypes, encodedFrameTypes.length(), 5);
+        List<Integer> actual = StackTrace.runLengthDecodeBase64Url(encodedFrameTypes, encodedFrameTypes.length(), 5);
         // zeroes should be appended for the last two values which are not present in the encoded representation.
-        assertArrayEquals(new int[] { 2, 2, 2, 0, 0 }, actual);
+        assertEquals(List.of(2, 2, 2, 0, 0), actual);
     }
 
     public void testRunlengthDecodeMixedValue() {
         // 4
         String encodedFrameTypes = "BQADAg";
-        int[] actual = StackTrace.runLengthDecodeBase64Url(encodedFrameTypes, encodedFrameTypes.length(), 8);
-        assertArrayEquals(new int[] { 0, 0, 0, 0, 0, 2, 2, 2 }, actual);
+        List<Integer> actual = StackTrace.runLengthDecodeBase64Url(encodedFrameTypes, encodedFrameTypes.length(), 8);
+        assertEquals(List.of(0, 0, 0, 0, 0, 2, 2, 2), actual);
     }
 
     public void testCreateFromSource() {
@@ -71,10 +73,10 @@ public class StackTraceTests extends ESTestCase {
             )
         );
         // end::noformat
-        assertArrayEquals(new String[] { "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u" }, stackTrace.frameIds);
-        assertArrayEquals(new String[] { "AAAAAAAAAAUAAAAAAAAB3g" }, stackTrace.fileIds);
-        assertArrayEquals(new int[] { 1027822 }, stackTrace.addressOrLines);
-        assertArrayEquals(new int[] { 2 }, stackTrace.typeIds);
+        assertEquals(List.of("AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u"), stackTrace.frameIds);
+        assertEquals(List.of("AAAAAAAAAAUAAAAAAAAB3g"), stackTrace.fileIds);
+        assertEquals(List.of(1027822), stackTrace.addressOrLines);
+        assertEquals(List.of(2), stackTrace.typeIds);
     }
 
     public void testToXContent() throws IOException {
@@ -89,10 +91,10 @@ public class StackTraceTests extends ESTestCase {
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
         StackTrace stackTrace = new StackTrace(
-            new int[] { 1027822 },
-            new String[] { "AAAAAAAAAAUAAAAAAAAB3g" },
-            new String[] { "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u" },
-            new int[] { 2 }
+            List.of(1027822),
+            List.of("AAAAAAAAAAUAAAAAAAAB3g"),
+            List.of("AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u"),
+            List.of(2)
         );
         stackTrace.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
@@ -101,15 +103,20 @@ public class StackTraceTests extends ESTestCase {
 
     public void testEquality() {
         StackTrace stackTrace = new StackTrace(
-            new int[] { 1027822 },
-            new String[] { "AAAAAAAAAAUAAAAAAAAB3g" },
-            new String[] { "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u" },
-            new int[] { 2 }
+            List.of(102782),
+            List.of("AAAAAAAAAAUAAAAAAAAB3g"),
+            List.of("AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u"),
+            List.of(2)
         );
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             stackTrace,
-            (o -> new StackTrace(o.addressOrLines.clone(), o.fileIds.clone(), o.frameIds.clone(), o.typeIds.clone()))
+            (o -> new StackTrace(
+                new ArrayList<>(o.addressOrLines),
+                new ArrayList<>(o.fileIds),
+                new ArrayList<>(o.frameIds),
+                new ArrayList<>(o.typeIds)
+            ))
         );
     }
 }

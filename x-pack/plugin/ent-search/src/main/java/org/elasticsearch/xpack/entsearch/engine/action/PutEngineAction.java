@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -102,6 +103,19 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         public Engine getEngine() {
             return engine;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request that = (Request) o;
+            return Objects.equals(engine, that.engine);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(engine);
+        }
     }
 
     public static class Response extends ActionResponse implements StatusToXContentObject {
@@ -138,6 +152,20 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
                 default -> RestStatus.OK;
             };
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response that = (Response) o;
+            return Objects.equals(result, that.result);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(result);
+        }
+
     }
 
 }

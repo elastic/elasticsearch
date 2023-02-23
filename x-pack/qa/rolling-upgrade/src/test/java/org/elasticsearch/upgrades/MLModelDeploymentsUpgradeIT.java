@@ -97,7 +97,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeployment() throws Exception {
-        assumeFalse("Muting for PR: https://github.com/elastic/elasticsearch/pull/94089", false);
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
         final String modelId = "upgrade-deployment-test";
@@ -134,7 +133,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
-        assumeFalse("Muting for PR: https://github.com/elastic/elasticsearch/pull/94089", false);
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
         final String modelId = "upgrade-deployment-test-stop-mixed-cluster";

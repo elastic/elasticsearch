@@ -120,7 +120,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
                 out.writeStringCollection(merges);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                out.writeGenericList(scores, StreamOutput::writeDouble);
+                out.writeCollection(scores, StreamOutput::writeDouble);
             }
         }
 

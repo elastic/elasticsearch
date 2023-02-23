@@ -22,6 +22,8 @@ gradle.rootProject {
       def props = new Properties()
       props.load(is)
       elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
+      // for example plugins the pluginApiVersion is the same as ES version, but for real plugins it only has to match a major
+      pluginApiVersion = "${props.get('elasticsearch')}-SNAPSHOT"
       log4jVersion = props.get('log4j')
       luceneVersion = props.get('lucene')
     }

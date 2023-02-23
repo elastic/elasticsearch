@@ -77,6 +77,10 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.allowSystemIndexAccessByDefault();
     }
 
+    public RestHandler getConcreteRestHandler() {
+        return restHandler.getConcreteRestHandler();
+    }
+
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (request.method() == Method.OPTIONS) {

@@ -266,4 +266,36 @@ final class AzureStorageSettings {
         final String fullKey = k.toConcreteKey(groupName).toString();
         return setting.getConcreteSetting(fullKey).get(settings);
     }
+
+    private static final String BLOB_ENDPOINT_NAME = "BlobEndpoint";
+    private static final String BLOB_SECONDARY_ENDPOINT_NAME = "BlobSecondaryEndpoint";
+
+    String getPrimaryURI() {
+        return getProperty(BLOB_ENDPOINT_NAME);
+    }
+
+    String getSecondaryURI() {
+        return getProperty(BLOB_SECONDARY_ENDPOINT_NAME);
+    }
+
+    /**
+     * Returns the value for the given property name, or null if not configured.
+     * @throws IllegalArgumentException if the connectionString is malformed
+     */
+    private String getProperty(String propertyName) {
+        final String[] settings = getConnectString().split(";");
+        for (int i = 0; i < settings.length; i++) {
+            String setting = settings[i].trim();
+            if (setting.length() > 0) {
+                final int idx = setting.indexOf("=");
+                if (idx == -1 || idx == 0 || idx == settings[i].length() - 1) {
+                    new IllegalArgumentException("Invalid connection string: " + getConnectString());
+                }
+                if (propertyName.equals(setting.substring(0, idx))) {
+                    return setting.substring(idx + 1);
+                }
+            }
+        }
+        return null;
+    }
 }

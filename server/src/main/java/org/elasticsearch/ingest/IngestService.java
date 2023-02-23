@@ -715,8 +715,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             continue;
                         }
 
-                        Pipelines pipelines = getPipelines(indexRequest);
-                        if (pipelines.isEmpty()) {
+                        PipelineIterator pipelines = getPipelines(indexRequest);
+                        if (pipelines.hasNext() == false) {
                             i++;
                             continue;
                         }
@@ -754,8 +754,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         LinkedHashSet<String> indexRecursionDetection = new LinkedHashSet<>();
                         indexRecursionDetection.add(indexRequest.index());
                         executePipelines(
-                            pipelines.iterator(),
-                            pipelines.hasFinalPipeline(),
+                            pipelines,
                             indexRequest,
                             ingestDocument,
                             documentListener,
@@ -768,41 +767,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
-    private Pipelines getPipelines(IndexRequest indexRequest) {
+    private PipelineIterator getPipelines(IndexRequest indexRequest) {
         final String pipelineId = indexRequest.getPipeline();
         indexRequest.setPipeline(NOOP_PIPELINE_NAME);
         final String finalPipelineId = indexRequest.getFinalPipeline();
         indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-        return new Pipelines(pipelineId, finalPipelineId);
+        return new PipelineIterator(pipelineId, finalPipelineId);
     }
 
-    private static class Pipelines implements Iterable<String> {
-        private String defaultPipeline;
-        private String finalPipeline;
+    private class PipelineIterator implements Iterator<String> {
+        private final String defaultPipeline;
+        private final String finalPipeline;
+        private final Iterator<String> pipelineIds;
+        private String current;
 
-        private Pipelines(String defaultPipeline, String finalPipeline) {
-            if (NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
-                this.defaultPipeline = defaultPipeline;
-            }
-            if (NOOP_PIPELINE_NAME.equals(finalPipeline) == false) {
-                this.finalPipeline = finalPipeline;
-            }
+        private PipelineIterator(String defaultPipeline, String finalPipeline) {
+            this.defaultPipeline = NOOP_PIPELINE_NAME.equals(defaultPipeline) ? null : defaultPipeline;
+            this.finalPipeline = NOOP_PIPELINE_NAME.equals(finalPipeline) ? null : finalPipeline;
+            this.pipelineIds = iterator();
         }
 
-        public boolean hasFinalPipeline() {
-            return finalPipeline != null;
+        public PipelineIterator withoutDefaultPipeline() {
+            return new PipelineIterator(null, finalPipeline);
         }
 
-        public boolean isEmpty() {
-            return defaultPipeline == null && finalPipeline == null;
-        }
-
-        public void withoutDefaultPipeline() {
-            defaultPipeline = null;
-        }
-
-        @Override
-        public Iterator<String> iterator() {
+        private Iterator<String> iterator() {
             if (defaultPipeline != null && finalPipeline != null) {
                 return List.of(defaultPipeline, finalPipeline).iterator();
             }
@@ -814,24 +803,49 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
             return Collections.emptyIterator();
         }
+
+        @Override
+        public boolean hasNext() {
+            return pipelineIds.hasNext();
+        }
+
+        @Override
+        public String next() {
+            current = pipelineIds.next();
+            return current;
+        }
+
+        public Pipeline currentPipeline() {
+            if (current == null) {
+                throw new IllegalStateException("Invoked before next");
+            }
+            final PipelineHolder holder = pipelines.get(current);
+            if (holder == null) {
+                throw new IllegalArgumentException("pipeline with id [" + current + "] does not exist");
+            }
+            return holder.pipeline;
+        }
+
+        public boolean isFinalPipeline() {
+            return hasFinalPipeline() && pipelineIds.hasNext() == false;
+        }
+
+        private boolean hasFinalPipeline() {
+            return finalPipeline != null;
+        }
     }
 
     private void executePipelines(
-        final Iterator<String> pipelineIds,
-        final boolean hasFinalPipeline,
+        final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
         final ActionListener<Boolean> listener,
         final Set<String> indexRecursionDetection
     ) {
-        assert pipelineIds.hasNext();
-        final String pipelineId = pipelineIds.next();
+        assert pipelines.hasNext();
+        final String pipelineId = pipelines.next();
         try {
-            final PipelineHolder holder = pipelines.get(pipelineId);
-            if (holder == null) {
-                throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
-            }
-            final Pipeline pipeline = holder.pipeline;
+            final Pipeline pipeline = pipelines.currentPipeline();
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
@@ -881,8 +895,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     return; // document failed!
                 }
 
-                Iterator<String> newPipelineIds = pipelineIds;
-                boolean newHasFinalPipeline = hasFinalPipeline;
+                PipelineIterator newPipelines = pipelines;
                 final String newIndex = indexRequest.indices()[0];
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
@@ -894,7 +907,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
                         return; // document failed!
                     }
-                    if (hasFinalPipeline && pipelineIds.hasNext() == false) {
+                    if (pipelines.isFinalPipeline()) {
                         listener.onFailure(
                             new IllegalStateException(
                                 format(
@@ -912,17 +925,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         indexRequest.setPipeline(null);
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
-                        Pipelines pipelines = getPipelines(indexRequest);
+                        newPipelines = getPipelines(indexRequest);
                         if (ingestDocument.isInvokeDefaultPipelineOfDestination() == false) {
-                            pipelines.withoutDefaultPipeline();
+                            newPipelines = newPipelines.withoutDefaultPipeline();
                         }
-                        newHasFinalPipeline = pipelines.hasFinalPipeline();
-                        newPipelineIds = pipelines.iterator();
                     }
                 }
 
-                if (newPipelineIds.hasNext()) {
-                    executePipelines(newPipelineIds, newHasFinalPipeline, indexRequest, ingestDocument, listener, indexRecursionDetection);
+                if (newPipelines.hasNext()) {
+                    executePipelines(newPipelines, indexRequest, ingestDocument, listener, indexRecursionDetection);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);

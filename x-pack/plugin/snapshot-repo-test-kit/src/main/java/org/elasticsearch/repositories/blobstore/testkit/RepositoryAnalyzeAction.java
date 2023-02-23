@@ -508,7 +508,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
                 @Override
                 public boolean hasNext() {
-                    return isRunning() && nextItem != null;
+                    return nextItem != null;
                 }
 
                 @Override
@@ -522,37 +522,41 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         private void runBlobAnalysis(Releasable ref, final BlobAnalyzeAction.Request request, DiscoveryNode node) {
-            logger.trace("processing [{}] on [{}]", request, node);
-            // NB although all this is on the SAME thread, the per-blob verification runs on a SNAPSHOT thread so we don't have to worry
-            // about local requests resulting in a stack overflow here
-            transportService.sendChildRequest(
-                node,
-                BlobAnalyzeAction.NAME,
-                request,
-                task,
-                TransportRequestOptions.timeout(TimeValue.timeValueMillis(timeoutTimeMillis - currentTimeMillisSupplier.getAsLong())),
-                new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(BlobAnalyzeAction.Response response) {
-                        logger.trace("finished [{}] on [{}]", request, node);
-                        if (request.getAbortWrite() == false) {
-                            expectedBlobs.add(request.getBlobName()); // each task cleans up its own mess on failure
-                        }
-                        if (AsyncAction.this.request.detailed) {
-                            synchronized (responses) {
-                                responses.add(response);
+            if (isRunning()) {
+                logger.trace("processing [{}] on [{}]", request, node);
+                // NB although all this is on the SAME thread, the per-blob verification runs on a SNAPSHOT thread so we don't have to worry
+                // about local requests resulting in a stack overflow here
+                transportService.sendChildRequest(
+                    node,
+                    BlobAnalyzeAction.NAME,
+                    request,
+                    task,
+                    TransportRequestOptions.timeout(TimeValue.timeValueMillis(timeoutTimeMillis - currentTimeMillisSupplier.getAsLong())),
+                    new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(BlobAnalyzeAction.Response response) {
+                            logger.trace("finished [{}] on [{}]", request, node);
+                            if (request.getAbortWrite() == false) {
+                                expectedBlobs.add(request.getBlobName()); // each task cleans up its own mess on failure
                             }
+                            if (AsyncAction.this.request.detailed) {
+                                synchronized (responses) {
+                                    responses.add(response);
+                                }
+                            }
+                            summary.add(response);
                         }
-                        summary.add(response);
-                    }
 
-                    @Override
-                    public void onFailure(Exception exp) {
-                        logger.debug(() -> "failed [" + request + "] on [" + node + "]", exp);
-                        fail(exp);
-                    }
-                }, ref), BlobAnalyzeAction.Response::new)
-            );
+                        @Override
+                        public void onFailure(Exception exp) {
+                            logger.debug(() -> "failed [" + request + "] on [" + node + "]", exp);
+                            fail(exp);
+                        }
+                    }, ref), BlobAnalyzeAction.Response::new)
+                );
+            } else {
+                ref.close();
+            }
         }
 
         private BlobContainer getBlobContainer() {
@@ -560,7 +564,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         private void runRegisterAnalysis(Releasable ref, RegisterAnalyzeAction.Request request, DiscoveryNode node) {
-            if (node.getVersion().onOrAfter(Version.V_8_8_0)) {
+            if (node.getVersion().onOrAfter(Version.V_8_8_0) && isRunning()) {
                 transportService.sendChildRequest(
                     node,
                     RegisterAnalyzeAction.NAME,

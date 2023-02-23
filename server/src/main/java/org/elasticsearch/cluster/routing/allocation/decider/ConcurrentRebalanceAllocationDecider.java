@@ -63,11 +63,11 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
-        if (allocation.isSimulating() && relocatingShards >= 1) {
+        if (allocation.isSimulating() && relocatingShards >= 2) {
             // BalancedShardAllocator is prone to perform unnecessary moves when cluster_concurrent_rebalance is set to high values (>2).
             // (See https://github.com/elastic/elasticsearch/issues/87279)
             // Above allocator is used in DesiredBalanceComputer. Since we do not move actual shard data during calculation
-            // it is possible to artificially set above setting to 1 to avoid unnecessary moves in desired balance.
+            // it is possible to artificially set above setting to 2 to avoid unnecessary moves in desired balance.
             return allocation.decision(Decision.THROTTLE, NAME, "allocation should move one shard at the time when simulating");
         }
         if (clusterConcurrentRebalance == -1) {

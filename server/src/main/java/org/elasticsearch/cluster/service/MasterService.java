@@ -509,26 +509,14 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     public List<PendingClusterTask> pendingTasks() {
         final var currentTimeMillis = threadPool.relativeTimeInMillis();
-        return Stream.concat(Stream.ofNullable(currentlyExecutingBatch), queuesByPriority.values().stream().flatMap(q -> q.queue.stream()))
-            .flatMap(e -> e.getPending(currentTimeMillis))
-            .toList();
+        return allBatchesStream().flatMap(e -> e.getPending(currentTimeMillis)).toList();
     }
 
     /**
      * Returns the number of currently pending tasks.
      */
     public int numberOfPendingTasks() {
-        var result = getPendingCountOrZero(currentlyExecutingBatch); // single volatile read
-        for (final var queue : queuesByPriority.values()) {
-            for (final var entry : queue.queue) {
-                result += entry.getPendingCount();
-            }
-        }
-        return result;
-    }
-
-    private static int getPendingCountOrZero(@Nullable Batch batch) {
-        return batch == null ? 0 : batch.getPendingCount();
+        return allBatchesStream().mapToInt(Batch::getPendingCount).sum();
     }
 
     /**
@@ -537,16 +525,20 @@ public class MasterService extends AbstractLifecycleComponent {
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     public TimeValue getMaxTaskWaitTime() {
-        final var oldestTaskTimeMillis = Stream.concat(
-            Stream.ofNullable(currentlyExecutingBatch),
-            queuesByPriority.values().stream().flatMap(q -> q.queue.stream())
-        ).mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
+        final var oldestTaskTimeMillis = allBatchesStream().mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
 
         if (oldestTaskTimeMillis == Long.MAX_VALUE) {
             return TimeValue.ZERO;
         }
 
         return TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - oldestTaskTimeMillis);
+    }
+
+    private Stream<Batch> allBatchesStream() {
+        return Stream.concat(
+            Stream.ofNullable(currentlyExecutingBatch),
+            queuesByPriority.values().stream().filter(Objects::nonNull).flatMap(q -> q.queue.stream())
+        );
     }
 
     private void logExecutionTime(TimeValue executionTime, String activity, BatchSummary summary) {

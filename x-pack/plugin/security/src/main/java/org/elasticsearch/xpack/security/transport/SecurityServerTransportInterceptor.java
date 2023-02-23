@@ -389,14 +389,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             // authentication instance
                             new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY)
                         ).writeToContext(threadContext);
-
-                        final String finalAction;
-                        if (action.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
-                            finalAction = REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
-                        } else {
-                            finalAction = action;
-                        }
-                        sender.sendRequest(connection, finalAction, request, options, contextRestoreHandler);
+                        sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                     } catch (IOException e) {
                         contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                     }

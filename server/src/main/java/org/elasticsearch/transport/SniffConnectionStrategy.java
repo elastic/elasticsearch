@@ -279,7 +279,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     connectionManager.connectToRemoteClusterNode(
                         handshakeNodeWithProxy,
                         (connection, profile, l) -> transportService.connectionValidator(handshakeNodeWithProxy)
-                            .validate(RemoteConnectionManager.wrapConnectionWithClusterAlias(connection, clusterAlias), profile, l),
+                            .validate(
+                                RemoteConnectionManager.wrapConnectionWithClusterAlias(connection, clusterAlias, transportProfile),
+                                profile,
+                                l
+                            ),
                         fullConnectionStep
                     );
                 } else {
@@ -425,7 +429,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     final DiscoveryNode nodeWithProxy = maybeAddProxyAddress(proxyAddress, node);
                     connectionManager.connectToRemoteClusterNode(nodeWithProxy, (connection, profile, l) -> {
                         transportService.connectionValidator(node)
-                            .validate(RemoteConnectionManager.wrapConnectionWithClusterAlias(connection, clusterAlias), profile, l);
+                            .validate(
+                                RemoteConnectionManager.wrapConnectionWithClusterAlias(connection, clusterAlias, transportProfile),
+                                profile,
+                                l
+                            );
                     }, new ActionListener<>() {
                         @Override
                         public void onResponse(Void aVoid) {
@@ -434,7 +442,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error("FAILFAIL", e);
                             if (e instanceof ConnectTransportException || e instanceof IllegalStateException) {
                                 // ISE if we fail the handshake with an version incompatible node
                                 // fair enough we can't connect just move on

@@ -20,13 +20,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.After;
 import org.junit.Before;
 
-import java.nio.file.Path;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
@@ -38,7 +36,6 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
 
     protected LicenseService licenseService;
     protected ClusterService clusterService;
-    protected ResourceWatcherService resourceWatcherService;
     protected ClockMock clock;
     protected DiscoveryNodes discoveryNodes;
     protected Environment environment;
@@ -50,7 +47,6 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         clusterService = mock(ClusterService.class);
         clock = ClockMock.frozen();
         discoveryNodes = mock(DiscoveryNodes.class);
-        resourceWatcherService = mock(ResourceWatcherService.class);
         environment = mock(Environment.class);
         threadPool = new TestThreadPool("license-test");
     }
@@ -65,11 +61,9 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     }
 
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
-        Path tempDir = createTempDir();
-        when(environment.configFile()).thenReturn(tempDir);
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
-        licenseService = new LicenseService(settings, threadPool, clusterService, clock, environment, resourceWatcherService, licenseState);
+        licenseService = new LicenseService(settings, threadPool, clusterService, clock, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);

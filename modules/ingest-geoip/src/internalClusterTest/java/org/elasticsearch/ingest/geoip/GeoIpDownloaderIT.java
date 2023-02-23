@@ -83,8 +83,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
-    protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
@@ -98,8 +96,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        if (ENDPOINT != null) {
-            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
+        if (getEndpoint() != null) {
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
         }
         return settings.build();
     }
@@ -158,7 +156,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         putGeoIpPipeline();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
@@ -228,7 +226,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testUpdatedTimestamp() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         testGeoIpDatabasesDownload();
         long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
@@ -301,7 +299,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String pipelineId = randomAlphaOfLength(10);
         putGeoIpPipeline(pipelineId);
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
@@ -329,7 +327,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         setupDatabasesInConfigDirectory();
         // setup:
         putGeoIpPipeline();
@@ -398,7 +396,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/79074")
     public void testStartWithNoDatabases() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         putGeoIpPipeline();
 
         // Behaviour without any databases loaded:

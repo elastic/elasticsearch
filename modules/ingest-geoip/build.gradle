@@ -8,8 +8,8 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -35,7 +35,11 @@ dependencies {
   implementation('com.maxmind.db:maxmind-db:3.0.0')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
-  internalClusterTestImplementation project(path: ":modules:reindex")
+  internalClusterTestImplementation project(':modules:reindex')
+  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
+
+  clusterModules project(':modules:reindex')
 }
 
 restResources {
@@ -46,28 +50,6 @@ restResources {
 
 tasks.withType(JavaCompile).configureEach {
   options.compilerArgs << '-Xlint:-classfile'
-}
-
-def useFixture = providers.environmentVariable("geoip_use_service")
-  .map { s -> Boolean.parseBoolean(s) == false }
-  .getOrElse(true)
-
-def fixtureAddress = {
-  assert useFixture: 'closure should not be used without a fixture'
-  int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture.tcp.80"
-  assert ephemeralPort > 0
-  return "http://127.0.0.1:${ephemeralPort}/"
-}
-
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(':test:fixtures:geoip-fixture', 'geoip-fixture')
-}
-
-tasks.named("internalClusterTest").configure {
-  if (useFixture) {
-    nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
-  }
 }
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -87,17 +69,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
   mapping from: /jackson.*/, to: 'jackson'
   ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
-}
-
-testClusters.configureEach {
-  // Needed for database downloader, uses delete-by-query to cleanup old databases from org.elasticsearch.ingest.geoip database system index
-  module ':modules:reindex'
-  // Downloader is enabled by default, but in test clusters in build disabled by default,
-  // but in this module, the downloader should be enabled by default
-  systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
-  if (useFixture) {
-    setting 'ingest.geoip.downloader.endpoint', { "${-> fixtureAddress()}" }
-  }
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

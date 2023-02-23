@@ -93,7 +93,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        // Register new actions here
         return List.of(new RestGetEngineAction(), new RestPutEngineAction());
     }
 

@@ -87,7 +87,7 @@ in the `indices.get_settings` API.
 
 == Skipping tests:
 
-=== Skip for elasticsearch versions
+=== Skip for Elasticsearch versions
 
 If a test section should only be run on certain versions of Elasticsearch,
 then the first entry in the section (after the title) should be called

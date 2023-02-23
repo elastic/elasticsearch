@@ -48,7 +48,7 @@ setup:
       engine.get:
         engine_id: test-engine
 
-  - match: { result: "created" }
+  - match: { indices: [ "test-index1", "test-index2" ] }
 
 ---
 "Get Engine - Engine does not exist":

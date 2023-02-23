@@ -70,7 +70,7 @@ When running Elasticsearch with `./gradlew run`, assertions are enabled by
 default. To disable them, add the following command line option:
 
 -------------------------
--Dtests.jvm.argline="-da"
+-Dtests.jvm.argline="-da -dsa"
 -------------------------
 
 ==== Distribution

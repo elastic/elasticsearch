@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class RebalanceAfterActiveTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(RebalanceAfterActiveTests.class);
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94086")
     public void testRebalanceOnlyAfterAllShardsAreActive() {
         final long[] sizes = new long[5];
         for (int i = 0; i < sizes.length; i++) {

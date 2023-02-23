@@ -15,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -484,6 +483,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
         String dataStreamName = "ds-test";
         String repoId = "ds-repo";
@@ -501,6 +501,21 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         createComposableTemplate(client(), "ds-template", dataStreamName, template);
 
         client().performRequest(new Request("PUT", "_data_stream/" + dataStreamName));
+        /*
+         * We make the following request just to get the backing index name (we can't assume we know what it is based on the date because
+         * this test could run across midnight on two days.
+         */
+        Response dataStreamResponse = client().performRequest(new Request("GET", "_data_stream/" + dataStreamName));
+        final String dataStreamIndexName;
+        try (InputStream is = dataStreamResponse.getEntity().getContent()) {
+            Map<String, Object> dataStreamResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) dataStreamResponseMap.get("data_streams");
+            assertThat(dataStreams.size(), equalTo(1));
+            List<Map<String, String>> indices = (List<Map<String, String>>) dataStreams.get(0).get("indices");
+            assertThat(indices.size(), equalTo(1));
+            dataStreamIndexName = indices.get(0).get("index_name");
+            assertNotNull(dataStreamIndexName);
+        }
 
         // Create a snapshot repo
         initializeRepo(repoId);
@@ -520,7 +535,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 assertThat(snapshotResponseMap.size(), greaterThan(0));
                 final Map<String, Object> snapshot = extractSnapshot(snapshotResponseMap, snapshotName);
                 assertEquals(Collections.singletonList(dataStreamName), snapshot.get("data_streams"));
-                assertEquals(Collections.singletonList(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), snapshot.get("indices"));
+                assertEquals(Collections.singletonList(dataStreamIndexName), snapshot.get("indices"));
             } catch (ResponseException e) {
                 fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
             }

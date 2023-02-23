@@ -7,11 +7,13 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ConcurrentRegisterOperationException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -268,6 +270,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final long maxTotalBlobSize;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
         private final AtomicLong totalBytesWritten = new AtomicLong();
+        private final Map<String, AtomicLong> registers = ConcurrentCollections.newConcurrentMap();
 
         AssertingBlobContainer(
             BlobPath path,
@@ -406,9 +409,20 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public long compareAndExchangeRegister(String key, long expected, long updated) {
-            assert false : "should not have been called";
-            throw new UnsupportedOperationException();
+        public long getRegister(String key) throws ConcurrentRegisterOperationException {
+            if (randomBoolean() && randomBoolean()) {
+                throw new ConcurrentRegisterOperationException(new ElasticsearchException("simulated"));
+            }
+            return registers.computeIfAbsent(key, ignored -> new AtomicLong()).get();
+        }
+
+        @Override
+        public long compareAndExchangeRegister(String key, long expected, long updated) throws ConcurrentRegisterOperationException {
+            if (expected != updated && randomBoolean() && randomBoolean()) {
+                // don't fail the final check because we know there can be no concurrent operations at that point
+                throw new ConcurrentRegisterOperationException(new ElasticsearchException("simulated"));
+            }
+            return registers.computeIfAbsent(key, ignored -> new AtomicLong()).compareAndExchange(expected, updated);
         }
     }
 

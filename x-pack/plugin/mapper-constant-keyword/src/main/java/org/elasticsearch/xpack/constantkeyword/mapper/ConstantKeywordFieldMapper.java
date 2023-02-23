@@ -152,6 +152,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
+
+        @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
             if (value == null) {
                 return TermsEnum.EMPTY;

@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -92,6 +92,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final Client client;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
+    private final MasterServiceTaskQueue<RollupClusterStateUpdateTask> taskQueue;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
@@ -140,6 +141,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.threadContext = threadPool.getThreadContext();
+        this.taskQueue = clusterService.createTaskQueue("rollup", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
     }
 
     @Override
@@ -642,7 +644,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             rollupIndexName
         ).settings(builder.build()).mappings(mapping);
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
-        clusterService.submitStateUpdateTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
+        taskQueue.submitTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return metadataCreateIndexService.applyCreateIndexRequest(
@@ -654,7 +656,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     delegate.reroute()
                 );
             }
-        }, ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()), STATE_UPDATE_TASK_EXECUTOR);
+        }, request.masterNodeTimeout());
     }
 
     private void updateRollupMetadata(
@@ -663,30 +665,25 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ActionListener<AcknowledgedResponse> listener
     ) {
         // 6. Mark rollup index as "completed successfully" ("index.rollup.status": "success")
-        clusterService.submitStateUpdateTask(
-            "update-rollup-metadata [" + rollupIndexName + "]",
-            new RollupClusterStateUpdateTask(listener) {
+        taskQueue.submitTask("update-rollup-metadata [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
 
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    Metadata metadata = currentState.metadata();
-                    Metadata.Builder metadataBuilder = Metadata.builder(metadata);
-                    Index rollupIndex = metadata.index(rollupIndexName).getIndex();
-                    IndexMetadata rollupIndexMetadata = metadata.index(rollupIndex);
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                Metadata metadata = currentState.metadata();
+                Metadata.Builder metadataBuilder = Metadata.builder(metadata);
+                Index rollupIndex = metadata.index(rollupIndexName).getIndex();
+                IndexMetadata rollupIndexMetadata = metadata.index(rollupIndex);
 
-                    metadataBuilder.updateSettings(
-                        Settings.builder()
-                            .put(rollupIndexMetadata.getSettings())
-                            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.SUCCESS)
-                            .build(),
-                        rollupIndexName
-                    );
-                    return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
-                }
-            },
-            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-            STATE_UPDATE_TASK_EXECUTOR
-        );
+                metadataBuilder.updateSettings(
+                    Settings.builder()
+                        .put(rollupIndexMetadata.getSettings())
+                        .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.SUCCESS)
+                        .build(),
+                    rollupIndexName
+                );
+                return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
+            }
+        }, request.masterNodeTimeout());
     }
 
     private void refreshIndex(String index, TaskId parentTask, ActionListener<RefreshResponse> listener) {

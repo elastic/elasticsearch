@@ -59,8 +59,8 @@ class AuthorizationDenialMessages {
         @Nullable String context
     ) {
         String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
-
-        String message = actionIsUnauthorizedMessage(action, userText);
+        String remoteClusterText = authentication.isRemoteAccess() ? remoteClusterText(null) : "";
+        String message = actionIsUnauthorizedMessage(action, remoteClusterText, userText);
         if (context != null) {
             message = message + " " + context;
         }
@@ -94,14 +94,13 @@ class AuthorizationDenialMessages {
     ) {
         assert isIndexAction(action);
         String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
+        String remoteClusterText = remoteClusterText(clusterAlias);
+        return actionIsUnauthorizedMessage(action, remoteClusterText, userText)
+            + " because no remote indices privileges apply for the target cluster";
+    }
 
-        return Strings.format(
-            "action [%s] towards remote cluster [%s] is unauthorized for %s"
-                + " because no remote indices privileges apply for the target cluster",
-            action,
-            clusterAlias,
-            userText
-        );
+    private static String remoteClusterText(@Nullable String clusterAlias) {
+        return Strings.format("towards remote cluster%s ", clusterAlias == null ? "" : " [" + clusterAlias + "]");
     }
 
     private static String authenticatedUserDescription(Authentication authentication) {
@@ -109,12 +108,19 @@ class AuthorizationDenialMessages {
             + " ["
             + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";
-        if (authentication.isAuthenticatedAsApiKey()) {
+        if (authentication.isAuthenticatedAsApiKey() || authentication.isRemoteAccess()) {
             final String apiKeyId = (String) authentication.getAuthenticatingSubject()
                 .getMetadata()
                 .get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
+            if (authentication.isRemoteAccess()) {
+                final Authentication remoteAccessAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                assert remoteAccessAuthentication != null : "remote access authentication must be present in the metadata";
+                userText = successfulAuthenticationDescription(remoteAccessAuthentication, null) + " authenticated by " + userText;
+            }
         }
         return userText;
     }
@@ -171,6 +177,10 @@ class AuthorizationDenialMessages {
     }
 
     private static String actionIsUnauthorizedMessage(String action, String userText) {
-        return "action [" + action + "] is unauthorized for " + userText;
+        return actionIsUnauthorizedMessage(action, "", userText);
+    }
+
+    private static String actionIsUnauthorizedMessage(String action, String remoteClusterText, String userText) {
+        return "action [" + action + "] " + remoteClusterText + "is unauthorized for " + userText;
     }
 }

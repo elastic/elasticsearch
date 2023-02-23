@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -48,8 +48,8 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected Request createTestInstance() {
-        return randomBoolean()
-            ? Request.forDocs(
+        var request = randomBoolean()
+            ? Request.forIngestDocs(
                 randomAlphaOfLength(10),
                 Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfigUpdate(),
@@ -60,11 +60,61 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 randomInferenceConfigUpdate(),
                 Arrays.asList(generateRandomStringArray(3, 5, false))
             );
+
+        request.setHighPriority(randomBoolean());
+        return request;
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+
+        var modelId = instance.getModelId();
+        var objectsToInfer = instance.getObjectsToInfer();
+        var highPriority = instance.isHighPriority();
+        var textInput = instance.getTextInput();
+        var update = instance.getUpdate();
+        var previouslyLicensed = instance.isPreviouslyLicensed();
+        var timeout = instance.getInferenceTimeout();
+
+        int change = randomIntBetween(0, 6);
+        switch (change) {
+            case 0:
+                modelId = modelId + "foo";
+                break;
+            case 1:
+                var newDocs = new ArrayList<>(objectsToInfer);
+                newDocs.add(randomMap());
+                objectsToInfer = newDocs;
+                break;
+            case 2:
+                highPriority = highPriority == false;
+                break;
+            case 3:
+                var newInput = new ArrayList<>(textInput == null ? List.of() : textInput);
+                newInput.add((randomAlphaOfLength(4)));
+                textInput = newInput;
+                break;
+            case 4:
+                var newUpdate = randomInferenceConfigUpdate();
+                while (newUpdate.getName().equals(update.getName())) {
+                    newUpdate = randomInferenceConfigUpdate();
+                }
+                update = newUpdate;
+                break;
+            case 5:
+                previouslyLicensed = previouslyLicensed == false;
+                break;
+            case 6:
+                timeout = TimeValue.timeValueSeconds(timeout.getSeconds() - 1);
+                break;
+            default:
+                throw new IllegalStateException();
+        }
+
+        var r = new Request(modelId, update, objectsToInfer, textInput, timeout, previouslyLicensed);
+        r.setHighPriority(highPriority);
+        r.setInferenceTimeout(timeout);
+        return r;
     }
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
@@ -102,7 +152,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
     }
 
     @Override
-    protected Request mutateInstanceForVersion(Request instance, Version version) {
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
         InferenceConfigUpdate adjustedUpdate;
         InferenceConfigUpdate currentUpdate = instance.getUpdate();
         if (currentUpdate instanceof NlpConfigUpdate nlpConfigUpdate) {
@@ -129,7 +179,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             adjustedUpdate = currentUpdate;
         }
 
-        if (version.before(Version.V_8_3_0)) {
+        if (version.before(TransportVersion.V_8_3_0)) {
             return new Request(
                 instance.getModelId(),
                 adjustedUpdate,
@@ -138,7 +188,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 TimeValue.MAX_VALUE,
                 instance.isPreviouslyLicensed()
             );
-        } else if (version.before(Version.V_8_7_0)) {
+        } else if (version.before(TransportVersion.V_8_7_0)) {
             return new Request(
                 instance.getModelId(),
                 adjustedUpdate,
@@ -147,6 +197,17 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 instance.getInferenceTimeout(),
                 instance.isPreviouslyLicensed()
             );
+        } else if (version.before(TransportVersion.V_8_8_0)) {
+            var r = new Request(
+                instance.getModelId(),
+                adjustedUpdate,
+                instance.getObjectsToInfer(),
+                instance.getTextInput(),
+                instance.getInferenceTimeout(),
+                instance.isPreviouslyLicensed()
+            );
+            r.setHighPriority(false);
+            return r;
         }
 
         return instance;

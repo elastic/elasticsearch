@@ -473,7 +473,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.randomDataNodeSafe().client.admin()
                 .cluster()
                 .prepareDeleteSnapshot(repoName, snapshotName)
-                .execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
+                .execute(ActionListener.running(() -> snapshotDeleteResponded.set(true)));
         });
 
         runUntil(
@@ -1011,7 +1011,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             testClusterNodes.randomDataNodeSafe().client.admin()
                                 .cluster()
                                 .prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(ActionListener.wrap(() -> {
+                                .execute(ActionListener.running(() -> {
                                     createdSnapshot.set(true);
                                     testClusterNodes.randomDataNodeSafe().client.admin()
                                         .cluster()
@@ -1748,7 +1748,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     () -> repositoriesService,
                     rerouteServiceSetOnce::get
                 );
-                allocationService = ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
+                allocationService = ESAllocationTestCase.createAllocationService(
+                    Settings.builder()
+                        .put(settings)
+                        .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
+                        .build(),
+                    snapshotsInfoService
+                );
                 rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(

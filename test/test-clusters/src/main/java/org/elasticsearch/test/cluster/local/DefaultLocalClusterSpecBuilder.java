@@ -176,6 +176,7 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
                 getPlugins(),
                 Optional.ofNullable(getDistributionType()).orElse(DistributionType.INTEG_TEST),
                 getFeatures(),
+                getKeystoreProviders(),
                 getKeystoreSettings(),
                 getKeystoreFiles(),
                 getKeystorePassword(),

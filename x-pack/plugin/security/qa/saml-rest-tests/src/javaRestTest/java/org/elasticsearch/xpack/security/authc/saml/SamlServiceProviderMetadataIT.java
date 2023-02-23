@@ -24,6 +24,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -231,6 +232,7 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
         req.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().map(body)));
         var resp = entityAsMap(client().performRequest(req));
         assertThat(resp.get("username"), equalTo(username));
+        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml" + realmNumber));
     }
 
     private static Path getDataResource(String relativePath) throws URISyntaxException {

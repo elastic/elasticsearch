@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.rest.RestController.ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
 import static org.hamcrest.Matchers.containsString;
@@ -104,7 +105,7 @@ public class RestControllerTests extends ESTestCase {
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
         tracer = mock(Tracer.class);
-        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracer);
+        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracer, false);
         restController.registerHandler(
             new Route(GET, "/"),
             (request, channel, client) -> channel.sendResponse(
@@ -128,7 +129,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", true))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer, false);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -154,7 +155,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer, false);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
@@ -169,7 +170,7 @@ public class RestControllerTests extends ESTestCase {
      */
     public void testDispatchStartsTrace() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final RestController restController = new RestController(Set.of(), null, null, circuitBreakerService, usageService, tracer);
+        final RestController restController = new RestController(Set.of(), null, null, circuitBreakerService, usageService, tracer, false);
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
         final RestController spyRestController = spy(restController);
         when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
@@ -200,7 +201,7 @@ public class RestControllerTests extends ESTestCase {
     public void testTraceParentAndTraceId() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = Set.of(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer, false);
         Map<String, List<String>> restHeaders = new HashMap<>();
         final String traceParentValue = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
@@ -221,7 +222,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService, tracer);
+        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService, tracer, false);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
@@ -292,7 +293,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, tracer);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, tracer, false);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
         RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
@@ -319,7 +320,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(Collections.emptySet(), h -> {
             assertSame(handler, h);
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-        }, client, circuitBreakerService, usageService, tracer);
+        }, client, circuitBreakerService, usageService, tracer, false);
         restController.registerHandler(new Route(GET, "/wrapped"), handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
@@ -406,7 +407,7 @@ public class RestControllerTests extends ESTestCase {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
-        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, tracer);
+        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, tracer, false);
         restController.registerHandler(
             new Route(GET, "/"),
             (r, c, client) -> c.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
@@ -779,7 +780,8 @@ public class RestControllerTests extends ESTestCase {
             client,
             circuitBreakerService,
             usageService,
-            tracer
+            tracer,
+            false
         );
 
         final RestApiVersion version = RestApiVersion.minimumSupported();
@@ -810,7 +812,8 @@ public class RestControllerTests extends ESTestCase {
             client,
             circuitBreakerService,
             usageService,
-            tracer
+            tracer,
+            false
         );
 
         final RestApiVersion version = RestApiVersion.minimumSupported();
@@ -852,7 +855,8 @@ public class RestControllerTests extends ESTestCase {
             client,
             circuitBreakerService,
             usageService,
-            tracer
+            tracer,
+            false
         );
 
         final RestApiVersion version = RestApiVersion.current();
@@ -884,7 +888,8 @@ public class RestControllerTests extends ESTestCase {
             client,
             circuitBreakerService,
             usageService,
-            tracer
+            tracer,
+            false
         );
 
         final String mediaType = "application/x-protobuf";
@@ -917,7 +922,8 @@ public class RestControllerTests extends ESTestCase {
             client,
             circuitBreakerService,
             usageService,
-            tracer
+            tracer,
+            false
         );
 
         final String mediaType = randomFrom(RestController.SAFELISTED_MEDIA_TYPES);
@@ -939,7 +945,15 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterWithReservedPath() {
-        final RestController restController = new RestController(Set.of(), null, client, circuitBreakerService, usageService, tracer);
+        final RestController restController = new RestController(
+            Set.of(),
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            false
+        );
         for (String path : RestController.RESERVED_PATHS) {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
                 restController.registerHandler(
@@ -950,6 +964,147 @@ public class RestControllerTests extends ESTestCase {
                 );
             });
             assertThat(iae.getMessage(), containsString("path [" + path + "] is a reserved path and may not be registered"));
+        }
+    }
+
+    /*
+     * Test that when serverless is disabled, all endpoints are available regardless of ServerlessScope annotations.
+     */
+    public void testApiProtectionWithServerlessDisabled() {
+        final RestController restController = new RestController(
+            Set.of(),
+            null,
+            client,
+            circuitBreakerService,
+            new UsageService(),
+            tracer,
+            false
+        );
+        restController.registerHandler(new PublicRestHandler());
+        restController.registerHandler(new InternalRestHandler());
+        restController.registerHandler(new HiddenRestHandler());
+        List<String> accessiblePaths = List.of("/public", "/internal", "/hidden");
+        accessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+    }
+
+    /*
+     * Test that when serverless is enabled, a normal user not using the X-elastic-internal-origin header can only access endpoints
+     * annotated with a PUBLIC scope.
+     */
+    public void testApiProtectionWithServerlessEnabledAsEndUser() {
+        final RestController restController = new RestController(
+            Set.of(),
+            null,
+            client,
+            circuitBreakerService,
+            new UsageService(),
+            tracer,
+            true
+        );
+        restController.registerHandler(new PublicRestHandler());
+        restController.registerHandler(new InternalRestHandler());
+        restController.registerHandler(new HiddenRestHandler());
+        List<String> accessiblePaths = List.of("/public");
+        accessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+        List<String> inaccessiblePaths = List.of("/internal", "/hidden");
+        inaccessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.BAD_REQUEST);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+    }
+
+    /*
+     * Test that when serverless is enabled, a system user using the X-elastic-internal-origin header can only access endpoints
+     * annotated with a PUBLIC or INTERNAL scope.
+     */
+    public void testApiProtectionWithServerlessEnabledAsInternalUser() {
+        final RestController restController = new RestController(
+            Set.of(),
+            null,
+            client,
+            circuitBreakerService,
+            new UsageService(),
+            tracer,
+            true
+        );
+        restController.registerHandler(new PublicRestHandler());
+        restController.registerHandler(new InternalRestHandler());
+        restController.registerHandler(new HiddenRestHandler());
+        Map<String, List<String>> headers = new HashMap<>();
+        headers.put(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER, Collections.singletonList("true"));
+        List<String> accessiblePaths = List.of("/public", "/internal");
+        accessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+        List<String> inaccessiblePaths = List.of("/hidden");
+        inaccessiblePaths.forEach(path -> {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).withPath(path).build();
+            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.BAD_REQUEST);
+            restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        });
+    }
+
+    @ServerlessScope(Scope.PUBLIC)
+    private static final class PublicRestHandler extends BaseRestHandler {
+        @Override
+        public String getName() {
+            return "publicRestHandler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, "/public"));
+        }
+
+        @Override
+        protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            return restChannel -> { restChannel.sendResponse(new RestResponse(RestStatus.OK, "ok")); };
+        }
+    }
+
+    @ServerlessScope(Scope.INTERNAL)
+    private static final class InternalRestHandler extends BaseRestHandler {
+        @Override
+        public String getName() {
+            return "internalRestHandler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, "/internal"));
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            return restChannel -> { restChannel.sendResponse(new RestResponse(RestStatus.OK, "ok")); };
+        }
+    }
+
+    private static final class HiddenRestHandler extends BaseRestHandler {
+        @Override
+        public String getName() {
+            return "hiddenRestHandler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, "/hidden"));
+        }
+
+        @Override
+        protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            return restChannel -> { restChannel.sendResponse(new RestResponse(RestStatus.OK, "ok")); };
         }
     }
 

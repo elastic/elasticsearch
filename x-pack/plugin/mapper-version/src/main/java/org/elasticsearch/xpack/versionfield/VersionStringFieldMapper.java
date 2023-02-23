@@ -12,6 +12,8 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -24,6 +26,8 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +44,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SearchAfterTermsEnum;
 import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -309,6 +314,30 @@ public class VersionStringFieldMapper extends FieldMapper {
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
             return new TermRangeQuery(name(), lower, upper, includeLower, includeUpper);
+        }
+
+        @Override
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+            CompiledAutomaton prefixAutomaton = VersionEncoder.prefixAutomaton(string, caseInsensitive);
+            BytesRef searchBytes = searchAfter == null ? null : VersionEncoder.encodeVersion(searchAfter).bytesRef;
+
+            if (prefixAutomaton.type == AUTOMATON_TYPE.ALL) {
+                TermsEnum iterator = terms.iterator();
+                TermsEnum result = iterator;
+                if (searchAfter != null) {
+                    result = new SearchAfterTermsEnum(result, searchBytes);
+                }
+                return result;
+            }
+            return terms.intersect(prefixAutomaton, searchBytes);
         }
     }
 

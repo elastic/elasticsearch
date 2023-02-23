@@ -11,13 +11,13 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.entsearch.EnterpriseSearch;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetEngineAction extends BaseRestHandler {
-    public static final String ENDPOINT = "_engine";
 
     @Override
     public String getName() {
@@ -26,7 +26,7 @@ public class RestGetEngineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/" + ENDPOINT + "/{engine_id}"));
+        return List.of(new Route(GET, "/" + EnterpriseSearch.ENGINE_API_ENDPOINT + "/{engine_id}"));
     }
 
     @Override

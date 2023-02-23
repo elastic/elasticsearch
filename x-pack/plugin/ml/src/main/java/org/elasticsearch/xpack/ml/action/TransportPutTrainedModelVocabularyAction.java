@@ -30,8 +30,6 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction.Re
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.XLMRobertaTokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 

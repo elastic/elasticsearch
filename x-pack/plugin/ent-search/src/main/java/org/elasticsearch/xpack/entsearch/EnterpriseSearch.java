@@ -39,7 +39,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.entsearch.analytics.AnalyticsService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 import org.elasticsearch.xpack.entsearch.engine.action.PutEngineAction;

@@ -63,7 +63,7 @@ public class Engine implements Writeable, ToXContentObject {
     }
 
     /**
-     * Public constructor.
+     * Convenience constructor.
      *
      * @param name                    The name of the engine.
      * @param indices                 The list of indices targeted by this engine.
@@ -95,8 +95,9 @@ public class Engine implements Writeable, ToXContentObject {
             @SuppressWarnings("unchecked")
             final String[] indices = ((List<String>) params[0]).toArray(String[]::new);
             final String analyticsCollectionName = (String) params[1];
+            final long updatedAt = (Long) params[2];
 
-            return new Engine(engineName, indices, analyticsCollectionName, null);
+            return new Engine(engineName, indices, analyticsCollectionName, updatedAt);
         }
     );
 
@@ -109,7 +110,7 @@ public class Engine implements Writeable, ToXContentObject {
     static {
         PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
-        PARSER.declareString(optionalConstructorArg(), UPDATED_AT_FIELD);
+        PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_FIELD);
     }
 
     /**
@@ -196,12 +197,13 @@ public class Engine implements Writeable, ToXContentObject {
         Engine engine = (Engine) o;
         return name.equals(engine.name)
             && Arrays.equals(indices, engine.indices)
-            && Objects.equals(analyticsCollectionName, engine.analyticsCollectionName);
+            && Objects.equals(analyticsCollectionName, engine.analyticsCollectionName)
+            && updatedAt == engine.updatedAt();
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName);
+        int result = Objects.hash(name, analyticsCollectionName, updatedAt);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

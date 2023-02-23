@@ -24,7 +24,6 @@ import org.elasticsearch.node.ResponseCollectorService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +70,7 @@ public class OperationRouting {
             null,
             null
         );
-        return prioratizeUnpromotables(shardIterator);
+        return excludeUnsearchableShards(shardIterator);
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
@@ -84,7 +83,7 @@ public class OperationRouting {
             null,
             null
         );
-        return prioratizeUnpromotables(shardIterator);
+        return excludeUnsearchableShards(shardIterator);
     }
 
     public GroupShardsIterator<ShardIterator> searchShards(
@@ -160,18 +159,6 @@ public class OperationRouting {
             return null;
         }
         List<ShardRouting> shardRoutings = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
-        return new PlainShardIterator(iterator.shardId(), shardRoutings);
-    }
-
-    private static ShardIterator prioratizeUnpromotables(ShardIterator iterator) {
-        if (iterator == null) {
-            return null;
-        }
-
-        List<ShardRouting> shardRoutings = iterator.getShardRoutings()
-            .stream()
-            .sorted(Comparator.comparing(ShardRouting::isPromotableToPrimary, Boolean::compareTo))
-            .toList();
         return new PlainShardIterator(iterator.shardId(), shardRoutings);
     }
 

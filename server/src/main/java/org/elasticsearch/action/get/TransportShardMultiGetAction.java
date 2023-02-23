@@ -158,23 +158,19 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected boolean acceptResponse(ShardRouting shardRouting, MultiGetShardResponse response) {
-        assert response != null;
-        if (shardRouting.isPromotableToPrimary()) {
-            return true;
+    protected boolean ignoreShardCopyResponse(ShardRouting lastShardTried, MultiGetShardResponse lastResponse) {
+        // TODO: double-check that request is real-time?
+        if (lastShardTried.isPromotableToPrimary()) {
+            return false;
         }
-        // If the response from the unpromotable shard contains a "not found", try the next shard copy
-        return response.responses.stream().allMatch(GetResponse::isExists);
+        return lastResponse.responses.stream().anyMatch(Predicate.not(GetResponse::isExists));
     }
 
     @Override
     protected boolean skipShardCopy(ShardRouting shardRouting, MultiGetShardResponse lastResponse, Exception lastFailure) {
-        // Never skip if the last shard copy returned failure or the one to try is promotable
-        if (shardRouting.isPromotableToPrimary() || lastFailure != null) {
-            return false;
-        }
-        assert shardRouting.isPromotableToPrimary() == false;
-        // If the last response contains a "not found", skip until the next shard copy is promotable.
-        return lastResponse != null && lastResponse.responses.stream().anyMatch(Predicate.not(GetResponse::isExists));
+        return lastFailure == null
+            && lastResponse != null
+            && lastResponse.responses.stream().anyMatch(Predicate.not(GetResponse::isExists))
+            && shardRouting.isPromotableToPrimary() == false;
     }
 }

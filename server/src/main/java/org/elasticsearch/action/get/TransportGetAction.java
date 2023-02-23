@@ -141,22 +141,19 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected boolean acceptResponse(ShardRouting shardRouting, GetResponse response) {
-        assert response != null;
-        if (shardRouting.isPromotableToPrimary()) {
-            return true;
+    protected boolean ignoreShardCopyResponse(ShardRouting lastShardTried, GetResponse lastResponse) {
+        // TODO: double-check that request is real-time?
+        if (lastShardTried.isPromotableToPrimary()) {
+            return false;
         }
-        return response.isExists();
+        return lastResponse.isExists() == false;
     }
 
     @Override
     protected boolean skipShardCopy(ShardRouting shardRouting, GetResponse lastResponse, Exception lastFailure) {
-        // Never skip if the last shard copy returned failure or the one to try is promotable
-        if (shardRouting.isPromotableToPrimary() || lastFailure != null) {
-            return false;
-        }
-        assert shardRouting.isPromotableToPrimary() == false;
-        // If the last response is "not found", skip until the next shard copy to try is promotable.
-        return lastResponse != null && lastResponse.isExists() == false;
+        return lastFailure == null
+            && lastResponse != null
+            && lastResponse.isExists() == false
+            && shardRouting.isPromotableToPrimary() == false;
     }
 }

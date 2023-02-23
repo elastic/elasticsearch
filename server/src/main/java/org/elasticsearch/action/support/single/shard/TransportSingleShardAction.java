@@ -126,19 +126,14 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     @Nullable
     protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
 
-    /**
-     * Whether the response received from the chosen shard copy {@code shardRouting} should be
-     * accepted. If this returns false, the action is repeated on the next shard copy.
-     */
-    protected boolean acceptResponse(ShardRouting shardRouting, Response response) {
-        assert response != null;
-        return true;
+    // Whether the response received from the chosen shard copy should be ignored, and the action should
+    // be repeated on the next shard copy
+    protected boolean ignoreShardCopyResponse(ShardRouting lastShardTried, Response lastResponse) {
+        return false;
     }
 
-    /**
-     * Whether a specific shard copy should be skipped and not sent the action
-     */
-    protected boolean skipShardCopy(ShardRouting shardRouting, @Nullable Response lastResponse, @Nullable Exception lastFailure) {
+    // Whether a specific shard copy should be skipped and not sent the action
+    protected boolean skipShardCopy(ShardRouting shardRouting, Response lastResponse, Exception lastFailure) {
         return false;
     }
 
@@ -253,10 +248,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     new ActionListenerResponseHandler<>(listener, reader) {
                         @Override
                         public void handleResponse(Response response) {
-                            if (acceptResponse(finalShardRouting, response)) {
-                                super.handleResponse(response);
+                            if (ignoreShardCopyResponse(finalShardRouting, response)) {
+                                tryNextShardCopy(finalShardRouting, null, lastResponse);
                             } else {
-                                tryNextShardCopy(finalShardRouting, null, response);
+                                super.handleResponse(response);
                             }
                         }
 

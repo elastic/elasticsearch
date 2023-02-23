@@ -1,9 +1,5 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-
 
 esplugin {
   name 'dlm'

@@ -820,8 +820,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return holder.pipeline;
         }
 
-        public boolean isFinalPipeline() {
-            return hasFinalPipeline() && pipelineIds.hasNext() == false;
+        /**
+         * Whether the {@linkplain #currentPipeline() current pipeline} of this iterator represents the
+         * {@linkplain IndexRequest#getFinalPipeline() final pipeline of the index request}.
+         */
+        public boolean isCurrentPipelineFinalPipeline() {
+            return hasFinalPipeline() && hasNext() == false;
         }
 
         private boolean hasFinalPipeline() {
@@ -900,7 +904,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
                         return; // document failed!
                     }
-                    if (pipelines.isFinalPipeline()) {
+                    if (pipelines.isCurrentPipelineFinalPipeline()) {
                         listener.onFailure(
                             new IllegalStateException(
                                 format(

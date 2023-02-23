@@ -34,8 +34,10 @@ def queryingCluster = testClusters.register('querying-cluster') {
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.remote_cluster_client.ssl.enabled', 'false'
   setting 'cluster.remote.connections_per_cluster', "1"
+  if (false == basicSecurityMode) {
+    setting 'xpack.security.remote_cluster_client.ssl.enabled', 'false'
+  }
   user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
 }
 

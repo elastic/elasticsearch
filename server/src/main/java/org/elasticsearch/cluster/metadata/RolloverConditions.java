@@ -25,11 +25,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Contains the conditions that determine if an index can be rolled over or not. Mainly used in
@@ -47,6 +47,19 @@ public class RolloverConditions implements Writeable, ToXContentObject {
     public static final ParseField MIN_DOCS_FIELD = new ParseField("min_docs");
     public static final ParseField MIN_AGE_FIELD = new ParseField("min_age");
     public static final ParseField MIN_PRIMARY_SHARD_DOCS_FIELD = new ParseField("min_primary_shard_docs");
+
+    private static final Set<String> validConditions = Set.of(
+        MAX_SIZE_FIELD.getPreferredName(),
+        MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+        MAX_DOCS_FIELD.getPreferredName(),
+        MAX_AGE_FIELD.getPreferredName(),
+        MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(),
+        MIN_SIZE_FIELD.getPreferredName(),
+        MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+        MIN_DOCS_FIELD.getPreferredName(),
+        MIN_AGE_FIELD.getPreferredName(),
+        MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName()
+    );
 
     private static final ConstructingObjectParser<RolloverConditions, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -177,10 +190,18 @@ public class RolloverConditions implements Writeable, ToXContentObject {
     }
 
     public static RolloverConditions parseSetting(String value, String setting) {
-        Map<String, String> map = Pattern.compile(",")
-            .splitAsStream(value)
-            .map(p -> p.split("="))
-            .collect(Collectors.toMap(p -> p[0].trim(), p -> p[1].trim()));
+        String[] sConditions = value.split(",");
+        Map<String, String> map = new HashMap<>(sConditions.length);
+        for (String sCondition : sConditions) {
+            String[] keyValue = sCondition.split("=");
+            if (keyValue.length != 2) {
+                throw new ElasticsearchParseException("Invalid condition: '{}', format must be 'condition=value'", sCondition);
+            }
+            if (validConditions.contains(keyValue[0]) == false) {
+                throw new ElasticsearchParseException("Unknown condition: '{}'", keyValue[0]);
+            }
+            map.put(keyValue[0], keyValue[1]);
+        }
         var maxSize = extractCondition(map, MAX_SIZE_FIELD.getPreferredName(), setting, ByteSizeValue::parseBytesSizeValue);
         var maxPrimaryShardSize = extractCondition(
             map,

@@ -127,8 +127,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 maxAge,
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
-            case 5 -> maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
-            case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, () -> randomNonNegativeLong());
+            case 5 -> maxDocs = randomValueOtherThan(maxDocs, ESTestCase::randomNonNegativeLong);
+            case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
             case 7 -> minSize = randomValueOtherThan(minSize, () -> {
                 ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
@@ -142,7 +142,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
             case 10 -> minDocs = randomValueOtherThan(minDocs, ESTestCase::randomNonNegativeLong);
-            case 11 -> minPrimaryShardDocs = randomValueOtherThan(minPrimaryShardDocs, () -> randomNonNegativeLong());
+            case 11 -> minPrimaryShardDocs = randomValueOtherThan(minPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new WaitForRolloverReadyStep(
@@ -164,12 +164,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
     @Override
     protected WaitForRolloverReadyStep copyInstance(WaitForRolloverReadyStep instance) {
-        return new WaitForRolloverReadyStep(
-            instance.getKey(),
-            instance.getNextStepKey(),
-            instance.getClient(),
-            instance.getConditions()
-        );
+        return new WaitForRolloverReadyStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getConditions());
     }
 
     private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget, Set<Condition<?>> expectedConditions) {

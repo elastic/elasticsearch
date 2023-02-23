@@ -47,6 +47,8 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DefaultClusterRolloverProvider;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1006,6 +1008,9 @@ public class Node implements Closeable {
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();
+            DefaultClusterRolloverProvider defaultClusterRolloverProvider = DataLifecycle.isEnabled()
+                ? DefaultClusterRolloverProvider.create(settings, clusterService.getClusterSettings())
+                : null;
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1098,6 +1103,9 @@ public class Node implements Closeable {
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
+                if (DataLifecycle.isEnabled()) {
+                    b.bind(DefaultClusterRolloverProvider.class).toInstance(defaultClusterRolloverProvider);
+                }
             });
 
             if (ReadinessService.enabled(environment)) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -213,6 +214,17 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         assertThat(randomSetting.getMinPrimaryShardDocs(), equalTo(minPrimaryShardDocs));
         assertThat(randomSetting.getMinDocs(), equalTo(minDocs));
         assertThat(randomSetting.getMinSize(), equalTo(minSize));
+
+        ElasticsearchParseException invalid = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RolloverConditions.parseSetting("", "empty-setting")
+        );
+        assertEquals("Invalid condition: '', format must be 'condition=value'", invalid.getMessage());
+        ElasticsearchParseException unknown = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RolloverConditions.parseSetting("unknown_condition=?", "unknown-setting")
+        );
+        assertEquals("Unknown condition: 'unknown_condition'", unknown.getMessage());
     }
 
     @Override

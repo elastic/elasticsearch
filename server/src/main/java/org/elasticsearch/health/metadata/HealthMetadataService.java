@@ -37,6 +37,8 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
 import static org.elasticsearch.health.node.selection.HealthNodeTaskExecutor.ENABLED_SETTING;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN;
 
 /**
  * Keeps the health metadata in the cluster state up to date. It listens to master elections and changes in the disk thresholds.
@@ -212,6 +214,16 @@ public class HealthMetadataService {
         ClusterState execute(ClusterState clusterState) {
             HealthMetadata initialHealthMetadata = HealthMetadata.getFromClusterState(clusterState);
             assert initialHealthMetadata != null : "health metadata should have been initialized";
+            final var finalHealthMetadata = new HealthMetadata(
+                diskMetadataFrom(initialHealthMetadata),
+                shardLimitsMetadataFrom(initialHealthMetadata)
+            );
+            return finalHealthMetadata.equals(initialHealthMetadata)
+                ? clusterState
+                : clusterState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+        }
+
+        private HealthMetadata.Disk diskMetadataFrom(HealthMetadata initialHealthMetadata) {
             HealthMetadata.Disk.Builder builder = HealthMetadata.Disk.newBuilder(initialHealthMetadata.getDiskMetadata());
             if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey().equals(setting)) {
                 builder.highWatermark(value, setting);
@@ -231,10 +243,18 @@ public class HealthMetadataService {
             if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
                 builder.floodStageMaxHeadroom(value, setting);
             }
-            final var finalHealthMetadata = new HealthMetadata(builder.build());
-            return finalHealthMetadata.equals(initialHealthMetadata)
-                ? clusterState
-                : clusterState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+            return builder.build();
+        }
+
+        private HealthMetadata.ShardLimits shardLimitsMetadataFrom(HealthMetadata initialHealthMetadata) {
+            var builder = HealthMetadata.ShardLimits.newBuilder(initialHealthMetadata.getShardLimitsMetadata());
+            if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey().equals(setting)) {
+                builder.maxShardPerNode(Integer.parseInt(value));
+            }
+            if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey().equals(setting)) {
+                builder.maxShardPerNodeFrozen(Integer.parseInt(value));
+            }
+            return builder.build();
         }
     }
 
@@ -261,6 +281,10 @@ public class HealthMetadataService {
                     CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings),
                     CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.get(settings),
                     CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
+                ),
+                new HealthMetadata.ShardLimits(
+                    SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
+                    SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
                 )
             );
             return finalHealthMetadata.equals(initialHealthMetadata)

@@ -36,15 +36,19 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     public static final String TYPE = "health";
 
     private static final ParseField DISK_METADATA = new ParseField(Disk.TYPE);
+    private static final ParseField SHARD_LIMITS_METADATA = new ParseField(ShardLimits.TYPE);
 
     private final Disk diskMetadata;
+    private final ShardLimits shardLimitsMetadata;
 
-    public HealthMetadata(Disk diskMetadata) {
+    public HealthMetadata(Disk diskMetadata, ShardLimits shardLimitsMetadata) {
         this.diskMetadata = diskMetadata;
+        this.shardLimitsMetadata = shardLimitsMetadata;
     }
 
     public HealthMetadata(StreamInput in) throws IOException {
         this.diskMetadata = Disk.readFrom(in);
+        this.shardLimitsMetadata = ShardLimits.readFrom(in);
     }
 
     @Override
@@ -60,6 +64,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         diskMetadata.writeTo(out);
+        shardLimitsMetadata.writeTo(out);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -71,6 +76,9 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         return Iterators.single((builder, params) -> {
             builder.startObject(DISK_METADATA.getPreferredName());
             diskMetadata.toXContent(builder, params);
+            builder.endObject();
+            builder.startObject(SHARD_LIMITS_METADATA.getPreferredName());
+            shardLimitsMetadata.toXContent(builder, params);
             builder.endObject();
             return builder;
         });
@@ -84,22 +92,26 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         return diskMetadata;
     }
 
+    public ShardLimits getShardLimitsMetadata() {
+        return shardLimitsMetadata;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         HealthMetadata that = (HealthMetadata) o;
-        return Objects.equals(diskMetadata, that.diskMetadata);
+        return Objects.equals(diskMetadata, that.diskMetadata) && Objects.equals(shardLimitsMetadata, that.shardLimitsMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(diskMetadata);
+        return Objects.hash(diskMetadata, shardLimitsMetadata);
     }
 
     @Override
     public String toString() {
-        return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + '}';
+        return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + ", shardLimitsMetadata=" + shardLimitsMetadata + "}";
     }
 
     /**
@@ -113,10 +125,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
-            return new ShardLimits(
-                in.readInt(),
-                in.readInt()
-            );
+            return new ShardLimits(in.readInt(), in.readInt());
         }
 
         @Override

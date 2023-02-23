@@ -58,7 +58,11 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
     }
 
     private static HealthMetadata randomHealthMetadata() {
-        return new HealthMetadata(randomDiskMetadata());
+        return new HealthMetadata(randomDiskMetadata(), randomShardLimitsMetadata());
+    }
+
+    private static HealthMetadata.ShardLimits randomShardLimitsMetadata() {
+        return new HealthMetadata.ShardLimits(randomInt(), randomInt());
     }
 
     private static HealthMetadata.Disk randomDiskMetadata() {
@@ -105,8 +109,19 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         );
     }
 
+    static HealthMetadata.ShardLimits mutateShardLimitsMetadata(HealthMetadata.ShardLimits base) {
+        var maxShardPerNode = base.maxShardsPerNode();
+        var maxShardPerNodeFrozen = base.maxShardsPerNodeFrozen();
+        switch (randomInt(1)) {
+            case 0 -> maxShardPerNode = randomInt();
+            case 1 -> maxShardPerNodeFrozen = randomInt();
+
+        }
+        return new HealthMetadata.ShardLimits(maxShardPerNode, maxShardPerNodeFrozen);
+    }
+
     private HealthMetadata mutate(HealthMetadata base) {
-        return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()));
+        return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()), mutateShardLimitsMetadata(base.getShardLimitsMetadata()));
     }
 
     public void testChunking() {

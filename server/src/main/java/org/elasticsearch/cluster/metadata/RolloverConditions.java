@@ -30,7 +30,7 @@ import java.util.Objects;
  * Contains the conditions that determine if an index can be rolled over or not. Mainly used in
  * Index Lifecycle Management and Data Lifecycle Management.
  */
-public class RolloverConfiguration implements Writeable, ToXContentObject {
+public class RolloverConditions implements Writeable, ToXContentObject {
     public static final String NAME = "rollover";
     public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
     public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
@@ -43,9 +43,9 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     public static final ParseField MIN_AGE_FIELD = new ParseField("min_age");
     public static final ParseField MIN_PRIMARY_SHARD_DOCS_FIELD = new ParseField("min_primary_shard_docs");
 
-    private static final ConstructingObjectParser<RolloverConfiguration, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RolloverConditions, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new RolloverConfiguration(
+        a -> new RolloverConditions(
             (ByteSizeValue) a[0],
             (ByteSizeValue) a[1],
             (TimeValue) a[2],
@@ -113,11 +113,11 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     private final TimeValue minAge;
     private final Long minPrimaryShardDocs;
 
-    public static RolloverConfiguration parse(XContentParser parser) {
+    public static RolloverConditions parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RolloverConfiguration(
+    public RolloverConditions(
         @Nullable ByteSizeValue maxSize,
         @Nullable ByteSizeValue maxPrimaryShardSize,
         @Nullable TimeValue maxAge,
@@ -146,7 +146,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         this.minPrimaryShardDocs = minPrimaryShardDocs;
     }
 
-    public RolloverConfiguration(StreamInput in) throws IOException {
+    public RolloverConditions(StreamInput in) throws IOException {
         maxSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxAge = in.readOptionalTimeValue();
@@ -266,7 +266,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public static RolloverConfiguration fromXContent(XContentParser parser) throws IOException {
+    public static RolloverConditions fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -294,7 +294,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         if (obj.getClass() != getClass()) {
             return false;
         }
-        RolloverConfiguration other = (RolloverConfiguration) obj;
+        RolloverConditions other = (RolloverConditions) obj;
         return Objects.equals(maxSize, other.maxSize)
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)

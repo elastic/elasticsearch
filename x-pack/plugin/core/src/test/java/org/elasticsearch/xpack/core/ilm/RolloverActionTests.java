@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.metadata.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.RolloverConditions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -77,7 +77,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
 
     @Override
     protected RolloverAction mutateInstance(RolloverAction instance) {
-        RolloverConfiguration configuration = instance.getConfiguration();
+        RolloverConditions configuration = instance.getConditions();
         ByteSizeValue maxSize = configuration.getMaxSize();
         ByteSizeValue maxPrimaryShardSize = configuration.getMaxPrimaryShardSize();
         TimeValue maxAge = configuration.getMaxAge();
@@ -135,7 +135,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
 
     public void testToSteps() {
         RolloverAction action = createTestInstance();
-        RolloverConfiguration configuration = action.getConfiguration();
+        RolloverConditions configuration = action.getConditions();
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -164,7 +164,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(thirdStep.getKey(), secondStep.getNextStepKey());
         assertEquals(fourthStep.getKey(), thirdStep.getNextStepKey());
         assertEquals(fifthStep.getKey(), fourthStep.getNextStepKey());
-        assertEquals(configuration, firstStep.getConfiguration());
+        assertEquals(configuration, firstStep.getConditions());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());
     }
 }

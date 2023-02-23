@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.RolloverConditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,14 +40,14 @@ public class RolloverAction implements LifecycleAction {
 
     private static final Settings INDEXING_COMPLETE = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true).build();
 
-    private final RolloverConfiguration configuration;
+    private final RolloverConditions conditions;
 
     public static RolloverAction parse(XContentParser parser) {
-        return new RolloverAction(RolloverConfiguration.parse(parser));
+        return new RolloverAction(RolloverConditions.parse(parser));
     }
 
-    public RolloverAction(RolloverConfiguration configuration) {
-        this.configuration = configuration;
+    public RolloverAction(RolloverConditions conditions) {
+        this.conditions = conditions;
     }
 
     public RolloverAction(
@@ -63,7 +63,7 @@ public class RolloverAction implements LifecycleAction {
         @Nullable Long minPrimaryShardDocs
     ) {
         this(
-            new RolloverConfiguration(
+            new RolloverConditions(
                 maxSize,
                 maxPrimaryShardSize,
                 maxAge,
@@ -79,12 +79,12 @@ public class RolloverAction implements LifecycleAction {
     }
 
     public RolloverAction(StreamInput in) throws IOException {
-        this(new RolloverConfiguration(in));
+        this(new RolloverConditions(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        configuration.writeTo(out);
+        conditions.writeTo(out);
     }
 
     @Override
@@ -92,13 +92,13 @@ public class RolloverAction implements LifecycleAction {
         return NAME;
     }
 
-    public RolloverConfiguration getConfiguration() {
-        return configuration;
+    public RolloverConditions getConditions() {
+        return conditions;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return configuration.toXContent(builder, params);
+        return conditions.toXContent(builder, params);
     }
 
     @Override
@@ -118,16 +118,16 @@ public class RolloverAction implements LifecycleAction {
             waitForRolloverReadyStepKey,
             rolloverStepKey,
             client,
-            configuration.getMaxSize(),
-            configuration.getMaxPrimaryShardSize(),
-            configuration.getMaxAge(),
-            configuration.getMaxDocs(),
-            configuration.getMaxPrimaryShardDocs(),
-            configuration.getMinSize(),
-            configuration.getMinPrimaryShardSize(),
-            configuration.getMinAge(),
-            configuration.getMinDocs(),
-            configuration.getMinPrimaryShardDocs()
+            conditions.getMaxSize(),
+            conditions.getMaxPrimaryShardSize(),
+            conditions.getMaxAge(),
+            conditions.getMaxDocs(),
+            conditions.getMaxPrimaryShardDocs(),
+            conditions.getMinSize(),
+            conditions.getMinPrimaryShardSize(),
+            conditions.getMinAge(),
+            conditions.getMinDocs(),
+            conditions.getMinPrimaryShardDocs()
         );
         RolloverStep rolloverStep = new RolloverStep(rolloverStepKey, waitForActiveShardsKey, client);
         WaitForActiveShardsStep waitForActiveShardsStep = new WaitForActiveShardsStep(waitForActiveShardsKey, updateDateStepKey);
@@ -147,7 +147,7 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(configuration);
+        return Objects.hash(conditions);
     }
 
     @Override
@@ -159,7 +159,7 @@ public class RolloverAction implements LifecycleAction {
             return false;
         }
         RolloverAction other = (RolloverAction) obj;
-        return Objects.equals(configuration, other.configuration);
+        return Objects.equals(conditions, other.conditions);
     }
 
     @Override

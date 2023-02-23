@@ -15,7 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.RolloverConditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -35,7 +35,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     public static final String NAME = "check-rollover-ready";
 
-    private final RolloverConfiguration configuration;
+    private final RolloverConditions conditions;
 
     public WaitForRolloverReadyStep(
         StepKey key,
@@ -53,7 +53,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         Long minPrimaryShardDocs
     ) {
         super(key, nextStepKey, client);
-        configuration = new RolloverConfiguration(
+        conditions = new RolloverConditions(
             maxSize,
             maxPrimaryShardSize,
             maxAge,
@@ -67,9 +67,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         );
     }
 
-    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, RolloverConfiguration configuration) {
+    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, RolloverConditions conditions) {
         super(key, nextStepKey, client);
-        this.configuration = configuration;
+        this.conditions = conditions;
     }
 
     @Override
@@ -227,50 +227,50 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (configuration.getMaxSize() != null) {
-            rolloverRequest.addMaxIndexSizeCondition(configuration.getMaxSize());
+        if (conditions.getMaxSize() != null) {
+            rolloverRequest.addMaxIndexSizeCondition(conditions.getMaxSize());
         }
-        if (configuration.getMaxPrimaryShardSize() != null) {
-            rolloverRequest.addMaxPrimaryShardSizeCondition(configuration.getMaxPrimaryShardSize());
+        if (conditions.getMaxPrimaryShardSize() != null) {
+            rolloverRequest.addMaxPrimaryShardSizeCondition(conditions.getMaxPrimaryShardSize());
         }
-        if (configuration.getMaxAge() != null) {
-            rolloverRequest.addMaxIndexAgeCondition(configuration.getMaxAge());
+        if (conditions.getMaxAge() != null) {
+            rolloverRequest.addMaxIndexAgeCondition(conditions.getMaxAge());
         }
-        if (configuration.getMaxDocs() != null) {
-            rolloverRequest.addMaxIndexDocsCondition(configuration.getMaxDocs());
+        if (conditions.getMaxDocs() != null) {
+            rolloverRequest.addMaxIndexDocsCondition(conditions.getMaxDocs());
         }
-        if (configuration.getMaxPrimaryShardDocs() != null) {
-            rolloverRequest.addMaxPrimaryShardDocsCondition(configuration.getMaxPrimaryShardDocs());
+        if (conditions.getMaxPrimaryShardDocs() != null) {
+            rolloverRequest.addMaxPrimaryShardDocsCondition(conditions.getMaxPrimaryShardDocs());
         }
-        if (configuration.getMinSize() != null) {
-            rolloverRequest.addMinIndexSizeCondition(configuration.getMinSize());
+        if (conditions.getMinSize() != null) {
+            rolloverRequest.addMinIndexSizeCondition(conditions.getMinSize());
         }
-        if (configuration.getMinPrimaryShardSize() != null) {
-            rolloverRequest.addMinPrimaryShardSizeCondition(configuration.getMinPrimaryShardSize());
+        if (conditions.getMinPrimaryShardSize() != null) {
+            rolloverRequest.addMinPrimaryShardSizeCondition(conditions.getMinPrimaryShardSize());
         }
-        if (configuration.getMinAge() != null) {
-            rolloverRequest.addMinIndexAgeCondition(configuration.getMinAge());
+        if (conditions.getMinAge() != null) {
+            rolloverRequest.addMinIndexAgeCondition(conditions.getMinAge());
         }
-        if (configuration.getMinDocs() != null) {
-            rolloverRequest.addMinIndexDocsCondition(configuration.getMinDocs());
+        if (conditions.getMinDocs() != null) {
+            rolloverRequest.addMinIndexDocsCondition(conditions.getMinDocs());
         }
-        if (configuration.getMinPrimaryShardDocs() != null) {
-            rolloverRequest.addMinPrimaryShardDocsCondition(configuration.getMinPrimaryShardDocs());
+        if (conditions.getMinPrimaryShardDocs() != null) {
+            rolloverRequest.addMinPrimaryShardDocsCondition(conditions.getMinPrimaryShardDocs());
         }
 
-        if (rolloverOnlyIfHasDocuments && (configuration.getMinDocs() == null && configuration.getMinPrimaryShardDocs() == null)) {
+        if (rolloverOnlyIfHasDocuments && (conditions.getMinDocs() == null && conditions.getMinPrimaryShardDocs() == null)) {
             rolloverRequest.addMinIndexDocsCondition(1L);
         }
         return rolloverRequest;
     }
 
-    public RolloverConfiguration getConfiguration() {
-        return configuration;
+    public RolloverConditions getConditions() {
+        return conditions;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), configuration);
+        return Objects.hash(super.hashCode(), conditions);
     }
 
     @Override
@@ -282,7 +282,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             return false;
         }
         WaitForRolloverReadyStep other = (WaitForRolloverReadyStep) obj;
-        return super.equals(obj) && Objects.equals(configuration, other.configuration);
+        return super.equals(obj) && Objects.equals(conditions, other.conditions);
     }
 
     // We currently have no information to provide for this AsyncWaitStep, so this is an empty object

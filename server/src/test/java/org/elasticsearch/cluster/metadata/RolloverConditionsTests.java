@@ -21,19 +21,19 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RolloverConfigurationTests extends AbstractXContentSerializingTestCase<RolloverConfiguration> {
+public class RolloverConditionsTests extends AbstractXContentSerializingTestCase<RolloverConditions> {
 
     @Override
-    protected Writeable.Reader<RolloverConfiguration> instanceReader() {
-        return RolloverConfiguration::new;
+    protected Writeable.Reader<RolloverConditions> instanceReader() {
+        return RolloverConditions::new;
     }
 
     @Override
-    protected RolloverConfiguration createTestInstance() {
+    protected RolloverConditions createTestInstance() {
         return randomInstance();
     }
 
-    public static RolloverConfiguration randomInstance() {
+    public static RolloverConditions randomInstance() {
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
         ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
@@ -60,7 +60,7 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
         Long minPrimaryShardDocs = (minSize == null && minPrimaryShardSize == null && minAge == null && minDocs == null || randomBoolean())
             ? randomNonNegativeLong()
             : null;
-        return new RolloverConfiguration(
+        return new RolloverConditions(
             maxSize,
             maxPrimaryShardSize,
             maxAge,
@@ -75,7 +75,7 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
     }
 
     @Override
-    protected RolloverConfiguration mutateInstance(RolloverConfiguration instance) {
+    protected RolloverConditions mutateInstance(RolloverConditions instance) {
         ByteSizeValue maxSize = instance.getMaxSize();
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
@@ -117,7 +117,7 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
             case 9 -> minPrimaryShardDocs = minPrimaryShardDocs == null ? randomNonNegativeLong() : minPrimaryShardDocs + 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new RolloverConfiguration(
+        return new RolloverConditions(
             maxSize,
             maxPrimaryShardSize,
             maxAge,
@@ -134,26 +134,26 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
     public void testNoConditions() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new RolloverConfiguration(null, null, null, null, null, null, null, null, null, null)
+            () -> new RolloverConditions(null, null, null, null, null, null, null, null, null, null)
         );
         assertEquals("At least one max_* rollover condition must be set.", exception.getMessage());
     }
 
     public void testBwcSerializationWithMaxPrimaryShardDocs() throws Exception {
         // In case of serializing to node with older version, replace maxPrimaryShardDocs with maxDocs.
-        RolloverConfiguration instance = new RolloverConfiguration(null, null, null, null, 1L, null, null, null, null, null);
-        RolloverConfiguration deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
+        RolloverConditions instance = new RolloverConditions(null, null, null, null, 1L, null, null, null, null, null);
+        RolloverConditions deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
         assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
 
         // But not if maxDocs is also specified:
-        instance = new RolloverConfiguration(null, null, null, 2L, 1L, null, null, null, null, null);
+        instance = new RolloverConditions(null, null, null, 2L, 1L, null, null, null, null, null);
         deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
         assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
         assertThat(deserializedInstance.getMaxDocs(), equalTo(instance.getMaxDocs()));
     }
 
     @Override
-    protected RolloverConfiguration doParseInstance(XContentParser parser) throws IOException {
-        return RolloverConfiguration.fromXContent(parser);
+    protected RolloverConditions doParseInstance(XContentParser parser) throws IOException {
+        return RolloverConditions.fromXContent(parser);
     }
 }

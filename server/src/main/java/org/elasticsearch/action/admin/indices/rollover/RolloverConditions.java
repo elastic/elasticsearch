@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.cluster.metadata;
+package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;

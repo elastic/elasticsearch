@@ -22,7 +22,7 @@ public abstract class RankShardResult implements Writeable {
         if (in.readBoolean()) {
             String name = in.readString();
 
-            if (RRFRankContextBuilder.NAME.getPreferredName().equals(name)) {
+            if (RRFRankContextBuilder.NAME.equals(name)) {
                 return new RRFRankShardResult(in);
             }
         }

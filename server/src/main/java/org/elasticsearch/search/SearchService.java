@@ -1168,9 +1168,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         context.from(source.from());
         context.size(source.size());
-        if (source.rank() != null) {
+        if (source.rankContextBuilder() != null) {
             try {
-                context.rankShardContext(source.rank().rankContextBuilder().build(searchExecutionContext));
+                context.rankShardContext(source.rankContextBuilder().build(searchExecutionContext));
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create rank queries", e);
             }

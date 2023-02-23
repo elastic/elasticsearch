@@ -223,6 +223,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankContextBuilder;
+import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -305,6 +307,7 @@ public class SearchModule {
         registerQueryParsers(plugins);
         registerRescorers(plugins);
         registerSorts();
+        registerRanks();
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
         registerQueryVectorBuilders(plugins);
@@ -797,6 +800,11 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
+    }
+
+    private void registerRanks() {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankContextBuilder.class, RRFRankContextBuilder.NAME, RRFRankContextBuilder::new));
+        namedXContents.add(new NamedXContentRegistry.Entry(RankContextBuilder.class, new ParseField(RRFRankContextBuilder.NAME), RRFRankContextBuilder::fromXContent));
     }
 
     private static <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {

@@ -10,10 +10,10 @@ package org.elasticsearch.search.rank;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -21,11 +21,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class RankContextBuilder implements Writeable, ToXContent {
+public abstract class RankContextBuilder implements VersionedNamedWriteable, ToXContent {
 
     protected final List<QueryBuilder> queryBuilders;
-    protected int size = 10;
-    protected int from = 0;
+    protected int size = SearchService.DEFAULT_SIZE;
+    protected int from = SearchService.DEFAULT_FROM;
 
     public RankContextBuilder() {
         queryBuilders = new ArrayList<>();
@@ -43,19 +43,17 @@ public abstract class RankContextBuilder implements Writeable, ToXContent {
         out.writeVInt(from);
     }
 
-    public abstract ParseField name();
-
     public List<QueryBuilder> queryBuilders() {
         return queryBuilders;
     }
 
     public RankContextBuilder size(int size) {
-        this.size = size == -1 ? 10 : size;
+        this.size = size == -1 ? SearchService.DEFAULT_SIZE : size;
         return this;
     }
 
     public RankContextBuilder from(int from) {
-        this.from = from == -1 ? 0 : from;
+        this.from = from == -1 ? SearchService.DEFAULT_FROM : from;
         return this;
     }
 

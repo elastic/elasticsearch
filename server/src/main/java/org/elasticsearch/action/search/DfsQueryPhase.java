@@ -18,7 +18,6 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankContextBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
@@ -138,7 +137,7 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
-        if (source.rank() == null) {
+        if (source.rankContextBuilder() == null) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
             for (DfsKnnResults dfsKnnResults : knnResults) {
                 for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
@@ -173,7 +172,7 @@ final class DfsQueryPhase extends SearchPhase {
             }
             request.source(newSource);
         } else {
-            RankContextBuilder rankContextBuilder = source.rank().rankContextBuilder().shallowCopy();
+            RankContextBuilder rankContextBuilder = source.rankContextBuilder().shallowCopy();
             rankContextBuilder.size(source.size());
             rankContextBuilder.from(source.from());
             if (source.query() != null) {
@@ -195,7 +194,7 @@ final class DfsQueryPhase extends SearchPhase {
             SearchSourceBuilder newSource = source.shallowCopy()
                 .query(rankContextBuilder.searchQuery())
                 .knnSearch(List.of())
-                .rank(new RankBuilder().rankContextBuilder(rankContextBuilder));
+                .rankContextBuilder(rankContextBuilder);
             request.source(newSource);
         }
 

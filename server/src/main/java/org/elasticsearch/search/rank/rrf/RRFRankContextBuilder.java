@@ -9,6 +9,7 @@
 package org.elasticsearch.search.rank.rrf;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class RRFRankContextBuilder extends RankContextBuilder {
 
-    public static final ParseField NAME = new ParseField("rrf");
+    public static final String NAME = "rrf";
 
     public static final int RANK_CONSTANT_DEFAULT = 20;
     public static final int WINDOW_SIZE_DEFAULT = 10;
@@ -83,8 +84,13 @@ public class RRFRankContextBuilder extends RankContextBuilder {
     }
 
     @Override
-    public ParseField name() {
+    public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_8_0;
     }
 
     public RRFRankContextBuilder windowSize(int windowSize) {
@@ -154,6 +160,12 @@ public class RRFRankContextBuilder extends RankContextBuilder {
 
     @Override
     public String toString() {
-        return "RRFRankContextBuilder{" + "windowSize=" + windowSize + ", rankConstant=" + rankConstant + '}';
+        return "RRFRankContextBuilder{" +
+            "windowSize=" + windowSize +
+            ", rankConstant=" + rankConstant +
+            ", queryBuilders=" + queryBuilders +
+            ", size=" + size +
+            ", from=" + from +
+            '}';
     }
 }

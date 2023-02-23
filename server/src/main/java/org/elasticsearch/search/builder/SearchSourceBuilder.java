@@ -35,7 +35,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankContextBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -135,7 +135,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
 
-    private RankBuilder rankBuilder = null;
+    private RankContextBuilder rankContextBuilder = null;
 
     private int from = -1;
 
@@ -262,7 +262,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            rankBuilder = in.readOptionalWriteable(RankBuilder::new);
+            rankContextBuilder = in.readOptionalNamedWriteable(RankContextBuilder.class);
         }
     }
 
@@ -346,7 +346,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeOptionalWriteable(rankBuilder);
+            out.writeOptionalWriteable(rankContextBuilder);
         }
     }
 
@@ -400,13 +400,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Collections.unmodifiableList(knnSearch);
     }
 
-    public SearchSourceBuilder rank(RankBuilder rankBuilder) {
-        this.rankBuilder = rankBuilder;
+    public SearchSourceBuilder rankContextBuilder(RankContextBuilder rankContextBuilder) {
+        this.rankContextBuilder = rankContextBuilder;
         return this;
     }
 
-    public RankBuilder rank() {
-        return rankBuilder;
+    public RankContextBuilder rankContextBuilder() {
+        return rankContextBuilder;
     }
 
     /**
@@ -1146,7 +1146,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.minScore = minScore;
         rewrittenBuilder.postQueryBuilder = postQueryBuilder;
         rewrittenBuilder.knnSearch = knnSearch;
-        rewrittenBuilder.rankBuilder = rankBuilder;
+        rewrittenBuilder.rankContextBuilder = rankContextBuilder;
         rewrittenBuilder.profile = profile;
         rewrittenBuilder.queryBuilder = queryBuilder;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
@@ -1280,7 +1280,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    rankBuilder = RankBuilder.fromXContent(parser);
+                    rankContextBuilder = parser.namedObject(RankContextBuilder.class, parser.nextToken().name(), null);
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                     if (fetchSourceContext.fetchSource() == false
@@ -1904,7 +1904,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             postQueryBuilder,
             queryBuilder,
             knnSearch,
-            rankBuilder,
+            rankContextBuilder,
             rescoreBuilders,
             scriptFields,
             size,
@@ -1949,7 +1949,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(postQueryBuilder, other.postQueryBuilder)
             && Objects.equals(queryBuilder, other.queryBuilder)
             && Objects.equals(knnSearch, other.knnSearch)
-            && Objects.equals(rankBuilder, other.rankBuilder)
+            && Objects.equals(rankContextBuilder, other.rankContextBuilder)
             && Objects.equals(rescoreBuilders, other.rescoreBuilders)
             && Objects.equals(scriptFields, other.scriptFields)
             && Objects.equals(size, other.size)

@@ -31,7 +31,7 @@ public class RRFRankShardResult extends RankShardResult {
 
     @Override
     public String getName() {
-        return RRFRankContextBuilder.NAME.getPreferredName();
+        return RRFRankContextBuilder.NAME;
     }
 
     public List<TopDocs> getTopDocs() {

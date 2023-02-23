@@ -210,6 +210,30 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         );
     }
 
+    public void testActionDeniedForRemoteAccessAuthentication() {
+        final var remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
+            .build();
+        final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        assertThat(
+            AuthorizationDenialMessages.actionDenied(authentication, null, action, mock(), null),
+            equalTo(
+                Strings.format(
+                    "action [%s] towards remote cluster is unauthorized for %s authenticated by API key id [%s] of user [%s], "
+                        + "this action is granted by the index privileges [all]",
+                    action,
+                    AuthorizationDenialMessages.successfulAuthenticationDescription(innerAuthentication, null),
+                    authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
+                    authentication.getEffectiveSubject().getUser().principal()
+                )
+            )
+        );
+    }
+
     public void testSuccessfulAuthenticationDescription() {
         final Authentication authentication1 = AuthenticationTestHelper.builder().realm().build(false);
         assertThat(
@@ -252,6 +276,25 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         assertThat(
             AuthorizationDenialMessages.successfulAuthenticationDescription(authentication4, null),
             equalTo(Strings.format("service account [%s]", authentication4.getEffectiveSubject().getUser().principal()))
+        );
+
+        final var remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final Authentication authentication5 = AuthenticationTestHelper.builder()
+            .remoteAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
+            .build();
+        final Authentication innerAuthentication = (Authentication) authentication5.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+        assertThat(
+            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication5, null),
+            equalTo(
+                Strings.format(
+                    "%s authenticated by API key id [%s] of user [%s]",
+                    AuthorizationDenialMessages.successfulAuthenticationDescription(innerAuthentication, null),
+                    authentication5.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
+                    authentication5.getEffectiveSubject().getUser().principal()
+                )
+            )
         );
     }
 

@@ -101,16 +101,17 @@ public class FileWatchService extends AbstractLifecycleComponent {
          *  - any changes to files inside the operator directory if it exists, filtering for settings.json
          */
         try {
-            this.watchService = operatorSettingsDir.getParent().getFileSystem().newWatchService();
-            if (Files.exists(operatorSettingsDir)) {
-                this.settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, operatorSettingsDir);
+            Path settingsDirPath = operatorSettingsDir();
+            this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
+            if (Files.exists(settingsDirPath)) {
+                settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDirPath);
             } else {
-                logger.debug("operator settings directory [{}] not found, will watch for its creation...", operatorSettingsDir);
+                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
             }
             // We watch the config directory always, even if initially we had an operator directory
             // it can be deleted and created later. The config directory never goes away, we only
             // register it once for watching.
-            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, operatorSettingsDir.getParent());
+            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, settingsDirPath.getParent());
         } catch (Exception e) {
             if (watchService != null) {
                 try {
@@ -148,7 +149,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
             }
 
             WatchKey key;
-            while ((key = this.watchService.take()) != null) {
+            while ((key = watchService.take()) != null) {
                 /*
                  * Reading and interpreting watch service events can vary from platform to platform. E.g:
                  * MacOS symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
@@ -181,7 +182,6 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
                         if (watchedFileChanged(path)) {
                             processFileSettingsAction.run();
-                            break;
                         }
                     } catch (IOException e) {
                         logger.warn("encountered I/O error while watching file settings", e);

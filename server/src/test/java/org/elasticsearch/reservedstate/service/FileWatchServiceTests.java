@@ -162,12 +162,13 @@ public class FileWatchServiceTests extends ESTestCase {
         assertTrue(processFileSettingsLatch.await(30, TimeUnit.SECONDS));
     }
 
-    public void testStopWatcher() {
-        // TODO[wrb]: add test
-    }
+    public void testStopWatcher() throws Exception {
+        writeTestFile(fileWatchService.operatorSettingsFile(), "{}");
+        fileWatchService.startWatcher(() -> {}, () -> {});
+        assertTrue(fileWatchService.watching());
 
-    public void testEnableSettingsWatcher() {
-        // TODO[wrb]: add test
+        fileWatchService.stopWatcher();
+        assertFalse(fileWatchService.watching());
     }
 
     private void writeTestFile(Path path, String contents) throws IOException {

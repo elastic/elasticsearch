@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
@@ -422,7 +421,6 @@ public class TokenServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94014")
     public void testInvalidateRefreshTokenThatIsAlreadyInvalidated() throws Exception {
         when(securityMainIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());

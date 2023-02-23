@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -62,20 +61,12 @@ public class OperationRouting {
     ) {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
         IndexShardRoutingTable shards = clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
-        final ShardIterator shardIterator = preferenceActiveShardIterator(
-            shards,
-            clusterState.nodes().getLocalNodeId(),
-            clusterState.nodes(),
-            preference,
-            null,
-            null
-        );
-        return excludeUnsearchableShards(shardIterator);
+        return preferenceActiveShardIterator(shards, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, null, null);
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-        final ShardIterator shardIterator = preferenceActiveShardIterator(
+        return preferenceActiveShardIterator(
             indexShard,
             clusterState.nodes().getLocalNodeId(),
             clusterState.nodes(),
@@ -83,7 +74,6 @@ public class OperationRouting {
             null,
             null
         );
-        return excludeUnsearchableShards(shardIterator);
     }
 
     public GroupShardsIterator<ShardIterator> searchShards(
@@ -115,7 +105,8 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(excludeUnsearchableShards(iterator));
+                var searchableShards = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
+                set.add(new PlainShardIterator(iterator.shardId(), searchableShards));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
@@ -152,14 +143,6 @@ public class OperationRouting {
             }
         }
         return set;
-    }
-
-    private static ShardIterator excludeUnsearchableShards(ShardIterator iterator) {
-        if (iterator == null) {
-            return null;
-        }
-        List<ShardRouting> shardRoutings = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
-        return new PlainShardIterator(iterator.shardId(), shardRoutings);
     }
 
     private ShardIterator preferenceActiveShardIterator(

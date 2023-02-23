@@ -89,6 +89,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         private final ScriptCompiler scriptCompiler;
         private final Version indexCreatedVersion;
         private final Parameter<TimeSeriesParams.MetricType> metric;  // either null, or POSITION if this is a time series metric
+        private final Parameter<Boolean> dimension; // can only support time_series_dimension: false
         private final IndexMode indexMode;  // either STANDARD or TIME_SERIES
 
         public Builder(
@@ -123,6 +124,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     );
                 }
             });
+            // We allow `time_series_dimension` parameter to be parsed, but only allow it to be `false`
+            this.dimension = TimeSeriesParams.dimensionParam(m -> false).addValidator(v -> {
+                if (v) {
+                    throw new IllegalArgumentException(
+                        "Parameter [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] cannot be set to geo_point"
+                    );
+                }
+            });
         }
 
         private Parameter<TimeSeriesParams.MetricType> getMetric() {
@@ -141,6 +150,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 script,
                 onScriptError,
                 meta,
+                dimension,
                 metric };
         }
 

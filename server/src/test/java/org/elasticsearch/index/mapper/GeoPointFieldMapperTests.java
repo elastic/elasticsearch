@@ -12,11 +12,14 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
@@ -41,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -85,6 +90,23 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertAggregatableConsistency(mapperService.fieldType("field"));
     }
 
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        GeoPointFieldMapper.GeoPointFieldType ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        // dimension = false is allowed
+        assertDimension(false, GeoPointFieldMapper.GeoPointFieldType::isDimension);
+
+        // dimension = true is not allowed
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Parameter [time_series_dimension] cannot be set"));
+    }
+
     public void testMetricType() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
@@ -124,6 +146,27 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         }));
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
+    }
+
+    public void testTimeSeriesIndexDefault() throws Exception {
+        var positionMetricType = TimeSeriesParams.MetricType.POSITION;
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", positionMetricType.toString());
+        }));
+        var ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
+        assertThat(ft.getMetricType(), equalTo(positionMetricType));
+        assertThat(ft.isIndexed(), is(false));
+    }
+
+    public void testMetricAndDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "position").field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
     }
 
     public void testGeoHashValue() throws Exception {
@@ -301,7 +344,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     public void testKeywordWithGeopointSubfield() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "keyword").field("doc_values", false);
-            ;
             b.startObject("fields");
             {
                 b.startObject("geopoint").field("type", "geo_point").field("doc_values", false).endObject();
@@ -387,7 +429,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
         doc = mapper.parse(source(b -> b.startArray("field").nullValue().value("3, 4").endArray()));
         assertMap(
-            Arrays.stream(doc.rootDoc().getFields("field")).map(IndexableField::binaryValue).filter(v -> v != null).toList(),
+            Arrays.stream(doc.rootDoc().getFields("field")).map(IndexableField::binaryValue).filter(Objects::nonNull).toList(),
             matchesList().item(equalTo(defaultValue)).item(equalTo(threeFour))
         );
     }

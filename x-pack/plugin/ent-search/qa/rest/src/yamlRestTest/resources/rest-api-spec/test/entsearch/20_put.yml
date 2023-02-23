@@ -36,7 +36,7 @@ setup:
               number_of_replicas: 0
 
 ---
-"Put Engine":
+"Create Engine":
   - do:
       engines.put:
         engine_id: test-engine
@@ -44,4 +44,29 @@ setup:
           indices: [ "test-index1", "test-index2" ]
 
   - match: { result: "created" }
+
+---
+"Update Engine":
+  - do:
+      engines.put:
+        engine_id: test-updated-engine
+        body:
+          indices: [ "test-index1", "test-index2" ]
+
+  - do:
+      engines.put:
+        engine_id: test-updated-engine
+        body:
+          indices: [ "test-index3", "test-index4" ]
+
+  - match: { result: "updated" }
+
+---
+"Create Engine - Index does not exist":
+  - do:
+      catch: bad_request
+      engines.put:
+        engine_id: test-error-engine
+        body:
+          indices: [ "test-index1", "index-does-not-exist" ]
 

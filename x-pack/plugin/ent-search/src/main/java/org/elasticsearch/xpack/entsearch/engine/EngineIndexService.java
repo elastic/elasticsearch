@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -197,10 +198,22 @@ public class EngineIndexService {
      * @param listener The action listener to invoke on response/failure.
      */
     public void putEngine(Engine engine, ActionListener<IndexResponse> listener) {
-        validateIndices(engine);
+        createOrUpdateAlias(engine, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                updateEngine(engine, listener);
+            }
 
-        createOrUpdateAlias(engine, listener.delegateFailure((l, aliasResponse) -> { updateEngine(engine, l); }));
-
+            @Override
+            public void onFailure(Exception e) {
+                // Convert index not found failure from the alias API into an illegal argument
+                Exception failException = e;
+                if (e instanceof IndexNotFoundException) {
+                    failException = new IllegalArgumentException(e.getMessage(), e);
+                }
+                listener.onFailure(failException);
+            }
+        });
     }
 
     private void createOrUpdateAlias(Engine engine, ActionListener<AcknowledgedResponse> listener) {
@@ -262,15 +275,6 @@ public class EngineIndexService {
             clientWithOrigin.index(indexRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
-        }
-    }
-
-    private void validateIndices(Engine engine) {
-        for (String index : engine.indices()) {
-            final IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
-            if (indexMetadata == null) {
-                throw new IllegalArgumentException("Index [" + index + "] not found; it cannot be added to engine");
-            }
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -131,6 +132,11 @@ public class SlimConfig implements NlpConfig {
     @Override
     public Version getMinimalSupportedNodeVersion() {
         return Version.V_8_7_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.V_8_7_0;
     }
 
     @Override

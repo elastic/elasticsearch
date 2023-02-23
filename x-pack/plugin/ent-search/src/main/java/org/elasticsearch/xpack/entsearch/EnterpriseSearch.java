@@ -39,6 +39,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.entsearch.analytics.AnalyticsService;
+import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 import org.elasticsearch.xpack.entsearch.engine.action.PutEngineAction;
 import org.elasticsearch.xpack.entsearch.engine.action.RestPutEngineAction;
@@ -111,6 +113,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
+
+        // Engine related components
         // TODO Don't implement this as a component, instantiate it when needed
         final EngineIndexService engineService = new EngineIndexService(
             client,
@@ -119,6 +123,16 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             // TODO We need to use use a real BigArrays which recycles pages here
             BigArrays.NON_RECYCLING_INSTANCE
         );
+
+        // Behavioral analytics components
+        final AnalyticsTemplateRegistry analyticsTemplateRegistry = new AnalyticsTemplateRegistry(
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
+        analyticsTemplateRegistry.initialize();
+
         return Collections.singletonList(engineService);
     }
 
@@ -136,5 +150,4 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     public String getFeatureDescription() {
         return "Manages configuration for Enterprise Search features";
     }
-
 }

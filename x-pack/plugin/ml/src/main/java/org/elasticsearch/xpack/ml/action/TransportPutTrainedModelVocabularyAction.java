@@ -71,30 +71,7 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
         ActionListener<TrainedModelConfig> configActionListener = ActionListener.wrap(config -> {
             InferenceConfig inferenceConfig = config.getInferenceConfig();
             if (inferenceConfig instanceof NlpConfig nlpConfig) {
-                if (nlpConfig.getTokenization() instanceof RobertaTokenization && request.getMerges().isEmpty()) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "cannot put vocabulary for model [{}] as tokenizer type [{}] requires [{}] to be provided and non-empty",
-                            RestStatus.BAD_REQUEST,
-                            request.getModelId(),
-                            nlpConfig.getTokenization().getName(),
-                            Request.MERGES.getPreferredName()
-                        )
-                    );
-                    return;
-                }
-                if (nlpConfig.getTokenization() instanceof XLMRobertaTokenization && request.getScores().isEmpty()) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "cannot put vocabulary for model [{}] as tokenizer type [{}] requires [{}] to be provided and non-empty",
-                            RestStatus.BAD_REQUEST,
-                            request.getModelId(),
-                            nlpConfig.getTokenization().getName(),
-                            Request.SCORES.getPreferredName()
-                        )
-                    );
-                    return;
-                }
+                nlpConfig.getTokenization().validateVocabulary(request);
                 trainedModelProvider.storeTrainedModelVocabulary(
                     request.getModelId(),
                     ((NlpConfig) inferenceConfig).getVocabularyConfig(),

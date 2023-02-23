@@ -640,9 +640,7 @@ public class NumberFieldMapper extends FieldMapper {
                 final float f = value.floatValue();
 
                 if (indexed && hasTerms) {
-                    if (hasTerms) {
-                        document.add(new FloatTermField(name, f));
-                    }
+                    document.add(new FloatTermField(name, f));
                 }
 
                 if (indexed && docValued) {

@@ -96,6 +96,13 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testTermsQueryWithTermsIndex() {
+        MappedFieldType ft = indexedWithTerms("field", NumberType.INTEGER);
+        TermQuery expected = new TermQuery(new Term("field", new BytesRef(Numbers.intToBytes(11))));
+        assertEquals(expected, ft.termQuery(11, MOCK_CONTEXT));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
     public void testIntegerTermsQueryWithDecimalPartWithTermsIndex() {
         MappedFieldType ft = indexedWithTerms("field", NumberType.INTEGER);
         TermInSetQuery expected = new TermInSetQuery("field", new BytesRef[]{new BytesRef(Numbers.intToBytes(1))});
@@ -551,6 +558,71 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
         IOUtils.close(reader, dir);
+    }
+
+    public void testTermsIndexLong() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.LONG, 10_300_123_456L, 10_300_123_457L);
+    }
+
+    public void testTermsIndexInt() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.INTEGER, 300_123_456, 300_123_457);
+    }
+
+    public void testTermsIndexDouble() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.DOUBLE, 10_300_123_456.345d, 10_300_123_457.345d);
+    }
+
+    public void testTermsIndexFloat() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.FLOAT, 300_125_456.345f, 300_124_457.345f);
+    }
+
+    public void testTermsIndexHalfFloat() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.HALF_FLOAT, 456.345f, 457.345f);
+    }
+
+    public void testTermsIndexByte() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.BYTE, 123, 124);
+    }
+
+    public void testTermsIndexShort() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.SHORT, 2345, 2346);
+    }
+
+    public void doTestTermsIndexTermQueries(NumberType type, Number value, Number nonValue) throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        final int numDocs = TestUtil.nextInt(random(), 100, 500);
+        for (int i = 0; i < numDocs; ++i) {
+            final LuceneDocument doc = new LuceneDocument();
+            type.addFields(doc, "foo", value, true, true, false, true);
+            w.addDocument(doc);
+        }
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = newSearcher(reader);
+        w.close();
+
+        Query query = type.termQuery(
+            "foo",
+            value,
+            true,
+            true
+        );
+
+        assertThat(query, instanceOf(TermQuery.class));
+        assertEquals(searcher.count(query), numDocs);
+
+        query = type.termQuery(
+            "foo",
+            nonValue,
+            true,
+            true
+        );
+
+        assertThat(query, instanceOf(TermQuery.class));
+        assertEquals(searcher.count(query), 0);
+
+        reader.close();
+        dir.close();
     }
 
     public void testNegativeZero() {

@@ -103,7 +103,8 @@ public class ClusterModule extends AbstractModule {
         "cluster.routing.allocation.type",
         DESIRED_BALANCE_ALLOCATOR,
         Function.identity(),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     private final ClusterService clusterService;

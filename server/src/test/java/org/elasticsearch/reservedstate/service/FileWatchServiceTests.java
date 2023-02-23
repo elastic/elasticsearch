@@ -9,11 +9,14 @@
 package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.attribute.FileTime;
@@ -21,6 +24,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -46,6 +51,13 @@ public class FileWatchServiceTests extends ESTestCase {
 
         directory = createTempDir();
         fileWatchService = new FileWatchService(directory, FILENAME);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+
+        fileWatchService.stopWatcher();
     }
 
     public void testWatchedFile() throws Exception {
@@ -113,8 +125,34 @@ public class FileWatchServiceTests extends ESTestCase {
         assertFalse(fileWatchService.isActive());
     }
 
-    public void testStartWatcher() {
-        // TODO[wrb]: add test - need to test the callbacks
+    public void testStartWatcher() throws Exception {
+
+        writeTestFile(fileWatchService.operatorSettingsFile(), "{}");
+
+        // startup latch = process a settings file latch
+        CountDownLatch startupLatch = new CountDownLatch(2);
+
+        // listener latch = no setting file present latch
+        CountDownLatch listenerLatch = new CountDownLatch(1);
+
+        fileWatchService.startWatcher(
+            startupLatch::countDown,
+            listenerLatch::countDown
+        );
+
+        // verify start runnable called
+
+        // touch file
+        // we modify the timestamp of the file, it should trigger a change
+        Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
+        Files.setLastModifiedTime(fileWatchService.operatorSettingsFile(), FileTime.from(now));
+
+        assertTrue(startupLatch.await(30, TimeUnit.SECONDS));
+
+        // verify listen runnable not called
+        assertThat(listenerLatch.getCount(), equalTo(1L));
+
+        fileWatchService.stopWatcher();
     }
 
     public void testStopWatcher() {
@@ -123,5 +161,12 @@ public class FileWatchServiceTests extends ESTestCase {
 
     public void testEnableSettingsWatcher() {
         // TODO[wrb]: add test
+    }
+
+    private void writeTestFile(Path path, String contents) throws IOException {
+        Path tempFilePath = createTempFile();
+
+        Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }
 }

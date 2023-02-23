@@ -54,6 +54,7 @@ setup:
       search:
         index: test
         body:
+          track_total_hits: false
           fields: [ "text" ]
           knn:
             field: vector

@@ -30,7 +30,7 @@ public class RRFRankSearchContext extends FilteredSearchContext {
 
     public void rrfRankQuery(Query rrfRankQuery) throws IOException {
         this.rrfRankQuery = searcher().rewrite(buildFilteredQuery(rrfRankQuery));
-        querySearchResult = QuerySearchResult.nullInstance();
+        querySearchResult = new QuerySearchResult();
     }
 
     public void windowSize(int windowSize) {

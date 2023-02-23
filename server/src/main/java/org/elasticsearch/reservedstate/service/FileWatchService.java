@@ -137,8 +137,10 @@ public class FileWatchService extends AbstractLifecycleComponent {
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
-            if (Files.exists(operatorSettingsFile())) {
-                logger.debug("found initial operator settings file [{}], applying...", operatorSettingsFile());
+            Path path = operatorSettingsFile();
+
+            if (Files.exists(path)) {
+                logger.debug("found initial operator settings file [{}], applying...", path);
                 processFileSettingsAction.run();
             } else {
                 // Notify everyone we don't have any initial file settings
@@ -161,7 +163,8 @@ public class FileWatchService extends AbstractLifecycleComponent {
                  * After we get an indication that something has changed, we check the timestamp, file id,
                  * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
                  */
-                if (Files.exists(operatorSettingsFile())) {
+                Path settingsPath = operatorSettingsDir();
+                if (Files.exists(settingsPath)) {
                     try {
                         if (logger.isDebugEnabled()) {
                             key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
@@ -174,9 +177,9 @@ public class FileWatchService extends AbstractLifecycleComponent {
                         // if the file name maps to the same native file system file id. Symlinks
                         // are one potential cause of inconsistency here, since their handling by
                         // the WatchService is platform dependent.
-                        settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, operatorSettingsDir);
+                        settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsPath);
 
-                        if (watchedFileChanged(operatorSettingsFile())) {
+                        if (watchedFileChanged(path)) {
                             processFileSettingsAction.run();
                             break;
                         }

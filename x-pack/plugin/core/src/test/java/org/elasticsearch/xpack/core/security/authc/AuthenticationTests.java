@@ -897,7 +897,7 @@ public class AuthenticationTests extends ESTestCase {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
-            original.getEffectiveSubject().getTransportVersion()
+            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
         );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)

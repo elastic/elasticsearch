@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
@@ -61,6 +60,12 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(engineId);
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -87,7 +92,7 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
             this.engine = engine;
         }
 
-        public Response(String engineId, String[] indices, String analyticsCollectionName, TimeValue updatedAt) {
+        public Response(String engineId, String[] indices, String analyticsCollectionName, long updatedAt) {
             this.engine = new Engine(engineId, indices, analyticsCollectionName, updatedAt);
         }
 

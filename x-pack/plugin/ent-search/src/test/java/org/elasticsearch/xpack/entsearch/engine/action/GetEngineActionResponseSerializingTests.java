@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
@@ -27,7 +26,7 @@ public class GetEngineActionResponseSerializingTests extends AbstractWireSeriali
                 ESTestCase.randomAlphaOfLengthBetween(1, 10),
                 generateRandomStringArray(10, 10, false, false),
                 randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) }),
-                new TimeValue(System.currentTimeMillis())
+                System.currentTimeMillis()
             )
         );
     }

@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -53,14 +52,14 @@ public class Engine implements Writeable, ToXContentObject {
      * @param analyticsCollectionName The name of the associated analytics collection.
      * @param updatedAt               Timestamp this Engine was last updated. Null uses current timestamp.
      */
-    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName, @Nullable TimeValue updatedAt) {
+    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName, Long updatedAt) {
         this.name = name;
         this.indices = indices;
         Arrays.sort(indices);
 
         this.analyticsCollectionName = analyticsCollectionName;
 
-        this.updatedAt = (updatedAt != null ? updatedAt.millis() : System.currentTimeMillis());
+        this.updatedAt = (updatedAt != null ? updatedAt : System.currentTimeMillis());
     }
 
     /**
@@ -78,7 +77,7 @@ public class Engine implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.indices = in.readStringArray();
         this.analyticsCollectionName = in.readOptionalString();
-        this.updatedAt = in.readTimeValue().millis();
+        this.updatedAt = in.readLong();
     }
 
     @Override
@@ -86,7 +85,7 @@ public class Engine implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeStringArray(indices);
         out.writeOptionalString(analyticsCollectionName);
-        out.writeTimeValue(new TimeValue(updatedAt));
+        out.writeLong(updatedAt);
     }
 
     private static final ConstructingObjectParser<Engine, String> PARSER = new ConstructingObjectParser<>(

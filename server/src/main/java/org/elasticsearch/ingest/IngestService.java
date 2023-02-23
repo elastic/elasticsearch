@@ -849,7 +849,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
-                ingestDocument.resetRedirect();
 
                 if (e != null) {
                     logger.debug(
@@ -933,6 +932,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
+                    ingestDocument.resetRedirect();
                     executePipelines(newPipelines, indexRequest, ingestDocument, listener, indexRecursionDetection);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB

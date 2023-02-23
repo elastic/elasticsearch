@@ -635,7 +635,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 +
 .Properties of xlm_roberta
 [%collapsible%open]
-========
+=======
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
@@ -744,7 +744,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 +
 .Properties of xlm_roberta
 [%collapsible%open]
-========
+=======
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
@@ -872,7 +872,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 +
 .Properties of xlm_roberta
 [%collapsible%open]
-========
+=======
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
@@ -1016,7 +1016,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 +
 .Properties of xlm_roberta
 [%collapsible%open]
-========
+=======
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
@@ -1128,7 +1128,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 +
 .Properties of xlm_roberta
 [%collapsible%open]
-========
+=======
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
@@ -1248,7 +1248,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 +
 .Properties of xlm_roberta
 [%collapsible%open]
-========
+=======
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
@@ -1376,7 +1376,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 +
 .Properties of xlm_roberta
 [%collapsible%open]
-========
+=======
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]

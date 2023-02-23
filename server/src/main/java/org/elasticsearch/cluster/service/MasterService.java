@@ -1145,6 +1145,7 @@ public class MasterService extends AbstractLifecycleComponent {
             assert currentlyExecutingBatch == null;
             try {
                 final var nextBatch = takeNextItem();
+                assert currentlyExecutingBatch == nextBatch;
                 if (lifecycle.started()) {
                     nextBatch.run();
                 } else {
@@ -1213,7 +1214,9 @@ public class MasterService extends AbstractLifecycleComponent {
     private void drainQueueOnRejection(FailedToCommitClusterStateException e) {
         assert totalQueueSize.get() > 0;
         do {
+            assert currentlyExecutingBatch == null;
             final var nextItem = takeNextItem();
+            assert currentlyExecutingBatch == nextItem;
             try {
                 nextItem.onRejection(e);
             } catch (Exception e2) {

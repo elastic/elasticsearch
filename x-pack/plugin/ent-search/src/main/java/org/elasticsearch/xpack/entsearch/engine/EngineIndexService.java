@@ -15,6 +15,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -23,9 +25,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -39,6 +43,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -57,9 +62,13 @@ import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.BINARY_CONTENT_FIELD;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.INDICES_FIELD;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.NAME_FIELD;
@@ -74,7 +83,8 @@ public class EngineIndexService {
     public static final String ENGINE_ALIAS_NAME = ".engine";
     public static final String ENGINE_CONCRETE_INDEX_NAME = ".engine-1";
     public static final String ENGINE_INDEX_NAME_PATTERN = ".engine-*";
-    public static final String ENGINE_ORIGIN = "engine";
+
+    public static final String ENGINE_ALIAS_PREFIX = "engine-";
 
     private final Client clientWithOrigin;
     private final ClusterService clusterService;
@@ -87,7 +97,7 @@ public class EngineIndexService {
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays
     ) {
-        this.clientWithOrigin = new OriginSettingClient(client, ENGINE_ORIGIN);
+        this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.bigArrays = bigArrays;
@@ -107,7 +117,7 @@ public class EngineIndexService {
             .setSettings(getIndexSettings())
             .setAliasName(ENGINE_ALIAS_NAME)
             .setVersionMetaKey("version")
-            .setOrigin(ENGINE_ORIGIN)
+            .setOrigin(ENT_SEARCH_ORIGIN)
             .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
             .build();
     }
@@ -177,6 +187,10 @@ public class EngineIndexService {
         }));
     }
 
+    private static String getEngineAliasName(Engine engine) {
+        return ENGINE_ALIAS_PREFIX + engine.name();
+    }
+
     /**
      * Creates or updates the {@link Engine} in the underlying index.
      *
@@ -184,6 +198,65 @@ public class EngineIndexService {
      * @param listener The action listener to invoke on response/failure.
      */
     public void putEngine(Engine engine, ActionListener<IndexResponse> listener) {
+        createOrUpdateAlias(engine, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                updateEngine(engine, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // Convert index not found failure from the alias API into an illegal argument
+                Exception failException = e;
+                if (e instanceof IndexNotFoundException) {
+                    failException = new IllegalArgumentException(e.getMessage(), e);
+                }
+                listener.onFailure(failException);
+            }
+        });
+    }
+
+    private void createOrUpdateAlias(Engine engine, ActionListener<AcknowledgedResponse> listener) {
+
+        final Metadata metadata = clusterService.state().metadata();
+        final String engineAliasName = getEngineAliasName(engine);
+
+        IndicesAliasesRequestBuilder requestBuilder = null;
+        if (metadata.hasAlias(engineAliasName)) {
+            Set<String> currentAliases = metadata.aliasedIndices(engineAliasName)
+                .stream()
+                .map(index -> index.getName())
+                .collect(Collectors.toSet());
+            Set<String> targetAliases = Set.of(engine.indices());
+
+            requestBuilder = updateAliasIndices(currentAliases, targetAliases, engineAliasName);
+
+        } else {
+            requestBuilder = clientWithOrigin.admin().indices().prepareAliases().addAlias(engine.indices(), engineAliasName);
+        }
+
+        requestBuilder.execute(listener);
+    }
+
+    private IndicesAliasesRequestBuilder updateAliasIndices(Set<String> currentAliases, Set<String> targetAliases, String engineAliasName) {
+
+        Set<String> deleteIndices = new HashSet<>(currentAliases);
+        deleteIndices.removeAll(targetAliases);
+
+        IndicesAliasesRequestBuilder aliasesRequestBuilder = clientWithOrigin.admin().indices().prepareAliases();
+
+        // Always re-add aliases, as an index could have been removed manually and it must be restored
+        for (String newIndex : targetAliases) {
+            aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(engineAliasName));
+        }
+        for (String deleteIndex : deleteIndices) {
+            aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(deleteIndex).alias(engineAliasName));
+        }
+
+        return aliasesRequestBuilder;
+    }
+
+    private void updateEngine(Engine engine, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
@@ -215,6 +288,7 @@ public class EngineIndexService {
      */
     public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
         try {
+            // TODO Delete alias when Engine is deleted
             final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             clientWithOrigin.delete(deleteRequest, listener);

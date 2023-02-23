@@ -19,3 +19,4 @@ dependencies {
 }
 
 addQaCheckDependencies(project)
+

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -28,21 +29,29 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.entsearch.engine.EngineIndexService.ENGINE_CONCRETE_INDEX_NAME;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class EngineIndexServiceTests extends ESSingleNodeTestCase {
+    private static final int NUM_INDICES = 10;
+
     private EngineIndexService engineService;
+    private ClusterService clusterService;
 
     @Before
-    public void setup() {
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+    public void setup() throws Exception {
+        clusterService = getInstanceFromNode(ClusterService.class);
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         this.engineService = new EngineIndexService(client(), clusterService, writableRegistry(), bigArrays);
+        for (int i = 0; i < NUM_INDICES; i++) {
+            client().admin().indices().prepareCreate("index_" + i).execute().get();
+        }
     }
 
     @Override
@@ -61,6 +70,18 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
         Engine getEngine = awaitGetEngine(engine.name());
         assertThat(getEngine, equalTo(engine));
+        checkAliases(engine);
+    }
+
+    private void checkAliases(Engine engine) {
+        Metadata metadata = clusterService.state().metadata();
+        final String aliasName = "engine-" + engine.name();
+        assertTrue(metadata.hasAlias(aliasName));
+        final Set<String> aliasedIndices = metadata.aliasedIndices(aliasName)
+            .stream()
+            .map(index -> index.getName())
+            .collect(Collectors.toSet());
+        assertThat(aliasedIndices, equalTo(Set.of(engine.indices())));
     }
 
     public void testUpdateEngine() throws Exception {
@@ -74,16 +95,17 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
             assertThat(getEngine, equalTo(engine));
         }
 
-        final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" }, "my_engine_analytics_collection");
+        final Engine engine = new Engine("my_engine", new String[] { "index_3", "index_4" }, "my_engine_analytics_collection");
         IndexResponse newResp = awaitPutEngine(engine);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
         Engine getNewEngine = awaitGetEngine(engine.name());
         assertThat(engine, equalTo(getNewEngine));
+        checkAliases(engine);
     }
 
     public void testListEngine() throws Exception {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < NUM_INDICES; i++) {
             final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
             IndexResponse resp = awaitPutEngine(engine);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
@@ -97,7 +119,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
             assertThat(resp.getHits().getTotalHits().value, equalTo(10L));
 
             SearchHits searchHits = resp.getHits();
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < NUM_INDICES; i++) {
                 SearchHit hit = searchHits.getAt(i);
                 assertNotNull(hit.getFields().get("name"));
                 assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_" + i)));

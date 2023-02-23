@@ -149,12 +149,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
                 Map.of(transportTestCase, transportTestCase, queryTestCase, queryTestCase)
             );
             Set<String> transportTestClasses = transportTestsScanner.getConcreteSubclasses(subclassesOfTransportTestCase);
-            System.out.println(transportClasses);
-            System.out.println(transportTestClasses);
-            System.out.println(skipClasses);
             transportClasses.removeAll(skipClasses);
-            System.out.println(transportTestClasses);
-            System.out.println(transportTestsScanner.getInnerClasses());
 
             List<String> classesWithoutTests = new ArrayList<>();
             for (String transportClass : transportClasses) {

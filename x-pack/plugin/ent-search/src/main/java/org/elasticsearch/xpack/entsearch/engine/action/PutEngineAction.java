@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,16 +29,15 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
     public static final PutEngineAction INSTANCE = new PutEngineAction();
-    public static final String NAME = "cluster:admin/engine/put";
+    public static final String NAME = "indices:admin/engine/put";
 
     public PutEngineAction() {
         super(NAME, PutEngineAction.Response::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest {
 
         private final Engine engine;
-        private XContentType xContentType = XContentType.JSON;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -45,7 +46,6 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
         public Request(String engineId, BytesReference content, XContentType contentType) {
             this.engine = Engine.fromXContentBytes(engineId, content, contentType);
-            xContentType = contentType;
         }
 
         @Override
@@ -63,6 +63,16 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             engine.writeTo(out);
+        }
+
+        @Override
+        public String[] indices() {
+            return engine.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.fromOptions(false, false, false, false, false, false, false, false);
         }
 
         public Engine getEngine() {

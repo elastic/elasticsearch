@@ -61,28 +61,19 @@ public class PostWriteRefresh {
             case NONE -> listener.onResponse(false);
             case WAIT_UNTIL -> {
                 if (location != null) {
-                    indexShard.addRefreshListener(location, refreshResult -> {
-                        Engine engineOrNull = indexShard.getEngineOrNull();
-                        if (engineOrNull == null) {
-                            listener.onFailure(new EngineException(indexShard.shardId(), "Engine closed during refresh."));
-                        } else {
-                            afterRefresh(
-                                indexShard,
-                                isPrimary,
-                                transportService,
-                                listener,
-                                refreshResult.refreshForced(),
-                                engineOrNull.getCurrentGeneration()
-                            );
+                    indexShard.addRefreshListener(
+                        location,
+                        refreshResult -> {
+                            afterRefresh(indexShard, isPrimary, transportService, listener, refreshResult.refreshForced(), null);
                         }
-                    });
+                    );
                 } else {
                     listener.onResponse(false);
                 }
             }
             case IMMEDIATE -> {
                 Engine.RefreshResult refreshResult = indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
-                afterRefresh(indexShard, isPrimary, transportService, listener, true, refreshResult.generation());
+                afterRefresh(indexShard, isPrimary, transportService, listener, true, refreshResult);
             }
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
@@ -94,10 +85,30 @@ public class PostWriteRefresh {
         @Nullable TransportService transportService,
         ActionListener<Boolean> listener,
         boolean wasForced,
-        long generation
+        Engine.RefreshResult refreshResult
     ) {
         if (isPrimary && indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
             assert transportService != null : "TransportService cannot be null if unpromotables present";
+
+            final long generation;
+            // Was wait_for, still need to fetch generation
+            if (refreshResult == null) {
+                Engine engineOrNull = indexShard.getEngineOrNull();
+                if (engineOrNull == null) {
+                    listener.onFailure(new EngineException(indexShard.shardId(), "Engine closed during refresh."));
+                    return;
+                }
+                try {
+                    generation = engineOrNull.getCurrentGeneration();
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+            } else {
+                generation = refreshResult.generation();
+            }
+            assert generation != Long.MIN_VALUE;
+
             UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                 indexShard.getReplicationGroup().getRoutingTable(),
                 generation

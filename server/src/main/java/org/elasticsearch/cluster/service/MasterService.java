@@ -1144,7 +1144,7 @@ public class MasterService extends AbstractLifecycleComponent {
             assert totalQueueSize.get() > 0;
             assert currentlyExecutingBatch == null;
             try {
-                final var nextBatch = takeNextItem();
+                final var nextBatch = takeNextBatch();
                 assert currentlyExecutingBatch == nextBatch;
                 if (lifecycle.started()) {
                     nextBatch.run();
@@ -1171,14 +1171,14 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     };
 
-    private Batch takeNextItem() {
+    private Batch takeNextBatch() {
         assert totalQueueSize.get() > 0;
         assert currentlyExecutingBatch == null;
         for (final var queue : queuesByPriority.values()) {
-            var item = queue.queue.poll();
-            if (item != null) {
-                currentlyExecutingBatch = item;
-                return item;
+            var batch = queue.queue.poll();
+            if (batch != null) {
+                currentlyExecutingBatch = batch;
+                return batch;
             }
         }
         logger.error("queue processor found no items");
@@ -1215,13 +1215,13 @@ public class MasterService extends AbstractLifecycleComponent {
         assert totalQueueSize.get() > 0;
         do {
             assert currentlyExecutingBatch == null;
-            final var nextItem = takeNextItem();
-            assert currentlyExecutingBatch == nextItem;
+            final var nextBatch = takeNextBatch();
+            assert currentlyExecutingBatch == nextBatch;
             try {
-                nextItem.onRejection(e);
+                nextBatch.onRejection(e);
             } catch (Exception e2) {
                 e2.addSuppressed(e);
-                logger.error(() -> format("exception failing item on rejection [%s]", nextItem), e2);
+                logger.error(() -> format("exception failing batch on rejection [%s]", nextBatch), e2);
                 assert false : e2;
             } finally {
                 currentlyExecutingBatch = null;

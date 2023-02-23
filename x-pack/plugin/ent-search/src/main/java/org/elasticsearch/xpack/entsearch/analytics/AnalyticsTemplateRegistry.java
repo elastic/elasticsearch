@@ -80,12 +80,13 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
     // Composable index templates configuration.
 
-    private static final String EVENT_DATA_STREAM_TEMPLATE_NAME = "behavioral_analytics-events-template";
+    private static final String EVENT_DATA_STREAM_TEMPLATE_NAME = "behavioral_analytics-events-default";
+    private static final String EVENT_DATA_STREAM_TEMPLATE_FILENAME = "behavioral_analytics-events-template";
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATES = parseComposableTemplates(
         new IndexTemplateConfig(
             EVENT_DATA_STREAM_TEMPLATE_NAME,
-            ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_TEMPLATE_NAME + ".json",
+            ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_TEMPLATE_FILENAME + ".json",
             REGISTRY_VERSION,
             TEMPLATE_VERSION_VARIABLE
         )

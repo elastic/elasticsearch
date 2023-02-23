@@ -72,8 +72,8 @@ dependencies {
   api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
 
   implementation project(":modules:transport-netty4")
+  implementation("org.slf4j:slf4j-api:${versions.slf4j}")
 
-  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
   runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
 
 

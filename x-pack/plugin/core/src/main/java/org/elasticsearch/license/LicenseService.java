@@ -31,14 +31,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
@@ -121,11 +119,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private final Clock clock;
 
     /**
-     * File watcher for operation mode changes
-     */
-    private final OperationModeFileWatcher operationModeFileWatcher;
-
-    /**
      * Callbacks to notify relative to license expiry
      */
     private final List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
@@ -157,8 +150,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        Environment env,
-        ResourceWatcherService resourceWatcherService,
         XPackLicenseState licenseState
     ) {
         this.settings = settings;
@@ -167,12 +158,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
         this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
-        this.operationModeFileWatcher = new OperationModeFileWatcher(
-            resourceWatcherService,
-            XPackPlugin.resolveConfigFile(env, "license_mode"),
-            logger,
-            () -> updateLicenseState(getLicensesMetadata())
-        );
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
@@ -561,12 +546,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    private void updateLicenseState(LicensesMetadata licensesMetadata) {
-        if (licensesMetadata != null) {
-            updateLicenseState(getLicense(licensesMetadata));
-        }
-    }
-
     protected static String getExpiryWarning(long licenseExpiryDate, long currentTime) {
         final long diff = licenseExpiryDate - currentTime;
         if (LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
@@ -622,7 +601,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             final License previousLicense = currentLicenseHolder.get();
             if (license.equals(previousLicense) == false) {
                 currentLicenseHolder.set(license);
-                license.setOperationModeFileWatcher(operationModeFileWatcher);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(
@@ -631,10 +609,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                             (startTime, now) -> expirationCallback.nextScheduledTimeForExpiry(getExpiryDate(license), startTime, now)
                         )
                     );
-                }
-                if (previousLicense != null) {
-                    // remove operationModeFileWatcher to gc the old license object
-                    previousLicense.removeOperationModeFileWatcher();
                 }
                 logger.info("license [{}] mode [{}] - valid", license.uid(), license.operationMode().name().toLowerCase(Locale.ROOT));
             }

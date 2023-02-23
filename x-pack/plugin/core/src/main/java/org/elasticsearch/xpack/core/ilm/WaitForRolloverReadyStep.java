@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,6 +34,8 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     private static final Logger logger = LogManager.getLogger(WaitForRolloverReadyStep.class);
 
     public static final String NAME = "check-rollover-ready";
+
+    public static final long MAX_PRIMARY_SHARD_DOCS_FOR_TSDB = 200_000_000L;
 
     private final ByteSizeValue maxSize;
     private final ByteSizeValue maxPrimaryShardSize;
@@ -199,7 +202,8 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
         // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
-        RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+        boolean targetIsTsdb = dataStream != null && dataStream.getDataStream().getIndexMode() == IndexMode.TIME_SERIES;
+        RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments, targetIsTsdb);
 
         getClient().admin()
             .indices()
@@ -214,18 +218,24 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     /**
      * Builds a RolloverRequest that captures the various max_* and min_* conditions of this {@link WaitForRolloverReadyStep}.
-     *
+     * <p>
      * To prevent empty indices from rolling over, a `min_docs: 1` condition will be injected if `rolloverOnlyIfHasDocuments` is true
      * and the request doesn't already have an associated min_docs or min_primary_shard_docs condition.
      *
-     * @param rolloverTarget the index to rollover
-     * @param masterTimeout the master timeout to use with the request
+     * @param rolloverTarget             the index to rollover
+     * @param masterTimeout              the master timeout to use with the request
      * @param rolloverOnlyIfHasDocuments whether to inject a min_docs 1 condition if there is not already a min_docs
      *                                   (or min_primary_shard_docs) condition
+     * @param targetIsTsdb               Whether the target is a tsdb data stream
      * @return A RolloverRequest suitable for passing to {@code rolloverIndex(...) }.
      */
     // visible for testing
-    RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
+    RolloverRequest createRolloverRequest(
+        String rolloverTarget,
+        TimeValue masterTimeout,
+        boolean rolloverOnlyIfHasDocuments,
+        boolean targetIsTsdb
+    ) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
         if (maxSize != null) {
@@ -240,7 +250,16 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         if (maxDocs != null) {
             rolloverRequest.addMaxIndexDocsCondition(maxDocs);
         }
-        if (maxPrimaryShardDocs != null) {
+        if (maxPrimaryShardDocs != null || targetIsTsdb) {
+            long maxPrimaryShardDocs;
+            if (this.maxPrimaryShardDocs != null) {
+                maxPrimaryShardDocs = this.maxPrimaryShardDocs;
+                if (targetIsTsdb && maxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS_FOR_TSDB) {
+                    maxPrimaryShardDocs = MAX_PRIMARY_SHARD_DOCS_FOR_TSDB;
+                }
+            } else {
+                maxPrimaryShardDocs = MAX_PRIMARY_SHARD_DOCS_FOR_TSDB;
+            }
             rolloverRequest.addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs);
         }
         if (minSize != null) {

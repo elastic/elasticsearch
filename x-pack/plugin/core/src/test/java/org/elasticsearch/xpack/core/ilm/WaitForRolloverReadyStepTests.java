@@ -191,7 +191,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(expectedConditionValues, actualConditionValues);
     }
 
-    private static Set<Condition<?>> getExpectedConditions(WaitForRolloverReadyStep step, boolean maybeAddMinDocs) {
+    private static Set<Condition<?>> getExpectedConditions(WaitForRolloverReadyStep step, boolean maybeAddMinDocs, boolean targetIsTsdb) {
         Set<Condition<?>> expectedConditions = new HashSet<>();
         if (step.getMaxSize() != null) {
             expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
@@ -205,8 +205,17 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         if (step.getMaxDocs() != null) {
             expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
         }
-        if (step.getMaxPrimaryShardDocs() != null) {
-            expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
+        if (step.getMaxPrimaryShardDocs() != null || targetIsTsdb) {
+            long maxPrimaryShardDocs;
+            if (step.getMaxPrimaryShardDocs() != null) {
+                maxPrimaryShardDocs = step.getMaxPrimaryShardDocs();
+                if (targetIsTsdb && maxPrimaryShardDocs > WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB) {
+                    maxPrimaryShardDocs = WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB;
+                }
+            } else {
+                maxPrimaryShardDocs = WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB;
+            }
+            expectedConditions.add(new MaxPrimaryShardDocsCondition(maxPrimaryShardDocs));
         }
         if (step.getMinSize() != null) {
             expectedConditions.add(new MinSizeCondition(step.getMinSize()));
@@ -349,7 +358,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = getExpectedConditions(step, true);
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step, true, false);
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
                 .collect(Collectors.toMap(Condition::toString, condition -> conditionResult));
@@ -573,7 +582,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = getExpectedConditions(step, true);
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step, true, false);
             assertRolloverIndexRequest(request, alias, expectedConditions);
             listener.onFailure(exception);
             return null;
@@ -679,13 +688,31 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         String rolloverTarget = randomAlphaOfLength(5);
         TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
 
-        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments, false);
 
         assertThat(request.getRolloverTarget(), is(rolloverTarget));
         assertThat(request.masterNodeTimeout(), is(masterTimeout));
         assertThat(request.isDryRun(), is(true)); // it's always a dry_run
 
-        Set<Condition<?>> expectedConditions = getExpectedConditions(step, rolloverOnlyIfHasDocuments);
+        Set<Condition<?>> expectedConditions = getExpectedConditions(step, rolloverOnlyIfHasDocuments, false);
+        assertEquals(expectedConditions.size(), request.getConditions().size());
+        Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
+        Set<Object> actualConditionValues = request.getConditions().values().stream().map(Condition::value).collect(Collectors.toSet());
+        assertEquals(expectedConditionValues, actualConditionValues);
+    }
+
+    public void testCreateRolloverRequestRolloverTsdbTarget() {
+        WaitForRolloverReadyStep step = createRandomInstance();
+        String rolloverTarget = randomAlphaOfLength(5);
+        TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+
+        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, true, true);
+
+        assertThat(request.getRolloverTarget(), is(rolloverTarget));
+        assertThat(request.masterNodeTimeout(), is(masterTimeout));
+        assertThat(request.isDryRun(), is(true)); // it's always a dry_run
+
+        Set<Condition<?>> expectedConditions = getExpectedConditions(step, true, true);
         assertEquals(expectedConditions.size(), request.getConditions().size());
         Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
         Set<Object> actualConditionValues = request.getConditions().values().stream().map(Condition::value).collect(Collectors.toSet());

@@ -19,13 +19,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
     public static final GetEngineAction INSTANCE = new GetEngineAction();
-    public static final String NAME = "cluster:admin/engine/get";
+    public static final String NAME = "indices:admin/engine/get";
 
     private GetEngineAction() {
         super(NAME, GetEngineAction.Response::new);
@@ -40,6 +41,10 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
             this.engineId = in.readString();
         }
 
+        public Request(String engineId) {
+            this.engineId = engineId;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -51,16 +56,24 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
             return validationException;
         }
 
-        public Request(String engineId) {
-            this.engineId = engineId;
-        }
-
         public String getEngineId() {
             return engineId;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(engineId, request.engineId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(engineId);
+        }
     }
 
-    // TODO add CreatedAt, UpdatedAt
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final Engine engine;
@@ -88,5 +101,17 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
             return engine.toXContent(builder, params);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(engine, response.engine);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(engine);
+        }
     }
 }

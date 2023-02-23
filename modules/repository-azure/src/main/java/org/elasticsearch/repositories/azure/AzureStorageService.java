@@ -124,8 +124,9 @@ public class AzureStorageService {
 
     // non-static, package private for testing
     RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
-        String primaryUri = azureStorageSettings.getPrimaryURI();
-        String secondaryUri = azureStorageSettings.getSecondaryURI();
+        AzureStorageSettings.StorageEndpoint endpoint = azureStorageSettings.getStorageEndpoint();
+        String primaryUri = endpoint.primaryURI();
+        String secondaryUri = endpoint.secondaryURI();
 
         if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY && secondaryUri == null) {
             throw new IllegalArgumentException("Unable to use " + locationMode + " location mode without a secondary location URI");

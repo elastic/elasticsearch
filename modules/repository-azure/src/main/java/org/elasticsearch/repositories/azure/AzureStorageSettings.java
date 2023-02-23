@@ -22,6 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -270,12 +272,15 @@ final class AzureStorageSettings {
     private static final String BLOB_ENDPOINT_NAME = "BlobEndpoint";
     private static final String BLOB_SECONDARY_ENDPOINT_NAME = "BlobSecondaryEndpoint";
 
-    String getPrimaryURI() {
-        return getProperty(BLOB_ENDPOINT_NAME);
-    }
+    record StorageEndpoint(String primaryURI, @Nullable String secondaryURI) {}
 
-    String getSecondaryURI() {
-        return getProperty(BLOB_SECONDARY_ENDPOINT_NAME);
+    StorageEndpoint getStorageEndpoint() {
+        String primaryURI = getProperty(BLOB_ENDPOINT_NAME);
+        String secondaryURI = getProperty(BLOB_SECONDARY_ENDPOINT_NAME);
+        if (primaryURI != null) {
+            return new StorageEndpoint(primaryURI, secondaryURI);
+        }
+        return new StorageEndpoint(deriveURIFromSettings(true), deriveURIFromSettings(false));
     }
 
     /**
@@ -297,5 +302,22 @@ final class AzureStorageSettings {
             }
         }
         return null;
+    }
+
+    private static final String DEFAULT_DNS = "core.windows.net";
+
+    /** Derives the primary or secondary endpoint from the settings. */
+    private String deriveURIFromSettings(boolean isPrimary) {
+        String uriString = new StringBuilder().append("https://")
+            .append(account)
+            .append(isPrimary ? "" : "-secondary")
+            .append(".blob.")
+            .append(Strings.isNullOrEmpty(endpointSuffix) ? DEFAULT_DNS : endpointSuffix)
+            .toString();
+        try {
+            return new URI(uriString).toString();  // validates the URI
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 }

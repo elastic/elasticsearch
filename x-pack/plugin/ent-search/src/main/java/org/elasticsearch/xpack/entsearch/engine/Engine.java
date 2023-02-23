@@ -53,12 +53,7 @@ public class Engine implements Writeable, ToXContentObject {
      * @param analyticsCollectionName The name of the associated analytics collection.
      * @param updatedAt               Timestamp this Engine was last updated. Null uses current timestamp.
      */
-    public Engine(
-        String name,
-        String[] indices,
-        @Nullable String analyticsCollectionName,
-        @Nullable TimeValue updatedAt
-    ) {
+    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName, @Nullable TimeValue updatedAt) {
         this.name = name;
         this.indices = indices;
         Arrays.sort(indices);

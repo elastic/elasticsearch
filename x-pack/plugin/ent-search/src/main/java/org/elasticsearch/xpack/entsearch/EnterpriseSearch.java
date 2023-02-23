@@ -75,8 +75,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return List.of(new ActionPlugin.ActionHandler<>(GetEngineAction.INSTANCE, TransportGetEngineAction.class),
-            new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class));
+        return List.of(
+            new ActionPlugin.ActionHandler<>(GetEngineAction.INSTANCE, TransportGetEngineAction.class),
+            new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class)
+        );
     }
 
     @Override

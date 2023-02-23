@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
@@ -19,6 +20,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.OptionalLong;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -199,39 +201,38 @@ public interface BlobContainer {
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
      * Keys not yet used start at initial value 0. Returns the current value (before it was updated).
      *
-     * @param key key of the value to update
+     * @param key      key of the value to update
      * @param expected the expected value
-     * @param updated the new value
-     * @return the value read from the register (before it was updated)
-     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
+     * @param updated  the new value
+     * @param listener a listener, completed with the value read from the register (before it was updated) or {@code OptionalLong#empty}
+     *                 if the value could not be read due to concurrent activity.
      */
-    long compareAndExchangeRegister(String key, long expected, long updated) throws IOException, ConcurrentRegisterOperationException;
+    void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener);
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
      * Keys not yet used start at initial value 0.
      *
-     * @param key key of the value to update
+     * @param key      key of the value to update
      * @param expected the expected value
-     * @param updated the new value
-     * @return true if successful, false if the expected value did not match the updated value
-     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
+     * @param updated  the new value
+     * @param listener a listener which is completed with {@link Boolean#TRUE} if successful, {@link Boolean#FALSE} if the expected value
+     *                 did not match the updated value
      */
-    default boolean compareAndSetRegister(String key, long expected, long updated) throws IOException,
-        ConcurrentRegisterOperationException {
-        return compareAndExchangeRegister(key, expected, updated) == expected;
+    default void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+        compareAndExchangeRegister(key, expected, updated, listener.map(witness -> witness.isPresent() && witness.getAsLong() == expected));
     }
 
     /**
-     * Gets the value set by {@link #compareAndSetRegister(String, long, long)} for a given key.
+     * Gets the value set by {@link #compareAndSetRegister(String, long, long, ActionListener)} for a given key.
      * If a key has not yet been used, the initial value is 0.
      *
-     * @param key key of the value to get
-     * @return value found
-     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
+     * @param key      key of the value to get
+     * @param listener a listener, completed with the value read from the register or {@code null} if the value could not be read due to
+     *                 concurrent activity.
      */
-    default long getRegister(String key) throws IOException, ConcurrentRegisterOperationException {
-        return compareAndExchangeRegister(key, 0, 0);
+    default void getRegister(String key, ActionListener<OptionalLong> listener) {
+        compareAndExchangeRegister(key, 0, 0, listener);
     }
 
 }

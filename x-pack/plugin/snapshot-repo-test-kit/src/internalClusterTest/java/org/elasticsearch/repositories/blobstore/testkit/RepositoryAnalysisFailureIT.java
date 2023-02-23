@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -52,6 +53,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -584,8 +586,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public long compareAndExchangeRegister(String key, long expected, long updated) {
-            return disruption.onCompareAndExchange(registers.computeIfAbsent(key, ignored -> new AtomicLong()), expected, updated);
+        public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+            final var register = registers.computeIfAbsent(key, ignored -> new AtomicLong());
+            listener.onResponse(OptionalLong.of(disruption.onCompareAndExchange(register, expected, updated)));
         }
     }
 

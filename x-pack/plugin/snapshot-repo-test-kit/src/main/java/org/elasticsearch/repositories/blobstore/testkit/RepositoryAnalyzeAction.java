@@ -64,6 +64,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
@@ -450,7 +451,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
             final String registerName = "test-register-" + UUIDs.randomBase64UUID(random);
-            try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, requestRefs.acquire()))) {
+            try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, random, requestRefs.acquire()))) {
                 final long registerOperations = Math.max(nodes.size(), request.getConcurrency());
                 for (int i = 0; i < registerOperations; i++) {
                     final RegisterAnalyzeAction.Request registerAnalyzeRequest = new RegisterAnalyzeAction.Request(
@@ -589,21 +590,22 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             }
         }
 
-        private Runnable finalRegisterValueVerifier(String registerName, Releasable ref) {
+        private Runnable finalRegisterValueVerifier(String registerName, Random random, Releasable ref) {
             return () -> {
                 if (isRunning()) {
                     final var expectedFinalRegisterValue = expectedRegisterValue.get();
                     transportService.getThreadPool()
                         .executor(ThreadPool.Names.SNAPSHOT)
-                        .execute(ActionRunnable.supply(ActionListener.releaseAfter(new ActionListener<>() {
+                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalLong>() {
                             @Override
-                            public void onResponse(Long actualFinalRegisterValue) {
-                                if (actualFinalRegisterValue != expectedFinalRegisterValue) {
+                            public void onResponse(OptionalLong actualFinalRegisterValue) {
+                                if (actualFinalRegisterValue.isEmpty()
+                                    || actualFinalRegisterValue.getAsLong() != expectedFinalRegisterValue) {
                                     fail(
                                         new RepositoryVerificationException(
                                             request.getRepositoryName(),
                                             Strings.format(
-                                                "register [%s] should have value [%d] but instead had value [%d]",
+                                                "register [%s] should have value [%d] but instead had value [%s]",
                                                 registerName,
                                                 expectedFinalRegisterValue,
                                                 actualFinalRegisterValue
@@ -620,13 +622,27 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                                     fail(exp);
                                 }
                             }
-                        }, ref),
-                            () -> getBlobContainer().compareAndExchangeRegister(
-                                registerName,
-                                expectedFinalRegisterValue,
-                                expectedFinalRegisterValue
-                            )
-                        ));
+                        }, ref), listener -> {
+                            switch (random.nextInt(3)) {
+                                case 0 -> getBlobContainer().getRegister(registerName, listener);
+                                case 1 -> getBlobContainer().compareAndExchangeRegister(
+                                    registerName,
+                                    expectedFinalRegisterValue,
+                                    -1,
+                                    listener
+                                );
+                                case 2 -> getBlobContainer().compareAndSetRegister(
+                                    registerName,
+                                    expectedFinalRegisterValue,
+                                    -1,
+                                    listener.map(b -> b ? OptionalLong.of(expectedFinalRegisterValue) : OptionalLong.empty())
+                                );
+                                default -> {
+                                    assert false;
+                                    throw new IllegalStateException();
+                                }
+                            }
+                        }));
                 } else {
                     ref.close();
                 }

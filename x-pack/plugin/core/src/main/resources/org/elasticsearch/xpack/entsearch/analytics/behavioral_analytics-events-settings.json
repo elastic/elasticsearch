@@ -1,33 +1,21 @@
 {
-  "phases": {
-    "hot": {
-      "actions": {
-        "rollover": {
-          "max_age": "30d",
-          "max_size": "3GB"
-        }
-      }
-    },
-    "warm": {
-      "min_age": "2d",
-      "actions": {
-        "shrink": {
-          "number_of_shards": 1
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "behavioral_analytics-events-default_policy"
         },
-        "forcemerge": {
-          "max_num_segments": 1
-        }
-      }
-    },
-    "delete": {
-      "min_age": "180d",
-      "actions":{
-        "delete": {}
+        "codec": "best_compression",
+        "refresh_interval": "1s",
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1"
       }
     }
   },
   "_meta": {
-    "description": "Built-in policy applied by default to behavioral analytics event data streams.",
+    "description": "Built-in settings applied by default to behavioral analytics event data streams.",
     "managed": true
-  }
+  },
+  "version": ${xpack.entsearch.analytics.template.version}
 }

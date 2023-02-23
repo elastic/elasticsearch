@@ -1862,7 +1862,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build()
             )
         ) {
-
             cluster.runRandomly();
             cluster.stabilise();
         }

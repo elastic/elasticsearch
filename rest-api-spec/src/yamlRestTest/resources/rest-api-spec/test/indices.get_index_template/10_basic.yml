@@ -111,6 +111,8 @@ setup:
       reason: "Data lifecycle in index templates was added after 8.7"
 
   - do:
+      allowed_warnings:
+        - "index template [test-lifecycle] has index patterns [data-stream-with-lifecycle-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-lifecycle] will take precedence during new index creation"
       indices.put_index_template:
         name: test-lifecycle
         body:

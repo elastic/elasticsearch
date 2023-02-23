@@ -95,7 +95,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
         return watcherThread != null;
     }
 
-    synchronized void startWatcher(Runnable processOperation, Runnable listenOperation) {
+    synchronized void startWatcher(Runnable processFileSettingsAction, Runnable noInitialFileSettingsAction) {
         /*
          * We essentially watch for two things:
          *  - the creation of the operator directory (if it doesn't exist), symlink changes to the operator directory
@@ -127,21 +127,24 @@ public class FileWatchService extends AbstractLifecycleComponent {
             throw new IllegalStateException("unable to launch a new watch service", e);
         }
 
-        watcherThread = new Thread(() -> watcherThread(processOperation, listenOperation), "elasticsearch[file-settings-watcher]");
+        watcherThread = new Thread(
+            () -> watcherThread(processFileSettingsAction, noInitialFileSettingsAction),
+            "elasticsearch[file-settings-watcher]"
+        );
         watcherThread.start();
     }
 
-    private void watcherThread(Runnable processOperation, Runnable listenOperation) {
+    private void watcherThread(Runnable processFileSettingsAction, Runnable noInitialFileAction) {
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
             List<Path> operatorSettingsFiles = List.of(operatorSettingsDir.resolve(settingsFileName));
             if (operatorSettingsFiles.stream().anyMatch(Files::exists)) {
                 logger.debug("found initial operator settings file [{}], applying...", operatorSettingsFiles);
-                processOperation.run();
+                processFileSettingsAction.run();
             } else {
                 // Notify everyone we don't have any initial file settings
-                listenOperation.run();
+                noInitialFileAction.run();
             }
 
             WatchKey key;
@@ -179,7 +182,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
                         for (Path path : operatorSettingsFiles) {
                             if (watchedFileChanged(path)) {
-                                processOperation.run();
+                                processFileSettingsAction.run();
                                 break;
                             }
                         }

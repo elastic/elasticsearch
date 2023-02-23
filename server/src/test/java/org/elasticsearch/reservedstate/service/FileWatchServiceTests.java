@@ -125,34 +125,41 @@ public class FileWatchServiceTests extends ESTestCase {
         assertFalse(fileWatchService.isActive());
     }
 
-    public void testStartWatcher() throws Exception {
+    public void testStartWatcherWithInitialFileSettings() throws Exception {
 
         writeTestFile(fileWatchService.operatorSettingsFile(), "{}");
 
         // startup latch = process a settings file latch
-        CountDownLatch startupLatch = new CountDownLatch(2);
+        CountDownLatch processFileSettingsLatch = new CountDownLatch(2);
 
         // listener latch = no setting file present latch
-        CountDownLatch listenerLatch = new CountDownLatch(1);
+        CountDownLatch noInitialFileSettingsLatch = new CountDownLatch(1);
 
-        fileWatchService.startWatcher(
-            startupLatch::countDown,
-            listenerLatch::countDown
-        );
+        fileWatchService.startWatcher(processFileSettingsLatch::countDown, noInitialFileSettingsLatch::countDown);
 
-        // verify start runnable called
-
-        // touch file
         // we modify the timestamp of the file, it should trigger a change
         Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
         Files.setLastModifiedTime(fileWatchService.operatorSettingsFile(), FileTime.from(now));
 
-        assertTrue(startupLatch.await(30, TimeUnit.SECONDS));
+        assertTrue(processFileSettingsLatch.await(30, TimeUnit.SECONDS));
+        assertThat(noInitialFileSettingsLatch.getCount(), equalTo(1L));
+    }
 
-        // verify listen runnable not called
-        assertThat(listenerLatch.getCount(), equalTo(1L));
+    public void testStartWatcherWithoutInitialFileSettings() throws Exception {
 
-        fileWatchService.stopWatcher();
+        // startup latch = process a settings file latch
+        CountDownLatch processFileSettingsLatch = new CountDownLatch(1);
+
+        // listener latch = no setting file present latch
+        CountDownLatch noInitialFileSettingsLatch = new CountDownLatch(1);
+
+        fileWatchService.startWatcher(processFileSettingsLatch::countDown, noInitialFileSettingsLatch::countDown);
+
+        assertTrue(noInitialFileSettingsLatch.await(30, TimeUnit.SECONDS));
+
+        writeTestFile(fileWatchService.operatorSettingsFile(), "{}");
+
+        assertTrue(processFileSettingsLatch.await(30, TimeUnit.SECONDS));
     }
 
     public void testStopWatcher() {

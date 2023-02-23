@@ -906,7 +906,7 @@ public class AuthorizationService {
         );
     }
 
-    private ElasticsearchSecurityException actionDenied(
+    ElasticsearchSecurityException actionDenied(
         Authentication authentication,
         @Nullable AuthorizationInfo authorizationInfo,
         String action,

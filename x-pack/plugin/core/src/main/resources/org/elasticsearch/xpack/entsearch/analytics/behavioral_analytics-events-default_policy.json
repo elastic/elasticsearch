@@ -1,31 +1,33 @@
 {
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "set_priority": {
-            "priority": 100
-          },
-          "forcemerge": {
-            "max_num_segments": 1
-          },
-          "rollover": {
-            "max_age": "30d",
-            "max_size": "3GB"
-          },
-          "readonly": {}
+  "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_age": "30d",
+          "max_size": "3GB"
         }
-      },
-      "delete": {
-        "min_age": "180d",
-        "actions": {
-          "delete": {}
+      }
+    },
+    "warm": {
+      "min_age": "2d",
+      "actions": {
+        "shrink": {
+          "number_of_shards": 1
+        },
+        "forcemerge": {
+          "max_num_segments": 1
         }
+      }
+    },
+    "delete": {
+      "min_age": "180d",
+      "actions":{
+        "delete": {}
       }
     }
   },
   "_meta": {
-    "description": "Default policy for behavioral analytics event data streams.",
+    "description": "Built-in policy applied by default to behavioral analytics event data streams.",
     "managed": true
   }
 }

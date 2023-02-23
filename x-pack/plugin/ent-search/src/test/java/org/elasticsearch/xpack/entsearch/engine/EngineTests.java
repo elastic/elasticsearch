@@ -127,7 +127,7 @@ public class EngineTests extends ESTestCase {
     }
 
     private Engine copyInstance(Engine instance, Version version) throws IOException {
-        return copyWriteable(instance, namedWriteableRegistry, Engine::new, version);
+        return copyWriteable(instance, namedWriteableRegistry, Engine::new, version.transportVersion);
     }
 
     static Engine randomEngine() {

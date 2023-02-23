@@ -33,7 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.rank.RankResult;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -81,7 +81,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static final int NO_RANK = -1;
     private int rank = NO_RANK;
 
-    private RankResult rankResult;
+    private RankDoc rankDoc;
 
     private final Text id;
 
@@ -141,7 +141,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         score = in.readFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             rank = in.readVInt();
-            rankResult = in.readOptionalWriteable(RankResult::readRankResult);
+            rankDoc = in.readOptionalWriteable(RankDoc::readRankResult);
         }
         id = in.readOptionalText();
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
@@ -244,7 +244,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         out.writeFloat(score);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeVInt(rank);
-            out.writeOptionalWriteable(rankResult);
+            out.writeOptionalWriteable(rankDoc);
         }
         out.writeOptionalText(id);
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
@@ -310,12 +310,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return this.rank;
     }
 
-    public void setRankResult(RankResult rankResult) {
-        this.rankResult = rankResult;
+    public void setRankResult(RankDoc rankDoc) {
+        this.rankDoc = rankDoc;
     }
 
-    public RankResult getRankResult() {
-        return this.rankResult;
+    public RankDoc getRankResult() {
+        return this.rankDoc;
     }
 
     public void version(long version) {
@@ -705,8 +705,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.field(Fields._RANK, rank);
         }
 
-        if (rankResult != null) {
-            builder.field(Fields._RANK_RESULT, rankResult);
+        if (rankDoc != null) {
+            builder.field(Fields._RANK_RESULT, rankDoc);
         }
 
         for (DocumentField field : metaFields.values()) {

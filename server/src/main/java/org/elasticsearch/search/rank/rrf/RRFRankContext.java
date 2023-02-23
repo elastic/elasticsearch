@@ -80,7 +80,7 @@ public class RRFRankContext extends RankContext {
             return SortedTopDocs.EMPTY;
         }
 
-        Map<String, RRFRankResult> docsToRankResults = new HashMap<>();
+        Map<String, RRFRankDoc> docsToRankResults = new HashMap<>();
         int index = 0;
         for (SortedTopDocs mtd : mergedTopDocs) {
             int rank = 0;
@@ -90,7 +90,7 @@ public class RRFRankContext extends RankContext {
                 final int frank = rank;
                 docsToRankResults.compute(scoreDoc.doc + ":" + scoreDoc.shardIndex, (key, value) -> {
                     if (value == null) {
-                        value = new RRFRankResult(scoreDoc.doc, scoreDoc.shardIndex, mergedTopDocs.size());
+                        value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, mergedTopDocs.size());
                     }
 
                     value.score += 1.0f / (rankConstant + frank);
@@ -103,9 +103,9 @@ public class RRFRankContext extends RankContext {
             ++index;
         }
 
-        RRFRankResult[] allRankResults = docsToRankResults.values().toArray(RRFRankResult[]::new);
+        RRFRankDoc[] allRankResults = docsToRankResults.values().toArray(RRFRankDoc[]::new);
         Arrays.sort(allRankResults, Comparator.comparingDouble(rr -> -rr.score));
-        RRFRankResult[] topRankResults = new RRFRankResult[Math.min(size + from, allRankResults.length)];
+        RRFRankDoc[] topRankResults = new RRFRankDoc[Math.min(size + from, allRankResults.length)];
         for (int rank = 0; rank < topRankResults.length; ++rank) {
             topRankResults[rank] = allRankResults[rank];
             topRankResults[rank].rank = rank + 1;
@@ -125,8 +125,8 @@ public class RRFRankContext extends RankContext {
     }
 
     public void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit) {
-        assert scoreDoc instanceof RRFRankResult;
-        RRFRankResult rankResult = (RRFRankResult) scoreDoc;
+        assert scoreDoc instanceof RRFRankDoc;
+        RRFRankDoc rankResult = (RRFRankDoc) scoreDoc;
         searchHit.setRank(rankResult.rank);
         searchHit.setRankResult(rankResult);
     }

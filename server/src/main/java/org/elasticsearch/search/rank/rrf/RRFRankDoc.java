@@ -10,12 +10,12 @@ package org.elasticsearch.search.rank.rrf;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.rank.RankResult;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class RRFRankResult extends RankResult {
+public class RRFRankDoc extends RankDoc {
 
     public static final String NAME = "rrf";
 
@@ -23,13 +23,13 @@ public class RRFRankResult extends RankResult {
     public final int[] positions;
     public final float[] scores;
 
-    public RRFRankResult(int doc, int shardIndex, int size) {
+    public RRFRankDoc(int doc, int shardIndex, int size) {
         super(doc, 0f, shardIndex);
         positions = new int[size];
         scores = new float[size];
     }
 
-    public RRFRankResult(StreamInput in) throws IOException {
+    public RRFRankDoc(StreamInput in) throws IOException {
         super(in);
         rank = in.readVInt();
         positions = in.readIntArray();

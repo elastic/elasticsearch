@@ -12,29 +12,29 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.rank.rrf.RRFRankResult;
+import org.elasticsearch.search.rank.rrf.RRFRankDoc;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public abstract class RankResult extends ScoreDoc implements ToXContent, Writeable {
+public abstract class RankDoc extends ScoreDoc implements ToXContent, Writeable {
 
-    public static RankResult readRankResult(StreamInput in) throws IOException {
+    public static RankDoc readRankResult(StreamInput in) throws IOException {
         String name = in.readString();
 
-        if (RRFRankResult.NAME.equals(name)) {
-            return new RRFRankResult(in);
+        if (RRFRankDoc.NAME.equals(name)) {
+            return new RRFRankDoc(in);
         } else {
             throw new IllegalStateException("unexpected rank result type [" + name + "]");
         }
     }
 
-    public RankResult(int doc, float score, int shardIndex) {
+    public RankDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
     }
 
-    protected RankResult(StreamInput in) throws IOException {
+    protected RankDoc(StreamInput in) throws IOException {
         super(in.readVInt(), in.readFloat(), in.readVInt());
     }
 

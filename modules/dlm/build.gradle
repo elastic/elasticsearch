@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'dlm'
   description 'Elasticsearch Plugin - Data Lifecycle Management'
-  classname 'org.elasticsearch.dlm.DataLifecycle'
+  classname 'org.elasticsearch.dlm.DataLifecyclePlugin'
 }
 archivesBaseName = 'dlm'
 

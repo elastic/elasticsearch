@@ -803,8 +803,16 @@ public class SearchModule {
     }
 
     private void registerRanks() {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankContextBuilder.class, RRFRankContextBuilder.NAME, RRFRankContextBuilder::new));
-        namedXContents.add(new NamedXContentRegistry.Entry(RankContextBuilder.class, new ParseField(RRFRankContextBuilder.NAME), RRFRankContextBuilder::fromXContent));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(RankContextBuilder.class, RRFRankContextBuilder.NAME, RRFRankContextBuilder::new)
+        );
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                RankContextBuilder.class,
+                new ParseField(RRFRankContextBuilder.NAME),
+                RRFRankContextBuilder::fromXContent
+            )
+        );
     }
 
     private static <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {

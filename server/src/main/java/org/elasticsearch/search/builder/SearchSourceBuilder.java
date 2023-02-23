@@ -1281,11 +1281,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
-                        throw new ParsingException(parser.getTokenLocation(), "unexpected start token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "unexpected start token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
+                        );
                     }
                     rankContextBuilder = parser.namedObject(RankContextBuilder.class, parser.currentName(), null);
                     if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-                        throw new ParsingException(parser.getTokenLocation(), "unexpected end token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "unexpected end token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
+                        );
                     }
                     parser.nextToken();
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

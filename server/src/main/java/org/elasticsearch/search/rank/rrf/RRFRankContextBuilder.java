@@ -160,12 +160,17 @@ public class RRFRankContextBuilder extends RankContextBuilder {
 
     @Override
     public String toString() {
-        return "RRFRankContextBuilder{" +
-            "windowSize=" + windowSize +
-            ", rankConstant=" + rankConstant +
-            ", queryBuilders=" + queryBuilders +
-            ", size=" + size +
-            ", from=" + from +
-            '}';
+        return "RRFRankContextBuilder{"
+            + "windowSize="
+            + windowSize
+            + ", rankConstant="
+            + rankConstant
+            + ", queryBuilders="
+            + queryBuilders
+            + ", size="
+            + size
+            + ", from="
+            + from
+            + '}';
     }
 }

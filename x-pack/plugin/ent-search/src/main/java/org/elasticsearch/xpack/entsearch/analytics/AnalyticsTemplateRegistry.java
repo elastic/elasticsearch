@@ -38,14 +38,14 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.entsearch.analytics.template.version";
 
     // ILM Policies configuration
-    private static final String EVENT_DATA_STREAM_ILM_POLICY_NAME = "behavioral_analytics-events-default_policy";
+    public static final String EVENT_DATA_STREAM_ILM_POLICY_NAME = "behavioral_analytics-events-default_policy";
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = Stream.of(
         new LifecyclePolicyConfig(EVENT_DATA_STREAM_ILM_POLICY_NAME, ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_ILM_POLICY_NAME + ".json")
     ).map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
 
     // Index template components configuration
-    private static final String EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME = "behavioral_analytics-events-settings";
-    private static final String EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME = "behavioral_analytics-events-mappings";
+    public static final String EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME = "behavioral_analytics-events-settings";
+    public static final String EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME = "behavioral_analytics-events-mappings";
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
 
@@ -79,7 +79,7 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
     // Composable index templates configuration.
 
-    private static final String EVENT_DATA_STREAM_TEMPLATE_NAME = "behavioral_analytics-events-default";
+    public static final String EVENT_DATA_STREAM_TEMPLATE_NAME = "behavioral_analytics-events-default";
     private static final String EVENT_DATA_STREAM_TEMPLATE_FILENAME = "behavioral_analytics-events-template";
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATES = parseComposableTemplates(

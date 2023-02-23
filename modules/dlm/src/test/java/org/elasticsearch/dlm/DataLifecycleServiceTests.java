@@ -87,6 +87,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         threadPool = new TestThreadPool(getTestName());
         dataLifecycleService = new DataLifecycleService(Settings.EMPTY, client, clusterService, clock, threadPool, () -> now);
+        dataLifecycleService.init();
         Mockito.verify(clusterService).addListener(dataLifecycleService);
 
         rolloverRequestCaptor = ArgumentCaptor.forClass(RolloverRequest.class);

@@ -9,6 +9,7 @@
 package org.elasticsearch.dlm;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -29,6 +31,7 @@ import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
@@ -76,6 +79,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         if (DataLifecycle.isEnabled() == false) {
             return List.of();
         }
+
         dataLifecycleInitialisationService.set(
             new DataLifecycleService(
                 settings,
@@ -86,6 +90,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
                 threadPool::absoluteTimeInMillis
             )
         );
+        dataLifecycleInitialisationService.get().init();
         return List.of(dataLifecycleInitialisationService.get());
     }
 
@@ -96,5 +101,14 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         }
 
         return List.of(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
+    }
+
+    @Override
+    public void close() throws IOException {
+        try {
+            IOUtils.close(dataLifecycleInitialisationService.get());
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to close the data lifecycle service", e);
+        }
     }
 }

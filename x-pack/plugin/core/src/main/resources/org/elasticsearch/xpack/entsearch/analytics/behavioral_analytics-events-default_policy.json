@@ -1,0 +1,31 @@
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "set_priority": {
+            "priority": 100
+          },
+          "forcemerge": {
+            "max_num_segments": 1
+          },
+          "rollover": {
+            "max_age": "30d",
+            "max_size": "3GB"
+          },
+          "readonly": {}
+        }
+      },
+      "delete": {
+        "min_age": "180d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Default policy for behavioral analytics event data streams.",
+    "managed": true
+  }
+}

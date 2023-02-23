@@ -38,6 +38,20 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
+        // indices options that require every specified index to exist, do not expand wildcards,
+        // don't allow that no indices are resolved from wildcard expressions and resolve the
+        // expressions only against indices
+        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            true,
+            false
+        );
+
         private final Engine engine;
 
         public Request(StreamInput in) throws IOException {
@@ -82,7 +96,7 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
         @Override
         public IndicesOptions indicesOptions() {
-            return IndicesOptions.fromOptions(false, false, false, false, false, false, false, false);
+            return INDICES_OPTIONS;
         }
 
         public Engine getEngine() {

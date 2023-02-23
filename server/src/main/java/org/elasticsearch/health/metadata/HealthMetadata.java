@@ -103,6 +103,72 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     }
 
     /**
+     * Contains the thresholds needed to determine the health of a cluster from the amount of room available to create new shards. These
+     * values are determined by the elected master.
+     */
+    public record ShardLimits(int maxShardsPerNode, int maxShardsPerNodeFrozen) implements ToXContentFragment, Writeable {
+
+        private static final String TYPE = "shard_limits";
+        private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
+        private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
+
+        static ShardLimits readFrom(StreamInput in) throws IOException {
+            return new ShardLimits(
+                in.readInt(),
+                in.readInt()
+            );
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(MAX_SHARDS_PER_NODE.getPreferredName(), maxShardsPerNode);
+            builder.field(MAX_SHARDS_PER_NODE_FROZEN.getPreferredName(), maxShardsPerNodeFrozen);
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(maxShardsPerNode);
+            out.writeInt(maxShardsPerNodeFrozen);
+        }
+
+        public static Builder newBuilder() {
+            return new Builder();
+        }
+
+        public static Builder newBuilder(ShardLimits shardLimits) {
+            return new Builder(shardLimits);
+        }
+
+        public static class Builder {
+
+            private int maxShardPerNode;
+            private int maxShardPerNodeFrozen;
+
+            private Builder() {}
+
+            private Builder(ShardLimits shardLimits) {
+                this.maxShardPerNode = shardLimits.maxShardsPerNode;
+                this.maxShardPerNodeFrozen = shardLimits.maxShardsPerNodeFrozen;
+            }
+
+            public Builder maxShardPerNode(int maxShardPerNode) {
+                this.maxShardPerNode = maxShardPerNode;
+                return this;
+            }
+
+            public Builder maxShardPerNodeFrozen(int maxShardPerNodeFrozen) {
+                this.maxShardPerNodeFrozen = maxShardPerNodeFrozen;
+                return this;
+            }
+
+            public ShardLimits build() {
+                return new ShardLimits(maxShardPerNode, maxShardPerNodeFrozen);
+            }
+        }
+    }
+
+    /**
      * Contains the thresholds necessary to determine the health of the disk space of a node. The thresholds are determined by the elected
      * master.
      */

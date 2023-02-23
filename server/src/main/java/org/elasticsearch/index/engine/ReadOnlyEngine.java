@@ -632,4 +632,10 @@ public class ReadOnlyEngine extends Engine {
     public final String getCommitId() {
         return commitId;
     }
+
+    public long getCurrentGeneration() {
+        final SegmentInfos current = lastCommittedSegmentInfos;
+        assert current.getGeneration() > 0 : current;
+        return current.getGeneration();
+    }
 }

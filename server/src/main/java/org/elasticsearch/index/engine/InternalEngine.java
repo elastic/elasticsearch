@@ -89,6 +89,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -3059,4 +3060,20 @@ public class InternalEngine extends Engine {
         return ShardLongFieldRange.UNKNOWN;
     }
 
+    @Override
+    public long getCurrentGeneration() {
+        final ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(SearcherScope.EXTERNAL);
+        ElasticsearchDirectoryReader current = null;
+        try {
+            current = referenceManager.acquire();
+            return current.getIndexCommit().getGeneration();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            if (current != null) {
+                ElasticsearchDirectoryReader toClose = current;
+                IOUtils.closeWhileHandlingException(() -> referenceManager.release(toClose));
+            }
+        }
+    }
 }

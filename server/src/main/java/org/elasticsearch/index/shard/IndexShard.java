@@ -2015,14 +2015,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
         refreshListeners.setCurrentProcessedCheckpointSupplier(newEngine::getProcessedLocalCheckpoint);
         refreshListeners.setMaxIssuedSeqNoSupplier(newEngine::getMaxSeqNo);
-        refreshListeners.setIndexCommitGenerationSupplier(() -> {
-            Engine.IndexCommitRef commitRef = getEngine().acquireLastIndexCommit(false);
-            try {
-                return commitRef.getIndexCommit().getGeneration();
-            } finally {
-                IOUtils.closeWhileHandlingException(commitRef);
-            }
-        });
+        // TODO: Remove if not needed
+        refreshListeners.setIndexCommitGenerationSupplier(() -> -1L);
     }
 
     /**

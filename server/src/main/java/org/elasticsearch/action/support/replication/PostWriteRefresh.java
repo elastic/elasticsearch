@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRe
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -23,6 +24,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
 
+    public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
 
     public PostWriteRefresh(@Nullable TransportService transportService) {
@@ -59,23 +61,27 @@ public class PostWriteRefresh {
             case NONE -> listener.onResponse(false);
             case WAIT_UNTIL -> {
                 if (location != null) {
-                    indexShard.addRefreshListener(
-                        location,
-                        refreshResult -> afterRefresh(
-                            indexShard,
-                            isPrimary,
-                            transportService,
-                            listener,
-                            refreshResult.refreshForced(),
-                            refreshResult.generation()
-                        )
-                    );
+                    indexShard.addRefreshListener(location, refreshResult -> {
+                        Engine engineOrNull = indexShard.getEngineOrNull();
+                        if (engineOrNull == null) {
+                            listener.onFailure(new EngineException(indexShard.shardId(), "Engine closed during refresh."));
+                        } else {
+                            afterRefresh(
+                                indexShard,
+                                isPrimary,
+                                transportService,
+                                listener,
+                                refreshResult.refreshForced(),
+                                engineOrNull.getCurrentGeneration()
+                            );
+                        }
+                    });
                 } else {
                     listener.onResponse(false);
                 }
             }
             case IMMEDIATE -> {
-                Engine.RefreshResult refreshResult = indexShard.refresh("refresh_flag_index");
+                Engine.RefreshResult refreshResult = indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
                 afterRefresh(indexShard, isPrimary, transportService, listener, true, refreshResult.generation());
             }
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);

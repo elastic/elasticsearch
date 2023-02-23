@@ -1963,6 +1963,8 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException();
     }
 
+    public abstract long getCurrentGeneration();
+
     /**
      * Captures the result of a refresh operation on the index shard.
      * <p>

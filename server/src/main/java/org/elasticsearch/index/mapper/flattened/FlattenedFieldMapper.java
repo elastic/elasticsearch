@@ -365,6 +365,15 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
             return SourceValueFetcher.identity(rootName + "." + key, context, null);
         }
+
+        @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
     }
 
     // Wraps a raw Lucene TermsEnum to strip values of fieldnames

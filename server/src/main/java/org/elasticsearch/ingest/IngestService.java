@@ -849,7 +849,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
-                ingestDocument.resetPipelineSkipping();
+                ingestDocument.resetRedirect();
 
                 if (e != null) {
                     logger.debug(
@@ -926,7 +926,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
                         newPipelines = getPipelines(indexRequest);
-                        if (ingestDocument.isInvokeDefaultPipelineOfDestination() == false) {
+                        if (ingestDocument.isRedirect() == false) {
                             newPipelines = newPipelines.withoutDefaultPipeline();
                         }
                     }

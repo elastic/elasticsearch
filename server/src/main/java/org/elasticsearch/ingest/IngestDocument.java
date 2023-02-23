@@ -63,8 +63,7 @@ public final class IngestDocument {
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
     private boolean doNoSelfReferencesCheck = false;
-    private boolean invokeDefaultPipelineOfDestination = false;
-    private boolean skipCurrentPipeline = false;
+    private boolean redirect = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -81,8 +80,7 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
-        this.invokeDefaultPipelineOfDestination = other.invokeDefaultPipelineOfDestination;
-        this.skipCurrentPipeline = other.skipCurrentPipeline;
+        this.redirect = other.redirect;
     }
 
     /**
@@ -908,20 +906,24 @@ public final class IngestDocument {
 
     public void redirect(String destIndex) {
         getMetadata().setIndex(destIndex);
-        invokeDefaultPipelineOfDestination = true;
-        skipCurrentPipeline = true;
+        redirect = true;
     }
 
-    boolean isInvokeDefaultPipelineOfDestination() {
-        return invokeDefaultPipelineOfDestination;
+    /**
+     * The document is redirected to another target.
+     * This implies that we'll skip the current pipeline and invoke the default pipeline of the new target
+     *
+     * @return whether the document is redirected to another target
+     */
+    boolean isRedirect() {
+        return redirect;
     }
 
-    boolean isSkipCurrentPipeline() {
-        return skipCurrentPipeline;
-    }
-
-    void resetPipelineSkipping() {
-        skipCurrentPipeline = false;
+    /**
+     * Invoked after the pipeline for the initial target has been skipped to avoid that the pipeline of the new target is skipped as well.
+     */
+    void resetRedirect() {
+        redirect = false;
     }
 
     public enum Metadata {

@@ -753,13 +753,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         IngestDocument ingestDocument = newIngestDocument(indexRequest);
                         LinkedHashSet<String> indexRecursionDetection = new LinkedHashSet<>();
                         indexRecursionDetection.add(indexRequest.index());
-                        executePipelines(
-                            pipelines,
-                            indexRequest,
-                            ingestDocument,
-                            documentListener,
-                            indexRecursionDetection
-                        );
+                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener, indexRecursionDetection);
                         i++;
                     }
                 }

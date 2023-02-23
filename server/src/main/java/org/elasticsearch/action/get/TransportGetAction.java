@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -30,7 +29,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.stream.Collectors;
 
 /**
  * Performs the get operation.
@@ -71,7 +69,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ShardIterator shards = clusterService.operationRouting()
+        final ShardIterator iterator = clusterService.operationRouting()
             .getShards(
                 clusterService.state(),
                 request.concreteIndex(),
@@ -79,16 +77,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.request().routing(),
                 request.request().preference()
             );
-        // If it is stateless, only route isPromotableToPrimary shards. This is a temporary workaround until a more cohesive solution can be
-        // implemented for search shards.
-        if (DiscoveryNode.isStateless(clusterService.getSettings())) {
-            return new PlainShardIterator(
-                shards.shardId(),
-                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
-            );
-        } else {
-            return shards;
+        if (iterator == null) {
+            return null;
         }
+        return new PlainShardIterator(iterator.shardId(), iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList());
     }
 
     @Override

@@ -199,7 +199,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      */
     record BatchExecutionContext<T extends ClusterStateTaskListener> (
         ClusterState initialState,
-        List<TaskContext<T>> taskContexts,
+        List<? extends TaskContext<T>> taskContexts,
         Supplier<Releasable> dropHeadersContextSupplier
     ) {
         /**

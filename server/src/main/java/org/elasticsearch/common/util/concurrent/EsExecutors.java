@@ -85,20 +85,9 @@ public class EsExecutors {
         String name,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        ScheduledExecutorService timer,
-        PrioritizedEsThreadPoolExecutor.StarvationWatcher starvationWatcher
+        ScheduledExecutorService timer
     ) {
-        return new PrioritizedEsThreadPoolExecutor(
-            name,
-            1,
-            1,
-            0L,
-            TimeUnit.MILLISECONDS,
-            threadFactory,
-            contextHolder,
-            timer,
-            starvationWatcher
-        );
+        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
     public static EsThreadPoolExecutor newScaling(

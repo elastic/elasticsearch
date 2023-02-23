@@ -1,5 +1,5 @@
 {
-  "engines.put": {
+  "engine.put": {
     "documentation": {
       "url": "http://todo.com/tbd",
       "description": "Creates or updates an engine."

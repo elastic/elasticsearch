@@ -346,7 +346,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeOptionalWriteable(rankContextBuilder);
+            out.writeOptionalNamedWriteable(rankContextBuilder);
         }
     }
 
@@ -1280,7 +1280,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    rankContextBuilder = parser.namedObject(RankContextBuilder.class, parser.nextToken().name(), null);
+                    if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                        throw new ParsingException(parser.getTokenLocation(), "unexpected start token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]");
+                    }
+                    rankContextBuilder = parser.namedObject(RankContextBuilder.class, parser.currentName(), null);
+                    if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+                        throw new ParsingException(parser.getTokenLocation(), "unexpected end token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]");
+                    }
+                    parser.nextToken();
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                     if (fetchSourceContext.fetchSource() == false

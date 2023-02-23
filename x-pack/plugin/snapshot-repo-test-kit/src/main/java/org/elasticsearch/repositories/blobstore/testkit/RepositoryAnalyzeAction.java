@@ -591,41 +591,45 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
         private Runnable finalRegisterValueVerifier(String registerName, Releasable ref) {
             return () -> {
-                final var expectedFinalRegisterValue = expectedRegisterValue.get();
-                transportService.getThreadPool()
-                    .executor(ThreadPool.Names.SNAPSHOT)
-                    .execute(ActionRunnable.supply(ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(Long actualFinalRegisterValue) {
-                            if (actualFinalRegisterValue != expectedFinalRegisterValue) {
-                                fail(
-                                    new RepositoryVerificationException(
-                                        request.getRepositoryName(),
-                                        Strings.format(
-                                            "register [%s] should have value [%d] but instead had value [%d]",
-                                            registerName,
-                                            expectedFinalRegisterValue,
-                                            actualFinalRegisterValue
+                if (isRunning()) {
+                    final var expectedFinalRegisterValue = expectedRegisterValue.get();
+                    transportService.getThreadPool()
+                        .executor(ThreadPool.Names.SNAPSHOT)
+                        .execute(ActionRunnable.supply(ActionListener.releaseAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(Long actualFinalRegisterValue) {
+                                if (actualFinalRegisterValue != expectedFinalRegisterValue) {
+                                    fail(
+                                        new RepositoryVerificationException(
+                                            request.getRepositoryName(),
+                                            Strings.format(
+                                                "register [%s] should have value [%d] but instead had value [%d]",
+                                                registerName,
+                                                expectedFinalRegisterValue,
+                                                actualFinalRegisterValue
+                                            )
                                         )
-                                    )
-                                );
+                                    );
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception exp) {
-                            // Registers are not supported on all repository types, and that's ok.
-                            if (exp instanceof UnsupportedOperationException == false) {
-                                fail(exp);
+                            @Override
+                            public void onFailure(Exception exp) {
+                                // Registers are not supported on all repository types, and that's ok.
+                                if (exp instanceof UnsupportedOperationException == false) {
+                                    fail(exp);
+                                }
                             }
-                        }
-                    }, ref),
-                        () -> getBlobContainer().compareAndExchangeRegister(
-                            registerName,
-                            expectedFinalRegisterValue,
-                            expectedFinalRegisterValue
-                        )
-                    ));
+                        }, ref),
+                            () -> getBlobContainer().compareAndExchangeRegister(
+                                registerName,
+                                expectedFinalRegisterValue,
+                                expectedFinalRegisterValue
+                            )
+                        ));
+                } else {
+                    ref.close();
+                }
             };
         }
 

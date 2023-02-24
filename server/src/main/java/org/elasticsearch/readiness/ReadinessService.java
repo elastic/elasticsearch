@@ -253,7 +253,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
      * Add a listener for bound readiness service address.
      * @param listener
      */
-    public void addBoundAddressListener(BoundAddressListener listener) {
+    synchronized public void addBoundAddressListener(BoundAddressListener listener) {
+        var b = boundAddress();
+        if (b != null) {
+            listener.addressBound(b);
+        }
         boundAddressListeners.add(listener);
     }
 

@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -237,12 +237,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         NodeScope
     );
     private static final Setting<Integer> SETTING_BULK_ACTIONS = Setting.intSetting("xpack.watcher.bulk.actions", 1, 1, 10000, NodeScope);
+    @Deprecated(forRemoval = true) // This setting is no longer used
     private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS = Setting.intSetting(
         "xpack.watcher.bulk.concurrent_requests",
         0,
         0,
         20,
-        NodeScope
+        NodeScope,
+        Setting.Property.Deprecated
     );
     private static final Setting<TimeValue> SETTING_BULK_FLUSH_INTERVAL = Setting.timeSetting(
         "xpack.watcher.bulk.flush_interval",
@@ -269,7 +271,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
-    private BulkProcessor bulkProcessor;
+    private BulkProcessor2 bulkProcessor;
 
     protected final Settings settings;
     protected final boolean enabled;
@@ -413,7 +415,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         final InputRegistry inputRegistry = new InputRegistry(inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(inputRegistry));
 
-        bulkProcessor = BulkProcessor.builder(new OriginSettingClient(client, WATCHER_ORIGIN)::bulk, new BulkProcessor.Listener() {
+        bulkProcessor = BulkProcessor2.builder(new OriginSettingClient(client, WATCHER_ORIGIN)::bulk, new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -462,14 +464,13 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             }
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                 logger.error("error executing bulk", failure);
             }
-        }, "watcher")
+        }, client.threadPool())
             .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))
             .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
             .setBulkSize(SETTING_BULK_SIZE.get(settings))
-            .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
         HistoryStore historyStore = new HistoryStore(bulkProcessor);
@@ -745,9 +746,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     @Override
     public void close() throws IOException {
-        if (enabled) {
-            bulkProcessor.flush();
-        }
         IOUtils.closeWhileHandlingException(httpClient);
         try {
             if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {

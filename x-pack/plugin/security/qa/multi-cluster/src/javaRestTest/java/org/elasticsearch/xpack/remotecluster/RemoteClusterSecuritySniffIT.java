@@ -23,6 +23,7 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -59,7 +60,7 @@ public class RemoteClusterSecuritySniffIT extends AbstractRemoteClusterSecurityT
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
-        final String encodedRemoteAccessApiKey = createRemoteAccessApiKey("""
+        final Map<String, Object> apiKeyMap = createRemoteAccessApiKey("""
             [
                {
                  "names": ["shared-*"],
@@ -71,7 +72,7 @@ public class RemoteClusterSecuritySniffIT extends AbstractRemoteClusterSecurityT
             Settings.builder()
                 .put("cluster.remote.my_remote_cluster.mode", "sniff")
                 .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                .put("cluster.remote.my_remote_cluster.authorization", encodedRemoteAccessApiKey)
+                .put("cluster.remote.my_remote_cluster.authorization", (String) apiKeyMap.get("encoded"))
                 .build()
         );
 

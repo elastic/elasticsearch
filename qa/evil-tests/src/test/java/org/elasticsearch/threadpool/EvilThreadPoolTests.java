@@ -98,8 +98,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             "test",
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
         try {
             checkExecutionError(getExecuteRunner(prioritizedExecutor));
@@ -208,8 +207,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             "test",
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
         try {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);

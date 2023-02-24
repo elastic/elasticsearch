@@ -213,8 +213,7 @@ public class DeterministicTaskQueue {
             TimeUnit.SECONDS,
             r -> { throw new AssertionError("should not create new threads"); },
             null,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         ) {
             @Override
             public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
@@ -362,12 +361,13 @@ public class DeterministicTaskQueue {
                 final int STARTED = 1;
                 final int CANCELLED = 2;
                 final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
+                final Runnable contextPreservingRunnable = getThreadContext().preserveContext(command);
 
                 scheduleAt(currentTimeMillis + delay.millis(), runnableWrapper.apply(new Runnable() {
                     @Override
                     public void run() {
                         if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
-                            command.run();
+                            contextPreservingRunnable.run();
                         }
                     }
 

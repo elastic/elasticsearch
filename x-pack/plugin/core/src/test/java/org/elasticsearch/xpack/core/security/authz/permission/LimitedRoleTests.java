@@ -17,14 +17,21 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -70,6 +77,213 @@ public class LimitedRoleTests extends ESTestCase {
 
         NullPointerException npe = expectThrows(NullPointerException.class, () -> fromRole.limitedBy(null));
         assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersection() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        String remoteClusterPrefix = randomAlphaOfLengthBetween(6, 8);
+        String remoteClusterSuffix = randomAlphaOfLength(1);
+        String remoteClusterAlias = remoteClusterPrefix + "-" + remoteClusterSuffix;
+        String[] baseGrantedFields = new String[] { randomAlphaOfLength(5) };
+        FieldPermissions baseFieldPermissions = randomFlsPermissions(baseGrantedFields);
+        Set<BytesReference> baseQuery = randomDlsQuery();
+        IndexPrivilege basePrivilege = randomIndexPrivilege();
+        boolean baseAllowRestrictedIndices = randomBoolean();
+        String[] baseIndices = randomList(1, 3, () -> randomAlphaOfLengthBetween(4, 6)).stream()
+            .sorted() // sorted so we can simplify assertions
+            .toArray(String[]::new);
+
+        Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "base-role")
+            .addRemoteGroup(
+                Set.of(remoteClusterAlias),
+                baseFieldPermissions,
+                baseQuery,
+                basePrivilege,
+                baseAllowRestrictedIndices,
+                baseIndices
+            )
+            // This privilege should be ignored
+            .addRemoteGroup(
+                Set.of(randomAlphaOfLength(3)),
+                randomFlsPermissions(),
+                randomDlsQuery(),
+                randomIndexPrivilege(),
+                randomBoolean(),
+                randomAlphaOfLengthBetween(4, 6)
+            )
+            .build();
+
+        String[] limitedGrantedFields = new String[] { randomAlphaOfLength(5) };
+        FieldPermissions limitedFieldPermissions = randomFlsPermissions(limitedGrantedFields);
+        Set<BytesReference> limitedQuery = randomDlsQuery();
+        IndexPrivilege limitedPrivilege = randomIndexPrivilege();
+        boolean limitedAllowRestrictedIndices = randomBoolean();
+        String[] limitedIndices = randomList(1, 3, () -> randomAlphaOfLengthBetween(4, 6)).stream()
+            .sorted() // sorted so we can simplify assertions
+            .toArray(String[]::new);
+
+        Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")
+            .addRemoteGroup(
+                Set.of(remoteClusterPrefix + "-*", randomAlphaOfLength(4)),
+                limitedFieldPermissions,
+                limitedQuery,
+                limitedPrivilege,
+                limitedAllowRestrictedIndices,
+                limitedIndices
+            )
+            // This privilege should be ignored
+            .addRemoteGroup(
+                Set.of(randomAlphaOfLength(4)),
+                randomFlsPermissions(),
+                randomDlsQuery(),
+                randomIndexPrivilege(),
+                randomBoolean(),
+                randomAlphaOfLength(9)
+            )
+            .build();
+
+        Role role = baseRole.limitedBy(limitedByRole);
+        RoleDescriptorsIntersection expected = new RoleDescriptorsIntersection(
+            List.of(
+                Set.of(
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(basePrivilege.name())
+                                .indices(baseIndices)
+                                .allowRestrictedIndices(baseAllowRestrictedIndices)
+                                .query(baseQuery != null ? baseQuery.stream().findFirst().orElse(null) : null)
+                                .grantedFields(baseFieldPermissions != FieldPermissions.DEFAULT ? baseGrantedFields : null)
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                ),
+                Set.of(
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(limitedPrivilege.name())
+                                .indices(limitedIndices)
+                                .allowRestrictedIndices(limitedAllowRestrictedIndices)
+                                .query(limitedQuery != null ? limitedQuery.stream().findFirst().orElse(null) : null)
+                                .grantedFields(limitedFieldPermissions != FieldPermissions.DEFAULT ? limitedGrantedFields : null)
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                )
+            )
+        );
+
+        // for the existing remote cluster alias, check that the result is equal to the expected intersection
+        assertThat(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias), equalTo(expected));
+
+        // and for a random cluster alias, check that it returns empty intersection
+        assertThat(
+            role.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 7)),
+            equalTo(RoleDescriptorsIntersection.EMPTY)
+        );
+    }
+
+    private static Set<BytesReference> randomDlsQuery() {
+        return randomFrom((Set<BytesReference>) null, Set.of(), Set.of(new BytesArray(Strings.format("""
+                {"term":{"%s":%b}}
+            """, randomAlphaOfLength(5), randomBoolean()))));
+    }
+
+    private static FieldPermissions randomFlsPermissions(String... grantedFields) {
+        return randomFrom(FieldPermissions.DEFAULT, new FieldPermissions(new FieldPermissionsDefinition(grantedFields, null)));
+    }
+
+    private static IndexPrivilege randomIndexPrivilege() {
+        return IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names())));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionReturnsEmpty() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        String remoteClusterAlias = randomAlphaOfLengthBetween(5, 8);
+        Role.Builder baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "base-role");
+        Role.Builder limitedByRole1 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-1");
+        Role.Builder limitedByRole2 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-2");
+
+        // randomly include remote indices privileges in one of the role for the remoteClusterAlias
+        boolean includeRemoteIndicesPermission = randomBoolean();
+        if (includeRemoteIndicesPermission) {
+            String roleToAddRemoteGroup = randomFrom("b", "l1", "l2");
+            switch (roleToAddRemoteGroup) {
+                case "b" -> baseRole.addRemoteGroup(
+                    Set.of(remoteClusterAlias),
+                    randomFlsPermissions(randomAlphaOfLength(3)),
+                    randomDlsQuery(),
+                    randomIndexPrivilege(),
+                    randomBoolean(),
+                    randomAlphaOfLength(3)
+                );
+                case "l1" -> limitedByRole1.addRemoteGroup(
+                    Set.of(remoteClusterAlias),
+                    randomFlsPermissions(randomAlphaOfLength(4)),
+                    randomDlsQuery(),
+                    randomIndexPrivilege(),
+                    randomBoolean(),
+                    randomAlphaOfLength(4)
+                );
+                case "l2" -> limitedByRole2.addRemoteGroup(
+                    Set.of(remoteClusterAlias),
+                    randomFlsPermissions(randomAlphaOfLength(5)),
+                    randomDlsQuery(),
+                    randomIndexPrivilege(),
+                    randomBoolean(),
+                    randomAlphaOfLength(5)
+                );
+                default -> throw new IllegalStateException("unexpected case");
+            }
+        }
+
+        // randomly add remote indices permissions for other cluster alias
+        // Note: defining a remote indices privileges for a remote cluster that we do not request intersection for, should be ignored
+        if (randomBoolean()) {
+            String otherRemoteClusterAlias = randomValueOtherThan(remoteClusterAlias, () -> randomAlphaOfLengthBetween(4, 6));
+            baseRole.addRemoteGroup(
+                Set.of(otherRemoteClusterAlias),
+                randomFlsPermissions(randomAlphaOfLength(3)),
+                randomDlsQuery(),
+                randomIndexPrivilege(),
+                randomBoolean(),
+                randomAlphaOfLength(5)
+            );
+            limitedByRole1.addRemoteGroup(
+                Set.of(otherRemoteClusterAlias),
+                randomFlsPermissions(randomAlphaOfLength(4)),
+                randomDlsQuery(),
+                randomIndexPrivilege(),
+                randomBoolean(),
+                randomAlphaOfLength(4)
+            );
+            limitedByRole2.addRemoteGroup(
+                Set.of(otherRemoteClusterAlias),
+                randomFlsPermissions(randomAlphaOfLength(5)),
+                randomDlsQuery(),
+                randomIndexPrivilege(),
+                randomBoolean(),
+                randomAlphaOfLength(3)
+            );
+        }
+
+        Role role = baseRole.build().limitedBy(limitedByRole1.build().limitedBy(limitedByRole2.build()));
+        assertThat(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias).roleDescriptorsList().isEmpty(), equalTo(true));
     }
 
     public void testAuthorize() {

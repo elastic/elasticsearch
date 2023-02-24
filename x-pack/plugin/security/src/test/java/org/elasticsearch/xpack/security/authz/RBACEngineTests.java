@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Privilege
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
@@ -87,6 +89,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -142,7 +146,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -1646,7 +1649,7 @@ public class RBACEngineTests extends ESTestCase {
             );
         }
 
-        final Role role = mockRoleWithRemoteIndices(remoteIndicesBuilder.build());
+        final Role role = createSimpleRoleWithRemoteIndices(remoteIndicesBuilder.build());
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo.getRole()).thenReturn(role);
 
@@ -1661,7 +1664,7 @@ public class RBACEngineTests extends ESTestCase {
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 expectedIndicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
                                 null,
@@ -1675,8 +1678,6 @@ public class RBACEngineTests extends ESTestCase {
                 )
             )
         );
-        verify(role, times(1)).remoteIndices();
-        verifyNoMoreInteractions(role);
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
@@ -1706,14 +1707,12 @@ public class RBACEngineTests extends ESTestCase {
         }
         final RemoteIndicesPermission permissions = remoteIndicesBuilder.build();
         List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = permissions.remoteIndicesGroups();
-        final Role role1 = mockRoleWithRemoteIndices(permissions);
+        final Role role1 = createSimpleRoleWithRemoteIndices(permissions);
         final RBACAuthorizationInfo authorizationInfo1 = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo1.getRole()).thenReturn(role1);
         final PlainActionFuture<RoleDescriptorsIntersection> future1 = new PlainActionFuture<>();
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo1, future1);
         final RoleDescriptorsIntersection actual1 = future1.get();
-        verify(role1, times(1)).remoteIndices();
-        verifyNoMoreInteractions(role1);
 
         // Randomize the order of both remote indices groups and each of the indices permissions groups each group holds
         final RemoteIndicesPermission shuffledPermissions = new RemoteIndicesPermission(
@@ -1728,15 +1727,13 @@ public class RBACEngineTests extends ESTestCase {
                     .toList()
             )
         );
-        final Role role2 = mockRoleWithRemoteIndices(shuffledPermissions);
+        final Role role2 = createSimpleRoleWithRemoteIndices(shuffledPermissions);
         final RBACAuthorizationInfo authorizationInfo2 = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo2.getRole()).thenReturn(role2);
         final PlainActionFuture<RoleDescriptorsIntersection> future2 = new PlainActionFuture<>();
         engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo2, future2);
         final RoleDescriptorsIntersection actual2 = future2.get();
 
-        verify(role2, times(1)).remoteIndices();
-        verifyNoMoreInteractions(role2);
         assertThat(actual1, equalTo(actual2));
         assertThat(actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length, equalTo(numGroups));
     }
@@ -1745,7 +1742,7 @@ public class RBACEngineTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final String concreteClusterAlias = randomAlphaOfLength(10);
-        final Role role = mockRoleWithRemoteIndices(
+        final Role role = createSimpleRoleWithRemoteIndices(
             RemoteIndicesPermission.builder()
                 .addGroup(
                     Set.of(concreteClusterAlias),
@@ -1768,8 +1765,6 @@ public class RBACEngineTests extends ESTestCase {
         );
         final RoleDescriptorsIntersection actual = future.get();
         assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
-        verify(role, times(1)).remoteIndices();
-        verifyNoMoreInteractions(role);
     }
 
     public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutRemoteIndicesPermissions() throws ExecutionException,
@@ -1777,7 +1772,7 @@ public class RBACEngineTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final String concreteClusterAlias = randomAlphaOfLength(10);
-        final Role role = mockRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
+        final Role role = createSimpleRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo.getRole()).thenReturn(role);
 
@@ -1789,6 +1784,117 @@ public class RBACEngineTests extends ESTestCase {
         );
         final RoleDescriptorsIntersection actual = future.get();
         assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsForReservedRoles() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        // superuser
+        {
+            final SimpleRole role = Role.buildFromRoleDescriptor(
+                reservedRolesStore.roleDescriptor("superuser"),
+                fieldPermissionsCache,
+                RESTRICTED_INDICES
+            );
+            final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+            when(authorizationInfo.getRole()).thenReturn(role);
+            final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+            engine.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            assertThat(
+                future.actionGet(),
+                equalTo(
+                    new RoleDescriptorsIntersection(
+                        new RoleDescriptor(
+                            Role.REMOTE_USER_ROLE_NAME,
+                            null,
+                            new IndicesPrivileges[] {
+                                IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
+                                IndicesPrivileges.builder()
+                                    .indices("*")
+                                    .privileges("monitor", "read", "read_cross_cluster", "view_index_metadata")
+                                    .allowRestrictedIndices(true)
+                                    .build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+                )
+            );
+        }
+
+        // kibana_system
+        {
+            final SimpleRole role = Role.buildFromRoleDescriptor(
+                reservedRolesStore.roleDescriptor("kibana_system"),
+                fieldPermissionsCache,
+                RESTRICTED_INDICES
+            );
+            final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+            when(authorizationInfo.getRole()).thenReturn(role);
+            final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+            engine.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            assertThat(
+                future.actionGet(),
+                equalTo(
+                    new RoleDescriptorsIntersection(
+                        new RoleDescriptor(
+                            Role.REMOTE_USER_ROLE_NAME,
+                            null,
+                            new IndicesPrivileges[] {
+                                IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+                )
+            );
+        }
+
+        // monitoring_user
+        {
+            final SimpleRole role = Role.buildFromRoleDescriptor(
+                reservedRolesStore.roleDescriptor("monitoring_user"),
+                fieldPermissionsCache,
+                RESTRICTED_INDICES
+            );
+            final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+            when(authorizationInfo.getRole()).thenReturn(role);
+            final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+            engine.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            assertThat(
+                future.actionGet(),
+                equalTo(
+                    new RoleDescriptorsIntersection(
+                        new RoleDescriptor(
+                            Role.REMOTE_USER_ROLE_NAME,
+                            null,
+                            new IndicesPrivileges[] {
+                                IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("metricbeat-*").privileges("read", "read_cross_cluster").build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+                )
+            );
+        }
     }
 
     public void testChildSearchActionAuthorizationIsSkipped() {
@@ -2042,15 +2148,22 @@ public class RBACEngineTests extends ESTestCase {
         return new FieldPermissionsDefinition.FieldGrantExcludeGroup(generateRandomStringArray(3, 10, false, false), new String[] {});
     }
 
-    private Role mockRoleWithRemoteIndices(final RemoteIndicesPermission remoteIndicesPermission) {
-        final Role role = mock(Role.class);
+    private Role createSimpleRoleWithRemoteIndices(final RemoteIndicesPermission remoteIndicesPermission) {
         final String[] roleNames = generateRandomStringArray(3, 10, false, false);
-        when(role.names()).thenReturn(roleNames);
-        when(role.cluster()).thenReturn(ClusterPermission.NONE);
-        when(role.indices()).thenReturn(IndicesPermission.NONE);
-        when(role.application()).thenReturn(ApplicationPermission.NONE);
-        when(role.runAs()).thenReturn(RunAsPermission.NONE);
-        when(role.remoteIndices()).thenReturn(remoteIndicesPermission);
-        return role;
+        Role.Builder roleBuilder = Role.builder(new RestrictedIndices(Automatons.EMPTY), roleNames);
+        remoteIndicesPermission.remoteIndicesGroups().forEach(group -> {
+            group.indicesPermissionGroups()
+                .forEach(
+                    p -> roleBuilder.addRemoteGroup(
+                        group.remoteClusterAliases(),
+                        p.getFieldPermissions(),
+                        p.getQuery(),
+                        p.privilege(),
+                        p.allowRestrictedIndices(),
+                        p.indices()
+                    )
+                );
+        });
+        return roleBuilder.build();
     }
 }

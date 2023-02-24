@@ -85,8 +85,13 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected void configureRemoteClustersWithApiKey(String indicesPrivilegesJson) throws IOException {
-        final String encodedRemoteAccessApiKey = createRemoteAccessApiKey(indicesPrivilegesJson);
+    /**
+     * Returns API key ID of remote access API key.
+     */
+    protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson) throws IOException {
+        // Create API key on FC
+        final Map<String, Object> apiKeyMap = createRemoteAccessApiKey(indicesPrivilegesJson);
+        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
 
         // Update remote cluster settings on QC with the API key
         updateClusterSettings(
@@ -96,9 +101,11 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
                 .put("cluster.remote.my_remote_cluster.authorization", encodedRemoteAccessApiKey)
                 .build()
         );
+
+        return (String) apiKeyMap.get("id");
     }
 
-    protected String createRemoteAccessApiKey(String indicesPrivilegesJson) throws IOException {
+    protected Map<String, Object> createRemoteAccessApiKey(String indicesPrivilegesJson) throws IOException {
         // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
@@ -114,8 +121,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         final Response createApiKeyResponse = performRequestAgainstFulfillingCluster(createApiKeyRequest);
         assertOK(createApiKeyResponse);
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
-        return encodedRemoteAccessApiKey;
+        return apiKeyMap;
     }
 
     protected Response performRequestAgainstFulfillingCluster(Request request) throws IOException {

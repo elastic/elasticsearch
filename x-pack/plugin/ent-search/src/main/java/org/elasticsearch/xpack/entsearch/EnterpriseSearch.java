@@ -39,6 +39,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 import org.elasticsearch.xpack.entsearch.engine.action.DeleteEngineAction;
@@ -141,8 +142,13 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             xContentRegistry
         );
         analyticsTemplateRegistry.initialize();
+        final AnalyticsCollectionService analyticsCollectionService = new AnalyticsCollectionService(
+            client,
+            clusterService,
+            indexNameExpressionResolver
+        );
 
-        return Arrays.asList(engineService, analyticsTemplateRegistry);
+        return Arrays.asList(engineService, analyticsTemplateRegistry, analyticsCollectionService);
     }
 
     @Override

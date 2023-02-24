@@ -27,6 +27,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.UUIDs;
@@ -88,6 +89,8 @@ public class SearchDirectory extends BaseDirectory {
 
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
 
+    private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
+
     private volatile Map<String, Long> currentMetadata = Map.of();
 
     public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
@@ -111,10 +114,29 @@ public class SearchDirectory extends BaseDirectory {
      */
     public void updateCommit(Map<String, StoreFileMetadata> newCommit) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
-        // TODO: we only accumulate files as we see new commits, we need to start cleaning this map once we add deletes
-        final Map<String, Long> updated = new HashMap<>(currentMetadata);
-        newCommit.forEach((name, storeMetadata) -> updated.put(name, storeMetadata.length()));
-        currentMetadata = Map.copyOf(updated);
+        assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+        try {
+            // TODO: we only accumulate files as we see new commits, we need to start cleaning this map once we add deletes
+            final Map<String, Long> updated = new HashMap<>(currentMetadata);
+            newCommit.forEach((name, storeMetadata) -> updated.put(name, storeMetadata.length()));
+            currentMetadata = Map.copyOf(updated);
+        } finally {
+            assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+        }
+    }
+
+    private boolean assertCompareAndSetUpdatingCommitThread(Thread current, Thread updated) {
+        final Thread witness = updatingCommitThread.compareAndExchange(current, updated);
+        assert witness == current
+            : "Unable to set updating commit thread to ["
+                + updated
+                + "]: expected thread ["
+                + current
+                + "] to be the updating commit thread, but thread "
+                + witness
+                + " is already updating the commit of "
+                + shardId;
+        return true;
     }
 
     @Override

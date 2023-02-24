@@ -6,11 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.KnownTransportVersions;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;

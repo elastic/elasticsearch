@@ -366,7 +366,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         public long currentBufferSize() {
-            return bufferState.streamOutput.size();
+            synchronized (bufferLock) {
+                return bufferState != null ? bufferState.streamOutput.size() : 0L;
+            }
         }
 
         public BufferState pollBufferForSync() {

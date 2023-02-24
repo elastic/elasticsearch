@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
  * current node is part of the cluster and it won't receive cluster state updates from the remote cluster. Remote clusters are also not
@@ -115,9 +117,7 @@ final class RemoteClusterConnection implements Closeable {
                 threadContext.markAsSystemContext();
                 Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
 
-                if (RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(
-                    remoteConnectionManager.getConnectionProfile().getTransportProfile()
-                )) {
+                if (REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())) {
                     transportService.sendRequest(
                         connection,
                         RemoteClusterNodesAction.NAME,

@@ -49,6 +49,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -278,16 +279,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     final DiscoveryNode handshakeNodeWithProxy = maybeAddProxyAddress(proxyAddress, handshakeNode);
                     connectionManager.connectToRemoteClusterNode(
                         handshakeNodeWithProxy,
-                        (connection, profile, l) -> transportService.connectionValidator(handshakeNodeWithProxy)
-                            .validate(
-                                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
-                                    connection,
-                                    clusterAlias,
-                                    connectionManager.getConnectionProfile().getTransportProfile()
-                                ),
-                                profile,
-                                l
-                            ),
+                        getConnectionValidator(handshakeNodeWithProxy),
                         fullConnectionStep
                     );
                 } else {
@@ -315,13 +307,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 ThreadPool threadPool = transportService.getThreadPool();
                 ThreadContext threadContext = threadPool.getThreadContext();
 
-                if (RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(
-                    connectionManager.getConnectionProfile().getTransportProfile()
-                )) {
+                if (REMOTE_CLUSTER_PROFILE.equals(connectionManager.getConnectionProfile().getTransportProfile())) {
                     TransportService.ContextRestoreResponseHandler<RemoteClusterNodesAction.Response> responseHandler =
                         new TransportService.ContextRestoreResponseHandler<>(
                             threadContext.newRestorableContext(false),
-                            new SniffRemoteClusterNodesResponseHandler(connection, listener, seedNodesSuppliers)
+                            new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers)
                         );
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         // we stash any context here since this is an internal execution and should not leak any
@@ -342,7 +332,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler =
                         new TransportService.ContextRestoreResponseHandler<>(
                             threadContext.newRestorableContext(false),
-                            new SniffClusterStateResponseHandler(connection, listener, seedNodesSuppliers)
+                            new ClusterStateSniffResponseHandler(connection, listener, seedNodesSuppliers)
                         );
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         // we stash any context here since this is an internal execution and should not leak any
@@ -370,8 +360,21 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
-    private class SniffRemoteClusterNodesResponseHandler extends AbstractSniffResponseHandler<RemoteClusterNodesAction.Response> {
-        SniffRemoteClusterNodesResponseHandler(
+    private ConnectionManager.ConnectionValidator getConnectionValidator(DiscoveryNode node) {
+        return (connection, profile, listener) -> transportService.connectionValidator(node)
+            .validate(
+                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                    connection,
+                    clusterAlias,
+                    connectionManager.getConnectionProfile().getTransportProfile()
+                ),
+                profile,
+                listener
+            );
+    }
+
+    private class RemoteClusterNodesSniffResponseHandler extends AbstractSniffResponseHandler<RemoteClusterNodesAction.Response> {
+        RemoteClusterNodesSniffResponseHandler(
             Transport.Connection connection,
             ActionListener<Void> listener,
             Iterator<Supplier<DiscoveryNode>> seedNodes
@@ -390,8 +393,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
-    private class SniffClusterStateResponseHandler extends AbstractSniffResponseHandler<ClusterStateResponse> {
-        SniffClusterStateResponseHandler(
+    private class ClusterStateSniffResponseHandler extends AbstractSniffResponseHandler<ClusterStateResponse> {
+        ClusterStateSniffResponseHandler(
             Transport.Connection connection,
             ActionListener<Void> listener,
             Iterator<Supplier<DiscoveryNode>> seedNodes
@@ -410,7 +413,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
-    /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */
+    /* This class handles the nodes response from the remote cluster when sniffing nodes to connect to */
     private abstract class AbstractSniffResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
         private final Transport.Connection connection;
@@ -433,18 +436,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 if (nodePredicate.test(node) && shouldOpenMoreConnections()) {
                     logger.trace("[{}] opening managed connection to node: [{}] proxy address: [{}]", clusterAlias, node, proxyAddress);
                     final DiscoveryNode nodeWithProxy = maybeAddProxyAddress(proxyAddress, node);
-                    connectionManager.connectToRemoteClusterNode(nodeWithProxy, (connection, profile, l) -> {
-                        transportService.connectionValidator(node)
-                            .validate(
-                                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
-                                    connection,
-                                    clusterAlias,
-                                    connectionManager.getConnectionProfile().getTransportProfile()
-                                ),
-                                profile,
-                                l
-                            );
-                    }, new ActionListener<>() {
+                    connectionManager.connectToRemoteClusterNode(nodeWithProxy, getConnectionValidator(node), new ActionListener<>() {
                         @Override
                         public void onResponse(Void aVoid) {
                             handleNodes(nodesIter);

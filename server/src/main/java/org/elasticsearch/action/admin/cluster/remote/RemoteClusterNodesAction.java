@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportService;
 
@@ -35,12 +34,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesAction.Response> {
 
     public static final RemoteClusterNodesAction INSTANCE = new RemoteClusterNodesAction();
-    public static final String NAME = "cluster:admin/remote_cluster/nodes";
+    public static final String NAME = "cluster:internal/remote_cluster/nodes";
 
     public RemoteClusterNodesAction() {
         super(NAME, RemoteClusterNodesAction.Response::new);
@@ -114,14 +114,10 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
                             }
                             final Map<String, BoundTransportAddress> profileAddresses = nodeInfo.getInfo(TransportInfo.class)
                                 .getProfileAddresses();
-                            if (profileAddresses.containsKey(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE)) {
-                                return nodeInfo.getNode()
-                                    .withTransportAddress(
-                                        profileAddresses.get(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE).publishAddress()
-                                    );
-                            } else {
-                                return null;
-                            }
+                            final BoundTransportAddress remoteClusterServerAddress = profileAddresses.get(REMOTE_CLUSTER_PROFILE);
+                            assert remoteClusterServerAddress != null
+                                : "remote cluster server is enabled but corresponding transport profile is missing";
+                            return nodeInfo.getNode().withTransportAddress(remoteClusterServerAddress.publishAddress());
                         }).filter(Objects::nonNull).toList();
                         listener.onResponse(new Response(remoteClusterNodes));
                     }, listener::onFailure), NodesInfoResponse::new)

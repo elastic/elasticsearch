@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 
 public class RemoteConnectionManager implements ConnectionManager {
@@ -303,14 +304,15 @@ public class RemoteConnectionManager implements ConnectionManager {
         private static Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
         private final Transport.Connection connection;
         private final String clusterAlias;
-        private final boolean isNewRcs;
+        private final boolean isRemoteClusterProfile;
 
         InternalRemoteConnection(Transport.Connection connection, String clusterAlias, String transportProfile) {
+            assert false == connection instanceof InternalRemoteConnection : "should not double wrap";
             assert false == connection instanceof ProxyConnection
                 : "proxy connection should wrap internal remote connection, not the other way around";
             this.clusterAlias = Objects.requireNonNull(clusterAlias);
             this.connection = Objects.requireNonNull(connection);
-            this.isNewRcs = RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(Objects.requireNonNull(transportProfile));
+            this.isRemoteClusterProfile = REMOTE_CLUSTER_PROFILE.equals(Objects.requireNonNull(transportProfile));
         }
 
         public String getClusterAlias() {
@@ -326,7 +328,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
             final String effectiveAction;
-            if (isNewRcs && TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
+            if (isRemoteClusterProfile && TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
                 logger.trace("sending remote cluster specific handshake to node [{}] of remote cluster [{}]", getNode(), clusterAlias);
                 effectiveAction = REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
             } else {

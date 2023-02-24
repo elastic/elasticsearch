@@ -434,6 +434,19 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
             modelId
         );
+
+        if (randomBoolean()) {
+            // Set an allocation awareness attribute that doesn't exist on the ML nodes.
+            // It shouldn't make any difference to the result of the test.
+            // The setting is cleared in the cleanup method of these tests.
+            Request clusterSettings = new Request("PUT", "_cluster/settings");
+            clusterSettings.setJsonEntity("""
+                {"persistent" : {
+                        "cluster.routing.allocation.awareness.attributes": "rack"
+                    }}""");
+            client().performRequest(clusterSettings);
+        }
+
         startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
 
         List<String> inputs = List.of(
@@ -816,12 +829,12 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
         // The setting is cleared in the cleanup method of these tests.
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(clusterSettings);
 
         String modelId1 = "stopping_triggers_rebalance_1";
         createPassThroughModel(modelId1);
@@ -894,12 +907,12 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
         // The setting is cleared in the cleanup method of these tests.
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(clusterSettings);
 
         String modelId1 = "start_no_processors_left_lazy_start_1";
         createPassThroughModel(modelId1);
@@ -974,12 +987,12 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     }
 
     public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsPossible() throws Exception {
-        Request maxLazyNodeSetting = new Request("PUT", "_cluster/settings");
-        maxLazyNodeSetting.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(maxLazyNodeSetting);
+        client().performRequest(clusterSettings);
 
         String modelId = "update_deployment_allocations_increased_scaling_possible";
         createPassThroughModel(modelId);

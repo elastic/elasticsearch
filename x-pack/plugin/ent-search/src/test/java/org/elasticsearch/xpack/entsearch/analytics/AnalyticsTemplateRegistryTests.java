@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -65,7 +66,6 @@ import static org.mockito.Mockito.when;
 
 public class AnalyticsTemplateRegistryTests extends ESTestCase {
     private AnalyticsTemplateRegistry registry;
-    private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
 
@@ -73,7 +73,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     public void createRegistryAndClient() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         registry = new AnalyticsTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
     }
 
@@ -84,11 +84,42 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
+    public void testThatNonExistingComposableTemplatesAreAddedImmediately() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> existingComponentTemplates = Map.of(
+            AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
+            AnalyticsTemplateRegistry.REGISTRY_VERSION,
+            AnalyticsTemplateRegistry.EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME,
+            AnalyticsTemplateRegistry.REGISTRY_VERSION
+        );
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), existingComponentTemplates, nodes);
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> verifyComposableTemplateInstalled(calledTimes, action, request, listener));
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComposableTemplateConfigs().size())));
+
+        calledTimes.set(0);
+
+        // attempting to register the event multiple times as a race condition can yield this test flaky, namely:
+        // when calling registry.clusterChanged(newEvent) the templateCreationsInProgress state that the IndexTemplateRegistry maintains
+        // might've not yet been updated to reflect that the first template registration was complete, so a second template registration
+        // will not be issued anymore, leaving calledTimes to 0
+        assertBusy(() -> {
+            // now delete one template from the cluster state and let's retry
+            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyMap(), existingComponentTemplates, nodes);
+            registry.clusterChanged(newEvent);
+            assertThat(calledTimes.get(), greaterThan(1));
+        });
+    }
+
+    public void testThatNonExistingComponentTemplatesAreAddedImmediately() throws Exception {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyComponentTemplateInstalled(calledTimes, action, request, listener));
@@ -102,8 +133,8 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         // might've not yet been updated to reflect that the first template registration was complete, so a second template registration
         // will not be issued anymore, leaving calledTimes to 0
         assertBusy(() -> {
-            // now delete one template from the cluster state and lets retry
-            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyMap(), nodes);
+            // now delete one template from the cluster state and let's retry
+            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
             registry.clusterChanged(newEvent);
             assertThat(calledTimes.get(), greaterThan(1));
         });
@@ -135,7 +166,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             }
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
     }
@@ -161,7 +192,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), policyMap, nodes);
         registry.clusterChanged(event);
     }
 
@@ -206,16 +237,17 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policies.get(0).getName());
             policyMap.put(policies.get(0).getName(), different);
-            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
+            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), policyMap, nodes);
             registry.clusterChanged(event);
         }
     }
 
-    public void testThatVersionedOldTemplatesAreUpgraded() throws Exception {
+    public void testThatVersionedOldComponentTemplatesAreUpgraded() throws Exception {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
+            Collections.emptyMap(),
             Collections.singletonMap(
                 AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
                 AnalyticsTemplateRegistry.REGISTRY_VERSION - 1
@@ -228,11 +260,12 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComponentTemplateConfigs().size())));
     }
 
-    public void testThatUnversionedOldTemplatesAreUpgraded() throws Exception {
+    public void testThatUnversionedOldComponentTemplatesAreUpgraded() throws Exception {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
+            Collections.emptyMap(),
             Collections.singletonMap(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME, null),
             nodes
         );
@@ -243,14 +276,14 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.core.template:DEBUG", reason = "test")
-    public void testSameOrHigherVersionTemplateNotUpgraded() {
+    public void testSameOrHigherVersionComponentTemplateNotUpgraded() {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, Integer> versions = new HashMap<>();
         versions.put(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME, AnalyticsTemplateRegistry.REGISTRY_VERSION);
         versions.put(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME, AnalyticsTemplateRegistry.REGISTRY_VERSION);
-        ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(versions, nodes);
+        ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
                 fail("template should not have been re-installed");
@@ -277,7 +310,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
             AnalyticsTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
-        ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(versions, nodes);
+        ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
         registry.clusterChanged(higherVersionEvent);
     }
 
@@ -292,6 +325,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.singletonMap(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_TEMPLATE_NAME, null),
+            Collections.emptyMap(),
             nodes
         );
         registry.clusterChanged(event);
@@ -333,6 +367,35 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         }
     }
 
+    private ActionResponse verifyComposableTemplateInstalled(
+        AtomicInteger calledTimes,
+        ActionType<?> action,
+        ActionRequest request,
+        ActionListener<?> listener
+    ) {
+        if (action instanceof PutComponentTemplateAction) {
+            // Ignore this, it's verified in another test
+            return AcknowledgedResponse.TRUE;
+        } else if (action instanceof PutLifecycleAction) {
+            // Ignore this, it's verified in another test
+            return AcknowledgedResponse.TRUE;
+        } else if (action instanceof PutComposableIndexTemplateAction) {
+            calledTimes.incrementAndGet();
+            assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
+            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
+            final PutComposableIndexTemplateAction.Request putRequest = (PutComposableIndexTemplateAction.Request) request;
+            assertThat(putRequest.indexTemplate().version(), equalTo((long) AnalyticsTemplateRegistry.REGISTRY_VERSION));
+            final List<String> indexPatterns = putRequest.indexTemplate().indexPatterns();
+            assertThat(indexPatterns, hasSize(1));
+            assertThat(indexPatterns.get(0), equalTo(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN));
+            assertNotNull(listener);
+            return new TestPutIndexTemplateResponse(true);
+        } else {
+            fail("client called with unexpected request:" + request.toString());
+            return null;
+        }
+    }
+
     private ActionResponse verifyComponentTemplateInstalled(
         AtomicInteger calledTimes,
         ActionType<?> action,
@@ -359,16 +422,21 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         }
     }
 
-    private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplates, DiscoveryNodes nodes) {
-        return createClusterChangedEvent(existingTemplates, Collections.emptyMap(), nodes);
+    private ClusterChangedEvent createClusterChangedEvent(
+        Map<String, Integer> existingComposableTemplates,
+        Map<String, Integer> existingComponentTemplates,
+        DiscoveryNodes nodes
+    ) {
+        return createClusterChangedEvent(existingComposableTemplates, existingComponentTemplates, Collections.emptyMap(), nodes);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
-        Map<String, Integer> existingTemplates,
+        Map<String, Integer> existingComposableTemplates,
+        Map<String, Integer> existingComponentTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes);
+        ClusterState cs = createClusterState(existingComposableTemplates, existingComponentTemplates, existingPolicies, nodes);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -381,11 +449,18 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(
-        Settings nodeSettings,
+        Map<String, Integer> existingComposableTemplates,
         Map<String, Integer> existingComponentTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
+        Map<String, ComposableIndexTemplate> composableTemplates = new HashMap<>();
+        for (Map.Entry<String, Integer> template : existingComposableTemplates.entrySet()) {
+            ComposableIndexTemplate mockTemplate = mock(ComposableIndexTemplate.class);
+            when(mockTemplate.version()).thenReturn(template.getValue() == null ? null : (long) template.getValue());
+            composableTemplates.put(template.getKey(), mockTemplate);
+        }
+
         Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingComponentTemplates.entrySet()) {
             ComponentTemplate mockTemplate = mock(ComponentTemplate.class);
@@ -401,8 +476,9 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
+                    .indexTemplates(composableTemplates)
                     .componentTemplates(componentTemplates)
-                    .transientSettings(nodeSettings)
+                    .transientSettings(Settings.EMPTY)
                     .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
                     .build()
             )

@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -208,7 +209,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     bufferedChecksumStreamOutput.writeMap(checkpoints);
                     streamOutput.writeLong(bufferedChecksumStreamOutput.getChecksum());
                     objectStoreService.uploadTranslogFile(
-                        String.valueOf(fileName.getAndIncrement()),
+                        Strings.format("%019d", fileName.getAndIncrement()), // 19 characters with leading zeroes to fit max value of long
                         CompositeBytesReference.of(streamOutput.bytes(), compoundTranslog.bytes()),
                         new ActionListener<>() {
                             @Override

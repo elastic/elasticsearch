@@ -69,8 +69,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.add(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            builtInClusterSettings);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
         clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
 
         now = randomNonNegativeLong();
@@ -83,14 +82,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesClient);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
-        dataLifecycleService = new DataLifecycleService(
-            Settings.EMPTY,
-            client,
-            clusterService,
-            clock,
-            threadPool,
-            () -> now
-        );
+        dataLifecycleService = new DataLifecycleService(Settings.EMPTY, client, clusterService, clock, threadPool, () -> now);
         dataLifecycleService.init();
 
         rolloverRequestCaptor = ArgumentCaptor.forClass(RolloverRequest.class);

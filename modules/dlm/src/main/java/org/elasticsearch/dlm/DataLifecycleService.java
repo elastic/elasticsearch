@@ -241,11 +241,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     @Nullable
     static TimeValue getRetentionConfiguration(DataStream dataStream) {
-        TimeValue retention = null;
-        if (dataStream.getLifecycle() != null) {
-            retention = dataStream.getLifecycle().getDataRetention();
+        if (dataStream.getLifecycle() == null) {
+            return null;
         }
-        return retention;
+        return dataStream.getLifecycle().getDataRetention();
     }
 
     /**

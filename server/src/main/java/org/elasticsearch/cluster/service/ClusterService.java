@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -243,28 +243,27 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task; submitted updates will be
-     * batched across the same instance of executor. The exact batching
-     * semantics depend on the underlying implementation but a rough
-     * guideline is that if the update task is submitted while there
-     * are pending update tasks for the same executor, these update
-     * tasks will all be executed on the executor in a single batch
+     * Create a new task queue which can be used to submit tasks for execution by the master service. Tasks submitted to the same queue
+     * (while the master service is otherwise busy) will be batched together into a single cluster state update. You should therefore re-use
+     * each queue as much as possible.
      *
-     * @param source   the source of the cluster state update task
-     * @param task     the state and the callback needed for the cluster state update task
-     * @param config   the cluster state update task configuration
-     * @param executor the cluster state update task executor; tasks
-     *                 that share the same executor will be executed
-     *                 batches on this executor
-     * @param <T>      the type of the cluster state update task state
+     * @param name The name of the queue, which is mostly useful for debugging.
      *
+     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorites other than {@link Priority#NORMAL}
+     *                 where possible. A stream of higher-priority tasks can starve lower-priority ones from running. Higher-priority tasks
+     *                 should definitely re-use the same {@link MasterServiceTaskQueue} so that they are executed in batches.
+     *
+     * @param executor The executor which processes each batch of tasks.
+     *
+     * @param <T> The type of the tasks
+     *
+     * @return A new batching task queue.
      */
-    public <T extends ClusterStateTaskListener> void submitStateUpdateTask(
-        String source,
-        T task,
-        ClusterStateTaskConfig config,
+    public <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> createTaskQueue(
+        String name,
+        Priority priority,
         ClusterStateTaskExecutor<T> executor
     ) {
-        masterService.submitStateUpdateTask(source, task, config, executor);
+        return masterService.createTaskQueue(name, priority, executor);
     }
 }

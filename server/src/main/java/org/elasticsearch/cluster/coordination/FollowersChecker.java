@@ -126,10 +126,7 @@ public class FollowersChecker {
             false,
             false,
             FollowerCheckRequest::new,
-            (request, transportChannel, task) -> handleFollowerCheck(
-                request,
-                new ChannelActionListener<>(transportChannel, FOLLOWER_CHECK_ACTION_NAME, request)
-            )
+            (request, transportChannel, task) -> handleFollowerCheck(request, new ChannelActionListener<>(transportChannel))
         );
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override

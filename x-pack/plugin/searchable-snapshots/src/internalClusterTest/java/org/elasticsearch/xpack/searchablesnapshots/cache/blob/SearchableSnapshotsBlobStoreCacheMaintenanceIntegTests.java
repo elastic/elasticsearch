@@ -446,7 +446,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 ByteRange.of(i, i + length),
                 new BytesArray(bytes, 0, length),
                 creationTimeInEpochMillis,
-                ActionListener.wrap(latch::countDown)
+                ActionListener.running(latch::countDown)
             );
         }
         try {

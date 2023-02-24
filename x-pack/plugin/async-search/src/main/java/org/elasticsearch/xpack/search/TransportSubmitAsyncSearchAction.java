@@ -207,7 +207,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             searchTask.getExecutionId().getDocId(),
             threadContext.getResponseHeaders(),
             response,
-            ActionListener.wrap(() -> {
+            ActionListener.running(() -> {
                 taskManager.unregister(searchTask);
                 nextAction.run();
             })

@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
-import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
@@ -57,7 +57,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
-    public static final String ROLLUP_INDEXER_SHARD_ACTION = RollupIndexerAction.NAME + "[s]";
+    public static final String ROLLUP_INDEXER_SHARD_ACTION = DownsampleIndexerAction.NAME + "[s]";
 
     private static class TestClusterHelper {
         private final InternalTestCluster cluster;

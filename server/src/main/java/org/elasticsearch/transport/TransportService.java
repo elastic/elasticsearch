@@ -120,6 +120,11 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
+        }
+
+        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
             sendLocalRequest(requestId, action, request, options);
         }
@@ -1522,8 +1527,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public TransportVersion getVersion() {
-            return localNode.getVersion().transportVersion;
+        public String toString() {
+            return Strings.format("DirectResponseChannel{req=%d}{%s}", requestId, action);
         }
     }
 
@@ -1535,7 +1540,10 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private boolean isLocalNode(DiscoveryNode discoveryNode) {
-        return Objects.requireNonNull(discoveryNode, "discovery node must not be null").equals(localNode);
+        if (discoveryNode == null) {
+            throw new NodeNotConnectedException(discoveryNode, "discovery node must not be null");
+        }
+        return discoveryNode.equals(localNode);
     }
 
     private static final class DelegatingTransportMessageListener implements TransportMessageListener {

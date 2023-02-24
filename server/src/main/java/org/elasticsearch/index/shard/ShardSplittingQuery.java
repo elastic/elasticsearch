@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -227,13 +228,15 @@ final class ShardSplittingQuery extends Query {
        of a routing partitioned index sine otherwise we would need to un-invert the _id and _routing field which is memory heavy */
     private final class Visitor extends StoredFieldVisitor {
         final LeafReader leafReader;
+        final StoredFields storedFields;
         private int leftToVisit = 2;
         private final BytesRef spare = new BytesRef();
         private String routing;
         private String id;
 
-        Visitor(LeafReader leafReader) {
+        Visitor(LeafReader leafReader) throws IOException {
             this.leafReader = leafReader;
+            this.storedFields = leafReader.storedFields();
         }
 
         @Override
@@ -268,7 +271,7 @@ final class ShardSplittingQuery extends Query {
         boolean matches(int doc) throws IOException {
             routing = id = null;
             leftToVisit = 2;
-            leafReader.document(doc, this);
+            storedFields.document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
             int targetShardId = indexRouting.getShard(id, routing);
             return targetShardId != shardId;

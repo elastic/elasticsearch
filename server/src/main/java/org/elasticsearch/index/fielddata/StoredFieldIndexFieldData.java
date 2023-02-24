@@ -10,6 +10,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -51,11 +53,15 @@ public abstract class StoredFieldIndexFieldData<T> implements IndexFieldData<Sto
 
     @Override
     public final StoredFieldLeafFieldData load(LeafReaderContext context) {
-        return loadDirect(context);
+        try {
+            return loadDirect(context);
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToElastic(e);
+        }
     }
 
     @Override
-    public final StoredFieldLeafFieldData loadDirect(LeafReaderContext context) {
+    public final StoredFieldLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
         return new StoredFieldLeafFieldData(loader.getLoader(context, null));
     }
 

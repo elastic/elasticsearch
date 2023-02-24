@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -50,17 +51,27 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(TranslogReplicator.class);
 
+    private static final TimeValue FLUSH_CHECK_INTERVAL = TimeValue.timeValueMillis(50);
+
     public static final Setting<TimeValue> FLUSH_INTERVAL_SETTING = Setting.timeSetting(
         "stateless.translog.flush_interval",
-        new TimeValue(200, TimeUnit.MILLISECONDS),
-        new TimeValue(10, TimeUnit.MILLISECONDS),
+        TimeValue.timeValueMillis(200),
+        TimeValue.timeValueMillis(100),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> FLUSH_SIZE_SETTING = Setting.byteSizeSetting(
+        "stateless.translog.flush_size",
+        ByteSizeValue.ofMb(16),
+        ByteSizeValue.ofBytes(0),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -71,12 +82,18 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStateByShardId = new ConcurrentHashMap<>();
     private final Object generateFlushLock = new Object();
     private final AtomicLong fileName = new AtomicLong(0);
+
+    private final AtomicLong lastFlushTime;
+
     private final TimeValue flushInterval;
+    private final ByteSizeValue flushSize;
 
     public TranslogReplicator(final ThreadPool threadPool, final Settings settings, final ObjectStoreService objectStoreService) {
         this.threadPool = threadPool;
         this.objectStoreService = objectStoreService;
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
+        this.flushSize = FLUSH_SIZE_SETTING.get(settings);
+        this.lastFlushTime = new AtomicLong(getCurrentTimeMillis());
     }
 
     public void setBigArrays(BigArrays bigArrays) {
@@ -89,25 +106,34 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        threadPool.scheduler().scheduleAtFixedRate(new AbstractRunnable() {
+        threadPool.scheduleWithFixedDelay(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws IOException {
+                if (isFlushIntervalReached() || isFlushSizeReached()) {
+                    flush();
+                }
+            }
+
+            private boolean isFlushIntervalReached() {
+                return lastFlushTime.get() + flushInterval.millis() <= getCurrentTimeMillis();
+            }
+
+            private boolean isFlushSizeReached() {
+                return getCurrentBufferSize() >= flushSize.getBytes();
+            }
 
             @Override
             public void onFailure(Exception e) {
                 logger.error("Unexpected exception when running translog replication task", e);
             }
-
-            @Override
-            protected void doRun() throws IOException {
-                flush();
-            }
-        }, flushInterval.duration(), flushInterval.duration(), flushInterval.timeUnit());
+        }, FLUSH_CHECK_INTERVAL, ThreadPool.Names.GENERIC);
     }
 
     @Override
     protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {
+    protected void doClose() {
         shardSyncStateByShardId.values().forEach(ShardSyncState::close);
         // TODO: Finish listeners
     }
@@ -134,6 +160,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         // This lock only needs to lock modifications to shardSyncStateByShardId and fileName generation.
         // In the future what it "locks" could be slimmed down.
         synchronized (generateFlushLock) {
+            lastFlushTime.set(getCurrentTimeMillis());
             Map<ShardId, BufferState> toFlush = Maps.newMapWithExpectedSize(shardSyncStateByShardId.size());
             for (Map.Entry<ShardId, ShardSyncState> syncState : shardSyncStateByShardId.entrySet()) {
                 BufferState bufferState = syncState.getValue().pollBufferForSync();
@@ -214,7 +241,18 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 }
             }
         }
+    }
 
+    private long getCurrentTimeMillis() {
+        return threadPool.rawRelativeTimeInMillis();
+    }
+
+    private long getCurrentBufferSize() {
+        long size = 0;
+        for (ShardSyncState state : shardSyncStateByShardId.values()) {
+            size += state.currentBufferSize();
+        }
+        return size;
     }
 
     private static class BufferState implements Releasable {
@@ -233,7 +271,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         public void markNewOp(long seqNo) {
             minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
             maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-            ++totalOps;
+            totalOps++;
         }
 
         @Override
@@ -325,7 +363,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 data.writeTo(bufferState.streamOutput);
                 bufferState.markNewOp(seqNo);
             }
+        }
 
+        public long currentBufferSize() {
+            return bufferState.streamOutput.size();
         }
 
         public BufferState pollBufferForSync() {

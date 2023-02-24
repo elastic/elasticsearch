@@ -34,7 +34,7 @@ public class PostWriteRefresh {
     public void refreshShard(
         WriteRequest.RefreshPolicy policy,
         IndexShard indexShard,
-        Translog.Location location,
+        @Nullable Translog.Location location,
         ActionListener<Boolean> listener
     ) {
         doRefreshShard(policy, true, transportService, indexShard, location, listener);
@@ -43,7 +43,7 @@ public class PostWriteRefresh {
     public static void refreshReplicaShard(
         WriteRequest.RefreshPolicy policy,
         IndexShard indexShard,
-        Translog.Location location,
+        @Nullable Translog.Location location,
         ActionListener<Boolean> listener
     ) {
         doRefreshShard(policy, false, null, indexShard, location, listener);
@@ -54,7 +54,7 @@ public class PostWriteRefresh {
         boolean isPrimary,
         @Nullable TransportService transportService,
         IndexShard indexShard,
-        Translog.Location location,
+        @Nullable Translog.Location location,
         ActionListener<Boolean> listener
     ) {
         switch (policy) {

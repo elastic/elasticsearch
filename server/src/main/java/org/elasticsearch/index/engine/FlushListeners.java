@@ -9,6 +9,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,7 +48,7 @@ public class FlushListeners implements Closeable {
         Tuple<Long, Translog.Location> lastCommitBeforeSynchronized = lastCommit;
         if (lastCommitBeforeSynchronized != null && lastCommitBeforeSynchronized.v2().compareTo(location) >= 0) {
             // Location already visible, just call the listener
-            listener.onResponse(null);
+            listener.onResponse(lastCommitBeforeSynchronized.v1());
             return true;
         }
         synchronized (this) {
@@ -121,7 +122,17 @@ public class FlushListeners implements Closeable {
     public void close() throws IOException {
         synchronized (this) {
             closed = true;
-            // TODO: Fail listeners
+            if (locationCommitListeners != null) {
+                for (final Tuple<Translog.Location, ActionListener<Long>> listener : locationCommitListeners) {
+                    try {
+                        listener.v2().onFailure(new AlreadyClosedException("shard is closed"));
+                    } catch (final Exception e) {
+                        logger.warn("error firing checkpoint refresh listener", e);
+                        assert false;
+                    }
+                }
+                locationCommitListeners = null;
+            }
         }
 
     }

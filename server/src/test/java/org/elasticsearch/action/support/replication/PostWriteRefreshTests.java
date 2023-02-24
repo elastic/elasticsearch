@@ -10,6 +10,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -45,7 +46,7 @@ import static org.mockito.Mockito.when;
 
 public class PostWriteRefreshTests extends IndexShardTestCase {
 
-    private final AtomicBoolean unpromtableRefreshRequestReceived = new AtomicBoolean(false);
+    private final AtomicBoolean unpromotableRefreshRequestReceived = new AtomicBoolean(false);
     private TransportService transportService;
 
     @Override
@@ -59,7 +60,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             ThreadPool.Names.SAME,
             UnpromotableShardRefreshRequest::new,
             (request, channel, task) -> {
-                unpromtableRefreshRequestReceived.set(true);
+                unpromotableRefreshRequestReceived.set(true);
                 channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
@@ -81,8 +82,9 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
             postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.WAIT_UNTIL, primary, result.getTranslogLocation(), f);
-            Releasable releasable = simulatePeriodicRefresh(primary);
+            Releasable releasable = simulatePeriodicRefresh(primary, false);
             f.actionGet();
+            assertFalse(unpromotableRefreshRequestReceived.get());
             assertEngineContainsIdNoRefresh(primary, id);
             releasable.close();
         } finally {
@@ -100,14 +102,14 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
             postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.IMMEDIATE, primary, result.getTranslogLocation(), f);
             f.actionGet();
-            assertFalse(unpromtableRefreshRequestReceived.get());
+            assertFalse(unpromotableRefreshRequestReceived.get());
             assertEngineContainsIdNoRefresh(primary, id);
         } finally {
             closeShards(primary, primary);
         }
     }
 
-    public void testPrimaryWithPromotables() throws IOException {
+    public void testPrimaryWithUnpromotables() throws IOException {
         final IndexShard primary = spy(newShard(true));
         recoverShardFromStore(primary);
         ReplicationGroup realReplicationGroup = primary.getReplicationGroup();
@@ -133,12 +135,12 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             postWriteRefresh.refreshShard(policy, primary, result.getTranslogLocation(), f);
             final Releasable releasable;
             if (policy == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
-                releasable = simulatePeriodicRefresh(primary);
+                releasable = simulatePeriodicRefresh(primary, true);
             } else {
                 releasable = () -> {};
             }
             f.actionGet();
-            assertTrue(unpromtableRefreshRequestReceived.get());
+            assertTrue(unpromotableRefreshRequestReceived.get());
             assertEngineContainsIdNoRefresh(primary, id);
             releasable.close();
         } finally {
@@ -156,7 +158,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             Engine.IndexResult result = indexDoc(replica, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
             PostWriteRefresh.refreshReplicaShard(WriteRequest.RefreshPolicy.WAIT_UNTIL, replica, result.getTranslogLocation(), f);
-            Releasable releasable = simulatePeriodicRefresh(replica);
+            Releasable releasable = simulatePeriodicRefresh(replica, false);
             f.actionGet();
             assertEngineContainsIdNoRefresh(replica, id);
             releasable.close();
@@ -188,11 +190,14 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         assertThat(ids, contains(id));
     }
 
-    private static Releasable simulatePeriodicRefresh(IndexShard shard) {
+    private static Releasable simulatePeriodicRefresh(IndexShard shard, boolean needsFlush) {
         // Simulate periodic refresh
         Thread thread = new Thread(() -> {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(randomLongBetween(100, 500)));
             shard.refresh("test");
+            if (needsFlush) {
+                shard.flush(new FlushRequest());
+            }
         });
         thread.start();
         return () -> {

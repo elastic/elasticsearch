@@ -132,7 +132,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
         analyticsTemplateRegistry.initialize();
 
-        return Collections.singletonList(engineService);
+        return Arrays.asList(engineService, analyticsTemplateRegistry);
     }
 
     @Override

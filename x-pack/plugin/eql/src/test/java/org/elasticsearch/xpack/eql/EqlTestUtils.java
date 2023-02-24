@@ -38,8 +38,6 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public final class EqlTestUtils {
 
-    public static final TransportVersion EQL_GA_VERSION = TransportVersion.V_7_10_0;
-
     private EqlTestUtils() {}
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(

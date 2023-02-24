@@ -313,7 +313,7 @@ public final class DocumentParser {
                     break;
                 default:
                     if (token.isValue()) {
-                        parseValue(context, mapper, currentFieldName, token);
+                        parseValue(context, mapper, currentFieldName);
                     }
                     break;
             }
@@ -551,7 +551,7 @@ public final class DocumentParser {
                 throwEOFOnParseArray(mapper, arrayFieldName);
             } else {
                 assert token.isValue();
-                parseValue(context, mapper, lastFieldName, token);
+                parseValue(context, mapper, lastFieldName);
             }
         }
     }
@@ -566,12 +566,8 @@ public final class DocumentParser {
         );
     }
 
-    private static void parseValue(
-        final DocumentParserContext context,
-        ObjectMapper parentMapper,
-        String currentFieldName,
-        XContentParser.Token token
-    ) throws IOException {
+    private static void parseValue(final DocumentParserContext context, ObjectMapper parentMapper, String currentFieldName)
+        throws IOException {
         if (currentFieldName == null) {
             throwOnNoFieldName(context, parentMapper);
         }
@@ -579,7 +575,7 @@ public final class DocumentParser {
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
-            parseDynamicValue(context, parentMapper, currentFieldName, token);
+            parseDynamicValue(context, parentMapper, currentFieldName);
         }
     }
 
@@ -605,12 +601,8 @@ public final class DocumentParser {
         }
     }
 
-    private static void parseDynamicValue(
-        final DocumentParserContext context,
-        ObjectMapper parentMapper,
-        String currentFieldName,
-        XContentParser.Token token
-    ) throws IOException {
+    private static void parseDynamicValue(final DocumentParserContext context, ObjectMapper parentMapper, String currentFieldName)
+        throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
@@ -619,7 +611,7 @@ public final class DocumentParser {
             failIfMatchesRoutingPath(context, parentMapper, currentFieldName);
             return;
         }
-        dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, token, currentFieldName);
+        dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
     }
 
     private static void failIfMatchesRoutingPath(DocumentParserContext context, ObjectMapper parentMapper, String currentFieldName) {

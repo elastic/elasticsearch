@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;

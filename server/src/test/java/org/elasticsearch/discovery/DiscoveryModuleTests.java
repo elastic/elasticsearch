@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -64,7 +65,13 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     @Before
     public void setupDummyServices() {
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, mock(ThreadPool.class), null);
+        transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            Version.CURRENT,
+            TransportVersion.CURRENT,
+            mock(ThreadPool.class),
+            null
+        );
         masterService = mock(MasterService.class);
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         clusterApplier = mock(ClusterApplier.class);

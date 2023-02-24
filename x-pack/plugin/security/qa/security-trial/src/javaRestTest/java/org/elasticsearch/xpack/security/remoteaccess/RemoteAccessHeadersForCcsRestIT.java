@@ -1000,7 +1000,13 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             .put("xpack.security.remote_cluster_server.ssl.enabled", "false")
             .build();
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        final MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
+        final MockTransportService service = MockTransportService.createNewService(
+            settings,
+            Version.CURRENT,
+            TransportVersion.CURRENT,
+            threadPool,
+            null
+        );
         try {
             service.registerRequestHandler(
                 ClusterStateAction.NAME,

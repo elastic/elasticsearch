@@ -44,7 +44,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
     }
 
     private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes) {
-        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, threadPool);
+        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, TransportVersion.CURRENT, threadPool);
     }
 
     public void testSearchShards() throws Exception {

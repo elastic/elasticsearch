@@ -9,7 +9,9 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
@@ -113,6 +116,27 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
         if (request.refresh() && request.realtime() == false) {
             indexShard.refresh("refresh_flag_get");
+        }
+        var shardRouting = clusterService.state().getRoutingNodes().node(clusterService.localNode().getId()).getByShardId(shardId);
+
+        if (request.realtime() && shardRouting.isPromotableToPrimary() == false) {
+            PlainActionFuture<TransportGetFromTranslog.Response> listener = new PlainActionFuture<>();
+            var node = clusterService.state()
+                .nodes()
+                .get(clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().currentNodeId());
+            transportService.sendRequest(
+                node,
+                TransportGetFromTranslog.NAME,
+                request,
+                new ActionListenerResponseHandler<>(listener, TransportGetFromTranslog.Response::new)
+            );
+            var response = FutureUtils.get(listener);
+            if (response.getResult() != null) {
+                return new GetResponse(response.getResult());
+            }
+            PlainActionFuture<Long> segmentGenerationListener = new PlainActionFuture<>();
+            indexShard.waitForSegmentGeneration(response.segmentGeneration(), segmentGenerationListener);
+            FutureUtils.get(segmentGenerationListener);
         }
 
         GetResult result = indexShard.getService()

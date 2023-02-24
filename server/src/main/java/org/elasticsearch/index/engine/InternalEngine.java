@@ -769,6 +769,17 @@ public class InternalEngine extends Engine {
         }
     }
 
+    public boolean isInVersionMap(Get get) {
+        assert get.realtime();
+        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
+                return getVersionFromMap(get.uid().bytes()) != null;
+            }
+        }
+    }
+
     /**
      * the status of the current doc version in lucene, compared to the version in an incoming
      * operation
@@ -2300,7 +2311,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected SegmentInfos getLastCommittedSegmentInfos() {
+    public SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
 

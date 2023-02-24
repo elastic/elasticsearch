@@ -71,6 +71,10 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
         return index;
     }
 
+    public ShardId getInternalShardId() {
+        return internalShardId;
+    }
+
     /**
      * Sets the index.
      */

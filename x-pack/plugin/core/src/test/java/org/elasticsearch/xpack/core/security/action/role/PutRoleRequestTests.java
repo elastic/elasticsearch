@@ -160,7 +160,7 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             logger.info("Serializing with version {}", version);
             out.setTransportVersion(version);
         }

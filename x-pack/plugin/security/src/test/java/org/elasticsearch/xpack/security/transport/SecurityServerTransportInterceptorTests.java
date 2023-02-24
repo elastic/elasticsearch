@@ -460,7 +460,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AsyncSender sender = interceptor.interceptSender(intercepted);
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        final TransportVersion connectionVersion = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        final TransportVersion connectionVersion = TransportVersionUtils.randomCompatibleVersion(random());
         when(connection.getTransportVersion()).thenReturn(connectionVersion);
 
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);

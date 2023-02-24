@@ -54,15 +54,15 @@ public class TransportVersionUtils {
     ) {
         int minVersionIndex = 0;
         if (minVersion != null) {
-            minVersionIndex = ALL_VERSIONS.indexOf(minVersion);
+            minVersionIndex = Collections.binarySearch(ALL_VERSIONS, minVersion);
         }
         int maxVersionIndex = ALL_VERSIONS.size() - 1;
         if (maxVersion != null) {
-            maxVersionIndex = ALL_VERSIONS.indexOf(maxVersion);
+            maxVersionIndex = Collections.binarySearch(ALL_VERSIONS, maxVersion);
         }
-        if (minVersionIndex == -1) {
+        if (minVersionIndex < 0) {
             throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
-        } else if (maxVersionIndex == -1) {
+        } else if (maxVersionIndex < 0) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
         } else if (minVersionIndex > maxVersionIndex) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
@@ -108,18 +108,13 @@ public class TransportVersionUtils {
         return ALL_VERSIONS.get(place);
     }
 
-    public static boolean isCompatible(TransportVersion version1, TransportVersion version2) {
-        return version1.onOrAfter(minimumCompatibilityVersion(version2)) && version2.onOrAfter(minimumCompatibilityVersion(version1));
-    }
-
     public static TransportVersion minimumCompatibilityVersion(TransportVersion version) {
         return VersionUtils.findVersion(version).minimumCompatibilityVersion().transportVersion;
     }
 
-    /** Returns a random {@link TransportVersion} from all available versions, that is compatible with the given version. */
-    public static TransportVersion randomCompatibleVersion(Random random, TransportVersion version) {
-        final List<TransportVersion> compatible = ALL_VERSIONS.stream().filter(v -> isCompatible(v, version)).toList();
-        return compatible.get(random.nextInt(compatible.size()));
+    /** Returns a random {@code TransportVersion that is compatible with {@link TransportVersion#CURRENT} */
+    public static TransportVersion randomCompatibleVersion(Random random) {
+        return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT);
     }
 
     public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
@@ -128,11 +123,13 @@ public class TransportVersionUtils {
 
     /** returns the first future compatible version */
     public static TransportVersion compatibleFutureVersion(TransportVersion version) {
-        final Optional<TransportVersion> opt = ALL_VERSIONS.stream()
-            .filter(version::before)
-            .filter(v -> isCompatible(v, version))
-            .findAny();
-        assert opt.isPresent() : "no future compatible version for " + version;
-        return opt.get();
+        int versionIdx = Collections.binarySearch(ALL_VERSIONS, version);
+        if (versionIdx < 0) {
+            versionIdx = -(versionIdx + 1);
+        } else {
+            versionIdx++;
+        }
+        int minCompatIdx = Collections.binarySearch(ALL_VERSIONS, TransportVersion.MINIMUM_COMPATIBLE);
+        return ALL_VERSIONS.get(Math.max(versionIdx, minCompatIdx));
     }
 }

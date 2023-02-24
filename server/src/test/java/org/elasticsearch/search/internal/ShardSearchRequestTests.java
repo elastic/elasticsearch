@@ -224,7 +224,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+            TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             if (request.isForceSyntheticSource()) {
                 version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.CURRENT);
             }

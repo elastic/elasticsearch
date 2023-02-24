@@ -44,12 +44,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-
 public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScoreDocQueryBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(TestGeoShapeFieldMapperPlugin.class);
+        return List.of(TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

@@ -47,7 +47,6 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
                 return parser;
             }
         };
-        ctx.root().numericDetection();
 
         // position the parser on the value
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);

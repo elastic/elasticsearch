@@ -52,7 +52,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT, TransportVersion.CURRENT,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool,
                 remoteSettings
             )
@@ -104,7 +105,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT, TransportVersion.CURRENT,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool,
                 remoteSettings
             )
@@ -177,7 +179,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             MockTransportService remoteTransport = startTransport(
                 "remote_node",
                 Collections.emptyList(),
-                Version.CURRENT, TransportVersion.CURRENT,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool,
                 remoteSettings
             )

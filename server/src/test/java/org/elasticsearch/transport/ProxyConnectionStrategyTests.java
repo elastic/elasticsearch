@@ -86,7 +86,9 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
             try (
-                MockTransportService localService = spy(MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool))
+                MockTransportService localService = spy(
+                    MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool)
+                )
             ) {
                 localService.start();
                 localService.acceptIncomingRequests();
@@ -146,7 +148,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
             TransportAddress address2 = transport2.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -213,7 +222,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         try (MockTransportService transport1 = startTransport("incompatible-node", incompatibleVersion, incompatibleTransportVersion)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -260,7 +276,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
             TransportAddress address2 = transport2.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -327,7 +350,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 return address;
             };
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -366,7 +396,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         try (MockTransportService remoteTransport = startTransport("node1", Version.CURRENT, TransportVersion.CURRENT)) {
             TransportAddress remoteAddress = remoteTransport.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -473,7 +510,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         try (MockTransportService transport1 = startTransport("node1", Version.CURRENT, TransportVersion.CURRENT, bindSettings)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 

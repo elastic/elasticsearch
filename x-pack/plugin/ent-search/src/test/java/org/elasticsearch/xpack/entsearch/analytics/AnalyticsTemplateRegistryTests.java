@@ -120,10 +120,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
                 assertThat(action, instanceOf(PutLifecycleAction.class));
                 assertThat(request, instanceOf(PutLifecycleAction.Request.class));
                 final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
-                assertThat(
-                    putRequest.getPolicy().getName(),
-                    equalTo(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_ILM_POLICY_NAME)
-                );
+                assertThat(putRequest.getPolicy().getName(), equalTo(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_ILM_POLICY_NAME));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {

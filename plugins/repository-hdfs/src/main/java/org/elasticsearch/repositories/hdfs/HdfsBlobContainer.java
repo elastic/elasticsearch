@@ -45,13 +45,22 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     private final HdfsSecurityContext securityContext;
     private final Path path;
     private final int bufferSize;
+    private final Short replicationFactor;
 
-    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore store, Path path, int bufferSize, HdfsSecurityContext hdfsSecurityContext) {
+    HdfsBlobContainer(
+        BlobPath blobPath,
+        HdfsBlobStore store,
+        Path path,
+        int bufferSize,
+        HdfsSecurityContext hdfsSecurityContext,
+        Short replicationFactor
+    ) {
         super(blobPath);
         this.store = store;
         this.securityContext = hdfsSecurityContext;
         this.path = path;
         this.bufferSize = bufferSize;
+        this.replicationFactor = replicationFactor;
     }
 
     // TODO: See if we can get precise result reporting.
@@ -172,7 +181,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             store.execute((Operation<Void>) fileContext -> {
                 try {
                     try (
-                        FSDataOutputStream stream = fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK))
+                        FSDataOutputStream stream = fileContext.create(
+                            tempBlobPath,
+                            EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK),
+                            getCreationOptions()
+                        )
                     ) {
                         writer.accept(stream);
                     }
@@ -189,7 +202,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
                 : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
             store.execute((Operation<Void>) fileContext -> {
-                try (FSDataOutputStream stream = fileContext.create(blob, flags)) {
+                try (FSDataOutputStream stream = fileContext.create(blob, flags, getCreationOptions())) {
                     writer.accept(stream);
                 } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                     throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
@@ -217,7 +230,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     private void writeToPath(BytesReference bytes, Path blobPath, FileContext fileContext, EnumSet<CreateFlag> createFlags)
         throws IOException {
-        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags)) {
+        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, getCreationOptions())) {
             bytes.writeTo(stream);
         }
     }
@@ -230,12 +243,24 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         EnumSet<CreateFlag> createFlags
     ) throws IOException {
         final byte[] buffer = new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize];
-        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, CreateOpts.bufferSize(buffer.length))) {
+        Options.CreateOpts[] createOpts = getCreationOptions(CreateOpts.bufferSize(buffer.length));
+        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOpts)) {
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 stream.write(buffer, 0, bytesRead);
             }
         }
+    }
+
+    private Options.CreateOpts[] getCreationOptions(Options.CreateOpts... baseOpts) {
+        if (replicationFactor == null) {
+            return baseOpts;
+        }
+
+        Options.CreateOpts[] newOpts = new Options.CreateOpts[baseOpts.length + 1];
+        System.arraycopy(baseOpts, 0, newOpts, 0, baseOpts.length);
+        newOpts[baseOpts.length] = Options.CreateOpts.repFac(replicationFactor);
+        return newOpts;
     }
 
     @Override
@@ -269,7 +294,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         for (FileStatus file : files) {
             if (file.isDirectory()) {
                 final String name = file.getPath().getName();
-                map.put(name, new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext));
+                map.put(
+                    name,
+                    new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext, replicationFactor)
+                );
             }
         }
         return Collections.unmodifiableMap(map);

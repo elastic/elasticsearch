@@ -13,8 +13,11 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.util.Progressable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -22,6 +25,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,6 +39,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 
 import javax.security.auth.Subject;
 
@@ -91,6 +96,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         return Subject.doAs(subject, (PrivilegedAction<FileContext>) () -> {
             try {
                 TestingFs fs = (TestingFs) AbstractFileSystem.get(uri, cfg);
+                fs = Mockito.spy(fs);
                 return FileContext.getFileContext(fs, cfg);
             } catch (UnsupportedFileSystemException e) {
                 throw new RuntimeException(e);
@@ -145,7 +151,8 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         assertFalse(util.exists(hdfsPath));
 
         // if not read only, directory will be created
-        hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false);
+        short replicationFactor = 8;
+        hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false, false, replicationFactor);
         assertTrue(util.exists(root));
         BlobContainer container = hdfsBlobStore.blobContainer(blobPath);
         assertTrue(util.exists(hdfsPath));
@@ -156,6 +163,20 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         int len = randomIntBetween(pos, data.length) - pos;
         assertArrayEquals(readBlobPartially(container, "foo", pos, len), Arrays.copyOfRange(data, pos, pos + len));
         assertTrue(container.blobExists("foo"));
+
+        // Verify that the right replicationFactor was applied.
+        Mockito.verify(fileContext.getDefaultFileSystem(), Mockito.atLeastOnce())
+            .createInternal(
+                Mockito.any(Path.class),
+                Mockito.nullable(EnumSet.class),
+                Mockito.nullable(FsPermission.class),
+                Mockito.anyInt(),
+                Mockito.eq(replicationFactor),
+                Mockito.anyLong(),
+                Mockito.nullable(Progressable.class),
+                Mockito.nullable(Options.ChecksumOpt.class),
+                Mockito.anyBoolean()
+            );
     }
 
     public void testListBlobsByPrefix() throws Exception {

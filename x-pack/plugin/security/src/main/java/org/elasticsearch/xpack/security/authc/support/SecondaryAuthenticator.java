@@ -76,7 +76,11 @@ public class SecondaryAuthenticator {
         // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
         // auth is provided, so in that case we do no want to set anything in the context
         authenticate(
-            authListener -> authenticationService.authenticate(request, false, authListener),
+            authListener -> authenticationService.authenticate(
+                request,
+                false,
+                ActionListener.runBefore(authListener, () -> authenticationService.auditSuccess(request))
+            ),
             ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
                     secondaryAuthentication.writeToContext(threadContext);
@@ -120,17 +124,5 @@ public class SecondaryAuthenticator {
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
             authenticate.accept(authenticationListener);
         }
-    }
-
-    /**
-     * Checks whether this thread context provides secondary authentication credentials.
-     * This does not check whether the header contains valid credentials
-     * - you must call {@link #authenticateAndAttachToContext} to validate the header.
-     *
-     * @return {@code true} if a secondary authentication header exists in the thread context.
-     */
-    public boolean hasSecondaryAuthenticationHeader() {
-        final String header = securityContext.getThreadContext().getHeader(SECONDARY_AUTH_HEADER_NAME);
-        return Strings.isNullOrEmpty(header) == false;
     }
 }

@@ -102,13 +102,15 @@ public class SecurityRestFilter implements RestHandler {
             SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
         }
 
-        authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(authentication -> {
+        final RestRequest wrappedRequest = maybeWrapRestRequest(request);
+        authenticationService.authenticate(wrappedRequest, ActionListener.wrap(authentication -> {
             if (authentication == null) {
                 logger.trace("No authentication available for REST request [{}]", request.uri());
             } else {
                 logger.trace("Authenticated REST request [{}] as {}", request.uri(), authentication);
             }
-            secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(secondaryAuthentication -> {
+            authenticationService.auditSuccess(wrappedRequest);
+            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
                     logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
                 }

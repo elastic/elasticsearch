@@ -626,10 +626,10 @@ public class Security extends Plugin
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
         // audit trail service construction
-        final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
-            ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
-            : Collections.emptyList();
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
+        final AuditTrail auditTrail = XPackSettings.AUDIT_ENABLED.get(settings)
+            ? new LoggingAuditTrail(settings, clusterService, threadPool)
+            : null;
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 

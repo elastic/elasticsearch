@@ -85,7 +85,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected void configureRemoteClustersWithApiKey(String indicesPrivilegesJson) throws IOException {
+    /**
+     * Returns API key ID of remote access API key.
+     */
+    protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson) throws IOException {
         // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
@@ -111,6 +114,8 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
                 .put("cluster.remote.my_remote_cluster.authorization", encodedRemoteAccessApiKey)
                 .build()
         );
+
+        return (String) apiKeyMap.get("id");
     }
 
     protected Response performRequestAgainstFulfillingCluster(Request request) throws IOException {

@@ -106,7 +106,6 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.BaseMatcher;
@@ -2061,7 +2060,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     ? RoleDescriptorsIntersection.EMPTY
                     : new RoleDescriptorsIntersection(
                         new RoleDescriptor(
-                            RBACEngine.REMOTE_USER_ROLE_NAME,
+                            Role.REMOTE_USER_ROLE_NAME,
                             null,
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },

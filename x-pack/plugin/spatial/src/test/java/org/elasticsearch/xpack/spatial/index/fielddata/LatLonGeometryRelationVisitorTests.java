@@ -41,8 +41,6 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
         doTestShapes(GeoTestUtil::nextPoint);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92142")
-    // This is waiting for a Lucene release that includes https://github.com/apache/lucene/pull/12022
     public void testLine() throws Exception {
         doTestShapes(GeoTestUtil::nextLine);
     }
@@ -86,8 +84,6 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
         doTestShape(shape, reader, latLonGeometry, relation, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92142")
-    // This is waiting for a Lucene release that includes https://github.com/apache/lucene/pull/12022
     public void testVeryFlatPolygonDoesNotContainIntersectingLine() throws Exception {
         double[] x = new double[] { -0.001, -0.001, 0.001, 0.001, -0.001 };
         double[] y = new double[] { 1e-10, 0, -1e-10, 0, 1e-10 };

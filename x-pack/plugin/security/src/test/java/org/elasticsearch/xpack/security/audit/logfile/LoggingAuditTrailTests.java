@@ -2588,8 +2588,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         );
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-        System.out.println("Output:" + output);
     }
 
     public void testRequestsWithoutIndices() throws Exception {

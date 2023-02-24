@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.common.validation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -103,7 +104,12 @@ public class SourceDestValidatorTests extends ESTestCase {
     private LicensedFeature platinumFeature;
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
-    private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+    private final TransportService transportService = MockTransportService.createNewService(
+        Settings.EMPTY,
+        Version.CURRENT,
+        TransportVersion.CURRENT,
+        threadPool
+    );
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
     private final IngestService ingestService = mock(IngestService.class);
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(

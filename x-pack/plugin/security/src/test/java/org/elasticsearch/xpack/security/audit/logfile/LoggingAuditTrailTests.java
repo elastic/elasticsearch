@@ -2577,7 +2577,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     public void testRemoteAccessAuthenticationSuccessTransport() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
-        Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
 
         // event by default disabled
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);

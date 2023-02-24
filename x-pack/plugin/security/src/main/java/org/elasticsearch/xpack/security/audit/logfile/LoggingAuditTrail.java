@@ -13,7 +13,6 @@ import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
-import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -169,6 +168,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
+    public static final String REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME = "remote_cluster.authentication";
     public static final String PRINCIPAL_DOMAIN_FIELD_NAME = "user.realm_domain";
     public static final String PRINCIPAL_RUN_BY_REALM_FIELD_NAME = "user.run_by.realm";
     public static final String PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME = "user.run_by.realm_domain";
@@ -1607,11 +1607,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
-            withAuthentication(logger, logEntry, authentication);
+            withAuthenticationFields(logEntry, authentication, logger);
             return this;
         }
 
-        static void withAuthentication(Logger logger, MapMessage<StringMapMessage, String> logEntry, Authentication authentication) {
+        static void withAuthenticationFields(StringMapMessage logEntry, Authentication authentication, Logger logger) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey() || authentication.isRemoteAccess()) {
@@ -1636,9 +1636,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .getMetadata()
                         .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
                     try {
-                        logEntry.with("remote.authentication", toJsonString(logger, innerAuthentication));
+                        final StringMapMessage innerLogEntry = logEntry.newInstance(Collections.emptyMap());
+                        withAuthenticationFields(innerLogEntry, innerAuthentication, logger);
+                        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+                        builder.map(innerLogEntry.getData());
+                        logEntry.with(REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
-                        logger.error("Failure writing remote access authentication [{}] as audit log entry", innerAuthentication);
+                        logger.error("Failed to write remote access authentication [{}] as audit log entry", innerAuthentication);
                     }
                 }
             } else {
@@ -1679,14 +1683,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                     );
             }
-        }
-
-        private static String toJsonString(Logger logger, Authentication innerAuthentication) throws IOException {
-            final StringMapMessage innerLogEntry = new StringMapMessage();
-            withAuthentication(logger, innerLogEntry, innerAuthentication);
-            final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.map(innerLogEntry.getData());
-            return Strings.toString(builder);
         }
 
         LogEntryBuilder with(String key, String value) {

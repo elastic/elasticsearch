@@ -267,7 +267,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
 
         // TODO get rollover from cluster setting once we have it
-        rolloverRequest.addMaxIndexAgeCondition(TimeValue.timeValueDays(30));
+        rolloverRequest.addMaxIndexAgeCondition(TimeValue.timeValueDays(7));
         rolloverRequest.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofGb(50));
         rolloverRequest.addMaxPrimaryShardDocsCondition(200_000_000);
         // don't rollover an empty index

@@ -19,7 +19,7 @@ setup:
 
   - do:
       engine.put:
-        engine_id: test-engine
+        engine_id: my-test-engine
         body:
           indices: [ "test-index1", "test-index2"]
 
@@ -28,7 +28,7 @@ setup:
 "Get Engine":
   - do:
       engine.get:
-        engine_id: test-engine
+        engine_id: my-test-engine
 
   - match: { indices: [ "test-index1", "test-index2" ] }
 

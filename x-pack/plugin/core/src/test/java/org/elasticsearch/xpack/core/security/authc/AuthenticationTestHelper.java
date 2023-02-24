@@ -253,9 +253,13 @@ public class AuthenticationTestHelper {
     }
 
     public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
-        final int numberOfRoleDescriptors = ESTestCase.randomIntBetween(1, 2);
-        final List<Set<RoleDescriptor>> roleDescriptors = new ArrayList<>(numberOfRoleDescriptors);
-        for (int i = 0; i < numberOfRoleDescriptors; i++) {
+        // The common use case would be 1 (user or API key auth) or 2 (API key auth) role descriptors.
+        return randomRemoteAccessAuthentication(ESTestCase.randomIntBetween(1, 2));
+    }
+
+    public static RemoteAccessAuthentication randomRemoteAccessAuthentication(int numberOfRandomRoleDescriptors) {
+        final List<Set<RoleDescriptor>> roleDescriptors = new ArrayList<>(numberOfRandomRoleDescriptors);
+        for (int i = 0; i < numberOfRandomRoleDescriptors; i++) {
             roleDescriptors.add(
                 Set.of(
                     new RoleDescriptor(

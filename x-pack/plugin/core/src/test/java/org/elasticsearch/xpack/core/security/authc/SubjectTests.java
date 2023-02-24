@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ApiKeyRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.BwcApiKeyRoleReference;
@@ -167,9 +166,9 @@ public class SubjectTests extends ESTestCase {
         );
         authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
 
-        final RemoteAccessAuthentication remoteAccessAuthentication = randomBoolean()
-            ? AuthenticationTestHelper.randomRemoteAccessAuthentication(RoleDescriptorsIntersection.EMPTY)
-            : AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final RemoteAccessAuthentication remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication(
+            randomIntBetween(0, 1)
+        );
         authMetadata = remoteAccessAuthentication.copyWithRemoteAccessEntries(authMetadata);
 
         final Subject subject = new Subject(

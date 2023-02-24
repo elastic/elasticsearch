@@ -294,25 +294,24 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     private void maybeScheduleJob() {
-        if (this.isMaster) {
-            // don't schedule the job if the node is shutting down
-            if (isClusterServiceStoppedOrClosed()) {
-                logger.trace(
-                    "Skipping scheduling a DLM job due to the cluster lifecycle state being: [{}] ",
-                    clusterService.lifecycleState()
-                );
-                return;
-            }
-
-            if (scheduler.get() == null) {
-                scheduler.set(new SchedulerEngine(settings, clock));
-                scheduler.get().register(this);
-            }
-
-            assert scheduler.get() != null : "scheduler should be available";
-            scheduledJob = new SchedulerEngine.Job(DATA_LIFECYCLE_JOB_NAME, new TimeValueSchedule(pollInterval));
-            scheduler.get().add(scheduledJob);
+        if (this.isMaster == false) {
+            return;
         }
+
+        // don't schedule the job if the node is shutting down
+        if (isClusterServiceStoppedOrClosed()) {
+            logger.trace("Skipping scheduling a DLM job due to the cluster lifecycle state being: [{}] ", clusterService.lifecycleState());
+            return;
+        }
+
+        if (scheduler.get() == null) {
+            scheduler.set(new SchedulerEngine(settings, clock));
+            scheduler.get().register(this);
+        }
+
+        assert scheduler.get() != null : "scheduler should be available";
+        scheduledJob = new SchedulerEngine.Job(DATA_LIFECYCLE_JOB_NAME, new TimeValueSchedule(pollInterval));
+        scheduler.get().add(scheduledJob);
     }
 
     // package visibility for testing

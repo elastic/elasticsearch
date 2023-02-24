@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class SlimResultsTests extends InferenceResultsTestCase<SlimResults> {
     @Override
     protected Writeable.Reader<SlimResults> instanceReader() {
@@ -38,18 +40,14 @@ public class SlimResultsTests extends InferenceResultsTestCase<SlimResults> {
     @Override
     @SuppressWarnings("unchecked")
     void assertFieldValues(SlimResults createdInstance, IngestDocument document, String resultsField) {
-        var ingestedTokens = (List<Map<String, Object>>) document.getFieldValue(
+        var ingestedTokens = (Map<String, Object>) document.getFieldValue(
             resultsField + '.' + createdInstance.getResultsField(),
-            List.class
+            Map.class
         );
         var originalTokens = createdInstance.getWeightedTokens();
         assertEquals(originalTokens.size(), ingestedTokens.size());
-        for (int i = 0; i < createdInstance.getWeightedTokens().size(); i++) {
-            assertEquals(
-                originalTokens.get(i).weight(),
-                (float) ingestedTokens.get(i).get(Integer.toString(originalTokens.get(i).token())),
-                0.0001
-            );
+        for (var wt : createdInstance.getWeightedTokens()) {
+            assertThat((float) ingestedTokens.get(Integer.toString(wt.token())), equalTo(wt.weight()));
         }
     }
 }

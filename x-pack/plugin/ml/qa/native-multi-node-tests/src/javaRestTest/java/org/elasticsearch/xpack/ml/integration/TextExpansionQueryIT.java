@@ -14,7 +14,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -128,20 +127,15 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
             "washing machine smells"
         );
 
-        List<List<Map<String, Float>>> tokenWeights = new ArrayList<>();
         // Generate the rank feature weights via the inference API
         // then index them for search
-        for (var input : inputs) {
-            Response inference = infer(input, modelId);
-            List<Map<String, Object>> responseMap = (List<Map<String, Object>>) entityAsMap(inference).get("inference_results");
-            Map<String, Object> inferenceResult = responseMap.get(0);
-            var idWeights = (List<Map<String, Float>>) inferenceResult.get("predicted_value");
-            tokenWeights.add(idWeights);
-        }
+        String pipelineId = putPipeline(modelId, "tokens");
 
         // index tokens
         createRankFeaturesIndex(indexName);
-        bulkIndexDocs(inputs, tokenWeights, indexName);
+        bulkIndexDocs(inputs, indexName, pipelineId);
+        var mapping = getIndexMapping(indexName);
+        var resp = responseAsMap(client().performRequest(new Request("GET", indexName + "/_search")));
 
         // Test text expansion search against the indexed rank features
         for (int i = 0; i < 5; i++) {
@@ -157,7 +151,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         }
     }
 
-    public void testSearchWithMissingModel() throws IOException {
+    public void testSearchWithMissingModel() {
         String modelId = "missing-model";
         String indexName = modelId + "-index";
 
@@ -208,7 +202,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
             {
               "mappings": {
                 "properties": {
-                  "source_text": {
+                  "text_field": {
                     "type": "text"
                   },
                   "tokens": {
@@ -221,32 +215,39 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         assertOkWithErrorMessage(response);
     }
 
-    private void bulkIndexDocs(List<String> sourceText, List<List<Map<String, Float>>> tokenWeights, String indexName) throws IOException {
-        String createAction = "{\"create\": {\"_index\": \"" + indexName + "\"}}\n";
+    private void bulkIndexDocs(List<String> sourceText, String indexName, String pipelineId) throws IOException {
+        String createAction = "{\"index\": {\"_index\": \"" + indexName + "\"}}\n";
 
         StringBuilder bulkBuilder = new StringBuilder();
 
         for (int i = 0; i < sourceText.size(); i++) {
             bulkBuilder.append(createAction);
-            bulkBuilder.append("{\"source_text\": \"").append(sourceText.get(i)).append("\", \"tokens\":[");
-
-            for (int j = 0; j < tokenWeights.get(i).size() - 1; j++) {
-                var entry = tokenWeights.get(i).get(j).entrySet().iterator().next();
-                writeToken(entry, bulkBuilder).append(',');
-            }
-            var entry = tokenWeights.get(i).get(tokenWeights.get(i).size() - 1).entrySet().iterator().next();
-            writeToken(entry, bulkBuilder);
-            bulkBuilder.append("]}\n");
+            bulkBuilder.append("{\"text_field\": \"").append(sourceText.get(i)).append("\"}\n");
         }
 
         Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.setJsonEntity(bulkBuilder.toString());
         bulkRequest.addParameter("refresh", "true");
+        bulkRequest.addParameter("pipeline", pipelineId);
         var bulkResponse = client().performRequest(bulkRequest);
         assertOkWithErrorMessage(bulkResponse);
     }
 
-    private StringBuilder writeToken(Map.Entry<String, Float> entry, StringBuilder builder) {
-        return builder.append("{\"").append(entry.getKey()).append("\":").append(entry.getValue()).append("}");
+    private String putPipeline(String modelId, String field) throws IOException {
+        String def = Strings.format("""
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s",
+                    "target_field": "%s"
+                  }
+                }
+              ]
+            }""", modelId, field);
+        Request request = new Request("PUT", "_ingest/pipeline/" + modelId + "-pipeline");
+        request.setJsonEntity(def);
+        assertOkWithErrorMessage(client().performRequest(request));
+        return modelId + "-pipeline";
     }
 }

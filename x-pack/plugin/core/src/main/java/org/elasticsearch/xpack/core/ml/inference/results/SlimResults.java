@@ -90,11 +90,11 @@ public class SlimResults extends NlpInferenceResults {
 
     @Override
     void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(resultsField);
+        builder.startObject(resultsField);
         for (var weightedToken : weightedTokens) {
-            weightedToken.toXContent(builder, params);
+            builder.field(Integer.toString(weightedToken.token), weightedToken.weight);
         }
-        builder.endArray();
+        builder.endObject();
     }
 
     @Override
@@ -119,6 +119,6 @@ public class SlimResults extends NlpInferenceResults {
 
     @Override
     void addMapFields(Map<String, Object> map) {
-        map.put(resultsField, weightedTokens.stream().map(WeightedToken::asMap).collect(Collectors.toList()));
+        map.put(resultsField, weightedTokens.stream().collect(Collectors.toMap(wt -> Integer.toString(wt.token), WeightedToken::weight)));
     }
 }

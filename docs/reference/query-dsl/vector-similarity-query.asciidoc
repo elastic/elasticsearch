@@ -54,6 +54,11 @@ GET /_search
 Since this is a regular query, it can be used in filter contexts and combined with other queries
 within a <<query-dsl-bool-query,`bool`>> query.
 
+NOTE: When combined with other queries that are filters or `must` clauses, it is the same as applying a post-filter
+on the vector similarity results. If you only want to do vector similarity with a pre-filter, supply the `filter`
+field in the `vector_similarity` configuration. Once the documents with that filter applied, and within the provided
+similarity are gathered, they are combined as normal document results with the other clauses within your query.
+
 The following query is a <<query-dsl-term-query,`term`>> query against `title`. If the field `image-vector` is also
 within the sphere of radius `10` with origin at `[-5, 9, -12]`, `boost*similarity_score`
 is added to the matching document `_score`.
@@ -101,7 +106,13 @@ The number of nearest neighbor candidates to consider per shard. Cannot exceed
 
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+Query to filter the documents that can match. The search will return documents matching this filter AND are within
+the similarity threshold. The value can be a single query or a
+list of queries. If `filter` is not provided, all documents are allowed to
+match. This filter is applied **during** the approximate kNN search. This contrasts with a
+post-filtering approach, where the filter is applied **after** the approximate
+kNN search completes. Post-filtering has the downside that it sometimes
+returns fewer than k results, even when there are enough matching documents.
 
 `similarity`::
 (Required, float)
@@ -123,3 +134,87 @@ the `dims` dimensional hypersphere with radius `similarity` with origin at `quer
 `boost`::
 (Optional, float) Floating point number used to decrease or increase the
 <<relevance-scores,relevance scores>>. Defaults to `1.0`.
+
+[[vector-similarity-pre-or-post-filtering]]
+==== Pre vs Post filtering
+
+NOTE: Only `num_candidates` are explored per shard. The fewer `num_candidates` explored the faster the query. However, accuracy
+of the results may suffer as documents that fit within the similarity threshold could be missed.
+So, picking the correct `num_candidates` for your use-case and combining that with pre-filtering or post-filtering
+may change per use-case.
+
+Vector similarity gives you the flexibility to configure either (or both) pre-filtering and post-filtering to your
+vector search. Here is an example of a query that supplies pre-filtering:
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "title": "snow"
+          }
+        },
+        {
+          "vector_similarity": {
+            "field": "image-vector",
+            "query_vector": [-5, 9, -12],
+            "num_candidates": 100,
+            "similarity": 10.0,
+            "boost": 5.0,
+            "filter": { "term": {"title": "snow" } }
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+Note how `vector_similarity.filter` is provided. This means that the query only searches for similar vectors
+over documents that match that filter. Then those resulting documents are combined with the other filter
+within the <<query-dsl-bool-query, `bool`>>. This ensures that as many as the documents that match that filter
+and are within that given similarity are matched.
+
+Here is an example of only a post-filter:
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "title": "snow"
+          }
+        },
+        {
+          "vector_similarity": {
+            "field": "image-vector",
+            "query_vector": [-5, 9, -12],
+            "num_candidates": 100,
+            "similarity": 10.0,
+            "boost": 5.0
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+See how no `vector_similarity.filter` is provided? This means that vector_similarity will find similary vectors
+over ALL documents and once the nearest ones are found, those are combined with the other filter in the
+<<query-dsl-bool-query, `bool`>>.
+
+Post-filtering may miss documents if the similarity threshold is broad and can match many vectors. This is because
+filtering AFTER finding vectors could remove all the matched vectors. If a pre-filter is provided, there is a better
+guarantee to find all the similar vectors that match a filter.
+
+But, post-filtering isn't all bad, if you know your similarity threshold is very restrictive, post-filtering can be
+faster than pre-filtering and still provide good results.

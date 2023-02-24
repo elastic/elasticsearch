@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -33,7 +33,7 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
                 testInstance,
                 writableRegistry(),
                 SearchableSnapshotsStatsResponse::new,
-                Version.CURRENT
+                TransportVersion.CURRENT
             );
             assertEqualInstances(testInstance, deserializedInstance);
         }

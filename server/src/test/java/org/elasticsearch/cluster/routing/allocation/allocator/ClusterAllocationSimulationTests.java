@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -62,6 +63,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_RO
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
@@ -129,7 +131,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         }
         final var metadata = metadataBuilder.build();
 
-        final var routingTableBuilder = RoutingTable.builder();
+        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (final var indexMetadata : metadata) {
             routingTableBuilder.addAsNew(indexMetadata);
         }
@@ -222,8 +224,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             TimeUnit.SECONDS,
             r -> { throw new AssertionError("should not create new threads"); },
             null,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         ) {
 
             @Override
@@ -266,6 +267,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         applierService.setInitialState(unassignedClusterState);
 
         final var clusterService = new ClusterService(settings, clusterSettings, masterService, applierService);
+        clusterService.start();
 
         final var clusterInfoService = new TestClusterInfoService(clusterService);
 
@@ -472,10 +474,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
     ) {
         var strategyRef = new SetOnce<AllocationService>();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createBuiltInClusterSettings(),
             new BalancedShardsAllocator(
-                Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 TEST_WRITE_LOAD_FORECASTER
             ),
@@ -485,11 +485,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
         );
         var strategy = new MockAllocationService(
-            randomAllocationDeciders(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                random()
-            ),
+            randomAllocationDeciders(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoService,

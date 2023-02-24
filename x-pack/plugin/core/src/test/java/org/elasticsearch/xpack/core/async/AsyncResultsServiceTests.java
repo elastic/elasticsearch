@@ -83,7 +83,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {
-            taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
+            taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.running(runnable));
         }
 
         public long getExpirationTime() {

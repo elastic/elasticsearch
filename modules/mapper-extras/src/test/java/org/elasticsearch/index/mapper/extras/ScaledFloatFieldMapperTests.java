@@ -10,9 +10,12 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -21,6 +24,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,6 +39,7 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
@@ -90,15 +95,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(1230, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(1230, dvField.numericValue().longValue());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        assertEquals("LongField <field:1230>", fields[0].toString());
     }
 
     public void testMissingScalingFactor() {
@@ -171,13 +169,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertEquals(1230, pointField.numericValue().doubleValue(), 0d);
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        IndexableField storedField = fields[2];
+        assertEquals(2, fields.length);
+        assertEquals("LongField <field:1230>", fields[0].toString());
+        IndexableField storedField = fields[1];
         assertTrue(storedField.fieldType().stored());
         assertEquals(1230, storedField.numericValue().longValue());
     }
@@ -192,12 +186,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertEquals(1230, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(1, fields.length);
+        assertEquals("LongField <field:1230>", fields[0].toString());
 
         DocumentMapper mapper2 = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("coerce", false))
@@ -250,14 +240,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(25, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        assertEquals("LongField <field:25>", fields[0].toString());
     }
 
     /**
@@ -313,6 +297,19 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             b.field("time_series_metric", "counter").field("doc_values", false);
         })));
         assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
+    }
+
+    public void testTimeSeriesIndexDefault() throws Exception {
+        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.values());
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", randomMetricType.toString());
+        }));
+        var ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.fieldType("field");
+        assertThat(ft.getMetricType(), equalTo(randomMetricType));
+        assertThat(ft.isIndexed(), is(false));
     }
 
     @Override

@@ -39,13 +39,14 @@ module org.elasticsearch.security {
     requires org.opensaml.xmlsec;
 
     requires com.nimbusds.jose.jwt;
+    requires io.netty.common;
     requires io.netty.handler;
     requires io.netty.transport;
     requires jopt.simple;
     requires json.smart;
     requires net.shibboleth.utilities.java.support;
     requires oauth2.oidc.sdk;
-    requires slf4j.api;
+    requires org.slf4j;
     requires unboundid.ldapsdk;
 
     exports org.elasticsearch.xpack.security.action to org.elasticsearch.server;

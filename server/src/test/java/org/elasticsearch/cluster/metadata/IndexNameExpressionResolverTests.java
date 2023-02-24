@@ -1672,6 +1672,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, false, resolvedExpressions);
             assertThat(result, nullValue());
         }
+
+        {
+            // Only resolve aliases that refer to dataStreamName1 where the filter is not null
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                true,
+                resolvedExpressions
+            );
+            assertThat(result, arrayContainingInAnyOrder("logs", "logs_foo"));
+        }
     }
 
     public void testIndexAliasesSkipIdentity() {
@@ -3080,6 +3095,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
                 iae.getMessage()
             );
+            // but datemath with colon doesn't trip cross-cluster check
+            IndexNotFoundException e = expectThrows(
+                IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(context, "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>")
+            );
+            assertThat(e.getMessage(), containsString("no such index [datemath-2001-01-01-14"));
         }
         {
             IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());

@@ -100,7 +100,7 @@ public class InternalOrderTests extends AbstractXContentSerializingTestCase<Buck
     }
 
     @Override
-    protected BucketOrder mutateInstance(BucketOrder instance) throws IOException {
+    protected BucketOrder mutateInstance(BucketOrder instance) {
         if (instance == InternalOrder.KEY_ASC) {
             return InternalOrder.COUNT_ASC;
         } else if (instance == InternalOrder.KEY_DESC) {

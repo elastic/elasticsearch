@@ -1,6 +1,0 @@
-pr: 91038
-summary: '`DesiredBalance:` expose it via _internal/desired_balance'
-area: Allocation
-type: enhancement
-issues:
- - 90583

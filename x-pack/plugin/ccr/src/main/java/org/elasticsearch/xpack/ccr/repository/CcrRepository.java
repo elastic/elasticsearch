@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -102,8 +101,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -192,7 +189,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
         try {
             csDeduplicator.execute(
-                new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
+                new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SNAPSHOT_META), context.map(response -> {
                     Metadata responseMetadata = response.metadata();
                     Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
                     return new SnapshotInfo(
@@ -203,7 +200,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         response.getNodes().getMaxNodeVersion(),
                         SnapshotState.SUCCESS
                     );
-                }), false)
+                }))
             );
         } catch (Exception e) {
             assert false : e;
@@ -522,15 +519,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void updateState(ClusterState state) {}
-
-    @Override
-    public void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
-    }
 
     @Override
     public void cloneShardSnapshot(

@@ -35,6 +35,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -109,16 +110,16 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 {"foo": {"lat": 45.0, "lon" : 45.0}}"""))));
             try (DirectoryReader reader = iw.getReader()) {
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
-                searchContext.lookup().source().setSegmentAndDocument(reader.leaves().get(0), 0);
+                Source source = searchContext.lookup().getSource(reader.leaves().get(0), 0);
                 ValueFetcher fetcher = simpleMappedFieldType().valueFetcher(searchContext, randomBoolean() ? null : "geojson");
                 fetcher.setNextReader(reader.leaves().get(0));
                 assertThat(
-                    fetcher.fetchValues(searchContext.lookup().source(), 0, null),
+                    fetcher.fetchValues(source, 0, null),
                     equalTo(List.of(Map.of("type", "Point", "coordinates", List.of(45.0, 45.0))))
                 );
                 fetcher = simpleMappedFieldType().valueFetcher(searchContext, "wkt");
                 fetcher.setNextReader(reader.leaves().get(0));
-                assertThat(fetcher.fetchValues(searchContext.lookup().source(), 0, null), equalTo(List.of("POINT (45.0 45.0)")));
+                assertThat(fetcher.fetchValues(source, 0, null), equalTo(List.of("POINT (45.0 45.0)")));
             }
         }
     }
@@ -241,8 +242,10 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 ctx
             ) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    Map<?, ?> foo = (Map<?, ?>) lookup.source().source().get("foo");
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    Map<?, ?> foo = (Map<?, ?>) source.get("foo");
                     emit(((Number) foo.get("lat")).doubleValue(), ((Number) foo.get("lon")).doubleValue());
                 }
             };

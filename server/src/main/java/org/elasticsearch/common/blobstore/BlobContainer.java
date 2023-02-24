@@ -194,4 +194,44 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+
+    /**
+     * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
+     * Keys not yet used start at initial value 0. Returns the current value (before it was updated).
+     *
+     * @param key key of the value to update
+     * @param expected the expected value
+     * @param updated the new value
+     * @return the value read from the register (before it was updated)
+     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
+     */
+    long compareAndExchangeRegister(String key, long expected, long updated) throws IOException, ConcurrentRegisterOperationException;
+
+    /**
+     * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
+     * Keys not yet used start at initial value 0.
+     *
+     * @param key key of the value to update
+     * @param expected the expected value
+     * @param updated the new value
+     * @return true if successful, false if the expected value did not match the updated value
+     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
+     */
+    default boolean compareAndSetRegister(String key, long expected, long updated) throws IOException,
+        ConcurrentRegisterOperationException {
+        return compareAndExchangeRegister(key, expected, updated) == expected;
+    }
+
+    /**
+     * Gets the value set by {@link #compareAndSetRegister(String, long, long)} for a given key.
+     * If a key has not yet been used, the initial value is 0.
+     *
+     * @param key key of the value to get
+     * @return value found
+     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
+     */
+    default long getRegister(String key) throws IOException, ConcurrentRegisterOperationException {
+        return compareAndExchangeRegister(key, 0, 0);
+    }
+
 }

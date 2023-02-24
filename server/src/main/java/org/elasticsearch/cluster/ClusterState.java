@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -72,8 +72,8 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * across master elections (and therefore is preserved in a rolling restart).
  * <p>
  * Updates are triggered by submitting tasks to the {@link MasterService} on the elected master, typically using a {@link
- * TransportMasterNodeAction} to route a request to the master on which the task is submitted with {@link
- * ClusterService#submitStateUpdateTask}. Submitted tasks have an associated {@link ClusterStateTaskConfig} which defines a priority and a
+ * TransportMasterNodeAction} to route a request to the master on which the task is submitted via a queue obtained with {@link
+ * ClusterService#createTaskQueue}, which has an associated priority. Submitted tasks have an associated
  * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones from running.
  * Therefore, avoid priorities other than {@link Priority#NORMAL} where possible. Tasks associated with client actions should typically have
  * a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after they
@@ -841,7 +841,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
         return builder.build();
@@ -857,7 +857,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         nodes.writeTo(out);
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
     }
@@ -904,7 +904,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }
@@ -920,7 +920,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }

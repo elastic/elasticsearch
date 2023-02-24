@@ -1,0 +1,6 @@
+pr: 94008
+summary: Added ingest processor to decode base64 strings.
+area: Ingest Node
+type: enhancement
+issues:
+  - 94007

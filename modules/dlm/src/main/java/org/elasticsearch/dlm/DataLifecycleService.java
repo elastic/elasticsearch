@@ -139,12 +139,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(DATA_LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
-                logger.trace(
-                    "DLM job triggered: {}, {}, {}",
-                    event.getJobName(),
-                    event.getScheduledTime(),
-                    event.getTriggeredTime()
-                );
+                logger.trace("DLM job triggered: {}, {}, {}", event.getJobName(), event.getScheduledTime(), event.getTriggeredTime());
                 run(clusterService.state());
             }
         }

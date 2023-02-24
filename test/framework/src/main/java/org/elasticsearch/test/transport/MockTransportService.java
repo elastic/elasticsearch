@@ -667,7 +667,7 @@ public class MockTransportService extends TransportService {
         super.openConnection(node, connectionProfile, listener.delegateFailure((l, connection) -> {
             synchronized (openConnections) {
                 openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
-                connection.addCloseListener(ActionListener.wrap(() -> {
+                connection.addCloseListener(ActionListener.running(() -> {
                     synchronized (openConnections) {
                         List<Transport.Connection> connections = openConnections.get(node);
                         boolean remove = connections.remove(connection);

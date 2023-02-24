@@ -12,8 +12,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -65,10 +68,12 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
+import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    private static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+    static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
@@ -89,7 +94,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME,
             SearchTransportService.QUERY_CAN_MATCH_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
+            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
+            TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+            ResolveIndexAction.NAME,
+            FieldCapabilitiesAction.NAME,
+            FieldCapabilitiesAction.NAME + "[n]"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)
@@ -105,7 +114,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteAccessAuthenticationService remoteAccessAuthcService;
-    private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
+    private final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
 
     public SecurityServerTransportInterceptor(
@@ -117,7 +126,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         RemoteAccessAuthenticationService remoteAccessAuthcService,
-        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
+        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver
     ) {
         this(
             settings,
@@ -128,7 +137,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             remoteAccessAuthcService,
-            remoteClusterAuthorizationResolver,
+            remoteClusterCredentialsResolver,
             RemoteConnectionManager::resolveRemoteClusterAlias
         );
     }
@@ -142,7 +151,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         RemoteAccessAuthenticationService remoteAccessAuthcService,
-        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
+        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
     ) {
@@ -154,7 +163,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.remoteAccessAuthcService = remoteAccessAuthcService;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
+        this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
     }
 
@@ -196,7 +205,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             private void assertNoRemoteAccessHeadersInContext() {
-                assert securityContext.getThreadContext().getHeader(RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) == null
+                assert securityContext.getThreadContext().getHeader(RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY) == null
                     : "remote access headers should not be in security context";
                 assert securityContext.getThreadContext()
                     .getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null
@@ -279,7 +288,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                final Optional<RemoteAccessCredentials> remoteAccessCredentials = getRemoteAccessCredentials(connection, action);
+                final Optional<RemoteClusterCredentials> remoteAccessCredentials = getRemoteClusterCredentials(connection, action);
                 if (remoteAccessCredentials.isPresent()) {
                     sendWithRemoteAccessHeaders(remoteAccessCredentials.get(), connection, action, request, options, handler);
                 } else {
@@ -298,7 +307,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
              * this method does not return credentials even if they are configured, to signify that the request should be sent according to
              * the basic security model
              */
-            private Optional<RemoteAccessCredentials> getRemoteAccessCredentials(Transport.Connection connection, String action) {
+            private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection, String action) {
                 final Optional<String> optionalRemoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 if (optionalRemoteClusterAlias.isEmpty()) {
                     logger.trace("Connection is not remote");
@@ -306,21 +315,19 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
 
                 final String remoteClusterAlias = optionalRemoteClusterAlias.get();
-                final String remoteClusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
-                if (remoteClusterCredential == null) {
-                    logger.trace("No cluster credential is configured for remote cluster [{}]", remoteClusterAlias);
-                    return Optional.empty();
-                }
-
-                if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
-                    logger.trace("Action [{}] towards remote cluster [{}] is not allow-listed", action, remoteClusterAlias);
+                final Optional<RemoteClusterCredentials> remoteClusterCredentials = remoteClusterCredentialsResolver.resolve(
+                    remoteClusterAlias
+                );
+                if (remoteClusterCredentials.isEmpty()) {
+                    logger.trace("No cluster credentials is configured for remote cluster [{}]", remoteClusterAlias);
                     return Optional.empty();
                 }
 
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
-                if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
+                if (false == effectiveSubject.getType().equals(Subject.Type.USER)
+                    && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
                     logger.trace(
                         "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
                         remoteClusterAlias,
@@ -329,18 +336,27 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     return Optional.empty();
                 }
 
-                return Optional.of(new RemoteAccessCredentials(remoteClusterAlias, remoteClusterCredential));
+                return remoteClusterCredentials;
             }
 
             private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
-                final RemoteAccessCredentials remoteAccessCredentials,
+                final RemoteClusterCredentials remoteClusterCredentials,
                 final Transport.Connection connection,
                 final String action,
                 final TransportRequest request,
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
-                final String remoteClusterAlias = remoteAccessCredentials.clusterAlias();
+                final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
+                if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
+                    throw new IllegalArgumentException(
+                        "action ["
+                            + action
+                            + "] towards remote cluster ["
+                            + remoteClusterAlias
+                            + "] cannot be executed because it is not allowed as a cross cluster operation"
+                    );
+                }
                 if (connection.getTransportVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["
@@ -367,7 +383,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (SystemUser.is(user)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         new RemoteAccessHeaders(
-                            remoteAccessCredentials.credentials(),
+                            remoteClusterCredentials.authorization(),
                             // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
                             // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
                             // authentication instance
@@ -386,9 +402,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
+                            if (roleDescriptorsIntersection.isEmpty()) {
+                                throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
+                            }
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                                 new RemoteAccessHeaders(
-                                    remoteAccessCredentials.credentials(),
+                                    remoteClusterCredentials.authorization(),
                                     new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection)
                                 ).writeToContext(threadContext);
                                 sender.sendRequest(connection, action, request, options, contextRestoreHandler);
@@ -397,9 +416,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     );
                 }
             }
-
-            // TODO move this to `RemoteClusterAuthorizationResolver` and have `resolveAuthorization` return it
-            record RemoteAccessCredentials(String clusterAlias, String credentials) {}
         };
     }
 

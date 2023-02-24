@@ -228,6 +228,11 @@ public final class TestUtils {
             throw unsupportedException();
         }
 
+        @Override
+        public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException {
+            throw unsupportedException();
+        }
+
         private UnsupportedOperationException unsupportedException() {
             assert false : "this operation is not supported and should have not be called";
             return new UnsupportedOperationException("This operation is not supported");

@@ -154,4 +154,19 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     protected String buildKey(String blobName) {
         return keyPath + (blobName == null ? "" : blobName);
     }
+
+    @Override
+    public long compareAndExchangeRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    @Override
+    public boolean compareAndSetRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    @Override
+    public long getRegister(String key) throws IOException {
+        throw new UnsupportedOperationException(); // TODO
+    }
 }

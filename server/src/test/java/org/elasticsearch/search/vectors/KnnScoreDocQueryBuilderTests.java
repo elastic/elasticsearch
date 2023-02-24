@@ -12,11 +12,15 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -33,11 +37,14 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.hamcrest.Matchers.greaterThan;
+
 public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScoreDocQueryBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(TestGeoShapeFieldMapperPlugin.class);
+        return List.of(TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -176,7 +183,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 ScoreDoc[] scoreDocs = scoreDocsList.toArray(new ScoreDoc[0]);
 
                 KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs);
-                Query query = queryBuilder.doToQuery(context);
+                final Query query = queryBuilder.doToQuery(context);
+                final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
 
                 TopDocs topDocs = searcher.search(query, 100);
                 assertEquals(scoreDocs.length, topDocs.totalHits.value);
@@ -188,6 +196,14 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                     assertEquals(scoreDocs[i].doc, topDocs.scoreDocs[i].doc);
                     assertEquals(scoreDocs[i].score, topDocs.scoreDocs[i].score, 0.0001f);
                     assertTrue(searcher.explain(query, scoreDocs[i].doc).isMatch());
+                }
+
+                for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
+                    Scorer scorer = w.scorer(leafReaderContext);
+                    // If we have matching docs, the score should always be greater than 0 for that segment
+                    if (scorer != null) {
+                        assertThat(leafReaderContext.toString(), scorer.getMaxScore(NO_MORE_DOCS), greaterThan(0.0f));
+                    }
                 }
             }
         }

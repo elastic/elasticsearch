@@ -1,0 +1,427 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package co.elastic.elasticsearch.stateless.engine;
+
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.DummyShardLock;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.index.engine.EngineTestCase.newUid;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.instanceOf;
+
+public abstract class AbstractEngineTestCase extends ESTestCase {
+
+    private Map<String, ThreadPool> threadPools;
+
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPools = ConcurrentCollections.newConcurrentMap();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        var iterator = threadPools.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            terminate(entry.getValue());
+            iterator.remove();
+        }
+        assert threadPools.isEmpty() : threadPools;
+        super.tearDown();
+    }
+
+    private ThreadPool registerThreadPool(final ThreadPool threadPool) {
+        boolean success = false;
+        try {
+            if (threadPools.put(threadPool.toString(), threadPool) != null) {
+                throw new AssertionError("Test thread pool [" + threadPool + "] already exists");
+            }
+            success = true;
+            return threadPool;
+        } finally {
+            if (success == false) {
+                terminate(threadPool);
+            }
+        }
+    }
+
+    protected IndexEngine newIndexEngine() throws IOException {
+        return newIndexEngine(indexConfig());
+    }
+
+    protected IndexEngine newIndexEngine(final EngineConfig indexConfig) {
+        var indexEngine = new IndexEngine(indexConfig) {
+            @Override
+            public void close() throws IOException {
+                try {
+                    super.close();
+                } finally {
+                    indexConfig.getStore().decRef();
+                }
+            }
+        };
+        indexEngine.skipTranslogRecovery();
+        return indexEngine;
+    }
+
+    protected EngineConfig indexConfig() throws IOException {
+        var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
+        var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
+        var translogConfig = new TranslogConfig(shardId, createTempDir(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        var indexWriterConfig = newIndexWriterConfig();
+        var primaryTerm = new AtomicLong(1);
+        var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][index]"));
+        var directory = newDirectory();
+        if (Lucene.indexExists(directory)) {
+            throw new AssertionError("Lucene index already exist for shard " + shardId);
+        }
+        var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+        store.createEmpty();
+        final String translogUuid = Translog.createEmptyTranslog(
+            translogConfig.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get()
+        );
+        store.associateIndexWithNewTranslog(translogUuid);
+
+        return new EngineConfig(
+            shardId,
+            threadPool,
+            indexSettings,
+            null,
+            store,
+            newMergePolicy(),
+            indexWriterConfig.getAnalyzer(),
+            indexWriterConfig.getSimilarity(),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+            new CapturingEngineEventListener(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            translogConfig,
+            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
+            emptyList(),
+            emptyList(),
+            null,
+            new NoneCircuitBreakerService(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED,
+            () -> RetentionLeases.EMPTY,
+            primaryTerm::get,
+            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+            null,
+            threadPool::relativeTimeInNanos,
+            new CapturingIndexCommitListener(),
+            true
+        );
+    }
+
+    protected SearchEngine newSearchEngine() {
+        return newSearchEngineFromIndexEngine(searchConfig());
+    }
+
+    protected SearchEngine newSearchEngineFromIndexEngine(final EngineConfig searchConfig) {
+        return new SearchEngine(searchConfig) {
+            @Override
+            public void close() throws IOException {
+                try {
+                    super.close();
+                } finally {
+                    searchConfig.getStore().decRef();
+                }
+            }
+        };
+    }
+
+    protected SearchEngine newSearchEngineFromIndexEngine(IndexEngine indexEngine, DeterministicTaskQueue deterministicTaskQueue)
+        throws IOException {
+        var shardId = indexEngine.getEngineConfig().getShardId();
+        var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
+        var threadPool = deterministicTaskQueue.getThreadPool();
+        var nodeEnvironment = newNodeEnvironment();
+        var cache = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, indexSettings.getSettings(), threadPool);
+        var directory = new SearchDirectory(cache, shardId);
+        directory.setBlobContainer(storeBlobContainer(indexEngine.getEngineConfig().getStore()));
+        var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+        final EngineConfig searchConfig = new EngineConfig(
+            shardId,
+            threadPool,
+            indexSettings,
+            null,
+            store,
+            null,
+            null,
+            null,
+            null,
+            new CapturingEngineEventListener(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> { throw new AssertionError(); },
+            null,
+            null,
+            null,
+            null,
+            null,
+            false
+        );
+        return new SearchEngine(searchConfig) {
+            @Override
+            public void close() throws IOException {
+                try {
+                    super.close();
+                } finally {
+                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment);
+                }
+            }
+        };
+
+    }
+
+    protected EngineConfig searchConfig() {
+        var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
+        var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
+        var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][search]"));
+        var directory = new SearchDirectory(null, shardId);
+        var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+        return new EngineConfig(
+            shardId,
+            threadPool,
+            indexSettings,
+            null,
+            store,
+            null,
+            null,
+            null,
+            null,
+            new CapturingEngineEventListener(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> { throw new AssertionError(); },
+            null,
+            null,
+            null,
+            null,
+            null,
+            false
+        );
+    }
+
+    protected static Engine.Index randomDoc(String id) throws IOException {
+        final LuceneDocument document = new LuceneDocument();
+        document.add(new Field("_id", Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        var version = new NumericDocValuesField("_version", 0);
+        document.add(version);
+        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        seqID.addFields(document);
+        final BytesReference source;
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            builder.field("value", randomUnicodeOfCodepointLengthBetween(1, 10));
+            builder.endObject();
+
+            source = BytesReference.bytes(builder);
+            document.add(new StoredField(SourceFieldMapper.NAME, source.toBytesRef().bytes, 0, source.length()));
+        }
+        final ParsedDocument doc = new ParsedDocument(version, seqID, id, null, List.of(document), source, XContentType.JSON, null);
+        return new Engine.Index(newUid(id), 1L, doc);
+    }
+
+    static class CapturingEngineEventListener implements Engine.EventListener {
+
+        final SetOnce<String> reason = new SetOnce<>();
+        final SetOnce<Exception> exception = new SetOnce<>();
+
+        @Override
+        public void onFailedEngine(String reason, Exception e) {
+            this.reason.set(reason);
+            this.exception.set(e);
+        }
+    }
+
+    static class CapturingIndexCommitListener implements Engine.IndexCommitListener {
+
+        final LinkedBlockingQueue<NewCommitNotificationRequest> notifications = new LinkedBlockingQueue<>();
+
+        @Override
+        public void onNewCommit(
+            ShardId shardId,
+            Store store,
+            long primaryTerm,
+            Engine.IndexCommitRef indexCommitRef,
+            Set<String> additionalFiles
+        ) {
+            store.incRef();
+            try {
+                notifications.add(
+                    new NewCommitNotificationRequest(
+                        IndexShardRoutingTable.builder(shardId)
+                            .addShard(newShardRouting(shardId, "_node", true, ShardRoutingState.STARTED))
+                            .build(),
+                        primaryTerm,
+                        indexCommitRef.getIndexCommit().getGeneration(),
+                        store.getMetadata(indexCommitRef.getIndexCommit()).fileMetadataMap()
+                    )
+                );
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            } finally {
+                try {
+                    IOUtils.close(indexCommitRef, store::decRef);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        }
+
+        @Override
+        public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {}
+    }
+
+    /**
+     * Retrieve all captured commits on a given {@link IndexEngine} and notify the {@link SearchEngine} of those new commits in a random
+     * order.
+     *
+     * @param indexEngine the index engine to retrieve the capture commits from
+     * @param searchEngine the search engine to notify with new commits
+     * @return the number of new commits notifications
+     */
+    protected static int notifyCommits(IndexEngine indexEngine, SearchEngine searchEngine) {
+        var indexCommitListener = indexEngine.config().getIndexCommitListener();
+        assertThat(indexCommitListener, instanceOf(CapturingIndexCommitListener.class));
+
+        final List<NewCommitNotificationRequest> notifications = new ArrayList<>();
+        final int count = ((CapturingIndexCommitListener) indexCommitListener).notifications.drainTo(notifications);
+        Collections.shuffle(notifications, random());
+        notifications.forEach(
+            notif -> searchEngine.onCommitNotification(notif.getTerm(), notif.getGeneration(), notif.getFiles(), ActionListener.noop())
+        );
+        return count;
+    }
+
+    /**
+     * A {@link BlobContainer} that can read files from a {@link Store}
+     */
+    private static BlobContainer storeBlobContainer(final Store store) {
+        return new FilterBlobContainer(new FsBlobContainer(null, BlobPath.EMPTY, null)) {
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return child;
+            }
+
+            @Override
+            public InputStream readBlob(String blobName, long position, long length) throws IOException {
+                boolean success = false;
+                store.incRef();
+                try {
+                    final IndexInput input = store.directory().openInput(blobName, IOContext.DEFAULT);
+                    if (position > 0L) {
+                        input.seek(position);
+                    }
+                    final InputStreamIndexInput stream = new InputStreamIndexInput(input, length) {
+                        @Override
+                        public void close() throws IOException {
+                            try {
+                                super.close();
+                            } finally {
+                                IOUtils.closeWhileHandlingException(input, store::decRef);
+                            }
+                        }
+                    };
+                    success = true;
+                    return stream;
+                } finally {
+                    if (success == false) {
+                        store.decRef();
+                    }
+                }
+            }
+        };
+    }
+}

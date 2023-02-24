@@ -85,6 +85,11 @@ public class IndexEngine extends InternalEngine {
         return lastFlushNanos.get();
     }
 
+    // visible for testing
+    long getCurrentGeneration() {
+        return getLastCommittedSegmentInfos().getGeneration();
+    }
+
     @Override
     public RefreshResult refresh(String source) throws EngineException {
         if (source.equals(TransportShardRefreshAction.SOURCE_API)) {

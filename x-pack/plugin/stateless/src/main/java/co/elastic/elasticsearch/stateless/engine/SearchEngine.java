@@ -113,10 +113,15 @@ public class SearchEngine extends Engine {
         }
     }
 
-    private long getCurrentGeneration() {
+    long getCurrentGeneration() {
         final SegmentInfos current = this.segmentInfos;
         assert current.getGeneration() > 0 : current;
         return current.getGeneration();
+    }
+
+    // visible for testing
+    long getPendingCommitNotifications() {
+        return pendingCommitNotifications.get();
     }
 
     public void onCommitNotification(
@@ -142,37 +147,39 @@ public class SearchEngine extends Engine {
 
             @Override
             protected void doRun() throws Exception {
+                batchSize = pendingCommitNotifications.get();
+                assert batchSize > 0 : batchSize;
+
+                final SegmentInfos current = segmentInfos;
+                CommitNotification latestCommit = null;
+                for (int i = batchSize; i > 0; i--) {
+                    CommitNotification commit = commitNotifications.poll();
+                    assert commit != null;
+                    if (commit.generation() < current.getGeneration()) { // TODO also compare primary terms
+                        logger.trace(
+                            "notification for commit generation [{}] is older than current generation [{}], ignoring",
+                            commit.generation,
+                            current.getGeneration()
+                        );
+                        continue;
+                    }
+                    if (latestCommit == null || commit.isAfter(latestCommit)) {
+                        latestCommit = commit;
+                    }
+                }
+                if (latestCommit == null) {
+                    logger.trace(() -> "directory is on most recent commit generation [" + current.getGeneration() + ']');
+                    // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
+                    return;
+                }
+                if (directory.isMarkedAsCorrupted()) {
+                    logger.trace(() -> "directory is marked as corrupted, ignoring all future commit notifications");
+                    failSegmentGenerationListeners();
+                    return;
+                }
+
                 store.incRef();
                 try {
-                    ensureOpen();
-                    batchSize = pendingCommitNotifications.get();
-                    assert batchSize > 0 : batchSize;
-
-                    final SegmentInfos current = segmentInfos;
-                    CommitNotification latestCommit = null;
-                    for (int i = batchSize; i > 0; i--) {
-                        CommitNotification commit = commitNotifications.poll();
-                        assert commit != null;
-                        if (commit.generation() < current.getGeneration()) { // TODO also compare primary terms
-                            logger.trace(
-                                "notification for commit generation [{}] is older than current generation [{}], ignoring",
-                                commit.generation,
-                                current.getGeneration()
-                            );
-                            continue;
-                        }
-                        if (latestCommit == null || commit.isAfter(latestCommit)) {
-                            latestCommit = commit;
-                        }
-                    }
-                    if (latestCommit == null) {
-                        logger.trace(() -> "directory is on most recent commit generation [" + current.getGeneration() + ']');
-                        // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
-                        return;
-                    }
-
-                    // TODO also fail listeners if we are corrupted
-
                     final CommitNotification notification = latestCommit;
                     logger.trace(() -> "updating directory with commit " + notification);
                     directory.updateCommit(notification.commit);

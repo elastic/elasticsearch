@@ -9,12 +9,16 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
+import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
+import com.amazonaws.services.s3.model.MultipartUpload;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PartETag;
@@ -28,6 +32,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -37,23 +44,29 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -610,18 +623,221 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
-    @Override
-    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
-        listener.onFailure(new UnsupportedOperationException()); // TODO
+    private class CompareAndExchangeOperation {
+
+        private final AmazonS3 client;
+        private final String bucket;
+        private final String rawKey;
+        private final String blobKey;
+        private final ThreadPool threadPool;
+
+        CompareAndExchangeOperation(AmazonS3 client, String bucket, String key, ThreadPool threadPool) {
+            this.client = client;
+            this.bucket = bucket;
+            this.rawKey = key;
+            this.blobKey = buildKey(key);
+            this.threadPool = threadPool;
+        }
+
+        private List<MultipartUpload> listMultipartUploads() {
+            final var listRequest = new ListMultipartUploadsRequest(bucket);
+            listRequest.setPrefix(blobKey);
+            try {
+                return SocketAccess.doPrivileged(() -> client.listMultipartUploads(listRequest)).getMultipartUploads();
+            } catch (AmazonS3Exception e) {
+                if (e.getStatusCode() == 404) {
+                    return List.of();
+                }
+                throw e;
+            }
+        }
+
+        private static BytesReference blobContents(long newValue) throws IOException {
+            try (var bos = new BytesStreamOutput(Long.BYTES)) {
+                bos.writeLong(newValue);
+                return bos.bytes();
+            }
+        }
+
+        private int getUploadIndex(String targetUploadId, List<MultipartUpload> multipartUploads) {
+            var uploadIndex = 0;
+            var found = false;
+            for (MultipartUpload multipartUpload : multipartUploads) {
+                final var observedUploadId = multipartUpload.getUploadId();
+                if (observedUploadId.equals(targetUploadId)) {
+                    found = true;
+                } else if (observedUploadId.compareTo(targetUploadId) < 0) {
+                    uploadIndex += 1;
+                }
+            }
+
+            return found ? uploadIndex : -1;
+        }
+
+        void run(long expected, long updated, ActionListener<OptionalLong> listener) throws Exception {
+
+            if (listMultipartUploads().isEmpty() == false) {
+                listener.onResponse(OptionalLong.empty());
+                return;
+            }
+
+            final var blobContents = blobContents(updated);
+
+            final var uploadId = SocketAccess.doPrivileged(
+                () -> client.initiateMultipartUpload(new InitiateMultipartUploadRequest(bucket, blobKey))
+            ).getUploadId();
+
+            final var uploadPartRequest = new UploadPartRequest();
+            uploadPartRequest.setBucketName(bucket);
+            uploadPartRequest.setKey(blobKey);
+            uploadPartRequest.setUploadId(uploadId);
+            uploadPartRequest.setPartNumber(1);
+            uploadPartRequest.setLastPart(true);
+            uploadPartRequest.setInputStream(blobContents.streamInput());
+            uploadPartRequest.setPartSize(blobContents.length());
+            final var partETag = SocketAccess.doPrivileged(() -> client.uploadPart(uploadPartRequest)).getPartETag();
+
+            final var currentUploads = listMultipartUploads();
+            final var uploadIndex = getUploadIndex(uploadId, currentUploads);
+
+            if (uploadIndex < 0) {
+                // already aborted by someone else
+                listener.onResponse(OptionalLong.empty());
+                return;
+            }
+
+            final var isComplete = new AtomicBoolean();
+            final Runnable doCleanup = () -> {
+                if (isComplete.compareAndSet(false, true)) {
+                    try {
+                        abortMultipartUploadIfExists(uploadId);
+                    } catch (Exception e) {
+                        // cleanup is a best-effort thing, we can't do anything better than log and fall through here
+                        logger.error("unexpected error cleaning up upload [" + uploadId + "] of [" + blobKey + "]", e);
+                        assert false : e;
+                    }
+                }
+            };
+
+            try (
+                var listeners = new RefCountingListener(
+                    ActionListener.runAfter(
+                        listener.delegateFailure(
+                            (delegate1, ignored) -> getRegister(
+                                rawKey,
+                                delegate1.delegateFailure((delegate2, currentValue) -> ActionListener.completeWith(delegate2, () -> {
+                                    if (currentValue.isPresent() && currentValue.getAsLong() == expected) {
+                                        SocketAccess.doPrivilegedVoid(
+                                            () -> client.completeMultipartUpload(
+                                                new CompleteMultipartUploadRequest(bucket, blobKey, uploadId, List.of(partETag))
+                                            )
+                                        );
+                                        isComplete.set(true);
+                                    }
+                                    return currentValue;
+                                }))
+                            )
+                        ),
+                        doCleanup
+                    )
+                )
+            ) {
+                if (currentUploads.size() > 1) {
+                    // This is a small optimization to improve the liveness properties of this algorithm.
+                    //
+                    // When there are multiple competing updates, we order them by upload id and the first one tries to cancel the competing
+                    // updates in order to make progress. To avoid liveness issues when the winner fails, the rest wait based on their
+                    // upload_id-based position and try to make progress.
+
+                    var delayListener = listeners.acquire();
+                    final Runnable cancelConcurrentUpdates = () -> {
+                        try {
+                            for (MultipartUpload currentUpload : currentUploads) {
+                                final var currentUploadId = currentUpload.getUploadId();
+                                if (uploadId.equals(currentUploadId) == false) {
+                                    threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                                        .execute(
+                                            ActionRunnable.run(listeners.acquire(), () -> abortMultipartUploadIfExists(currentUploadId))
+                                        );
+                                }
+                            }
+                        } finally {
+                            delayListener.onResponse(null);
+                        }
+                    };
+
+                    if (uploadIndex > 0) {
+                        threadPool.scheduleUnlessShuttingDown(
+                            TimeValue.timeValueMillis(TimeValue.timeValueSeconds(uploadIndex).millis() + Randomness.get().nextInt(50)),
+                            ThreadPool.Names.SNAPSHOT,
+                            cancelConcurrentUpdates
+                        );
+                    } else {
+                        cancelConcurrentUpdates.run();
+                    }
+                }
+            }
+        }
+
+        private void abortMultipartUploadIfExists(String uploadId) {
+            try {
+                final var request = new AbortMultipartUploadRequest(bucket, blobKey, uploadId);
+                SocketAccess.doPrivilegedVoid(() -> client.abortMultipartUpload(request));
+            } catch (AmazonS3Exception e) {
+                if (e.getStatusCode() != 404) {
+                    throw e;
+                }
+                // else already aborted
+            }
+        }
+
     }
 
     @Override
-    public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
-        listener.onFailure(new UnsupportedOperationException()); // TODO
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        var clientReference = blobStore.clientReference();
+        ActionListener.run(ActionListener.releaseAfter(listener.delegateResponse((delegate, e) -> {
+            if (e instanceof AmazonS3Exception amazonS3Exception && amazonS3Exception.getStatusCode() == 404) {
+                // an uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it
+                delegate.onResponse(OptionalLong.empty());
+            } else {
+                delegate.onFailure(e);
+            }
+        }), clientReference),
+            l -> new CompareAndExchangeOperation(clientReference.client(), blobStore.bucket(), key, blobStore.getThreadPool()).run(
+                expected,
+                updated,
+                l
+            )
+        );
     }
 
     @Override
     public void getRegister(String key, ActionListener<OptionalLong> listener) {
-        listener.onFailure(new UnsupportedOperationException()); // TODO
+        ActionListener.completeWith(listener, () -> {
+            try (var stream = readBlob(key)) {
+                int len = Long.BYTES;
+                int pos = 0;
+                final byte[] bytes = new byte[len];
+                while (len > 0) {
+                    final var read = stream.read(bytes, pos, len);
+                    if (read == -1) {
+                        throw new IllegalStateException(
+                            Strings.format("failed reading register [%s] due to truncation at [%d] bytes", buildKey(key), pos)
+                        );
+                    }
+                    len -= read;
+                    pos += read;
+                }
+                if (stream.read() != -1) {
+                    throw new IllegalStateException(
+                        Strings.format("failed reading register [%s] due to unexpected trailing data", buildKey(key))
+                    );
+                }
+                return OptionalLong.of(ByteBuffer.wrap(bytes).getLong());
+            } catch (NoSuchFileException e) {
+                return OptionalLong.of(0L);
+            }
+        });
     }
 }

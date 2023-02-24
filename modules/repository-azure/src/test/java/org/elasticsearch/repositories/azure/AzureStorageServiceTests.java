@@ -350,9 +350,17 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
-    public void testRetryConfigurationForSecondaryFallbackLocationMode() throws Exception {
+    public void testRetryConfigurationForSecondaryFallbackLocationMode1() throws Exception {
+        testRetryConfigurationForSecondaryFallbackLocationModeImpl(true);
+    }
+
+    public void testRetryConfigurationForSecondaryFallbackLocationMode2() throws Exception {
+        testRetryConfigurationForSecondaryFallbackLocationModeImpl(false);
+    }
+
+    public void testRetryConfigurationForSecondaryFallbackLocationModeImpl(boolean endpointSetting) throws Exception {
         final String endpoint;
-        if (randomBoolean()) {
+        if (endpointSetting) {
             endpoint = "core.windows.net";
         } else {
             endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net;"
@@ -375,9 +383,17 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
-    public void testRetryConfigurationForPrimaryFallbackLocationMode() throws Exception {
+    public void testRetryConfigurationForPrimaryFallbackLocationMode1() throws Exception {
+        testRetryConfigurationForPrimaryFallbackLocationModeImpl(true);
+    }
+
+    public void testRetryConfigurationForPrimaryFallbackLocationMode2() throws Exception {
+        testRetryConfigurationForPrimaryFallbackLocationModeImpl(false);
+    }
+
+    private void testRetryConfigurationForPrimaryFallbackLocationModeImpl(boolean endpointSetting) throws Exception {
         final String endpoint;
-        if (randomBoolean()) {
+        if (endpointSetting) {
             endpoint = "core.windows.net";
         } else {
             endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net;"

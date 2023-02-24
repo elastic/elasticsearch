@@ -2574,6 +2574,24 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
     }
 
+    public void testRemoteAccessAuthenticationSuccessTransport() throws Exception {
+        final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
+        final String requestId = randomRequestId();
+        Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+
+        // event by default disabled
+        auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
+        assertEmptyLog(logger);
+
+        updateLoggerSettings(
+            Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
+        );
+        auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        System.out.println("Output:" + output);
+    }
+
     public void testRequestsWithoutIndices() throws Exception {
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "_all").build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);

@@ -1606,12 +1606,85 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
-            // TODO auditing for remote access
-            assert false == authentication.isRemoteAccess() : "remote access authentication not supported here yet";
-            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
-            logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (authentication.isApiKey()) {
-                logEntry.with(
+            // logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
+            // logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
+            // if (authentication.isApiKey() || authentication.isRemoteAccess()) {
+            // logEntry.with(
+            // API_KEY_ID_FIELD_NAME,
+            // (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+            // );
+            // String apiKeyName = (String) authentication.getAuthenticatingSubject()
+            // .getMetadata()
+            // .get(AuthenticationField.API_KEY_NAME_KEY);
+            // if (apiKeyName != null) {
+            // logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
+            // }
+            // final String creatorRealmName = ApiKeyService.getCreatorRealmName(authentication);
+            // if (creatorRealmName != null) {
+            // // can be null for API keys created before version 7.7
+            // logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
+            // // No domain information is needed here since API key itself does not work across realms
+            // }
+            // if (authentication.isRemoteAccess()) {
+            // try {
+            // Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+            // .getMetadata()
+            // .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+            // } catch (Exception ex) {
+            // logger.error("Failed build [remote.authentication] field", ex);
+            // }
+            // }
+            // } else {
+            // final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
+            // if (authentication.isRunAs()) {
+            // final Authentication.RealmRef lookedUpBy = authentication.getEffectiveSubject().getRealm();
+            // if (lookedUpBy != null) {
+            // logEntry.with(PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName());
+            // if (lookedUpBy.getDomain() != null) {
+            // logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
+            // }
+            // }
+            // logEntry.with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
+            // // API key can run-as, when that happens, the following field will be _es_api_key,
+            // // not the API key owner user's realm.
+            // .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());
+            // if (authenticatedBy.getDomain() != null) {
+            // logEntry.with(PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
+            // }
+            // // TODO: API key can run-as which means we could use extra fields (#84394)
+            // } else {
+            // logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authenticatedBy.getName());
+            // if (authenticatedBy.getDomain() != null) {
+            // logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
+            // }
+            // }
+            // }
+            // // TODO: service token info is logged in a separate authentication field (#84394)
+            // if (authentication.isAuthenticatedWithServiceAccount()) {
+            // logEntry.with(
+            // SERVICE_TOKEN_NAME_FIELD_NAME,
+            // (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
+            // )
+            // .with(
+            // SERVICE_TOKEN_TYPE_FIELD_NAME,
+            // ServiceAccountSettings.REALM_TYPE
+            // + "_"
+            // + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
+            // );
+            // }
+            final var map = authenticationAsMap(authentication);
+            for (var entry: map.entrySet()) {
+                logEntry.with(entry.getKey(), entry.getValue());
+            }
+            return this;
+        }
+
+        static Map<String, String> authenticationAsMap(Authentication authentication) {
+            final Map<String, String> authenticationMap = new HashMap<>();
+            authenticationMap.put(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
+            authenticationMap.put(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
+            if (authentication.isApiKey() || authentication.isRemoteAccess()) {
+                authenticationMap.put(
                     API_KEY_ID_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
                 );
@@ -1619,53 +1692,65 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .getMetadata()
                     .get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {
-                    logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
+                    authenticationMap.put(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
                 final String creatorRealmName = ApiKeyService.getCreatorRealmName(authentication);
                 if (creatorRealmName != null) {
                     // can be null for API keys created before version 7.7
-                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
+                    authenticationMap.put(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
                     // No domain information is needed here since API key itself does not work across realms
+                }
+                if (authentication.isRemoteAccess()) {
+                    Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                        .getMetadata()
+                        .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                    Map<String, String> innerMap = authenticationAsMap(innerAuthentication);
+                    try {
+                        XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+                        authenticationMap.put("remote.authentication", Strings.toString(builder.map(innerMap)));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             } else {
                 final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
                 if (authentication.isRunAs()) {
                     final Authentication.RealmRef lookedUpBy = authentication.getEffectiveSubject().getRealm();
                     if (lookedUpBy != null) {
-                        logEntry.with(PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName());
+                        authenticationMap.put(PRINCIPAL_REALM_FIELD_NAME, lookedUpBy.getName());
                         if (lookedUpBy.getDomain() != null) {
-                            logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
+                            authenticationMap.put(PRINCIPAL_DOMAIN_FIELD_NAME, lookedUpBy.getDomain().name());
                         }
                     }
-                    logEntry.with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
-                        // API key can run-as, when that happens, the following field will be _es_api_key,
-                        // not the API key owner user's realm.
-                        .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());
+                    authenticationMap.put(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal());
+                    // API key can run-as, when that happens, the following field will be _es_api_key,
+                    // not the API key owner user's realm.
+                    authenticationMap.put(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authenticatedBy.getName());
                     if (authenticatedBy.getDomain() != null) {
-                        logEntry.with(PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
+                        authenticationMap.put(PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
                     }
                     // TODO: API key can run-as which means we could use extra fields (#84394)
                 } else {
-                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authenticatedBy.getName());
+                    authenticationMap.put(PRINCIPAL_REALM_FIELD_NAME, authenticatedBy.getName());
                     if (authenticatedBy.getDomain() != null) {
-                        logEntry.with(PRINCIPAL_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
+                        authenticationMap.put(PRINCIPAL_DOMAIN_FIELD_NAME, authenticatedBy.getDomain().name());
                     }
                 }
             }
             // TODO: service token info is logged in a separate authentication field (#84394)
             if (authentication.isAuthenticatedWithServiceAccount()) {
-                logEntry.with(
+                authenticationMap.put(
                     SERVICE_TOKEN_NAME_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
-                )
-                    .with(
-                        SERVICE_TOKEN_TYPE_FIELD_NAME,
-                        ServiceAccountSettings.REALM_TYPE
-                            + "_"
-                            + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
-                    );
+                );
+                authenticationMap.put(
+                    SERVICE_TOKEN_TYPE_FIELD_NAME,
+                    ServiceAccountSettings.REALM_TYPE
+                        + "_"
+                        + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
+                );
             }
-            return this;
+            return authenticationMap;
         }
 
         LogEntryBuilder with(String key, String value) {

@@ -201,7 +201,6 @@ public class RemoteAccessAuthenticationService {
     ) {
         try {
             authentication.writeToContext(context.getThreadContext());
-            // TODO specialize auditing via remoteAccessAuthenticationSuccess()?
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
             logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);

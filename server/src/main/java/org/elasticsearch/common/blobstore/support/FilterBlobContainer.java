@@ -10,6 +10,7 @@ package org.elasticsearch.common.blobstore.support;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.ConcurrentRegisterOperationException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
@@ -63,9 +64,13 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
-        throws IOException {
-        delegate.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+    public void writeMetadataBlob(
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
+        delegate.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
     }
 
     @Override
@@ -96,5 +101,21 @@ public abstract class FilterBlobContainer implements BlobContainer {
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
+    }
+
+    @Override
+    public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException,
+        ConcurrentRegisterOperationException {
+        return delegate.compareAndExchangeRegister(key, expected, updated);
+    }
+
+    @Override
+    public boolean compareAndSetRegister(String key, long expected, long updated) throws IOException, ConcurrentRegisterOperationException {
+        return delegate.compareAndSetRegister(key, expected, updated);
+    }
+
+    @Override
+    public long getRegister(String key) throws IOException, ConcurrentRegisterOperationException {
+        return delegate.getRegister(key);
     }
 }

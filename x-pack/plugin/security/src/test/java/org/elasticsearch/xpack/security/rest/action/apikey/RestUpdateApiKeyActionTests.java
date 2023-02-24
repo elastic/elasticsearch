@@ -53,6 +53,9 @@ public class RestUpdateApiKeyActionTests extends RestActionTestCase {
 
         dispatchRequest(builder.build());
 
-        assertEquals(new UpdateApiKeyRequest(apiKeyId, null, null), requestHolder.get());
+        final UpdateApiKeyRequest request = requestHolder.get();
+        assertEquals(apiKeyId, request.getId());
+        assertNull(request.getRoleDescriptors());
+        assertNull(request.getMetadata());
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -56,7 +57,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
             builder.total(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY, null);
             builder.node(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY, null);
         } else {
-            builder.total(0L, 0L, 0f);
+            builder.total(ByteSizeValue.ZERO, ByteSizeValue.ZERO, Processors.ZERO);
         }
 
         return new AutoscalingDeciderResult(builder.build(), new FrozenExistenceReason(indicesNeedingFrozen));

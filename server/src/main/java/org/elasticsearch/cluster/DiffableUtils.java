@@ -8,11 +8,12 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -153,7 +154,7 @@ public final class DiffableUtils {
                 inserts++;
             } else if (entry.getValue().equals(previousValue) == false) {
                 if (valueSerializer.supportsDiffableValues()) {
-                    diffs.add(Map.entry(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue)));
+                    diffs.add(new Maps.ImmutableEntry<>(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue)));
                 } else {
                     upserts.add(entry);
                 }
@@ -307,14 +308,14 @@ public final class DiffableUtils {
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 Diff<T> diff = valueSerializer.readDiff(in, key);
-                diffs.add(Map.entry(key, diff));
+                diffs.add(new Maps.ImmutableEntry<>(key, diff));
             }
             int upsertsCount = in.readVInt();
             upserts = upsertsCount == 0 ? List.of() : new ArrayList<>(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
                 T newValue = valueSerializer.read(in, key);
-                upserts.add(Map.entry(key, newValue));
+                upserts.add(new Maps.ImmutableEntry<>(key, newValue));
             }
             this.builderCtor = builderCtor;
         }
@@ -370,7 +371,7 @@ public final class DiffableUtils {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(deletes, (o, v) -> keySerializer.writeKey(v, o));
-            Version version = out.getVersion();
+            TransportVersion version = out.getTransportVersion();
             // filter out custom states not supported by the other node
             int diffCount = 0;
             for (Map.Entry<K, Diff<T>> diff : diffs) {
@@ -498,14 +499,14 @@ public final class DiffableUtils {
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(Diff<V> value, Version version) {
+        default boolean supportsVersion(Diff<V> value, TransportVersion version) {
             return true;
         }
 
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(V value, Version version) {
+        default boolean supportsVersion(V value, TransportVersion version) {
             return true;
         }
 

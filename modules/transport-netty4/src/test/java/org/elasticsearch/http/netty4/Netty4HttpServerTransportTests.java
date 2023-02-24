@@ -40,6 +40,7 @@ import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -47,8 +48,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
@@ -57,6 +56,7 @@ import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -66,6 +66,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.TLSConfig;
+import org.elasticsearch.xcontent.ToXContent;
 import org.junit.After;
 import org.junit.Before;
 
@@ -94,14 +96,12 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private PageCacheRecycler recycler;
     private ClusterSettings clusterSettings;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        recycler = new MockPageCacheRecycler(Settings.EMPTY);
         clusterSettings = randomClusterSettings();
     }
 
@@ -112,7 +112,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
         threadPool = null;
         networkService = null;
-        recycler = null;
         clusterSettings = null;
     }
 
@@ -176,7 +175,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -225,7 +226,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new NullDispatcher(),
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -243,7 +246,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     new NullDispatcher(),
                     clusterSettings,
                     new SharedGroupFactory(settings),
-                    Tracer.NOOP
+                    Tracer.NOOP,
+                    TLSConfig.noTLS(),
+                    null
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -295,7 +300,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -363,11 +370,13 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             ) {
                 @Override
                 public ChannelHandler configureServerChannelHandler() {
-                    return new HttpChannelHandler(this, handlingSettings) {
+                    return new HttpChannelHandler(this, handlingSettings, TLSConfig.noTLS(), null) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {
                             super.initChannel(ch);
@@ -460,7 +469,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -530,7 +541,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -557,6 +570,69 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
         } finally {
             group.shutdownGracefully().await();
+        }
+    }
+
+    public void testHeadRequestToChunkedApi() throws InterruptedException {
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                try {
+                    channel.sendResponse(
+                        new RestResponse(
+                            OK,
+                            ChunkedRestResponseBody.fromXContent(
+                                ignored -> Iterators.single(
+                                    (builder, params) -> { throw new AssertionError("should not be called for HEAD REQUEST"); }
+                                ),
+                                ToXContent.EMPTY_PARAMS,
+                                channel
+                            )
+                        )
+                    );
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                throw new AssertionError();
+            }
+
+        };
+
+        final Settings settings = createSettings();
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                final String url = "/some-head-endpoint";
+                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.HEAD, url);
+
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
+                    assertFalse(response.content().isReadable());
+                } finally {
+                    response.release();
+                }
+            }
         }
     }
 

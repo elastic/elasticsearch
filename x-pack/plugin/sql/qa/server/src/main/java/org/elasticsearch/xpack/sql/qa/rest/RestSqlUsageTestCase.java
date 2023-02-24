@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -300,10 +301,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (IndexDocument doc : docs) {
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{}}
                 {"condition":"%s","name":"%s","page_count":%s}
-                """.formatted(doc.condition, doc.name, doc.pageCount));
+                """, doc.condition, doc.name, doc.pageCount));
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);

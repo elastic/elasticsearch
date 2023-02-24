@@ -1,5 +1,0 @@
-pr: 88347
-summary: Fix NLP `question_answering` task when best answer is only one token
-area: Machine Learning
-type: bug
-issues: []

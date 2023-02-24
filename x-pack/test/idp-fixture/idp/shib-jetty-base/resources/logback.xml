@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true">
+    <appender name="jetty" class="ch.qos.logback.core.ConsoleAppender">
+        
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <charset>UTF-8</charset>
+            <Pattern>%date{HH:mm:ss.SSS} - %level [%logger:%line] - %msg%n</Pattern>
+        </encoder>
+    </appender>
+   
+    <root level="INFO">
+        <appender-ref ref="jetty" />
+    </root>
+    <logger name="org.springframework" level="OFF" />
+    <logger name="ch.qos.logback" level="WARN" />
+</configuration>

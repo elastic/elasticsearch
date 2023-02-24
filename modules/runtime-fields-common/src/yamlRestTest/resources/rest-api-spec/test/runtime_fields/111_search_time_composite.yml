@@ -1,0 +1,36 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 0
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          {"index":{}}
+          {"A":2}
+
+---
+"search-time composite across multiple shards":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              "r.shouldReturn" : true
+          runtime_mappings:
+            r:
+              type: composite
+              fields:
+                shouldReturn:
+                  type: boolean
+              script:
+                source: "emit('shouldReturn',true)"
+
+  - match: {hits.total.value: 1}

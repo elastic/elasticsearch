@@ -124,7 +124,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new Max(name, Double.NEGATIVE_INFINITY, formatter, metadata());
+        return Max.createEmptyMax(name, formatter, metadata());
     }
 
     @Override

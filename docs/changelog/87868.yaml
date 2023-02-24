@@ -1,5 +1,0 @@
-pr: 87868
-summary: Add setting for `tcp_keepalive` for oidc back-channel
-area: Security
-type: enhancement
-issues: []

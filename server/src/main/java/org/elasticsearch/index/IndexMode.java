@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
@@ -101,7 +103,7 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions() {
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
             return new DocumentDimensions.OnlySingleValueAllowed();
         }
 
@@ -109,6 +111,9 @@ public enum IndexMode {
         public boolean shouldValidateTimestamp() {
             return false;
         }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
     },
     TIME_SERIES("time_series") {
         @Override
@@ -186,13 +191,21 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions() {
-            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
         }
 
         @Override
         public boolean shouldValidateTimestamp() {
             return true;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            if (sourceFieldMapper.isSynthetic() == false) {
+                throw new IllegalArgumentException("time series indices only support synthetic source");
+            }
         }
     };
 
@@ -301,12 +314,17 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract DocumentDimensions buildDocumentDimensions();
+    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.
      */
     public abstract boolean shouldValidateTimestamp();
+
+    /**
+     * Validates the source field mapper
+     */
+    public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
 
     /**
      * Parse a string into an {@link IndexMode}.

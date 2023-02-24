@@ -528,16 +528,23 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testFielddata() throws IOException {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
+        assertFalse(disabledMapper.fieldType("field").isAggregatable());
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            () -> disabledMapper.fieldType("field")
+                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
-        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Fielddata is disabled on [field] in [index]. "
+                    + "Text fields are not optimised for operations that require per-document field data"
+            )
+        );
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
         enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test")); // no exception
-                                                                                                     // this time
-
+        assertTrue(enabledMapper.fieldType("field").isAggregatable());
         e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "text").field("index", false).field("fielddata", true)))
@@ -1096,12 +1103,32 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        SyntheticSourceSupport supportDelegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport();
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("ignore_malformed not supported", ignoreMalformed);
+        boolean storeTextField = randomBoolean();
+        boolean storedKeywordField = storeTextField || randomBoolean();
+        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
+        KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+            storedKeywordField,
+            nullValue,
+            false == storeTextField
+        );
         return new SyntheticSourceSupport() {
             @Override
-            public SyntheticSourceExample example(int maxValues) throws IOException {
-                SyntheticSourceExample delegate = supportDelegate.example(maxValues);
+            public SyntheticSourceExample example(int maxValues) {
+                SyntheticSourceExample delegate = keywordSupport.example(maxValues);
+                if (storeTextField) {
+                    return new SyntheticSourceExample(
+                        delegate.inputValue(),
+                        delegate.result(),
+                        b -> b.field("type", "text").field("store", true)
+                    );
+                }
                 return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
                     b.field("type", "text");
                     b.startObject("fields");
@@ -1117,8 +1144,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
                 Matcher<String> err = equalTo(
-                    "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                    "field [field] of type [text] doesn't support synthetic source unless it is stored or"
+                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
                 );
                 return List.of(
                     new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
@@ -1128,17 +1155,6 @@ public class TextFieldMapperTests extends MapperTestCase {
                         {
                             b.startObject("l");
                             b.field("type", "long");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("kwd");
-                            b.field("type", "keyword");
-                            b.field("ignore_above", 10);
                             b.endObject();
                         }
                         b.endObject();
@@ -1210,5 +1226,59 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
         assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "text").field("store", true)));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubStoredKeywordSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").field("doc_values", false).field("store", true).endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
     }
 }

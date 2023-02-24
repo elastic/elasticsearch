@@ -172,6 +172,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 DocIdSetIterator scoreIt = null;
                 if (needsScores) {
                     Scorer scorer = weight.scorer(entry.aggCtx.getLeafReaderContext());
+                    if (scorer == null) {
+                        failInCaseOfBadScorer("no scores are available");
+                    }
                     // We don't need to check if the scorer is null
                     // since we are sure that there are documents to replay (entry.docDeltas it not empty).
                     scoreIt = scorer.iterator();
@@ -190,7 +193,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                                 scoreIt.advance(doc);
                             }
                             // aggregations should only be replayed on matching documents
-                            assert scoreIt.docID() == doc;
+                            if (scoreIt.docID() != doc) {
+                                failInCaseOfBadScorer("score for different docid");
+                            }
                         }
                         leafCollector.collect(doc, rebasedBucket);
                     }
@@ -201,6 +206,21 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             }
         }
         collector.postCollection();
+    }
+
+    /*
+     * Fail with when no scores are available or a scorer for incorrect doc ids are used when replaying
+     *
+     * The likely cause is that a children aggregation has a terms aggregator with collection mode breadth_first and this
+     * terms aggregator has a sub aggregation that requires score. See #37650
+     * Sub aggregators of children aggregation can't access scores, because that information isn't kept track of by the children aggregator
+     * when collect mode is breath first. Keeping track of this scores in breath first mode would require a non-trivial amount of heap
+     * memory.
+     */
+    private static void failInCaseOfBadScorer(String message) {
+        String likelyExplanation =
+            "nesting an aggregation under a children aggregation and terms aggregation with collect mode breadth_first isn't possible";
+        throw new RuntimeException(message + ", " + likelyExplanation);
     }
 
     /**

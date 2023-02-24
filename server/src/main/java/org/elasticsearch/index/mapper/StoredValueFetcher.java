@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,8 +36,8 @@ public final class StoredValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
-        leafSearchLookup.setDocument(lookup.docId());
+    public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+        leafSearchLookup.setDocument(doc);
         return leafSearchLookup.fields().get(fieldname).getValues();
     }
 

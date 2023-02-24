@@ -215,11 +215,17 @@ public class RestVectorTileAction extends BaseRestHandler {
         }
         searchRequestBuilder.setQuery(qBuilder);
         if (request.getGridPrecision() > 0) {
-            final Rectangle rectangle = request.getBoundingBox();
-            final GeoBoundingBox boundingBox = new GeoBoundingBox(
-                new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
-            );
+            final GeoBoundingBox boundingBox;
+            if (request.getGridAgg().needsBounding(request.getZ(), request.getGridPrecision())) {
+                final Rectangle rectangle = request.getBoundingBox();
+                boundingBox = new GeoBoundingBox(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                );
+            } else {
+                // unbounded
+                boundingBox = new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
+            }
             final GeoGridAggregationBuilder tileAggBuilder = request.getGridAgg()
                 .newAgg(GRID_FIELD)
                 .field(request.getField())
@@ -232,8 +238,8 @@ public class RestVectorTileAction extends BaseRestHandler {
             if (request.getGridType() == GridType.CENTROID) {
                 tileAggBuilder.subAggregation(new GeoCentroidAggregationBuilder(CENTROID_AGG_NAME).field(request.getField()));
             }
-            final List<MetricsAggregationBuilder<?, ?>> aggregations = request.getAggBuilder();
-            for (MetricsAggregationBuilder<?, ?> aggregation : aggregations) {
+            final List<MetricsAggregationBuilder<?>> aggregations = request.getAggBuilder();
+            for (MetricsAggregationBuilder<?> aggregation : aggregations) {
                 if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX)) {
                     throw new IllegalArgumentException(
                         "Invalid aggregation name ["

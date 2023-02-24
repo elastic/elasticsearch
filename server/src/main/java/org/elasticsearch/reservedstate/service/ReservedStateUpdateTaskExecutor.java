@@ -13,32 +13,37 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
-
-import java.util.List;
+import org.elasticsearch.core.Tuple;
 
 /**
  * Reserved cluster state update task executor
- *
- * @param rerouteService instance of {@link RerouteService}, so that we can execute reroute after cluster state is published
  */
-public record ReservedStateUpdateTaskExecutor(RerouteService rerouteService) implements ClusterStateTaskExecutor<ReservedStateUpdateTask> {
+public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<ReservedStateUpdateTask, Void> {
 
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTaskExecutor.class);
 
-    @Override
-    public ClusterState execute(ClusterState currentState, List<TaskContext<ReservedStateUpdateTask>> taskContexts) throws Exception {
-        for (final var taskContext : taskContexts) {
-            currentState = taskContext.getTask().execute(currentState);
-            taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
-        }
-        return currentState;
+    // required to execute a reroute after cluster state is published
+    private final RerouteService rerouteService;
+
+    public ReservedStateUpdateTaskExecutor(RerouteService rerouteService) {
+        this.rerouteService = rerouteService;
     }
 
     @Override
-    public void clusterStatePublished(ClusterState newClusterState) {
+    public Tuple<ClusterState, Void> executeTask(ReservedStateUpdateTask task, ClusterState clusterState) {
+        return Tuple.tuple(task.execute(clusterState), null);
+    }
+
+    @Override
+    public void taskSucceeded(ReservedStateUpdateTask task, Void unused) {
+        task.listener().onResponse(ActionResponse.Empty.INSTANCE);
+    }
+
+    @Override
+    public void clusterStatePublished() {
         rerouteService.reroute(
             "reroute after saving and reserving part of the cluster state",
             Priority.NORMAL,

@@ -82,15 +82,15 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         }
 
         public ByteSizeValue getTotal() {
-            return new ByteSizeValue(total);
+            return ByteSizeValue.ofBytes(total);
         }
 
         public ByteSizeValue getFree() {
-            return new ByteSizeValue(free);
+            return ByteSizeValue.ofBytes(free);
         }
 
         public ByteSizeValue getAvailable() {
-            return new ByteSizeValue(available);
+            return ByteSizeValue.ofBytes(available);
         }
 
         private static long addLong(long current, long other) {

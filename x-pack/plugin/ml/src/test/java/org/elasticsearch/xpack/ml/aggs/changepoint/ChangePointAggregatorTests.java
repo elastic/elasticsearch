@@ -11,7 +11,6 @@ import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.RandomGeneratorFactory;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
@@ -208,10 +207,10 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                     .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD_NAME))
             )
             .subAggregation(new ChangePointAggregationBuilder("changes", "time>max"));
-        testCase(dummy, new MatchAllDocsQuery(), w -> writeTestDocs(w, bucketValues), (InternalFilter result) -> {
+        testCase(w -> writeTestDocs(w, bucketValues), (InternalFilter result) -> {
             InternalChangePointAggregation agg = result.getAggregations().get("changes");
             changeTypeAssertions.accept(agg.getChangeType());
-        }, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME));
+        }, new AggTestConfig(dummy, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));
     }
 
     private static void writeTestDocs(RandomIndexWriter w, double[] bucketValues) throws IOException {

@@ -12,16 +12,21 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * A {@link Role} limited by another role.<br>
@@ -57,6 +62,11 @@ public final class LimitedRole implements Role {
     @Override
     public IndicesPermission indices() {
         throw new UnsupportedOperationException("cannot retrieve indices permission on limited role");
+    }
+
+    @Override
+    public RemoteIndicesPermission remoteIndices() {
+        throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
     }
 
     @Override
@@ -113,15 +123,34 @@ public final class LimitedRole implements Role {
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
+    @Override
+    public RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(final String remoteClusterAlias) {
+        final RoleDescriptorsIntersection baseIntersection = baseRole.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias);
+        // Intersecting with empty descriptors list should result in an empty intersection.
+        if (baseIntersection.roleDescriptorsList().isEmpty()) {
+            return RoleDescriptorsIntersection.EMPTY;
+        }
+        final RoleDescriptorsIntersection limitedByIntersection = limitedByRole.getRemoteAccessRoleDescriptorsIntersection(
+            remoteClusterAlias
+        );
+        if (limitedByIntersection.roleDescriptorsList().isEmpty()) {
+            return RoleDescriptorsIntersection.EMPTY;
+        }
+        final List<Set<RoleDescriptor>> mergedIntersection = new ArrayList<>(
+            baseIntersection.roleDescriptorsList().size() + limitedByIntersection.roleDescriptorsList().size()
+        );
+        mergedIntersection.addAll(baseIntersection.roleDescriptorsList());
+        mergedIntersection.addAll(limitedByIntersection.roleDescriptorsList());
+        return new RoleDescriptorsIntersection(Collections.unmodifiableList(mergedIntersection));
+    }
+
     /**
      * @return A predicate that will match all the indices that this role and the limited by role has the privilege for executing the given
      * action on.
      */
     @Override
-    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        Predicate<IndexAbstraction> predicate = baseRole.indices().allowedIndicesMatcher(action);
-        predicate = predicate.and(limitedByRole.indices().allowedIndicesMatcher(action));
-        return predicate;
+    public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
+        return baseRole.allowedIndicesMatcher(action).and(limitedByRole.allowedIndicesMatcher(action));
     }
 
     @Override

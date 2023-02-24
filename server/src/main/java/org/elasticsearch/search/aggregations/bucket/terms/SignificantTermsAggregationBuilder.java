@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<SignificantTermsAggregationBuilder> {
     public static final String NAME = "significant_terms";
@@ -72,7 +72,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
         PARSER.declareObject(
             SignificantTermsAggregationBuilder::backgroundFilter,
-            (p, context) -> parseInnerQueryBuilder(p),
+            (p, context) -> parseTopLevelQuery(p),
             SignificantTermsAggregationBuilder.BACKGROUND_FILTER
         );
 
@@ -172,7 +172,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return true;
     }
 
@@ -383,7 +383,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_3_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_3_0;
     }
 }

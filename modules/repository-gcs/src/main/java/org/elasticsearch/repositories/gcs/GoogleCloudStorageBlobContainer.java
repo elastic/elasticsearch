@@ -79,8 +79,12 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
-        throws IOException {
+    public void writeMetadataBlob(
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
         blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
     }
 
@@ -112,5 +116,20 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     private String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;
+    }
+
+    @Override
+    public long compareAndExchangeRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    @Override
+    public boolean compareAndSetRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    @Override
+    public long getRegister(String key) throws IOException {
+        throw new UnsupportedOperationException(); // TODO
     }
 }

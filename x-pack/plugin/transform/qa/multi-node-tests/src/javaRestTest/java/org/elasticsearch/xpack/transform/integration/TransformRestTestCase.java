@@ -290,7 +290,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         DateHistogramInterval interval,
         ZoneId zone
     ) {
-        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.FixedInterval(interval), zone);
+        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.FixedInterval(interval), zone, null);
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(
@@ -298,7 +298,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         DateHistogramInterval interval,
         ZoneId zone
     ) {
-        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.CalendarInterval(interval), zone);
+        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.CalendarInterval(interval), zone, null);
     }
 
     /**
@@ -464,18 +464,18 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             long business = i % 50;
             String dateString = dateStringProvider.apply(i);
 
-            sourceBuilder.append("""
+            sourceBuilder.append(Strings.format("""
                 {"create":{"_index":"%s"}}
-                """.formatted(indexName));
+                """, indexName));
 
             sourceBuilder.append("{");
             if (user != null) {
                 sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
             }
-            sourceBuilder.append("""
+            sourceBuilder.append(Strings.format("""
                 "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
                 {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
-                """.formatted(i, business, stars, stars, dateString));
+                """, i, business, stars, stars, dateString));
 
             if (i % 100 == 0) {
                 sourceBuilder.append("\r\n");

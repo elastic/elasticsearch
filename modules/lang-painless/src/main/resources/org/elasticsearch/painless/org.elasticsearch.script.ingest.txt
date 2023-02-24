@@ -35,9 +35,42 @@ class org.elasticsearch.script.Metadata {
     String getVersionType()
     void setVersionType(String)
 
-    ZonedDateTime getTimestamp()
+    ZonedDateTime getNow()
 }
 
 class org.elasticsearch.script.IngestScript {
     Metadata metadata()
+    WriteField field(String)
+}
+
+class org.elasticsearch.script.field.WriteField {
+    String getName()
+    boolean exists()
+    WriteField move(def)
+    WriteField overwrite(def)
+    void remove()
+    WriteField set(def)
+    WriteField append(def)
+    boolean isEmpty()
+    int size()
+    Iterator iterator()
+    def get(def)
+    def get(int, def)
+    boolean hasValue(Predicate)
+    WriteField transform(Function)
+    WriteField deduplicate()
+    WriteField removeValuesIf(Predicate)
+    WriteField removeValue(int)
+    NestedDocument doc()
+    NestedDocument doc(int)
+    Iterable docs()
+}
+
+class org.elasticsearch.script.field.NestedDocument {
+    WriteField field(String)
+    Stream fields(String)
+    boolean isEmpty()
+    int size()
+    boolean exists()
+    void remove()
 }

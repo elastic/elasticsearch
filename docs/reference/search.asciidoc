@@ -15,7 +15,6 @@ exception of the <<search-explain,explain API>>.
 * <<search-multi-search>>
 * <<async-search>>
 * <<point-in-time-api>>
-* <<knn-search-api>>
 * <<search-suggesters>>
 * <<search-terms-enum>>
 * <<scroll-api>>

@@ -1,0 +1,40 @@
+---
+- job:
+    name: "elastic+elasticsearch+pull-request+part-3-fips"
+    display-name: "elastic / elasticsearch - pull request part-3 fips"
+    description: "Testing of Elasticsearch pull requests - part-3 fips"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+part-3-fips"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches:
+            - "${ghprbActualCommit}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/part-3-fips.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/part-3-fips
+          cancel-builds-on-update: true
+          black-list-target-branches:
+            - 6.8
+            - 7.17
+          excluded-regions:
+            - ^docs/.*
+          white-list-labels:
+            - 'Team:Security'
+          black-list-labels:
+            - '>test-mute'
+    builders:
+      - inject:
+          # Use FIPS-specific Java versions
+          properties-file: '.ci/java-versions-fips.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA16_HOME=$HOME/.java/openjdk16
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart3

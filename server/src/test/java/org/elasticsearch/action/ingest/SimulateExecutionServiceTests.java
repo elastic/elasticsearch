@@ -181,6 +181,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         metadata.put(CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD, "mock");
         metadata.put(CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD, "processor_0");
         metadata.put(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD, "processor failed");
+        metadata.put(CompoundProcessor.ON_FAILURE_PIPELINE_FIELD, "_id");
         assertVerboseResult(
             simulateDocumentVerboseResult.getProcessorResults().get(1),
             pipeline.getId(),

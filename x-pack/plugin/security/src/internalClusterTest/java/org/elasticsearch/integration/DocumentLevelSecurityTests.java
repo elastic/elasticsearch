@@ -32,6 +32,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -115,20 +116,21 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
             SpatialPlugin.class,
-            PercolatorPlugin.class
+            PercolatorPlugin.class,
+            MapperExtrasPlugin.class
         );
     }
 
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + """
+        return super.configUsers() + Strings.format("""
             user1:%s
             user2:%s
             user3:%s
             user4:%s
             user5:%s
-            """.formatted(usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override

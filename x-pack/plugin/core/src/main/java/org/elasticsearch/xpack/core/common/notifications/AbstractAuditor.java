@@ -100,6 +100,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         this.putTemplateInProgress = new AtomicBoolean();
     }
 
+    public void audit(Level level, String resourceId, String message) {
+        indexDoc(messageFactory.newMessage(resourceId, message, level, new Date(), nodeName));
+    }
+
     public void info(String resourceId, String message) {
         indexDoc(messageFactory.newMessage(resourceId, message, Level.INFO, new Date(), nodeName));
     }

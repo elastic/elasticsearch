@@ -7,10 +7,9 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ClasspathUtils;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -94,13 +93,7 @@ public class ClientYamlSuiteRestSpec {
 
     private static void parseSpecFile(ClientYamlSuiteRestApiParser restApiParser, Path jsonFile, ClientYamlSuiteRestSpec restSpec) {
         try (InputStream stream = Files.newInputStream(jsonFile)) {
-            try (
-                XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    stream
-                )
-            ) {
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
                 String filename = jsonFile.getFileName().toString();
                 if (filename.equals("_common.json")) {
                     parseCommonSpec(parser, restSpec);

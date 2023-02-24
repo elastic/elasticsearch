@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -132,7 +133,8 @@ public class NodeLoadDetectorTests extends ESTestCase {
                                         1,
                                         1,
                                         1024,
-                                        ByteSizeValue.ofBytes(MODEL_MEMORY_REQUIREMENT)
+                                        ByteSizeValue.ofBytes(MODEL_MEMORY_REQUIREMENT),
+                                        Priority.NORMAL
                                     )
                                 )
                                     .addRoutingEntry("_node_id4", new RoutingInfo(1, 1, RoutingState.STARTING, ""))

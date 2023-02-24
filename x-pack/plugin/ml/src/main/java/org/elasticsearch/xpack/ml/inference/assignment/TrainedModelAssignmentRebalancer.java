@@ -15,25 +15,32 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlanner;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.ZoneAwareAssignmentPlanner;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
+import org.elasticsearch.xpack.ml.utils.MlProcessors;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LOW_PRIORITY_MODELS_PER_NODE;
 
 class TrainedModelAssignmentRebalancer {
 
@@ -41,15 +48,18 @@ class TrainedModelAssignmentRebalancer {
 
     private final TrainedModelAssignmentMetadata currentMetadata;
     private final Map<DiscoveryNode, NodeLoad> nodeLoads;
+    private final Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone;
     private final Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd;
 
     TrainedModelAssignmentRebalancer(
         TrainedModelAssignmentMetadata currentMetadata,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
+        Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone,
         Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);
         this.nodeLoads = Objects.requireNonNull(nodeLoads);
+        this.mlNodesByZone = Objects.requireNonNull(mlNodesByZone);
         this.modelToAdd = Objects.requireNonNull(modelToAdd);
     }
 
@@ -78,67 +88,212 @@ class TrainedModelAssignmentRebalancer {
     }
 
     AssignmentPlan computeAssignmentPlan() {
-        List<AssignmentPlan.Node> planNodes = nodeLoads.entrySet()
+        final Map<List<String>, List<AssignmentPlan.Node>> nodesByZone = createNodesByZoneMap();
+        final Set<String> assignableNodeIds = nodesByZone.values()
             .stream()
-            .filter(e -> Strings.isNullOrEmpty(e.getValue().getError()))
-            .map(
-                e -> new AssignmentPlan.Node(
-                    e.getKey().getId(),
-                    // We subtract native inference memory as the planner expects available memory for
-                    // native inference including current assignments.
-                    getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(e.getValue()),
-                    getNodeAllocatedProcessors(e.getKey()).orElse(0)
-                )
-            )
-            .toList();
+            .flatMap(List::stream)
+            .map(AssignmentPlan.Node::id)
+            .collect(Collectors.toSet());
 
-        final List<AssignmentPlan.Model> planModels = new ArrayList<>(
-            currentMetadata.modelAssignments().size() + (modelToAdd.isPresent() ? 1 : 0)
-        );
-        final Set<String> assignableNodeIds = planNodes.stream().map(AssignmentPlan.Node::id).collect(Collectors.toSet());
-        currentMetadata.modelAssignments().values().stream().map(assignment -> {
-            Map<String, Integer> currentAssignments = assignment.getNodeRoutingTable()
-                .entrySet()
-                .stream()
-                // Filter out nodes that are no longer assignable
-                .filter(e -> assignableNodeIds.contains(e.getKey()))
-                // Filter out allocation without current and target allocations as they are from before using the rebalancer
-                .filter(e -> e.getValue().getCurrentAllocations() > 0 && e.getValue().getTargetAllocations() > 0)
-                .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED, RoutingState.FAILED))
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getTargetAllocations()));
-            return new AssignmentPlan.Model(
-                assignment.getModelId(),
-                assignment.getTaskParams().estimateMemoryUsageBytes(),
-                assignment.getTaskParams().getNumberOfAllocations(),
-                assignment.getTaskParams().getThreadsPerAllocation(),
-                currentAssignments
-            );
-        }).forEach(planModels::add);
-        modelToAdd.ifPresent(
-            taskParams -> planModels.add(
+        AssignmentPlan planForNormalPriorityModels = computePlanForNormalPriorityModels(nodesByZone, assignableNodeIds);
+        AssignmentPlan planForLowPriorityModels = computePlanForLowPriorityModels(assignableNodeIds, planForNormalPriorityModels);
+        return mergePlans(nodesByZone, planForNormalPriorityModels, planForLowPriorityModels);
+    }
+
+    private AssignmentPlan mergePlans(
+        Map<List<String>, List<AssignmentPlan.Node>> nodesByZone,
+        AssignmentPlan planForNormalPriorityModels,
+        AssignmentPlan planForLowPriorityModels
+    ) {
+        final List<AssignmentPlan.Node> allNodes = new ArrayList<>();
+        nodesByZone.values().forEach(allNodes::addAll);
+
+        final List<AssignmentPlan.Model> allModels = new ArrayList<>();
+        allModels.addAll(planForNormalPriorityModels.models());
+        allModels.addAll(planForLowPriorityModels.models());
+
+        final Map<String, AssignmentPlan.Node> originalNodeById = allNodes.stream()
+            .collect(Collectors.toMap(AssignmentPlan.Node::id, Function.identity()));
+        AssignmentPlan.Builder finalPlanBuilder = AssignmentPlan.builder(allNodes, allModels);
+        copyAssignments(planForNormalPriorityModels, finalPlanBuilder, originalNodeById);
+        copyAssignments(planForLowPriorityModels, finalPlanBuilder, originalNodeById);
+        return finalPlanBuilder.build();
+    }
+
+    private static void copyAssignments(
+        AssignmentPlan source,
+        AssignmentPlan.Builder dest,
+        Map<String, AssignmentPlan.Node> originalNodeById
+    ) {
+        for (AssignmentPlan.Model m : source.models()) {
+            Map<AssignmentPlan.Node, Integer> nodeAssignments = source.assignments(m).orElse(Map.of());
+            for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
+                AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
+                dest.assignModelToNode(m, originalNode, assignment.getValue());
+                if (m.currentAllocationsByNodeId().containsKey(originalNode.id())) {
+                    // As the node has all its available memory we need to manually account memory of models with
+                    // current allocations.
+                    dest.accountMemory(m, originalNode);
+                }
+            }
+        }
+    }
+
+    private AssignmentPlan computePlanForNormalPriorityModels(
+        Map<List<String>, List<AssignmentPlan.Node>> nodesByZone,
+        Set<String> assignableNodeIds
+    ) {
+        final List<AssignmentPlan.Model> planModels = new ArrayList<>();
+
+        currentMetadata.modelAssignments()
+            .values()
+            .stream()
+            .filter(assignment -> assignment.getTaskParams().getPriority() != Priority.LOW)
+            .map(assignment -> {
+                Map<String, Integer> currentAssignments = assignment.getNodeRoutingTable()
+                    .entrySet()
+                    .stream()
+                    // Filter out nodes that are no longer assignable
+                    .filter(e -> assignableNodeIds.contains(e.getKey()))
+                    // Filter out allocation without current and target allocations as they are from before using the rebalancer
+                    .filter(e -> e.getValue().getCurrentAllocations() > 0 && e.getValue().getTargetAllocations() > 0)
+                    .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED, RoutingState.FAILED))
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getTargetAllocations()));
+                return new AssignmentPlan.Model(
+                    assignment.getModelId(),
+                    assignment.getTaskParams().estimateMemoryUsageBytes(),
+                    assignment.getTaskParams().getNumberOfAllocations(),
+                    assignment.getTaskParams().getThreadsPerAllocation(),
+                    currentAssignments,
+                    assignment.getMaxAssignedAllocations()
+                );
+            })
+            .forEach(planModels::add);
+        if (modelToAdd.isPresent() && modelToAdd.get().getPriority() != Priority.LOW) {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = modelToAdd.get();
+            planModels.add(
                 new AssignmentPlan.Model(
                     taskParams.getModelId(),
                     taskParams.estimateMemoryUsageBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),
-                    Map.of()
+                    Map.of(),
+                    0
+                )
+            );
+        }
+        return new ZoneAwareAssignmentPlanner(nodesByZone, planModels).computePlan();
+    }
+
+    private AssignmentPlan computePlanForLowPriorityModels(Set<String> assignableNodeIds, AssignmentPlan planExcludingLowPriorityModels) {
+        List<AssignmentPlan.Node> planNodes = mlNodesByZone.values()
+            .stream()
+            .flatMap(Collection::stream)
+            .map(
+                discoveryNode -> new AssignmentPlan.Node(
+                    discoveryNode.getId(),
+                    planExcludingLowPriorityModels.getRemainingNodeMemory(discoveryNode.getId()),
+                    MAX_LOW_PRIORITY_MODELS_PER_NODE
                 )
             )
+            .toList();
+
+        final Map<String, Long> remainingNodeMemory = new HashMap<>();
+        planNodes.forEach(n -> remainingNodeMemory.put(n.id(), n.availableMemoryBytes()));
+
+        final List<AssignmentPlan.Model> planModels = new ArrayList<>();
+        currentMetadata.modelAssignments()
+            .values()
+            .stream()
+            .filter(assignment -> assignment.getTaskParams().getPriority() == Priority.LOW)
+            .sorted(Comparator.comparingLong(assignment -> assignment.getTaskParams().estimateMemoryUsageBytes()))
+            .map(
+                assignment -> new AssignmentPlan.Model(
+                    assignment.getModelId(),
+                    assignment.getTaskParams().estimateMemoryUsageBytes(),
+                    assignment.getTaskParams().getNumberOfAllocations(),
+                    assignment.getTaskParams().getThreadsPerAllocation(),
+                    findFittingAssignments(assignment, assignableNodeIds, remainingNodeMemory),
+                    assignment.getMaxAssignedAllocations(),
+                    Priority.LOW
+                )
+            )
+            .forEach(planModels::add);
+        if (modelToAdd.isPresent() && modelToAdd.get().getPriority() == Priority.LOW) {
+            StartTrainedModelDeploymentAction.TaskParams taskParams = modelToAdd.get();
+            planModels.add(
+                new AssignmentPlan.Model(
+                    taskParams.getModelId(),
+                    taskParams.estimateMemoryUsageBytes(),
+                    taskParams.getNumberOfAllocations(),
+                    taskParams.getThreadsPerAllocation(),
+                    Map.of(),
+                    0,
+                    Priority.LOW
+                )
+            );
+        }
+
+        logger.debug(
+            () -> format("Computing plan for low priority deployments. CPU cores fixed to [%s].", MAX_LOW_PRIORITY_MODELS_PER_NODE)
         );
+
+        // No need to use the zone aware planner as there is only 1 allocation for low priority models.
         return new AssignmentPlanner(planNodes, planModels).computePlan();
     }
 
-    private static OptionalInt getNodeAllocatedProcessors(DiscoveryNode node) {
-        String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
-        try {
-            return OptionalInt.of(Integer.parseInt(allocatedProcessorsString));
-        } catch (NumberFormatException e) {
-            assert e == null
-                : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
-                    + " should parse because we set it internally: invalid value was "
-                    + allocatedProcessorsString;
-            return OptionalInt.empty();
-        }
+    private Map<String, Integer> findFittingAssignments(
+        TrainedModelAssignment assignment,
+        Set<String> assignableNodeIds,
+        Map<String, Long> remainingNodeMemory
+    ) {
+        Map<String, Integer> currentAssignments = assignment.getNodeRoutingTable()
+            .entrySet()
+            .stream()
+            // Filter out nodes that are no longer assignable
+            .filter(e -> assignableNodeIds.contains(e.getKey()))
+            .filter(e -> e.getValue().getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED, RoutingState.FAILED))
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getTargetAllocations()));
+
+        final long modelMemoryBytes = assignment.getTaskParams().estimateMemoryUsageBytes();
+        Map<String, Integer> fittingAssignments = new HashMap<>();
+        currentAssignments.entrySet().stream().filter(nodeToAllocations -> nodeToAllocations.getValue() > 0).forEach(nodeToAllocations -> {
+            if (remainingNodeMemory.get(nodeToAllocations.getKey()) >= modelMemoryBytes) {
+                fittingAssignments.put(nodeToAllocations.getKey(), nodeToAllocations.getValue());
+                remainingNodeMemory.computeIfPresent(nodeToAllocations.getKey(), (k, v) -> v - modelMemoryBytes);
+            }
+        });
+        return fittingAssignments;
+    }
+
+    private Map<List<String>, List<AssignmentPlan.Node>> createNodesByZoneMap() {
+        return mlNodesByZone.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> {
+            Collection<DiscoveryNode> discoveryNodes = e.getValue();
+            List<AssignmentPlan.Node> nodes = new ArrayList<>();
+            for (DiscoveryNode discoveryNode : discoveryNodes) {
+                if (nodeLoads.containsKey(discoveryNode)) {
+                    NodeLoad load = nodeLoads.get(discoveryNode);
+                    if (Strings.isNullOrEmpty(load.getError())) {
+                        nodes.add(
+                            new AssignmentPlan.Node(
+                                discoveryNode.getId(),
+                                // We subtract native inference memory as the planner expects available memory for
+                                // native inference including current assignments.
+                                getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
+                                MlProcessors.get(discoveryNode).roundUp()
+                            )
+                        );
+                    } else {
+                        logger.warn(
+                            format("ignoring node [%s] as detecting its load failed with [%s]", discoveryNode.getId(), load.getError())
+                        );
+                    }
+                } else {
+                    logger.warn(format("ignoring node [%s] as no load could be detected", discoveryNode.getId()));
+                }
+            }
+            return nodes;
+        }));
     }
 
     private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
@@ -157,6 +312,7 @@ class TrainedModelAssignmentRebalancer {
             );
             if (existingAssignment != null) {
                 assignmentBuilder.setStartTime(existingAssignment.getStartTime());
+                assignmentBuilder.setMaxAssignedAllocations(existingAssignment.getMaxAssignedAllocations());
             }
 
             Map<AssignmentPlan.Node, Integer> assignments = assignmentPlan.assignments(model).orElseGet(Map::of);
@@ -235,7 +391,7 @@ class TrainedModelAssignmentRebalancer {
             // But we should also check if we managed to assign a model during the rebalance for which
             // we check if the node has used up any of its allocated processors.
             boolean isPerNodeOverheadAccountedFor = load.getNumAssignedJobsAndModels() > 0
-                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < getNodeAllocatedProcessors(node).orElse(0);
+                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < MlProcessors.get(node).roundUp();
             long requiredMemory = model.memoryBytes() + (isPerNodeOverheadAccountedFor
                 ? 0
                 : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
@@ -264,7 +420,7 @@ class TrainedModelAssignmentRebalancer {
                     "This node has insufficient allocated processors. Available processors [{}], free processors [{}], "
                         + "processors required for each allocation of this model [{}]",
                     new Object[] {
-                        getNodeAllocatedProcessors(node).orElse(0),
+                        MlProcessors.get(node).roundUp(),
                         assignmentPlan.getRemainingNodeCores(node.getId()),
                         model.threadsPerAllocation() }
                 )

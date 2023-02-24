@@ -15,6 +15,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -41,7 +42,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -61,7 +62,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -70,6 +71,8 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            NAME,
+                            IlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,
                             3,
                             "Automatic index lifecycle and data retention management is disabled. The performance and stability of the "
                                 + "cluster could be impacted.",
@@ -88,7 +91,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -107,7 +110,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -118,6 +121,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     Collections.emptyList()
                 )
             )
+        );
+    }
+
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(IlmHealthIndicatorService.NAME, equalTo("ilm"));
+        assertThat(
+            IlmHealthIndicatorService.ILM_NOT_RUNNING.definition().getUniqueId(),
+            equalTo("elasticsearch:health:ilm:diagnosis:ilm_disabled")
         );
     }
 

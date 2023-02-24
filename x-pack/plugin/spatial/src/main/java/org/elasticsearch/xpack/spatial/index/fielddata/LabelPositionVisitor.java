@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.elasticsearch.common.geo.SpatialPoint;
+
 import java.util.function.BiFunction;
 
 /**
@@ -15,48 +17,42 @@ import java.util.function.BiFunction;
  *
  * TODO: We could instead choose the point closer to the centroid which improves unbalanced trees
  */
-public class LabelPositionVisitor<T> implements TriangleTreeReader.Visitor {
+class LabelPositionVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
 
-    private T labelPosition;
-    private final CoordinateEncoder encoder;
-    private final BiFunction<Double, Double, T> pointMaker;
+    private SpatialPoint labelPosition;
+    private final BiFunction<Double, Double, SpatialPoint> pointMaker;
 
-    public LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, T> pointMaker) {
-        this.encoder = encoder;
+    LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker) {
+        super(encoder);
         this.pointMaker = pointMaker;
     }
 
     @Override
-    public void visitPoint(int xi, int yi) {
-        double x = encoder.decodeX(xi);
-        double y = encoder.decodeY(yi);
-        // System.out.println("Got point: (" + x + "," + y + ")");
+    protected void visitDecodedPoint(double x, double y) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply(x, y);
     }
 
     @Override
-    public void visitLine(int aXi, int aYi, int bXi, int bYi, byte metadata) {
-        double aX = encoder.decodeX(aXi);
-        double aY = encoder.decodeY(aYi);
-        double bX = encoder.decodeX(bXi);
-        double bY = encoder.decodeY(bYi);
-        // System.out.println("Got line: (" + aX + "," + aY + ")-(" + bX + "," + bY + ")");
+    protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply((aX + bX) / 2.0, (aY + bY) / 2.0);
     }
 
     @Override
-    public void visitTriangle(int aXi, int aYi, int bXi, int bYi, int cXi, int cYi, byte metadata) {
-        double aX = encoder.decodeX(aXi);
-        double aY = encoder.decodeY(aYi);
-        double bX = encoder.decodeX(bXi);
-        double bY = encoder.decodeY(bYi);
-        double cX = encoder.decodeX(cXi);
-        double cY = encoder.decodeY(cYi);
-        // System.out.println("Got triangle: (" + aX + "," + aY + ")-(" + bX + "," + bY + ")-(" + cX + "," + cY + ")");
+    protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply((aX + bX + cX) / 3.0, (aY + bY + cY) / 3.0);
+    }
+
+    @Override
+    protected boolean pushDecodedX(double minX) {
+        return labelPosition == null;
+    }
+
+    @Override
+    protected boolean pushDecodedY(double minX) {
+        return labelPosition == null;
     }
 
     @Override
@@ -66,30 +62,16 @@ public class LabelPositionVisitor<T> implements TriangleTreeReader.Visitor {
     }
 
     @Override
-    public boolean pushX(int minX) {
-        // Don't traverse deeper once we found a result
+    protected boolean pushDecoded(double maxX, double maxY) {
         return labelPosition == null;
     }
 
     @Override
-    public boolean pushY(int minY) {
-        // Don't traverse deeper once we found a result
+    protected boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
         return labelPosition == null;
     }
 
-    @Override
-    public boolean push(int maxX, int maxY) {
-        // Don't traverse deeper once we found a result
-        return labelPosition == null;
-    }
-
-    @Override
-    public boolean push(int minX, int minY, int maxX, int maxY) {
-        // Always start the traversal
-        return true;
-    }
-
-    public T labelPosition() {
+    public SpatialPoint labelPosition() {
         return labelPosition;
     }
 }

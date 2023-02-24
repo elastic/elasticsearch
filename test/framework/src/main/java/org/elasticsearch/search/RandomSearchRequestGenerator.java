@@ -34,11 +34,10 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -249,15 +248,20 @@ public class RandomSearchRequestGenerator {
         }
 
         if (randomBoolean()) {
-            String field = randomAlphaOfLength(6);
-            int dim = randomIntBetween(2, 30);
-            float[] vector = new float[dim];
-            for (int i = 0; i < vector.length; i++) {
-                vector[i] = randomFloat();
+            int numKClauses = randomIntBetween(1, 5);
+            List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(numKClauses);
+            for (int j = 0; j < numKClauses; j++) {
+                String field = randomAlphaOfLength(6);
+                int dim = randomIntBetween(2, 30);
+                float[] vector = new float[dim];
+                for (int i = 0; i < vector.length; i++) {
+                    vector[i] = randomFloat();
+                }
+                int k = randomIntBetween(1, 100);
+                int numCands = randomIntBetween(k, 1000);
+                knnSearchBuilders.add(new KnnSearchBuilder(field, vector, k, numCands));
             }
-            int k = randomIntBetween(1, 100);
-            int numCands = randomIntBetween(k, 1000);
-            builder.knnSearch(new KnnSearchBuilder(field, vector, k, numCands));
+            builder.knnSearch(knnSearchBuilders);
         }
 
         if (randomBoolean()) {
@@ -310,11 +314,7 @@ public class RandomSearchRequestGenerator {
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(jsonBuilder).streamInput()
-                    );
+                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput());
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();

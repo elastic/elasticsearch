@@ -48,7 +48,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
         writer.forceMerge(1, true);
         List<LeafReaderContext> contexts = refreshReader();
-        final MapperBuilderContext builderContext = MapperBuilderContext.ROOT;
+        final MapperBuilderContext builderContext = MapperBuilderContext.root(false);
 
         {
             indexService.clearCaches(false, true);
@@ -56,7 +56,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                 .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
                 .build(builderContext)
                 .fieldType();
-            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft);
+            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -71,7 +71,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, 201, 100)
                 .build(builderContext)
                 .fieldType();
-            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft);
+            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -86,7 +86,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, Integer.MAX_VALUE, 101)
                 .build(builderContext)
                 .fieldType();
-            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft);
+            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -102,7 +102,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, Integer.MAX_VALUE, 101)
                 .build(builderContext)
                 .fieldType();
-            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft);
+            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();

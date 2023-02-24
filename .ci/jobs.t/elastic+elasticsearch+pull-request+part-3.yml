@@ -18,8 +18,13 @@
           github-hooks: true
           status-context: elasticsearch-ci/part-3
           cancel-builds-on-update: true
-          white-list-labels:
-            - 'test-part-3'
+          excluded-regions:
+            - ^docs/.*
+          black-list-labels:
+            - '>test-mute'
+          black-list-target-branches:
+            - 6.8
+            - 7.17
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

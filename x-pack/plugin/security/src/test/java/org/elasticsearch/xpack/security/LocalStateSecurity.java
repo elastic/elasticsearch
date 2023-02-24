@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -123,5 +124,9 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
     @Override
     protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
         return SecurityTransportXPackInfoAction.class;
+    }
+
+    List<Plugin> plugins() {
+        return plugins;
     }
 }

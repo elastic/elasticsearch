@@ -1,5 +1,0 @@
-pr: 88638
-summary: Fix multi-value handling in composite agg
-area: Aggregations
-type: bug
-issues: []

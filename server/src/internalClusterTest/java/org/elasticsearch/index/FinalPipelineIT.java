@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -52,6 +53,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
@@ -88,7 +90,12 @@ public class FinalPipelineIT extends ESIntegTestCase {
             IllegalStateException.class,
             () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
         );
-        assertThat(e, hasToString(containsString("final pipeline [final_pipeline] can't change the target index")));
+        assertThat(
+            e,
+            hasToString(
+                endsWith("final pipeline [final_pipeline] can't change the target index (from [index] to [target]) for document [1]")
+            )
+        );
     }
 
     public void testFinalPipelineOfOldDestinationIsNotInvoked() {
@@ -348,7 +355,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer
+            Tracer tracer,
+            AllocationService allocationService
         ) {
             return List.of();
         }

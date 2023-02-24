@@ -18,7 +18,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,8 +40,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
-public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
+public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStream> {
 
     @Override
     protected DataStream doParseInstance(XContentParser parser) throws IOException {
@@ -55,6 +57,61 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     @Override
     protected DataStream createTestInstance() {
         return DataStreamTestHelper.randomInstance();
+    }
+
+    @Override
+    protected DataStream mutateInstance(DataStream instance) {
+        var name = instance.getName();
+        var indices = instance.getIndices();
+        var generation = instance.getGeneration();
+        var metadata = instance.getMetadata();
+        var isHidden = instance.isHidden();
+        var isReplicated = instance.isReplicated();
+        var isSystem = instance.isSystem();
+        var allowsCustomRouting = instance.isAllowCustomRouting();
+        var indexMode = instance.getIndexMode();
+        var lifecycle = instance.getLifecycle();
+        switch (between(0, 9)) {
+            case 0 -> name = randomAlphaOfLength(10);
+            case 1 -> indices = DataStreamTestHelper.randomIndexInstances();
+            case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
+            case 3 -> metadata = randomBoolean() && metadata != null ? null : Map.of("key", randomAlphaOfLength(10));
+            case 4 -> {
+                if (isHidden) {
+                    isHidden = false;
+                    isSystem = false; // To ensure that we generate a valid combination, system indices should be always hidden
+                } else {
+                    isHidden = true;
+                }
+            }
+            case 5 -> isReplicated = isReplicated == false;
+            case 6 -> {
+                if (isSystem == false) {
+                    isSystem = true;
+                    isHidden = true; // A system data stream must always be hidden
+                } else {
+                    isSystem = false;
+                }
+            }
+            case 7 -> allowsCustomRouting = allowsCustomRouting == false;
+            case 8 -> indexMode = randomBoolean() && indexMode != null
+                ? null
+                : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
+            case 9 -> lifecycle = randomBoolean() && lifecycle != null ? null : new DataLifecycle(randomMillisUpToYear9999());
+        }
+
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            isHidden,
+            isReplicated,
+            isSystem,
+            allowsCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     public void testRollover() {
@@ -96,7 +153,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndexMode(), equalTo(ds.getIndexMode()));
     }
 
-    public void testRolloverIndexMode() {
+    public void testRolloverUpgradeToTsdbDataStream() {
         IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         // Unsure index_mode=null
@@ -109,7 +166,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            indexMode
+            indexMode,
+            ds.getLifecycle()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -123,7 +181,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
-    public void testRolloverIndexMode_keepIndexMode() {
+    public void testRolloverDowngradeToRegularDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         ds = new DataStream(
             ds.getName(),
@@ -134,7 +192,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            ds.getLifecycle()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -145,7 +204,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+        assertThat(rolledDs.getIndexMode(), nullValue());
     }
 
     public void testRemoveBackingIndex() {
@@ -183,7 +242,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> original.removeBackingIndex(indexToRemove));
         assertThat(
             e.getMessage(),
-            equalTo(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", indexToRemove.getName(), dataStreamName))
+            equalTo(Strings.format("index [%s] is not part of data stream [%s]", indexToRemove.getName(), dataStreamName))
         );
     }
 
@@ -398,7 +457,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
         String dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
         String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum, epochMillis);
-        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
+        String expectedBackingIndexName = Strings.format(".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
         assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
     }
 
@@ -494,7 +553,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isReplicated() && randomBoolean(),
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode()
+            preSnapshotDataStream.getIndexMode(),
+            preSnapshotDataStream.getLifecycle()
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
@@ -536,7 +596,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isReplicated(),
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode()
+            preSnapshotDataStream.getIndexMode(),
+            preSnapshotDataStream.getLifecycle()
         );
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));

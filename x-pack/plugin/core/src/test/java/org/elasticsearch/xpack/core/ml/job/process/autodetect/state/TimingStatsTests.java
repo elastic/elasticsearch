@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
+public class TimingStatsTests extends AbstractXContentSerializingTestCase<TimingStats> {
 
     private static final String JOB_ID = "my-job-id";
 
@@ -42,6 +42,11 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
     @Override
     public TimingStats createTestInstance() {
         return createTestInstance(randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected TimingStats mutateInstance(TimingStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

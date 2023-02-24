@@ -180,26 +180,6 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assertThat(failure.getMessage(), containsString("cannot follow [logs-syslog-prod], because it is a DATA_STREAM"));
     }
 
-    public void testChangeBackingIndexNameFails() throws Exception {
-        if ("follow".equals(targetCluster) == false) {
-            return;
-        }
-
-        final String dataStreamName = "logs-foobar-prod";
-        try (RestClient leaderClient = buildLeaderClient()) {
-            Request request = new Request("PUT", "/_data_stream/" + dataStreamName);
-            assertOK(leaderClient.performRequest(request));
-            verifyDataStream(leaderClient, dataStreamName, DataStream.getDefaultBackingIndexName("logs-foobar-prod", 1));
-        }
-
-        ResponseException failure = expectThrows(
-            ResponseException.class,
-            () -> followIndex(DataStream.getDefaultBackingIndexName("logs-foobar-prod", 1), ".ds-logs-barbaz-prod-000001")
-        );
-        assertThat(failure.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(failure.getMessage(), containsString("a backing index name in the local and remote cluster must remain the same"));
-    }
-
     public void testFollowSearchableSnapshotsFails() throws Exception {
         final String testPrefix = getTestName().toLowerCase(Locale.ROOT);
 
@@ -384,7 +364,6 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     public void testSyntheticSource() throws Exception {
         final int numDocs = 128;
         final String leaderIndexName = "synthetic_leader";
-        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-04-28T18:35:24.467Z");
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
             createIndex(adminClient(), leaderIndexName, Settings.EMPTY, """

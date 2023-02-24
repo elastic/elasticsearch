@@ -11,7 +11,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -34,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BulkShardOperationsTests extends IndexShardTestCase {
 
-    private static final byte[] SOURCE = "{}".getBytes(StandardCharsets.UTF_8);
+    private static final BytesReference SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
 
     // test that we use the primary term on the follower when applying operations from the leader
     public void testPrimaryTermFromFollower() throws IOException {
@@ -141,7 +144,10 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newPrimary.markAsRecovering("store", new RecoveryState(newPrimary.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newPrimary));
-        IndexShardTestCase.updateRoutingEntry(newPrimary, newPrimary.routingEntry().moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(
+            newPrimary,
+            newPrimary.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+        );
         newPrimary.advanceMaxSeqNoOfUpdatesOrDeletes(seqno);
         // The second bulk includes some operations from the first bulk which were processed already;
         // only a subset of these operations will be included the result but with the old primary term.

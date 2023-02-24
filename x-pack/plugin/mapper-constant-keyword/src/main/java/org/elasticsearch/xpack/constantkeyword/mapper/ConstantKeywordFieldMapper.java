@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -17,9 +19,9 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -51,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -146,17 +149,26 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(value);
+            return value == null ? (lookup, doc, ignoredValues) -> List.of() : (lookup, doc, ignoredValues) -> List.of(value);
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
+
+        @Override
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) {
             if (value == null) {
                 return TermsEnum.EMPTY;
             }
             boolean matches = caseInsensitive
-                ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
-                : value.startsWith(string);
+                ? value.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))
+                : value.startsWith(prefix);
             if (matches == false) {
                 return TermsEnum.EMPTY;
             }
@@ -309,15 +321,25 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return (reader, docIdsInLeaf) -> new SourceLoader.SyntheticFieldLoader.Leaf() {
+        String value = fieldType().value();
+        ;
+        if (value == null) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public boolean empty() {
-                return fieldType().value == null;
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.of();
             }
 
             @Override
-            public boolean advanceToDoc(int docId) throws IOException {
-                return fieldType().value != null;
+            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
+                return docId -> true;
+            }
+
+            @Override
+            public boolean hasValue() {
+                return true;
             }
 
             @Override

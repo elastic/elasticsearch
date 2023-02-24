@@ -7,19 +7,18 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
-public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<TestSqlClearCursorRequest> {
+public class SqlClearCursorRequestTests extends AbstractXContentSerializingTestCase<TestSqlClearCursorRequest> {
 
     public RequestInfo requestInfo;
 
@@ -56,7 +55,7 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<Test
     }
 
     @Override
-    protected TestSqlClearCursorRequest mutateInstance(TestSqlClearCursorRequest instance) throws IOException {
+    protected TestSqlClearCursorRequest mutateInstance(TestSqlClearCursorRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<TestSqlClearCursorRequest> mutator = randomFrom(
             request -> request.requestInfo(randomValueOtherThan(request.requestInfo(), this::randomRequestInfo)),

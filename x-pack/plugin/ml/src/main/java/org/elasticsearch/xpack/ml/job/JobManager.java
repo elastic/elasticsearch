@@ -416,7 +416,7 @@ public class JobManager {
 
         // Step 2. Delete the physical storage
         ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelUpgradesListener = ActionListener.wrap(
-            r -> new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
+            r -> new JobDataDeleter(clientToUse, jobId, request.getDeleteUserAnnotations()).deleteJobDocuments(
                 jobConfigProvider,
                 indexNameExpressionResolver,
                 state,
@@ -688,7 +688,7 @@ public class JobManager {
         CheckedConsumer<Boolean, Exception> updateHandler = response -> {
             if (response) {
                 ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSizeStats).setLogTime(new Date()).build();
-                jobResultsPersister.persistModelSizeStats(
+                jobResultsPersister.persistModelSizeStatsWithoutRetries(
                     revertedModelSizeStats,
                     WriteRequest.RefreshPolicy.IMMEDIATE,
                     ActionListener.wrap(modelSizeStatsResponseHandler, actionListener::onFailure)

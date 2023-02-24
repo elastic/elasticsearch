@@ -134,13 +134,17 @@ public class User implements ToXContentObject {
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder);
+        return builder.endObject();
+    }
+
+    public void innerToXContent(XContentBuilder builder) throws IOException {
         builder.field(Fields.USERNAME.getPreferredName(), principal());
         builder.array(Fields.ROLES.getPreferredName(), roles());
         builder.field(Fields.FULL_NAME.getPreferredName(), fullName());
         builder.field(Fields.EMAIL.getPreferredName(), email());
         builder.field(Fields.METADATA.getPreferredName(), metadata());
         builder.field(Fields.ENABLED.getPreferredName(), enabled());
-        return builder.endObject();
     }
 
     public static boolean isInternal(User user) {

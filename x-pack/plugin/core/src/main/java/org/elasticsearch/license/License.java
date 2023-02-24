@@ -16,10 +16,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -95,7 +93,7 @@ public class License implements ToXContentObject {
                 case "basic" -> BASIC;
                 case "standard" -> STANDARD;
                 case "silver", "gold" -> GOLD;
-                case "platinum", "cloud_internal", "internal" -> // bwc for 1.x subscription_type field
+                case "platinum", "internal" -> // bwc for 1.x subscription_type field
                     PLATINUM;
                 case "enterprise" -> ENTERPRISE;
                 default -> throw new IllegalArgumentException("unknown license type [" + name + "]");
@@ -360,40 +358,10 @@ public class License implements ToXContentObject {
     }
 
     /**
-     * @return the operation mode of the license as computed from the license type or from
-     * the license mode file
+     * @return the operation mode of the license as computed from the license type
      */
     public OperationMode operationMode() {
-        synchronized (this) {
-            if (canReadOperationModeFromFile() && operationModeFileWatcher != null) {
-                return operationModeFileWatcher.getCurrentOperationMode();
-            }
-        }
         return operationMode;
-    }
-
-    private boolean canReadOperationModeFromFile() {
-        return type.equals("cloud_internal");
-    }
-
-    private volatile OperationModeFileWatcher operationModeFileWatcher;
-
-    /**
-     * Sets the operation mode file watcher for the license and initializes the
-     * file watcher when the license type allows to override operation mode from file
-     */
-    public synchronized void setOperationModeFileWatcher(final OperationModeFileWatcher operationModeFileWatcher) {
-        this.operationModeFileWatcher = operationModeFileWatcher;
-        if (canReadOperationModeFromFile()) {
-            this.operationModeFileWatcher.init();
-        }
-    }
-
-    /**
-     * Removes operation mode file watcher, so unused license objects can be gc'ed
-     */
-    public synchronized void removeOperationModeFileWatcher() {
-        this.operationModeFileWatcher = null;
     }
 
     private void validate() {
@@ -515,13 +483,7 @@ public class License implements ToXContentObject {
 
     @Override
     public String toString() {
-        try {
-            final XContentBuilder builder = XContentFactory.jsonBuilder();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            return "";
-        }
+        return Strings.toString(this);
     }
 
     @Override

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,6 +45,8 @@ public class Vocabulary implements Writeable, ToXContentObject {
         return parser;
     }
 
+    public static ConstructingObjectParser<Vocabulary, Void> PARSER = createParser(true);
+
     private final List<String> vocab;
     private final List<String> merges;
     private final String modelId;
@@ -58,7 +60,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
     public Vocabulary(StreamInput in) throws IOException {
         vocab = in.readStringList();
         modelId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             merges = in.readStringList();
         } else {
             merges = List.of();
@@ -77,7 +79,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(vocab);
         out.writeString(modelId);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeStringCollection(merges);
         }
     }

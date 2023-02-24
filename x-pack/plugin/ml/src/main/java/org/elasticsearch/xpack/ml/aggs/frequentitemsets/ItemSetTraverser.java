@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.LongsRef;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +27,7 @@ import java.util.List;
  * Note: In order to avoid churn, the traverser is reusing objects as much as it can,
  *       see the comments containing the non-optimized code
  */
-class ItemSetTraverser implements Releasable {
+class ItemSetTraverser {
 
     // start size and size increment for array holding items
     private static final int SIZE_INCREMENT = 100;
@@ -39,12 +39,21 @@ class ItemSetTraverser implements Releasable {
     private final List<TransactionStore.TopItemIds.IdIterator> itemIterators = new ArrayList<>();
     private LongsRef itemIdStack = new LongsRef(SIZE_INCREMENT);
 
+    private final ItemSetBitSet itemPositionsVector;
+    private final ItemSetBitSet itemPositionsVectorParent;
+    private IntsRef itemPositionsStack = new IntsRef(SIZE_INCREMENT);
+
     private int stackPosition = 0;
 
     ItemSetTraverser(TransactionStore.TopItemIds topItemIds) {
         this.topItemIds = topItemIds;
         // push the first iterator
         itemIterators.add(topItemIds.iterator());
+
+        // create a bit vector that corresponds to the number of items
+        itemPositionsVector = new ItemSetBitSet((int) topItemIds.size());
+        // create a bit vector that corresponds to the item set
+        itemPositionsVectorParent = new ItemSetBitSet((int) topItemIds.size());
     }
 
     /**
@@ -81,25 +90,33 @@ class ItemSetTraverser implements Releasable {
                     return false;
                 }
                 itemIdStack.length--;
+                itemPositionsStack.length--;
+                itemPositionsVectorParent.clear(itemPositionsStack.ints[itemPositionsStack.length]);
+                itemPositionsVector.clear(itemPositionsStack.ints[itemPositionsStack.length]);
             }
         }
 
         // push a new iterator on the stack
+
+        int itemPosition = itemIterators.get(stackPosition).getIndex();
         // non-optimized: itemIterators.add(topItemIds.iterator(itemIteratorStack.peek().getIndex()));
         if (itemIterators.size() == stackPosition + 1) {
-            itemIterators.add(topItemIds.iterator(itemIterators.get(stackPosition).getIndex()));
+            itemIterators.add(topItemIds.iterator(itemPosition));
         } else {
-            itemIterators.get(stackPosition + 1).reset(itemIterators.get(stackPosition).getIndex());
+            itemIterators.get(stackPosition + 1).reset(itemPosition);
         }
 
-        if (itemIdStack.longs.length == itemIdStack.length) {
-            LongsRef resizedItemIdStack2 = new LongsRef(itemIdStack.length + SIZE_INCREMENT);
-            System.arraycopy(itemIdStack.longs, 0, resizedItemIdStack2.longs, 0, itemIdStack.length);
-            resizedItemIdStack2.length = itemIdStack.length;
-            itemIdStack = resizedItemIdStack2;
-        }
-
+        growStacksIfNecessary();
         itemIdStack.longs[itemIdStack.length++] = itemId;
+
+        // set the position from the previous step
+        if (itemPositionsStack.length > 0) {
+            itemPositionsVectorParent.set(itemPositionsStack.ints[itemPositionsStack.length - 1]);
+        }
+
+        // set the position from the this step
+        itemPositionsStack.ints[itemPositionsStack.length++] = itemPosition;
+        itemPositionsVector.set(itemPosition);
         ++stackPosition;
 
         return true;
@@ -111,6 +128,14 @@ class ItemSetTraverser implements Releasable {
 
     public LongsRef getItemSet() {
         return itemIdStack;
+    }
+
+    public ItemSetBitSet getItemSetBitSet() {
+        return itemPositionsVector;
+    }
+
+    public ItemSetBitSet getParentItemSetBitSet() {
+        return itemPositionsVectorParent;
     }
 
     public int getNumberOfItems() {
@@ -132,11 +157,19 @@ class ItemSetTraverser implements Releasable {
             return;
         }
         itemIdStack.length--;
+        itemPositionsStack.length--;
+        itemPositionsVectorParent.clear(itemPositionsStack.ints[itemPositionsStack.length]);
+        itemPositionsVector.clear(itemPositionsStack.ints[itemPositionsStack.length]);
     }
 
-    @Override
-    public void close() {
-        Releasables.close(topItemIds);
+    private void growStacksIfNecessary() {
+        if (itemIdStack.longs.length == itemIdStack.length) {
+            itemIdStack.longs = ArrayUtil.grow(itemIdStack.longs, itemIdStack.length + SIZE_INCREMENT);
+        }
+
+        if (itemPositionsStack.ints.length == itemPositionsStack.length) {
+            itemPositionsStack.ints = ArrayUtil.grow(itemPositionsStack.ints, itemPositionsStack.length + SIZE_INCREMENT);
+        }
     }
 
 }

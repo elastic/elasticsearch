@@ -1,5 +1,0 @@
-pr: 88560
-summary: Always close directory streams
-area: Infra/Core
-type: bug
-issues: []

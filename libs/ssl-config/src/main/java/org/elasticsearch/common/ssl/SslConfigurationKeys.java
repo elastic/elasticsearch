@@ -71,6 +71,12 @@ public class SslConfigurationKeys {
      */
     public static final String TRUSTSTORE_ALGORITHM = "truststore.algorithm";
 
+    /**
+     * The fields from the X509 certificate used for restricted trust. Internationally omitted from the list of setting returned by methods
+     * in this class. This is not a general purpose ssl configuration.
+     */
+    public static final String TRUST_RESTRICTIONS_X509_FIELDS = "trust_restrictions.x509_fields";
+
     // Key Management
     // -- Keystore
     /**

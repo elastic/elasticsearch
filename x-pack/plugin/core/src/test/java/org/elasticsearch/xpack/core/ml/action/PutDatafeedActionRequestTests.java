@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction.Request;
@@ -20,7 +20,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 
-public class PutDatafeedActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     private String datafeedId;
 
@@ -32,6 +32,11 @@ public class PutDatafeedActionRequestTests extends AbstractSerializingTestCase<R
     @Override
     protected Request createTestInstance() {
         return new Request(DatafeedConfigTests.createRandomizedDatafeedConfig(randomAlphaOfLength(10), datafeedId, 3600));
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

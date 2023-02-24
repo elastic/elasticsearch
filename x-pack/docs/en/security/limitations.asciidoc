@@ -50,6 +50,13 @@ When a user's role enables document or <<field-level-security,field level securi
 * The user cannot perform write operations:
 ** The update API isn't supported.
 ** Update requests included in bulk requests aren't supported.
+* The user cannot perform operations that effectively make contents accessible
+under another name, including actions from the following APIs:
+** <<indices-clone-index,Clone index API>>
+** <<indices-shrink-index,Shrink index API>>
+** <<indices-split-index,Split index API>>
+** <<indices-aliases,Aliases API>>
+
 * The request cache is disabled for search requests if either of the following are true:
 ** The role query that defines document level security is <<templating-role-query,templated>>
 using a <<script-stored-scripts,stored script>>.
@@ -72,6 +79,14 @@ including the following queries:
 ** `percolate` query
 * If suggesters are specified and document level security is enabled, the specified suggesters are ignored.
 * A search request cannot be profiled if document level security is enabled.
+* The <<search-terms-enum,terms enum API>> does not return terms if document
+level security is enabled.
+
+NOTE: While document-level security prevents users from viewing restricted documents,
+it's still possible to write search requests that return aggregate information about the
+entire index. A user whose access is restricted to specific documents in an index could
+still learn about field names and terms that only exist in inaccessible
+documents, and count how many inaccessible documents contain a given term. 
 
 [discrete]
 [[alias-limitations]]

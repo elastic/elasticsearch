@@ -12,12 +12,12 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class FeatureMigrationResultsTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
+public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
 
     @Override
     protected FeatureMigrationResults createTestInstance() {

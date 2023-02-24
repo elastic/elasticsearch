@@ -45,6 +45,7 @@ import static java.util.Collections.unmodifiableMap;
 public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
+    public static final String INDEX_ANALYSIS_ANALYZER = "index.analysis.analyzer";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
 
     public static final String DEFAULT_ANALYZER_NAME = "default";

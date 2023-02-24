@@ -83,7 +83,7 @@ public abstract class BucketCollector {
 
         @Override
         public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-            return bucketCollector.getLeafCollector(new AggregationExecutionContext(context, null, null));
+            return bucketCollector.getLeafCollector(new AggregationExecutionContext(context, null, null, null));
         }
 
         @Override

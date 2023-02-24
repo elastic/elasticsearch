@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -18,6 +18,19 @@ import java.io.IOException;
 public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPNetTokenization> {
 
     private boolean lenient;
+
+    static MPNetTokenization mutateForVersion(MPNetTokenization instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_2_0)) {
+            return new MPNetTokenization(
+                instance.doLowerCase,
+                instance.withSpecialTokens,
+                instance.maxSequenceLength,
+                instance.truncate,
+                null
+            );
+        }
+        return instance;
+    }
 
     @Before
     public void chooseStrictOrLenient() {
@@ -40,8 +53,13 @@ public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPN
     }
 
     @Override
-    protected MPNetTokenization mutateInstanceForVersion(MPNetTokenization instance, Version version) {
-        return instance;
+    protected MPNetTokenization mutateInstance(MPNetTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected MPNetTokenization mutateInstanceForVersion(MPNetTokenization instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
     }
 
     public static MPNetTokenization createRandom() {

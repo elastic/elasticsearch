@@ -7,11 +7,13 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ConcurrentRegisterOperationException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -107,13 +109,13 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         if (request.getBlobCount() > 3 || randomBoolean()) {
             // only use the default blob size of 10MB if writing a small number of blobs, since this is all in-memory
-            request.maxBlobSize(new ByteSizeValue(between(1, 2048)));
+            request.maxBlobSize(ByteSizeValue.ofBytes(between(1, 2048)));
             blobStore.setMaxBlobSize(request.getMaxBlobSize().getBytes());
         }
 
         if (usually()) {
             request.maxTotalDataSize(
-                new ByteSizeValue(request.getMaxBlobSize().getBytes() + request.getBlobCount() - 1 + between(0, 1 << 20))
+                ByteSizeValue.ofBytes(request.getMaxBlobSize().getBytes() + request.getBlobCount() - 1 + between(0, 1 << 20))
             );
             blobStore.setMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
@@ -268,6 +270,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final long maxTotalBlobSize;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
         private final AtomicLong totalBytesWritten = new AtomicLong();
+        private final Map<String, AtomicLong> registers = ConcurrentCollections.newConcurrentMap();
 
         AssertingBlobContainer(
             BlobPath path,
@@ -329,7 +332,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void writeBlob(
+        public void writeMetadataBlob(
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,
@@ -403,6 +406,23 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             final Map<String, BlobMetadata> blobMetadataByName = listBlobs();
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
+        }
+
+        @Override
+        public long getRegister(String key) throws ConcurrentRegisterOperationException {
+            if (randomBoolean() && randomBoolean()) {
+                throw new ConcurrentRegisterOperationException(new ElasticsearchException("simulated"));
+            }
+            return registers.computeIfAbsent(key, ignored -> new AtomicLong()).get();
+        }
+
+        @Override
+        public long compareAndExchangeRegister(String key, long expected, long updated) throws ConcurrentRegisterOperationException {
+            if (expected != updated && randomBoolean() && randomBoolean()) {
+                // don't fail the final check because we know there can be no concurrent operations at that point
+                throw new ConcurrentRegisterOperationException(new ElasticsearchException("simulated"));
+            }
+            return registers.computeIfAbsent(key, ignored -> new AtomicLong()).compareAndExchange(expected, updated);
         }
     }
 

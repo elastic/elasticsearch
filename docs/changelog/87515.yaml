@@ -1,5 +1,0 @@
-pr: 87515
-summary: Use a faster but less accurate log algorithm for computing Geotile Y coordinate
-area: Geo
-type: enhancement
-issues: []

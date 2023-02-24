@@ -39,7 +39,11 @@ final class TokenizerUtils {
                 if (neverSplitSet.contains(maybeNeverSplit)) {
                     if (windowStart < neverSplitStart) {
                         bigTokens.add(
-                            new DelimitedToken(new CharSequenceRef(input, windowStart, neverSplitStart), windowStart, neverSplitStart)
+                            new DelimitedToken(
+                                new CharSequenceRef(input, windowStart, neverSplitStart - windowStart),
+                                windowStart,
+                                neverSplitStart
+                            )
                         );
                     }
                     bigTokens.add(new DelimitedToken(maybeNeverSplit, neverSplitStart, i + 1));

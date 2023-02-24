@@ -12,8 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -53,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -95,6 +94,8 @@ public class TaskManager implements ClusterStateApplier {
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
+    private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
+
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
@@ -120,10 +121,22 @@ public class TaskManager implements ClusterStateApplier {
      * Registers a task without parent task
      */
     public Task register(String type, String action, TaskAwareRequest request) {
+        return register(type, action, request, true);
+    }
+
+    /**
+     * Registers a task without a parent task, and specifies whether to trace the request. You should prefer
+     * to call {@link #register(String, String, TaskAwareRequest)}, since it is rare to want to avoid
+     * tracing a task.
+     */
+    public Task register(String type, String action, TaskAwareRequest request, boolean traceRequest) {
         Map<String, String> headers = new HashMap<>();
         long headerSize = 0;
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
+
+        assert threadContext.hasTraceContext() == false : "Expected threadContext to have no traceContext fields";
+
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
             if (httpHeader != null) {
@@ -142,16 +155,19 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         if (task instanceof CancellableTask) {
-            registerCancellableTask(task);
+            registerCancellableTask(task, traceRequest);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
-            startTrace(threadContext, task);
+            if (traceRequest) {
+                startTrace(threadContext, task);
+            }
         }
         return task;
     }
 
-    private void startTrace(ThreadContext threadContext, Task task) {
+    // package private for testing
+    void startTrace(ThreadContext threadContext, Task task) {
         TaskId parentTask = task.getParentTaskId();
         Map<String, Object> attributes = Map.of(
             Tracer.AttributeKeys.TASK_ID,
@@ -175,53 +191,56 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             unregisterChildNode = null;
         }
-        final Task task;
-        try {
-            task = register(type, action.actionName, request);
-        } catch (TaskCancelledException e) {
-            Releasables.close(unregisterChildNode);
-            throw e;
+
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            final Task task;
+            try {
+                task = register(type, action.actionName, request);
+            } catch (TaskCancelledException e) {
+                Releasables.close(unregisterChildNode);
+                throw e;
+            }
+            action.execute(task, request, new ActionListener<>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onResponse(response);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+                }
+
+                private void release() {
+                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                }
+            });
+            return task;
         }
-        // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
-        action.execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    release();
-                } finally {
-                    taskListener.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    release();
-                } finally {
-                    taskListener.onFailure(e);
-                }
-            }
-
-            @Override
-            public String toString() {
-                return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
-            }
-
-            private void release() {
-                Releasables.close(unregisterChildNode, () -> unregister(task));
-            }
-        });
-        return task;
     }
 
-    private void registerCancellableTask(Task task) {
+    private void registerCancellableTask(Task task, boolean traceRequest) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
-        startTrace(threadPool.getThreadContext(), task);
-        // Check if this task was banned before we start it. The empty check is used to avoid
-        // computing the hash code of the parent taskId as most of the time bannedParents is empty.
-        if (task.getParentTaskId().isSet() && bannedParents.isEmpty() == false) {
+        if (traceRequest) {
+            startTrace(threadPool.getThreadContext(), task);
+        }
+        // Check if this task was banned before we start it.
+        if (task.getParentTaskId().isSet()) {
             final Ban ban = bannedParents.get(task.getParentTaskId());
             if (ban != null) {
                 try {
@@ -274,7 +293,18 @@ public class TaskManager implements ClusterStateApplier {
             }
         } finally {
             tracer.stopTrace("task-" + task.getId());
+            for (RemovedTaskListener listener : removedTaskListeners) {
+                listener.onRemoved(task);
+            }
         }
+    }
+
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        removedTaskListeners.add(removedTaskListener);
+    }
+
+    public void unregisterRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        removedTaskListeners.remove(removedTaskListener);
     }
 
     /**
@@ -513,23 +543,6 @@ public class TaskManager implements ClusterStateApplier {
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
-    }
-
-    /**
-     * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
-     */
-    public void waitForTaskCompletion(Task task, long untilInNanos) {
-        while (System.nanoTime() - untilInNanos < 0) {
-            if (getTask(task.getId()) == null) {
-                return;
-            }
-            try {
-                Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
-            } catch (InterruptedException e) {
-                throw new ElasticsearchException("Interrupted waiting for completion of [{}]", e, task);
-            }
-        }
-        throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
     private static class CancellableTaskHolder {

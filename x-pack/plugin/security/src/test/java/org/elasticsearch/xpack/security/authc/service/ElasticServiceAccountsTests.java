@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -107,8 +108,10 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -117,6 +120,7 @@ import org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.Ela
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.hamcrest.Matchers.containsString;
@@ -145,21 +149,34 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticFleetServerPrivileges() {
-        final Role role = Role.builder(
+        final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
-            null,
-            RESTRICTED_INDICES
-        ).build();
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of(
+                new ApplicationPrivilegeDescriptor(
+                    kibanaApplication,
+                    "reserved_fleet-setup",
+                    Set.of(allowedApplicationActionPattern),
+                    Map.of()
+                )
+            )
+        );
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         assertThat(
             role.cluster()
                 .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
             is(true)
         );
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+        assertThat(
+            role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
+            is(true)
+        );
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
 
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, randomFrom(GetApiKeyRequest.forAllApiKeys()), authentication), is(false));
+        assertThat(role.cluster().check(GetApiKeyAction.NAME, randomFrom(GetApiKeyRequest.builder().build()), authentication), is(false));
         assertThat(
             role.cluster()
                 .check(
@@ -174,7 +191,6 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "logs-" + randomAlphaOfLengthBetween(1, 20),
             "metrics-" + randomAlphaOfLengthBetween(1, 20),
             "traces-" + randomAlphaOfLengthBetween(1, 20),
-            "synthetics-" + randomAlphaOfLengthBetween(1, 20),
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(1, 20),
             ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(1, 20)
         ).stream().map(this::mockIndexAbstraction).forEach(index -> {
@@ -189,6 +205,21 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+        });
+
+        List.of("synthetics-" + randomAlphaOfLengthBetween(1, 20)).stream().map(this::mockIndexAbstraction).forEach(index -> {
+            assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
         });
 
@@ -231,10 +262,10 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(apmSampledTracesIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(apmSampledTracesIndex), is(false));
 
-        final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         final String privilegeName = randomAlphaOfLengthBetween(3, 16);
         assertThat(
-            role.application().grants(new ApplicationPrivilege(kibanaApplication, privilegeName, "reserved_fleet-setup"), "*"),
+            role.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplication, privilegeName, allowedApplicationActionPattern), "*"),
             is(true)
         );
 
@@ -242,14 +273,15 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             + "-"
             + randomAlphaOfLengthBetween(8, 24);
         assertThat(
-            role.application().grants(new ApplicationPrivilege(otherApplication, privilegeName, "reserved_fleet-setup"), "*"),
+            role.application()
+                .grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, privilegeName, allowedApplicationActionPattern), "*"),
             is(false)
         );
 
         assertThat(
             role.application()
                 .grants(
-                    new ApplicationPrivilege(
+                    ApplicationPrivilegeTests.createPrivilege(
                         kibanaApplication,
                         privilegeName,
                         randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 16))
@@ -302,11 +334,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticEnterpriseSearchServerAccount() {
-        final Role role = Role.builder(
+        final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/enterprise-search-server").roleDescriptor(),
-            null,
+            new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES
-        ).build();
+        );
 
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final TransportRequest request = mock(TransportRequest.class);
@@ -320,7 +352,10 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                 .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
             is(true)
         );
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+        assertThat(
+            role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
+            is(true)
+        );
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
 
         assertThat(role.cluster().check(PutUserAction.NAME, request, authentication), is(true));
@@ -341,17 +376,21 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         List.of(
             "search-" + randomAlphaOfLengthBetween(1, 20),
+            ".elastic-analytics-collections",
             ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
             ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "metricbeat-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
             "logs-app_search.analytics-default",
+            "logs-elastic_analytics.events-" + randomAlphaOfLengthBetween(1, 20),
             "logs-enterprise_search.api-default",
             "logs-enterprise_search.audit-default",
             "logs-app_search.search_relevance_suggestions-default",
             "logs-crawler-default",
             "logs-workplace_search.analytics-default",
-            "logs-workplace_search.content_events-default"
+            "logs-workplace_search.content_events-default",
+            ".elastic-connectors*",
+            "logs-elastic_crawler-default"
         ).forEach(index -> {
             final IndexAbstraction enterpriseSearchIndex = mockIndexAbstraction(index);
             assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(enterpriseSearchIndex), is(true));

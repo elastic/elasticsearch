@@ -170,20 +170,22 @@ public class AsyncTaskManagementService<
         ActionListener<Response> listener
     ) {
         String nodeId = clusterService.localNode().getId();
-        @SuppressWarnings("unchecked")
-        T searchTask = (T) taskManager.register("transport", action + "[a]", new AsyncRequestWrapper(request, nodeId));
-        boolean operationStarted = false;
-        try {
-            operation.execute(
-                request,
-                searchTask,
-                wrapStoringListener(searchTask, waitForCompletionTimeout, keepAlive, keepOnCompletion, listener)
-            );
-            operationStarted = true;
-        } finally {
-            // If we didn't start operation for any reason, we need to clean up the task that we have created
-            if (operationStarted == false) {
-                taskManager.unregister(searchTask);
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            @SuppressWarnings("unchecked")
+            T searchTask = (T) taskManager.register("transport", action + "[a]", new AsyncRequestWrapper(request, nodeId));
+            boolean operationStarted = false;
+            try {
+                operation.execute(
+                    request,
+                    searchTask,
+                    wrapStoringListener(searchTask, waitForCompletionTimeout, keepAlive, keepOnCompletion, listener)
+                );
+                operationStarted = true;
+            } finally {
+                // If we didn't start operation for any reason, we need to clean up the task that we have created
+                if (operationStarted == false) {
+                    taskManager.unregister(searchTask);
+                }
             }
         }
     }
@@ -213,7 +215,7 @@ public class AsyncTaskManagementService<
                     storeResults(
                         searchTask,
                         new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
-                        ActionListener.wrap(() -> acquiredListener.onResponse(response))
+                        ActionListener.running(() -> acquiredListener.onResponse(response))
                     );
                 } else {
                     taskManager.unregister(searchTask);
@@ -233,7 +235,7 @@ public class AsyncTaskManagementService<
                     storeResults(
                         searchTask,
                         new StoredAsyncResponse<>(e, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
-                        ActionListener.wrap(() -> acquiredListener.onFailure(e))
+                        ActionListener.running(() -> acquiredListener.onFailure(e))
                     );
                 } else {
                     taskManager.unregister(searchTask);

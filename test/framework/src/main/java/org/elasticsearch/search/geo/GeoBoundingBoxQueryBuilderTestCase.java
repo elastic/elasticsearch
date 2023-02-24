@@ -249,7 +249,7 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
     }
 
     public void testParsingAndToQueryGeoJSON() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_bounding_box":{
                     "%s":{
@@ -264,12 +264,12 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQueryWKT() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_bounding_box":{
                     "%s":{
@@ -278,12 +278,12 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_bounding_box":{
                     "%s":{
@@ -292,12 +292,12 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_bounding_box":{
                     "%s":{
@@ -312,12 +312,12 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_bounding_box":{
                     "%s":{
@@ -326,12 +326,12 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_bounding_box":{
                     "%s":{
@@ -340,12 +340,12 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery5() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_bounding_box":{
                     "%s":{
@@ -354,12 +354,12 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery6() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
                 "geo_bounding_box":{
                     "%s":{
@@ -370,7 +370,7 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                     }
                 }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 
@@ -499,7 +499,7 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
     }
 
     public void testHonorsCoercion() throws IOException {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
               "geo_bounding_box": {
                 "validation_method": "COERCE",
@@ -515,7 +515,7 @@ public abstract class GeoBoundingBoxQueryBuilderTestCase extends AbstractQueryTe
                 }
               }
             }
-            """.formatted(GEO_POINT_FIELD_NAME);
+            """, GEO_POINT_FIELD_NAME);
         assertGeoBoundingBoxQuery(query);
     }
 

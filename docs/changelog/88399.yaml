@@ -1,6 +1,0 @@
-pr: 88399
-summary: Improve error when sorting on incompatible types
-area: Search
-type: enhancement
-issues:
- - 73146

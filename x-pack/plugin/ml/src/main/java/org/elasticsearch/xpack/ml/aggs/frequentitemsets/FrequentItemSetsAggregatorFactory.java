@@ -8,16 +8,20 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.AbstractItemSetMapReducer;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.InternalItemSetMapReduceAggregation;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceAggregator;
 
@@ -25,6 +29,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.core.Tuple.tuple;
 
 /**
  * Factory for frequent items aggregation
@@ -59,6 +65,8 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
     private final double minimumSupport;
     private final int minimumSetSize;
     private final int size;
+    private final QueryBuilder documentFilter;
+    private final String executionHint;
 
     public FrequentItemSetsAggregatorFactory(
         String name,
@@ -69,33 +77,53 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
         List<MultiValuesSourceFieldConfig> fields,
         double minimumSupport,
         int minimumSetSize,
-        int size
+        int size,
+        QueryBuilder documentFilter,
+        String executionHint
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.fields = fields;
         this.minimumSupport = minimumSupport;
         this.minimumSetSize = minimumSetSize;
         this.size = size;
+        this.documentFilter = documentFilter;
+        this.executionHint = executionHint;
     }
 
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
 
-        List<ValuesSourceConfig> configs = new ArrayList<>(fields.size());
+        List<Tuple<ValuesSourceConfig, IncludeExclude>> configsAndFilters = new ArrayList<>(fields.size());
         for (MultiValuesSourceFieldConfig field : fields) {
-            configs.add(
-                ValuesSourceConfig.resolve(
-                    context,
-                    field.getUserValueTypeHint(),
-                    field.getFieldName(),
-                    field.getScript(),
-                    field.getMissing(),
-                    field.getTimeZone(),
-                    field.getFormat(),
-                    CoreValuesSourceType.KEYWORD
+            configsAndFilters.add(
+                tuple(
+                    ValuesSourceConfig.resolve(
+                        context,
+                        field.getUserValueTypeHint(),
+                        field.getFieldName(),
+                        field.getScript(),
+                        field.getMissing(),
+                        field.getTimeZone(),
+                        field.getFormat(),
+                        CoreValuesSourceType.KEYWORD
+                    ),
+                    field.getIncludeExclude()
                 )
             );
+        }
+
+        EclatMapReducer eclatMapReducer = new EclatMapReducer(
+            FrequentItemSetsAggregationBuilder.NAME,
+            minimumSupport,
+            minimumSetSize,
+            size,
+            context.profiling()
+        );
+        AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization = eclatMapReducer.getDefaultOrdinalOptimization();
+
+        if ("map".equals(executionHint)) {
+            ordinalOptimization = AbstractItemSetMapReducer.OrdinalOptimization.NO_ORDINALS;
         }
 
         return new ItemSetMapReduceAggregator<
@@ -108,8 +136,10 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
                 context,
                 parent,
                 metadata,
-                new EclatMapReducer(FrequentItemSetsAggregationBuilder.NAME, minimumSupport, minimumSetSize, size, context.profiling()),
-                configs
+                eclatMapReducer,
+                configsAndFilters,
+                documentFilter,
+                ordinalOptimization
             ) {
         };
     }

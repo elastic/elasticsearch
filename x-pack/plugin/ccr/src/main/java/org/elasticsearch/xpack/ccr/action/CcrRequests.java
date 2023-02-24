@@ -110,7 +110,7 @@ public final class CcrRequests {
         final List<Index> followingIndices = Arrays.stream(indices).filter(index -> {
             final IndexMetadata indexMetadata = state.metadata().index(index);
             return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
-        }).collect(Collectors.toList());
+        }).toList();
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
             final String errorMessage = "can't put mapping to the following indices "
                 + "["
@@ -132,7 +132,7 @@ public final class CcrRequests {
         final List<Index> followingIndices = Arrays.stream(indices).filter(index -> {
             final IndexMetadata indexMetadata = state.metadata().index(index);
             return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
-        }).collect(Collectors.toList());
+        }).toList();
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
             final String errorMessage = "can't modify aliases on indices "
                 + "["

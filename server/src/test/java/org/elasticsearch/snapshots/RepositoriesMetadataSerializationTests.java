@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-public class RepositoriesMetadataSerializationTests extends SimpleDiffableSerializationTestCase<Custom> {
+public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
 
     @Override
     protected Custom createTestInstance() {
@@ -116,5 +116,4 @@ public class RepositoriesMetadataSerializationTests extends SimpleDiffableSerial
         repos.sort(Comparator.comparing(RepositoryMetadata::name));
         return new RepositoriesMetadata(repos);
     }
-
 }

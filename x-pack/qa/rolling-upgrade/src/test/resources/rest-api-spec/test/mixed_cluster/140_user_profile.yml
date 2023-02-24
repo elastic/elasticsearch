@@ -8,7 +8,7 @@
 
   - do:
       node_selector:
-        version: " 8.4.0 - "
+        version: " 8.5.0 - "
       security.activate_user_profile:
         body: >
           {
@@ -22,12 +22,11 @@
 
   - do:
       node_selector:
-        version: " 8.4.0 - "
+        version: " 8.5.0 - "
       security.get_user_profile:
         uid: "$profile_uid"
 
-  - length: { $body: 1 }
-  - is_true: "$profile_uid"
-  - set: { $profile_uid: profile }
+  - length: { profiles : 1 }
+  - set: { profiles.0 : profile }
   - match: { $profile.uid : "$profile_uid" }
   - match: { $profile.user.username : "test_user" }

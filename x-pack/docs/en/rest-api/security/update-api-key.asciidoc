@@ -26,6 +26,8 @@ To update an API key, the owner user's credentials are required.
 ==== {api-description-title}
 
 Use this API to update API keys created by the <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> APIs.
+If you need to apply the same update to many API keys, you can use <<security-api-bulk-update-api-keys,bulk update API Keys>> to reduce overhead.
+
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 
 This API supports updates to an API key's access scope and metadata.
@@ -53,9 +55,9 @@ You can specify the following parameters in the request body, which is optional.
 `role_descriptors`::
 (Optional, object) The role descriptors to assign to this API key.
 The API key's effective permissions are an intersection of its assigned privileges and the point in time snapshot of permissions of the owner user.
-If no privileges are assigned, the API key inherits the owner user's full permissions.
-You can assign new privileges to the API key by specifying them in this parameter.
-To remove assigned privileges, you can supply an empty `role_descriptors` parameter.
+You can assign new privileges by specifying them in this parameter.
+To remove assigned privileges, you can supply an empty `role_descriptors` parameter, i.e., an empty object `{}`.
+If an API key has no assigned privileges, it inherits the owner user's full permissions.
 The snapshot of the owner's permissions is always updated, whether you supply the `role_descriptors` parameter or not.
 The structure of a role descriptor is the same as the request for the <<security-api-put-role, create or update roles API>>.
 
@@ -189,7 +191,7 @@ The API key's effective permissions after the update will be the intersection of
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example removes the API key's previously assigned permissions.
+The following example removes the API key's previously assigned permissions, making it inherit the owner user's full permissions.
 
 [source,console]
 ----
@@ -209,7 +211,7 @@ Which returns the response:
 }
 ----
 
-The API key's effective permissions after the update will the same as the <<security-api-update-api-key-examples-user-permissions, owner user's>>:
+The API key's effective permissions after the update will be the same as the owner user's:
 
 [source,js]
 --------------------------------------------------

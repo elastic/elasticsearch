@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
@@ -39,12 +40,12 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
         } else {
             value = testQuery.value();
         }
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "%s" : {
                     "%s" : %s
                 }
-            }""".formatted(testQuery.getName(), testQuery.fieldName(), value);
+            }""", testQuery.getName(), testQuery.fieldName(), value);
         alternateVersions.put(contentString, testQuery);
         return alternateVersions;
     }

@@ -72,7 +72,10 @@ public class WatcherPluginTests extends ESTestCase {
         watcher.onIndexModule(indexModule);
 
         // also no component creation if not enabled
-        assertThat(watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null, Tracer.NOOP), hasSize(0));
+        assertThat(
+            watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null, Tracer.NOOP, null),
+            hasSize(0)
+        );
 
         watcher.close();
     }

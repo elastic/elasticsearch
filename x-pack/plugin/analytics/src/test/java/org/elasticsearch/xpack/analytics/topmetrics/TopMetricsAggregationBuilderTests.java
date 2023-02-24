@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfi
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class TopMetricsAggregationBuilderTests extends AbstractSerializingTestCase<TopMetricsAggregationBuilder> {
+public class TopMetricsAggregationBuilderTests extends AbstractXContentSerializingTestCase<TopMetricsAggregationBuilder> {
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
@@ -84,6 +84,11 @@ public class TopMetricsAggregationBuilderTests extends AbstractSerializingTestCa
             return metricField.build();
         }).collect(toList());
         return new TopMetricsAggregationBuilder(randomAlphaOfLength(5), sortBuilders, between(1, 100), metricFields);
+    }
+
+    @Override
+    protected TopMetricsAggregationBuilder mutateInstance(TopMetricsAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testClientBuilder() throws IOException {

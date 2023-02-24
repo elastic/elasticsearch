@@ -77,17 +77,18 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService()
         );
-        MapperBuilderContext context = MapperBuilderContext.ROOT;
+        MapperBuilderContext context = MapperBuilderContext.root(false);
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", Version.CURRENT).build(context).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType()
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, Version.CURRENT, null).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, Version.CURRENT, null).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, Version.CURRENT, null).build(context)
+                .fieldType(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, Version.CURRENT, null).build(context).fieldType()
         )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test"));
@@ -100,7 +101,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT
+            Version.CURRENT,
+            null
         ).build(context).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test"));
@@ -112,7 +114,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT
+            Version.CURRENT,
+            null
         ).build(context).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test"));
@@ -135,8 +138,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             searchLookupSetOnce.set(fdc.lookupSupplier());
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
-        SearchLookup searchLookup = new SearchLookup(null, null);
-        ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup));
+        SearchLookup searchLookup = new SearchLookup(null, null, (ctx, doc) -> null);
+        ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH));
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }
 
@@ -150,7 +153,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        final MapperBuilderContext context = MapperBuilderContext.ROOT;
+        final MapperBuilderContext context = MapperBuilderContext.root(false);
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
             .fieldType();
@@ -217,7 +220,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        final MapperBuilderContext context = MapperBuilderContext.ROOT;
+        final MapperBuilderContext context = MapperBuilderContext.root(false);
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
             .fieldType();
@@ -329,7 +332,20 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnLongs() {
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG));
         doTestRequireDocValues(
-            new NumberFieldMapper.NumberFieldType("field", LONG, true, false, false, false, null, Collections.emptyMap(), null, false, null)
+            new NumberFieldMapper.NumberFieldType(
+                "field",
+                LONG,
+                true,
+                false,
+                false,
+                false,
+                null,
+                Collections.emptyMap(),
+                null,
+                false,
+                null,
+                null
+            )
         );
     }
 
@@ -347,6 +363,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null
             )
         );

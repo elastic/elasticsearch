@@ -58,7 +58,7 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
         // instead relies on other operations to detect and flag repository corruption
         assertThat(
             expectThrows(RepositoryException.class, () -> createFullSnapshot(repository, "snapshot-2")).getMessage(),
-            containsString("[" + repository + "] Could not read repository data")
+            containsString("[" + repository + "] The repository has been disabled to prevent data corruption")
         );
 
         assertSnapshotRepositoryHealth("Indicator should be red after file is deleted from the repository", client, RED);
@@ -67,7 +67,7 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
     }
 
     private void assertSnapshotRepositoryHealth(String message, Client client, HealthStatus status) {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean())).actionGet();
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean(), 1000)).actionGet();
         assertThat(message, response.findIndicator(NAME).status(), equalTo(status));
     }
 

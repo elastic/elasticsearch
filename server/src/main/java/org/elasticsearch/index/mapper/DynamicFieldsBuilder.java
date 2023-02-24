@@ -162,7 +162,7 @@ final class DynamicFieldsBuilder {
         return mapper != null
             ? mapper
             : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
-                .build(context.createMapperBuilderContext());
+                .build(context.createDynamicMapperBuilderContext());
     }
 
     /**
@@ -170,7 +170,7 @@ final class DynamicFieldsBuilder {
      */
     static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
-        return templateBuilder == null ? null : templateBuilder.build(context.createMapperBuilderContext());
+        return templateBuilder == null ? null : templateBuilder.build(context.createDynamicMapperBuilderContext());
     }
 
     /**
@@ -305,7 +305,7 @@ final class DynamicFieldsBuilder {
         }
 
         void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(context.createMapperBuilderContext());
+            Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
             context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
         }
@@ -328,7 +328,8 @@ final class DynamicFieldsBuilder {
                     NumberFieldMapper.NumberType.LONG,
                     ScriptCompiler.NONE,
                     context.indexSettings().getSettings(),
-                    context.indexSettings().getIndexVersionCreated()
+                    context.indexSettings().getIndexVersionCreated(),
+                    context.indexSettings().getMode()
                 ),
                 context
             );
@@ -345,7 +346,8 @@ final class DynamicFieldsBuilder {
                     NumberFieldMapper.NumberType.FLOAT,
                     ScriptCompiler.NONE,
                     context.indexSettings().getSettings(),
-                    context.indexSettings().getIndexVersionCreated()
+                    context.indexSettings().getIndexVersionCreated(),
+                    context.indexSettings().getMode()
                 ),
                 context
             );
@@ -353,8 +355,15 @@ final class DynamicFieldsBuilder {
 
         @Override
         public void newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
+            Settings settings = context.indexSettings().getSettings();
+            boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
             createDynamicField(
-                new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, context.indexSettings().getIndexVersionCreated()),
+                new BooleanFieldMapper.Builder(
+                    name,
+                    ScriptCompiler.NONE,
+                    ignoreMalformed,
+                    context.indexSettings().getIndexVersionCreated()
+                ),
                 context
             );
         }
@@ -418,7 +427,9 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicDateField(DocumentParserContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter), context);
+            MappingParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
+
+            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter, parserContext.indexVersionCreated()), context);
         }
     }
 }

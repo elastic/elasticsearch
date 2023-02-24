@@ -108,7 +108,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, BytesRef tsid) {
+    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
         IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.length == 0) {
             throw new IllegalArgumentException(
@@ -116,18 +116,8 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             );
         }
         long timestamp = timestampFields[0].numericValue().longValue();
-
-        Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-
         byte[] suffix = new byte[16];
-        ByteUtils.writeLongLE(hash.h1, suffix, 0);
-        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
-
-        IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
-        // TODO it'd be way faster to use the fields that we've extract here rather than the source or parse the tsid
-        String id = indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix);
-        assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
+        String id = createId(context.getDynamicMappers().isEmpty(), routingBuilder, tsid, timestamp, suffix);
         /*
          * Make sure that _id from extracting the tsid matches that _id
          * from extracting the _source. This should be true for all valid
@@ -137,9 +127,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
          * at all we just skip the assertion because we can't be sure
          * it always must pass.
          */
+        IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
         assert context.getDynamicMappers().isEmpty() == false
             || context.getDynamicRuntimeFields().isEmpty() == false
             || id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
+        assert context.getDynamicMappers().isEmpty() == false
+            || context.getDynamicRuntimeFields().isEmpty() == false
+            || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
 
         if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
             throw new IllegalArgumentException(
@@ -156,6 +150,32 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, FIELD_TYPE));
+    }
+
+    public static String createId(
+        boolean dynamicMappersExists,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        BytesRef tsid,
+        long timestamp,
+        byte[] suffix
+    ) {
+        Hash128 hash = new Hash128();
+        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
+
+        ByteUtils.writeLongLE(hash.h1, suffix, 0);
+        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
+
+        String id = routingBuilder.createId(suffix, () -> {
+            if (dynamicMappersExists == false) {
+                throw new IllegalStateException(
+                    "Didn't find any fields to include in the routing which would be fine if there are"
+                        + " dynamic mapping waiting but we couldn't find any of those either!"
+                );
+            }
+            return 0;
+        });
+        assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
+        return id;
     }
 
     @Override

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -30,7 +30,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -49,7 +48,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    public static Version VERSION_SUPPORTING_QUIET_PARAMETER = Version.V_8_4_0;
+    public static TransportVersion VERSION_SUPPORTING_QUIET_PARAMETER = TransportVersion.V_8_4_0;
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
@@ -86,7 +85,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
             quiet = in.readBoolean();
         } else {
             quiet = true;
@@ -110,10 +109,10 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
             out.writeBoolean(quiet);
         }
-        writeSettingsToStream(indexSettings, out);
+        indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
     }

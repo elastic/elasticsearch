@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.azure;
 
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.util.logging.ClientLogger;
-import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 
@@ -30,7 +29,7 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 
 public class AzureStorageService {
-    public static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MIN_CHUNK_SIZE = ByteSizeValue.ofBytes(1);
 
     /**
      * The maximum size of a BlockBlob block.
@@ -48,12 +47,11 @@ public class AzureStorageService {
      * Default block size for multi-block uploads. The Azure repository will use the Put block and Put block list APIs to split the
      * stream into several part, each of block_size length, and will upload each part in its own request.
      */
-    private static final ByteSizeValue DEFAULT_BLOCK_SIZE = new ByteSizeValue(
+    private static final ByteSizeValue DEFAULT_BLOCK_SIZE = ByteSizeValue.ofBytes(
         Math.max(
             ByteSizeUnit.MB.toBytes(5), // minimum value
             Math.min(MAX_BLOCK_SIZE.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
-        ),
-        ByteSizeUnit.BYTES
+        )
     );
 
     /**
@@ -65,7 +63,7 @@ public class AzureStorageService {
     /**
      * Maximum allowed blob size in Azure blob store.
      */
-    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(MAX_BLOB_SIZE, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MAX_CHUNK_SIZE = ByteSizeValue.ofBytes(MAX_BLOB_SIZE);
 
     private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
 
@@ -126,10 +124,9 @@ public class AzureStorageService {
 
     // non-static, package private for testing
     RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
-        String connectString = azureStorageSettings.getConnectString();
-        StorageConnectionString storageConnectionString = StorageConnectionString.create(connectString, clientLogger);
-        String primaryUri = storageConnectionString.getBlobEndpoint().getPrimaryUri();
-        String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
+        AzureStorageSettings.StorageEndpoint endpoint = azureStorageSettings.getStorageEndpoint();
+        String primaryUri = endpoint.primaryURI();
+        String secondaryUri = endpoint.secondaryURI();
 
         if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY && secondaryUri == null) {
             throw new IllegalArgumentException("Unable to use " + locationMode + " location mode without a secondary location URI");

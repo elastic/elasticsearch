@@ -1,6 +1,9 @@
 name: "Validate Gradle Wrapper"
 on: [push]
 
+permissions:
+  contents: read
+
 jobs:
   validation:
     name: "Validation"

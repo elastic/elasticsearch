@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -191,7 +190,6 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     private String findNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
-        Collections.shuffle(startedShards, random());
-        return state.nodes().get(startedShards.get(0).currentNodeId()).getName();
+        return state.nodes().get(randomFrom(startedShards).currentNodeId()).getName();
     }
 }

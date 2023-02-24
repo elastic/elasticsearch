@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.time.Instant;
@@ -16,7 +16,7 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
+public class DataCountsTests extends AbstractXContentSerializingTestCase<DataCounts> {
 
     public static DataCounts createTestInstance(String jobId) {
         return new DataCounts(
@@ -47,6 +47,11 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     @Override
     public DataCounts createTestInstance() {
         return createTestInstance(randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected DataCounts mutateInstance(DataCounts instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

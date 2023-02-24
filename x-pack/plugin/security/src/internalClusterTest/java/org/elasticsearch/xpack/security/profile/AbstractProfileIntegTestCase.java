@@ -13,8 +13,8 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
@@ -28,8 +28,8 @@ import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -123,10 +123,10 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
     }
 
     protected Profile getProfile(String uid, Set<String> dataKeys) {
-        final GetProfilesResponse getProfilesResponse = client().execute(GetProfileAction.INSTANCE, new GetProfileRequest(uid, dataKeys))
+        final GetProfilesResponse getProfilesResponse = client().execute(GetProfilesAction.INSTANCE, new GetProfilesRequest(uid, dataKeys))
             .actionGet();
-        assertThat(getProfilesResponse.getProfiles(), arrayWithSize(1));
-        return getProfilesResponse.getProfiles()[0];
+        assertThat(getProfilesResponse.getProfiles(), hasSize(1));
+        return getProfilesResponse.getProfiles().get(0);
     }
 
     protected <T> T getInstanceFromRandomNode(Class<T> clazz) {

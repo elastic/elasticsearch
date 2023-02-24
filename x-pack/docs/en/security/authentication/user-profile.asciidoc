@@ -2,7 +2,10 @@
 [[user-profile]]
 === User profiles
 
-beta::[]
+NOTE: The user profile feature is designed only for use by {kib} and
+Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
+users and external applications should not call this API directly. Elastic reserves
+the right to change or remove this feature in future releases without prior notice.
 
 Because the {stack} supports externally-managed users (such as users who
 authenticate via SAML, or users stored in an LDAP directory), there's a

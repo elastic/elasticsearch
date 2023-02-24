@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -544,7 +545,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .execute()
             .actionGet();
 
-        String simulateSource = """
+        String simulateSource = Strings.format("""
             {
               "pipeline": %s,
               "docs": [
@@ -554,7 +555,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                   "col3": "none",
                   "col4": 10
                 }}]
-            }""".formatted(pipeline);
+            }""", pipeline);
         PlainActionFuture<SimulatePipelineResponse> simulatePipelineListener = PlainActionFuture.newFuture();
         client().execute(
             SimulatePipelineAction.INSTANCE,
@@ -663,12 +664,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PlainActionFuture<InferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            new InferModelAction.Request(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 false
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             inferModelSuccess
         );
         InferModelAction.Response response = inferModelSuccess.actionGet();
@@ -684,12 +685,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             client().execute(
                 InferModelAction.INSTANCE,
-                new InferModelAction.Request(
+                InferModelAction.Request.forIngestDocs(
                     modelId,
                     Collections.singletonList(Collections.emptyMap()),
                     RegressionConfigUpdate.EMPTY_PARAMS,
                     false
-                )
+                ).setInferenceTimeout(TimeValue.timeValueSeconds(5))
             ).actionGet();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -700,12 +701,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            new InferModelAction.Request(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 true
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             inferModelSuccess
         );
         response = inferModelSuccess.actionGet();
@@ -720,12 +721,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PlainActionFuture<InferModelAction.Response> listener = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            new InferModelAction.Request(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 false
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             listener
         );
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));

@@ -21,7 +21,6 @@ public class CartesianShapeQueryTests extends CartesianShapeQueryTestCase {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88682")
     public void testQueryRandomGeoCollection() throws Exception {
         super.testQueryRandomGeoCollection();
     }

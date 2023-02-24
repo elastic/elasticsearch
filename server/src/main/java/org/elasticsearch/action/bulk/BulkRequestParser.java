@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -184,11 +185,12 @@ public final class BulkRequestParser {
                 }
                 String action = parser.currentName();
                 if (SUPPORTED_ACTIONS.contains(action) == false) {
-                    deprecationLogger.compatibleCritical(
-                        STRICT_ACTION_PARSING_WARNING_KEY,
-                        "Unsupported action: [{}]. Supported values are [create], [delete], [index], and [update]. "
-                            + "Unsupported actions are currently accepted but will be rejected in a future version.",
-                        action
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected field [create], [delete], [index] or [update] but found ["
+                            + action
+                            + "]"
                     );
                 }
 
@@ -355,6 +357,7 @@ public final class BulkRequestParser {
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias),
                                 type
                             );
@@ -424,6 +427,7 @@ public final class BulkRequestParser {
         try {
             token = parser.nextToken();
         } catch (XContentEOFException ignore) {
+            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
             deprecationLogger.compatibleCritical(
                 STRICT_ACTION_PARSING_WARNING_KEY,
                 "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
@@ -432,6 +436,7 @@ public final class BulkRequestParser {
             return;
         }
         if (token != XContentParser.Token.END_OBJECT) {
+            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
             deprecationLogger.compatibleCritical(
                 STRICT_ACTION_PARSING_WARNING_KEY,
                 "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
@@ -440,6 +445,7 @@ public final class BulkRequestParser {
             return;
         }
         if (parser.nextToken() != null) {
+            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
             deprecationLogger.compatibleCritical(
                 STRICT_ACTION_PARSING_WARNING_KEY,
                 "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "

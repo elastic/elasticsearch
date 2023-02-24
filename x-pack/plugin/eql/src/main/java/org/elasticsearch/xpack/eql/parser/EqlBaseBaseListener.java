@@ -10,6 +10,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  * which can be extended to create a listener which only needs to handle a subset
  * of the available methods.
  */
+@SuppressWarnings("CheckReturnValue")
 class EqlBaseBaseListener implements EqlBaseListener {
     /**
      * {@inheritDoc}
@@ -106,6 +107,22 @@ class EqlBaseBaseListener implements EqlBaseListener {
      */
     @Override
     public void exitSequence(EqlBaseParser.SequenceContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override
+    public void enterSample(EqlBaseParser.SampleContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override
+    public void exitSample(EqlBaseParser.SampleContext ctx) {}
 
     /**
      * {@inheritDoc}

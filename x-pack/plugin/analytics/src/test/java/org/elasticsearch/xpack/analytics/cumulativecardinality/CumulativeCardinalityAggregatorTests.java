@@ -157,7 +157,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, fieldType, valueFieldType);
+                histogram = searchAndReduce(indexSearcher, new AggTestConfig(aggBuilder, fieldType, valueFieldType).withQuery(query));
                 verify.accept(histogram);
             }
         }

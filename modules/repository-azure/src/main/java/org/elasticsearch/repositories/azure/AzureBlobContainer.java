@@ -104,8 +104,12 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
-        throws IOException {
+    public void writeMetadataBlob(
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
         blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
     }
 
@@ -149,5 +153,20 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     protected String buildKey(String blobName) {
         return keyPath + (blobName == null ? "" : blobName);
+    }
+
+    @Override
+    public long compareAndExchangeRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    @Override
+    public boolean compareAndSetRegister(String key, long expected, long updated) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    @Override
+    public long getRegister(String key) throws IOException {
+        throw new UnsupportedOperationException(); // TODO
     }
 }

@@ -14,6 +14,14 @@ module org.elasticsearch.repository.azure {
 
     requires org.apache.lucene.core;
 
+    requires org.apache.logging.log4j;
+    requires org.apache.logging.log4j.core;
+
+    requires com.azure.core;
+    requires com.azure.http.netty;
+    requires com.azure.storage.blob;
+    requires com.azure.storage.common;
+
     requires io.netty.buffer;
     requires io.netty.transport;
     requires io.netty.resolver;
@@ -22,12 +30,4 @@ module org.elasticsearch.repository.azure {
     requires reactor.core;
     requires reactor.netty.core;
     requires reactor.netty.http;
-
-    requires com.azure.core;
-    requires com.azure.http.netty;
-    requires com.azure.storage.blob;
-    requires com.azure.storage.common;
-
-    requires org.apache.logging.log4j;
-    requires org.apache.logging.log4j.core;
 }

@@ -9,13 +9,14 @@
 package org.elasticsearch.dlm;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.client.internal.AdminClient;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
@@ -31,11 +32,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -45,24 +47,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class DataLifecycleServiceTests extends ESTestCase {
 
     private ClusterService clusterService;
     private long now;
     private ThreadPool threadPool;
-    private IndicesAdminClient indicesClient;
     private DataLifecycleService dataLifecycleService;
-    ArgumentCaptor<RolloverRequest> rolloverRequestCaptor;
-    ArgumentCaptor<DeleteIndexRequest> deleteRequestCaptor;
+    private List<TransportRequest> clientSeenRequests;
+    private NoOpClient client;
 
     @Before
     public void setupServices() {
@@ -74,25 +72,19 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         now = randomNonNegativeLong();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
+        clientSeenRequests = new CopyOnWriteArrayList<>();
 
-        Client client = mock(Client.class);
-        AdminClient adminClient = mock(AdminClient.class);
-        indicesClient = mock(IndicesAdminClient.class);
-        when(client.admin()).thenReturn(adminClient);
-        when(adminClient.indices()).thenReturn(indicesClient);
-        when(client.settings()).thenReturn(Settings.EMPTY);
-
+        client = getTransportRequestsRecordingClient();
         dataLifecycleService = new DataLifecycleService(Settings.EMPTY, client, clusterService, clock, threadPool, () -> now);
         dataLifecycleService.init();
-
-        rolloverRequestCaptor = ArgumentCaptor.forClass(RolloverRequest.class);
-        deleteRequestCaptor = ArgumentCaptor.forClass(DeleteIndexRequest.class);
     }
 
     @After
     public void cleanup() {
+        clientSeenRequests.clear();
         dataLifecycleService.close();
         threadPool.shutdownNow();
+        client.close();
     }
 
     public void testOperationsExecutedOnce() {
@@ -111,18 +103,20 @@ public class DataLifecycleServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
         dataLifecycleService.run(state);
-        verify(indicesClient, times(1)).rolloverIndex(rolloverRequestCaptor.capture(), any());
-        assertThat(rolloverRequestCaptor.getValue().getRolloverTarget(), is(dataStreamName));
-        verify(indicesClient, times(2)).delete(deleteRequestCaptor.capture(), any());
-        List<DeleteIndexRequest> deleteRequests = deleteRequestCaptor.getAllValues();
+        assertThat(clientSeenRequests.size(), is(3));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
+        List<DeleteIndexRequest> deleteRequests = clientSeenRequests.subList(1, 3)
+            .stream()
+            .map(transportRequest -> (DeleteIndexRequest) transportRequest)
+            .toList();
         assertThat(deleteRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
         assertThat(deleteRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
 
         // on the second run the rollover and delete requests should not execute anymore
         // i.e. the count should *remain* 1 for rollover and 2 for deletes
         dataLifecycleService.run(state);
-        verify(indicesClient, times(1)).rolloverIndex(any(), any());
-        verify(indicesClient, times(2)).delete(any(), any());
+        assertThat(clientSeenRequests.size(), is(3));
     }
 
     public void testRetentionNotConfigured() {
@@ -140,8 +134,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         dataLifecycleService.run(state);
-        verify(indicesClient, times(1)).rolloverIndex(any(), any());
-        verify(indicesClient, times(0)).delete(any(), any());
+        assertThat(clientSeenRequests.size(), is(1));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
     }
 
     public void testRetentionNotExecutedDueToAge() {
@@ -159,8 +153,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         dataLifecycleService.run(state);
-        verify(indicesClient, times(1)).rolloverIndex(any(), any());
-        verify(indicesClient, times(0)).delete(any(), any());
+        assertThat(clientSeenRequests.size(), is(1));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
     }
 
     public void testIlmManagedIndicesAreSkipped() {
@@ -178,8 +172,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         dataLifecycleService.run(state);
-        verify(indicesClient, times(0)).rolloverIndex(any(), any());
-        verify(indicesClient, times(0)).delete(any(), any());
+        assertThat(clientSeenRequests.isEmpty(), is(true));
     }
 
     public void testDataStreamsWithoutLifecycleAreSkipped() {
@@ -197,8 +190,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         dataLifecycleService.run(state);
-        verify(indicesClient, times(0)).rolloverIndex(any(), any());
-        verify(indicesClient, times(0)).delete(any(), any());
+        assertThat(clientSeenRequests.isEmpty(), is(true));
     }
 
     public void testIsTimeToBeDeleted() {
@@ -269,5 +261,18 @@ public class DataLifecycleServiceTests extends ESTestCase {
             backingIndices.add(indexMetadata.getIndex());
         }
         return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle);
+    }
+
+    private NoOpClient getTransportRequestsRecordingClient() {
+        return new NoOpClient(getTestName()) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                clientSeenRequests.add(request);
+            }
+        };
     }
 }

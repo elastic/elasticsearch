@@ -53,18 +53,18 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         Long minPrimaryShardDocs
     ) {
         super(key, nextStepKey, client);
-        conditions = new RolloverConditions(
-            maxSize,
-            maxPrimaryShardSize,
-            maxAge,
-            maxDocs,
-            maxPrimaryShardDocs,
-            minSize,
-            minPrimaryShardSize,
-            minAge,
-            minDocs,
-            minPrimaryShardDocs
-        );
+        this.conditions = RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
     }
 
     public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, RolloverConditions conditions) {
@@ -205,7 +205,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             .rolloverIndex(
                 rolloverRequest,
                 ActionListener.wrap(
-                    response -> listener.onResponse(rolloverRequest.areConditionsMet(response.getConditionStatus()), EmptyInfo.INSTANCE),
+                    response -> listener.onResponse(
+                        rolloverRequest.getConditions().areConditionsMet(response.getConditionStatus()),
+                        EmptyInfo.INSTANCE
+                    ),
                     listener::onFailure
                 )
             );
@@ -227,39 +230,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (conditions.getMaxSize() != null) {
-            rolloverRequest.addMaxIndexSizeCondition(conditions.getMaxSize());
-        }
-        if (conditions.getMaxPrimaryShardSize() != null) {
-            rolloverRequest.addMaxPrimaryShardSizeCondition(conditions.getMaxPrimaryShardSize());
-        }
-        if (conditions.getMaxAge() != null) {
-            rolloverRequest.addMaxIndexAgeCondition(conditions.getMaxAge());
-        }
-        if (conditions.getMaxDocs() != null) {
-            rolloverRequest.addMaxIndexDocsCondition(conditions.getMaxDocs());
-        }
-        if (conditions.getMaxPrimaryShardDocs() != null) {
-            rolloverRequest.addMaxPrimaryShardDocsCondition(conditions.getMaxPrimaryShardDocs());
-        }
-        if (conditions.getMinSize() != null) {
-            rolloverRequest.addMinIndexSizeCondition(conditions.getMinSize());
-        }
-        if (conditions.getMinPrimaryShardSize() != null) {
-            rolloverRequest.addMinPrimaryShardSizeCondition(conditions.getMinPrimaryShardSize());
-        }
-        if (conditions.getMinAge() != null) {
-            rolloverRequest.addMinIndexAgeCondition(conditions.getMinAge());
-        }
-        if (conditions.getMinDocs() != null) {
-            rolloverRequest.addMinIndexDocsCondition(conditions.getMinDocs());
-        }
-        if (conditions.getMinPrimaryShardDocs() != null) {
-            rolloverRequest.addMinPrimaryShardDocsCondition(conditions.getMinPrimaryShardDocs());
-        }
-
         if (rolloverOnlyIfHasDocuments && (conditions.getMinDocs() == null && conditions.getMinPrimaryShardDocs() == null)) {
-            rolloverRequest.addMinIndexDocsCondition(1L);
+            rolloverRequest.setConditions(RolloverConditions.newBuilder(conditions).addMinIndexDocsCondition(1L).build());
+        } else {
+            rolloverRequest.setConditions(conditions);
         }
         return rolloverRequest;
     }
@@ -293,7 +267,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         private EmptyInfo() {}
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
             return builder;
         }
     }

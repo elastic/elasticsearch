@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,12 +16,13 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 
 public class RolloverConditionsTests extends AbstractXContentSerializingTestCase<RolloverConditions> {
-
     @Override
     protected Writeable.Reader<RolloverConditions> instanceReader() {
         return RolloverConditions::new;
@@ -60,18 +60,20 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         Long minPrimaryShardDocs = (minSize == null && minPrimaryShardSize == null && minAge == null && minDocs == null || randomBoolean())
             ? randomNonNegativeLong()
             : null;
-        return new RolloverConditions(
-            maxSize,
-            maxPrimaryShardSize,
-            maxAge,
-            maxDocs,
-            maxPrimaryShardDocs,
-            minSize,
-            minPrimaryShardSize,
-            minAge,
-            minDocs,
-            minPrimaryShardDocs
-        );
+
+        return RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
     }
 
     @Override
@@ -117,43 +119,74 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
             case 9 -> minPrimaryShardDocs = minPrimaryShardDocs == null ? randomNonNegativeLong() : minPrimaryShardDocs + 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new RolloverConditions(
-            maxSize,
-            maxPrimaryShardSize,
-            maxAge,
-            maxDocs,
-            maxPrimaryShardDocs,
-            minSize,
-            minPrimaryShardSize,
-            minAge,
-            minDocs,
-            minPrimaryShardDocs
-        );
-    }
+        return RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
 
-    public void testNoConditions() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new RolloverConditions(null, null, null, null, null, null, null, null, null, null)
-        );
-        assertEquals("At least one max_* rollover condition must be set.", exception.getMessage());
-    }
-
-    public void testBwcSerializationWithMaxPrimaryShardDocs() throws Exception {
-        // In case of serializing to node with older version, replace maxPrimaryShardDocs with maxDocs.
-        RolloverConditions instance = new RolloverConditions(null, null, null, null, 1L, null, null, null, null, null);
-        RolloverConditions deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
-        assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
-
-        // But not if maxDocs is also specified:
-        instance = new RolloverConditions(null, null, null, 2L, 1L, null, null, null, null, null);
-        deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
-        assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
-        assertThat(deserializedInstance.getMaxDocs(), equalTo(instance.getMaxDocs()));
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
     }
 
     @Override
     protected RolloverConditions doParseInstance(XContentParser parser) throws IOException {
         return RolloverConditions.fromXContent(parser);
     }
+
+    public void testSameConditionCanOnlyBeAddedOnce() {
+        RolloverConditions.Builder builder = RolloverConditions.newBuilder();
+        Consumer<RolloverConditions.Builder> rolloverRequestConsumer = randomFrom(conditionsGenerator);
+        rolloverRequestConsumer.accept(builder);
+        expectThrows(IllegalArgumentException.class, () -> rolloverRequestConsumer.accept(builder));
+    }
+
+    public void testConditionsAreMet() {
+        RolloverConditions rolloverConditions = new RolloverConditions();
+        assertTrue(rolloverConditions.areConditionsMet(Collections.emptyMap()));
+
+        TimeValue age = TimeValue.timeValueSeconds(5);
+        rolloverConditions = RolloverConditions.newBuilder().addMaxIndexAgeCondition(age).build();
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, false)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true)));
+
+        rolloverConditions = RolloverConditions.newBuilder(rolloverConditions).addMaxIndexDocsCondition(100L).build();
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, false)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxDocsCondition.NAME, false)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(MaxDocsCondition.NAME, true)));
+
+        rolloverConditions = RolloverConditions.newBuilder(rolloverConditions).addMinIndexDocsCondition(1L).build();
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, false)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxDocsCondition.NAME, false)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxDocsCondition.NAME, true)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MinDocsCondition.NAME, true)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true, MinDocsCondition.NAME, true)));
+
+        rolloverConditions = RolloverConditions.newBuilder(rolloverConditions).addMinIndexAgeCondition(age).build();
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true, MinDocsCondition.NAME, true)));
+        assertTrue(
+            rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true, MinDocsCondition.NAME, true, MinAgeCondition.NAME, true))
+        );
+    }
+
+    private static final List<Consumer<RolloverConditions.Builder>> conditionsGenerator = Arrays.asList(
+        (builder) -> builder.addMaxIndexDocsCondition(randomNonNegativeLong()),
+        (builder) -> builder.addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+        (builder) -> builder.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
+        (builder) -> builder.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+        (builder) -> builder.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
+        (builder) -> builder.addMinIndexDocsCondition(randomNonNegativeLong()),
+        (builder) -> builder.addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+        (builder) -> builder.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
+        (builder) -> builder.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+        (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
+    );
+
 }

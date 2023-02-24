@@ -173,9 +173,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(rolloverTarget, request.indices()[0]);
         assertEquals(rolloverTarget, request.getRolloverTarget());
         assertTrue(request.isDryRun());
-        assertEquals(expectedConditions.size(), request.getConditions().size());
+        assertEquals(expectedConditions.size(), request.getConditions().getConditions().size());
         Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
-        Set<Object> actualConditionValues = request.getConditions().values().stream().map(Condition::value).collect(Collectors.toSet());
+        Set<Object> actualConditionValues = request.getConditionValues().stream().map(Condition::value).collect(Collectors.toSet());
         assertEquals(expectedConditionValues, actualConditionValues);
     }
 
@@ -675,9 +675,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertThat(request.isDryRun(), is(true)); // it's always a dry_run
 
         Set<Condition<?>> expectedConditions = getExpectedConditions(step, rolloverOnlyIfHasDocuments);
-        assertEquals(expectedConditions.size(), request.getConditions().size());
+        assertEquals(expectedConditions.size(), request.getConditions().getConditions().size());
         Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
-        Set<Object> actualConditionValues = request.getConditions().values().stream().map(Condition::value).collect(Collectors.toSet());
+        Set<Object> actualConditionValues = request.getConditionValues().stream().map(Condition::value).collect(Collectors.toSet());
         assertEquals(expectedConditionValues, actualConditionValues);
     }
 }

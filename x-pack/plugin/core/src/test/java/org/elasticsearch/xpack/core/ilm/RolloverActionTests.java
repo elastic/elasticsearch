@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -16,6 +17,9 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> {
 
@@ -72,22 +76,22 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
 
     @Override
     protected Reader<RolloverAction> instanceReader() {
-        return RolloverAction::new;
+        return RolloverAction::read;
     }
 
     @Override
     protected RolloverAction mutateInstance(RolloverAction instance) {
-        RolloverConditions configuration = instance.getConditions();
-        ByteSizeValue maxSize = configuration.getMaxSize();
-        ByteSizeValue maxPrimaryShardSize = configuration.getMaxPrimaryShardSize();
-        TimeValue maxAge = configuration.getMaxAge();
-        Long maxDocs = configuration.getMaxDocs();
-        Long maxPrimaryShardDocs = configuration.getMaxPrimaryShardDocs();
-        ByteSizeValue minSize = configuration.getMinSize();
-        ByteSizeValue minPrimaryShardSize = configuration.getMinPrimaryShardSize();
-        TimeValue minAge = configuration.getMinAge();
-        Long minDocs = configuration.getMinDocs();
-        Long minPrimaryShardDocs = configuration.getMinPrimaryShardDocs();
+        RolloverConditions conditions = instance.getConditions();
+        ByteSizeValue maxSize = conditions.getMaxSize();
+        ByteSizeValue maxPrimaryShardSize = conditions.getMaxPrimaryShardSize();
+        TimeValue maxAge = conditions.getMaxAge();
+        Long maxDocs = conditions.getMaxDocs();
+        Long maxPrimaryShardDocs = conditions.getMaxPrimaryShardDocs();
+        ByteSizeValue minSize = conditions.getMinSize();
+        ByteSizeValue minPrimaryShardSize = conditions.getMinPrimaryShardSize();
+        TimeValue minAge = conditions.getMinAge();
+        Long minDocs = conditions.getMinDocs();
+        Long minPrimaryShardDocs = conditions.getMinPrimaryShardDocs();
         switch (between(0, 9)) {
             case 0 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
@@ -133,9 +137,17 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         );
     }
 
+    public void testNoConditions() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RolloverAction(null, null, null, null, null, null, null, null, null, null)
+        );
+        assertEquals("At least one max_* rollover condition must be set.", exception.getMessage());
+    }
+
     public void testToSteps() {
         RolloverAction action = createTestInstance();
-        RolloverConditions configuration = action.getConditions();
+        RolloverConditions conditions = action.getConditions();
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -164,7 +176,20 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(thirdStep.getKey(), secondStep.getNextStepKey());
         assertEquals(fourthStep.getKey(), thirdStep.getNextStepKey());
         assertEquals(fifthStep.getKey(), fourthStep.getNextStepKey());
-        assertEquals(configuration, firstStep.getConditions());
+        assertEquals(conditions, firstStep.getConditions());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());
+    }
+
+    public void testBwcSerializationWithMaxPrimaryShardDocs() throws Exception {
+        // In case of serializing to node with older version, replace maxPrimaryShardDocs with maxDocs.
+        RolloverAction instance = new RolloverAction(null, null, null, null, 1L, null, null, null, null, null);
+        RolloverAction deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
+        assertThat(deserializedInstance.getConditions().getMaxPrimaryShardDocs(), nullValue());
+
+        // But not if maxDocs is also specified:
+        instance = new RolloverAction(null, null, null, 2L, 1L, null, null, null, null, null);
+        deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
+        assertThat(deserializedInstance.getConditions().getMaxPrimaryShardDocs(), nullValue());
+        assertThat(deserializedInstance.getConditions().getMaxDocs(), equalTo(instance.getConditions().getMaxDocs()));
     }
 }

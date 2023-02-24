@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -42,11 +43,14 @@ public class RolloverAction implements LifecycleAction {
 
     private final RolloverConditions conditions;
 
-    public static RolloverAction parse(XContentParser parser) {
-        return new RolloverAction(RolloverConditions.parse(parser));
+    public static RolloverAction parse(XContentParser parser) throws IOException {
+        return new RolloverAction(RolloverConditions.fromXContent(parser));
     }
 
     public RolloverAction(RolloverConditions conditions) {
+        if (conditions.hasMaxConditions() == false) {
+            throw new IllegalArgumentException("At least one max_* rollover condition must be set.");
+        }
         this.conditions = conditions;
     }
 
@@ -63,28 +67,62 @@ public class RolloverAction implements LifecycleAction {
         @Nullable Long minPrimaryShardDocs
     ) {
         this(
-            new RolloverConditions(
-                maxSize,
-                maxPrimaryShardSize,
-                maxAge,
-                maxDocs,
-                maxPrimaryShardDocs,
-                minSize,
-                minPrimaryShardSize,
-                minAge,
-                minDocs,
-                minPrimaryShardDocs
-            )
+            RolloverConditions.newBuilder()
+                .addMaxIndexSizeCondition(maxSize)
+                .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+                .addMaxIndexAgeCondition(maxAge)
+                .addMaxIndexDocsCondition(maxDocs)
+                .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+                .addMinIndexSizeCondition(minSize)
+                .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+                .addMinIndexAgeCondition(minAge)
+                .addMinIndexDocsCondition(minDocs)
+                .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+                .build()
         );
     }
 
-    public RolloverAction(StreamInput in) throws IOException {
-        this(new RolloverConditions(in));
+    public static RolloverAction read(StreamInput in) throws IOException {
+        RolloverConditions.Builder builder = RolloverConditions.newBuilder();
+        builder.addMaxIndexSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
+        builder.addMaxPrimaryShardSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
+        builder.addMaxIndexAgeCondition(in.readOptionalTimeValue());
+        builder.addMaxIndexDocsCondition(in.readOptionalVLong());
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+            builder.addMaxPrimaryShardDocsCondition(in.readOptionalVLong());
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            builder.addMinIndexSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
+            builder.addMinPrimaryShardSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
+            builder.addMinIndexAgeCondition(in.readOptionalTimeValue());
+            builder.addMinIndexDocsCondition(in.readOptionalVLong());
+            builder.addMinPrimaryShardDocsCondition(in.readOptionalVLong());
+        }
+        return new RolloverAction(builder.build());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        conditions.writeTo(out);
+        out.writeOptionalWriteable(conditions.getMaxSize());
+        out.writeOptionalWriteable(conditions.getMaxPrimaryShardSize());
+        out.writeOptionalTimeValue(conditions.getMaxAge());
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+            out.writeOptionalVLong(conditions.getMaxDocs());
+            out.writeOptionalVLong(conditions.getMaxPrimaryShardDocs());
+        } else {
+            if (conditions.getMaxPrimaryShardDocs() != null && conditions.getMaxDocs() == null) {
+                out.writeOptionalVLong(conditions.getMaxPrimaryShardDocs());
+            } else {
+                out.writeOptionalVLong(conditions.getMaxDocs());
+            }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            out.writeOptionalWriteable(conditions.getMinSize());
+            out.writeOptionalWriteable(conditions.getMinPrimaryShardSize());
+            out.writeOptionalTimeValue(conditions.getMinAge());
+            out.writeOptionalVLong(conditions.getMinDocs());
+            out.writeOptionalVLong(conditions.getMinPrimaryShardDocs());
+        }
     }
 
     @Override
@@ -118,16 +156,7 @@ public class RolloverAction implements LifecycleAction {
             waitForRolloverReadyStepKey,
             rolloverStepKey,
             client,
-            conditions.getMaxSize(),
-            conditions.getMaxPrimaryShardSize(),
-            conditions.getMaxAge(),
-            conditions.getMaxDocs(),
-            conditions.getMaxPrimaryShardDocs(),
-            conditions.getMinSize(),
-            conditions.getMinPrimaryShardSize(),
-            conditions.getMinAge(),
-            conditions.getMinDocs(),
-            conditions.getMinPrimaryShardDocs()
+            conditions
         );
         RolloverStep rolloverStep = new RolloverStep(rolloverStepKey, waitForActiveShardsKey, client);
         WaitForActiveShardsStep waitForActiveShardsStep = new WaitForActiveShardsStep(waitForActiveShardsKey, updateDateStepKey);

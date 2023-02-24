@@ -75,7 +75,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         assertEquals(rolloverTarget, request.indices()[0]);
         assertEquals(rolloverTarget, request.getRolloverTarget());
         assertFalse(request.isDryRun());
-        assertEquals(0, request.getConditions().size());
+        assertEquals(0, request.getConditions().getConditions().size());
     }
 
     public void testPerformAction() throws Exception {

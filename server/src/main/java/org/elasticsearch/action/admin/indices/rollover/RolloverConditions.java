@@ -7,309 +7,434 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
- * Contains the conditions that determine if an index can be rolled over or not. Mainly used in
- * Index Lifecycle Management and Data Lifecycle Management.
+ * Contains the conditions that determine if an index can be rolled over or not. It is used by the {@link RolloverRequest},
+ * the Index Lifecycle Management and the Data Lifecycle Management.
  */
 public class RolloverConditions implements Writeable, ToXContentObject {
-    public static final String NAME = "rollover";
+    public static final ObjectParser<RolloverConditions.Builder, Void> PARSER = new ObjectParser<>("rollover_conditions");
+    public static final ParseField MAX_AGE_FIELD = new ParseField(MaxAgeCondition.NAME);
+    public static final ParseField MAX_DOCS_FIELD = new ParseField(MaxDocsCondition.NAME);
     public static final ParseField MAX_SIZE_FIELD = new ParseField(MaxSizeCondition.NAME);
     public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField(MaxPrimaryShardSizeCondition.NAME);
-    public static final ParseField MAX_DOCS_FIELD = new ParseField(MaxDocsCondition.NAME);
-    public static final ParseField MAX_AGE_FIELD = new ParseField(MaxAgeCondition.NAME);
     public static final ParseField MAX_PRIMARY_SHARD_DOCS_FIELD = new ParseField(MaxPrimaryShardDocsCondition.NAME);
+    public static final ParseField MIN_AGE_FIELD = new ParseField(MinAgeCondition.NAME);
+    public static final ParseField MIN_DOCS_FIELD = new ParseField(MinDocsCondition.NAME);
     public static final ParseField MIN_SIZE_FIELD = new ParseField(MinSizeCondition.NAME);
     public static final ParseField MIN_PRIMARY_SHARD_SIZE_FIELD = new ParseField(MinPrimaryShardSizeCondition.NAME);
-    public static final ParseField MIN_DOCS_FIELD = new ParseField(MinDocsCondition.NAME);
-    public static final ParseField MIN_AGE_FIELD = new ParseField(MinAgeCondition.NAME);
     public static final ParseField MIN_PRIMARY_SHARD_DOCS_FIELD = new ParseField(MinPrimaryShardDocsCondition.NAME);
 
-    private static final ConstructingObjectParser<RolloverConditions, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        a -> new RolloverConditions(
-            (ByteSizeValue) a[0],
-            (ByteSizeValue) a[1],
-            (TimeValue) a[2],
-            (Long) a[3],
-            (Long) a[4],
-            (ByteSizeValue) a[5],
-            (ByteSizeValue) a[6],
-            (TimeValue) a[7],
-            (Long) a[8],
-            (Long) a[9]
-        )
-    );
-
     static {
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()),
-            MAX_SIZE_FIELD,
-            ValueType.VALUE
+        PARSER.declareString(
+            (builder, s) -> builder.addMaxIndexAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME)),
+            MAX_AGE_FIELD
         );
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName()),
-            MAX_PRIMARY_SHARD_SIZE_FIELD,
-            ValueType.VALUE
+        PARSER.declareLong(RolloverConditions.Builder::addMaxIndexDocsCondition, MAX_DOCS_FIELD);
+        PARSER.declareString(
+            (builder, s) -> builder.addMaxIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME)),
+            MAX_SIZE_FIELD
         );
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_AGE_FIELD.getPreferredName()),
-            MAX_AGE_FIELD,
-            ValueType.VALUE
+        PARSER.declareString(
+            (builder, s) -> builder.addMaxPrimaryShardSizeCondition(
+                ByteSizeValue.parseBytesSizeValue(s, MaxPrimaryShardSizeCondition.NAME)
+            ),
+            MAX_PRIMARY_SHARD_SIZE_FIELD
         );
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_PRIMARY_SHARD_DOCS_FIELD);
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MIN_SIZE_FIELD.getPreferredName()),
-            MIN_SIZE_FIELD,
-            ValueType.VALUE
+        PARSER.declareLong(RolloverConditions.Builder::addMaxPrimaryShardDocsCondition, MAX_PRIMARY_SHARD_DOCS_FIELD);
+        PARSER.declareString(
+            (builder, s) -> builder.addMinIndexAgeCondition(TimeValue.parseTimeValue(s, MinAgeCondition.NAME)),
+            MIN_AGE_FIELD
         );
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName()),
-            MIN_PRIMARY_SHARD_SIZE_FIELD,
-            ValueType.VALUE
+        PARSER.declareLong(RolloverConditions.Builder::addMinIndexDocsCondition, MIN_DOCS_FIELD);
+        PARSER.declareString(
+            (builder, s) -> builder.addMinIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MinSizeCondition.NAME)),
+            MIN_SIZE_FIELD
         );
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE_FIELD.getPreferredName()),
-            MIN_AGE_FIELD,
-            ValueType.VALUE
+        PARSER.declareString(
+            (builder, s) -> builder.addMinPrimaryShardSizeCondition(
+                ByteSizeValue.parseBytesSizeValue(s, MinPrimaryShardSizeCondition.NAME)
+            ),
+            MIN_PRIMARY_SHARD_SIZE_FIELD
         );
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MIN_DOCS_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MIN_PRIMARY_SHARD_DOCS_FIELD);
+        PARSER.declareLong(RolloverConditions.Builder::addMinPrimaryShardDocsCondition, MIN_PRIMARY_SHARD_DOCS_FIELD);
     }
 
-    private final ByteSizeValue maxSize;
-    private final ByteSizeValue maxPrimaryShardSize;
-    private final Long maxDocs;
-    private final TimeValue maxAge;
-    private final Long maxPrimaryShardDocs;
-    private final ByteSizeValue minSize;
-    private final ByteSizeValue minPrimaryShardSize;
-    private final Long minDocs;
-    private final TimeValue minAge;
-    private final Long minPrimaryShardDocs;
+    private final Map<String, Condition<?>> conditions;
 
-    public static RolloverConditions parse(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
-    public RolloverConditions(
-        @Nullable ByteSizeValue maxSize,
-        @Nullable ByteSizeValue maxPrimaryShardSize,
-        @Nullable TimeValue maxAge,
-        @Nullable Long maxDocs,
-        @Nullable Long maxPrimaryShardDocs,
-        @Nullable ByteSizeValue minSize,
-        @Nullable ByteSizeValue minPrimaryShardSize,
-        @Nullable TimeValue minAge,
-        @Nullable Long minDocs,
-        @Nullable Long minPrimaryShardDocs
-    ) {
-        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null && maxPrimaryShardDocs == null) {
-            throw new IllegalArgumentException("At least one max_* rollover condition must be set.");
-        }
-
-        this.maxSize = maxSize;
-        this.maxPrimaryShardSize = maxPrimaryShardSize;
-        this.maxAge = maxAge;
-        this.maxDocs = maxDocs;
-        this.maxPrimaryShardDocs = maxPrimaryShardDocs;
-
-        this.minSize = minSize;
-        this.minPrimaryShardSize = minPrimaryShardSize;
-        this.minAge = minAge;
-        this.minDocs = minDocs;
-        this.minPrimaryShardDocs = minPrimaryShardDocs;
+    public RolloverConditions() {
+        conditions = Map.of();
     }
 
     public RolloverConditions(StreamInput in) throws IOException {
-        maxSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-        maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-        maxAge = in.readOptionalTimeValue();
-        maxDocs = in.readOptionalVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            maxPrimaryShardDocs = in.readOptionalVLong();
-        } else {
-            maxPrimaryShardDocs = null;
+        int size = in.readVInt();
+        Map<String, Condition<?>> conditions = Maps.newMapWithExpectedSize(size);
+        for (int i = 0; i < size; i++) {
+            Condition<?> condition = in.readNamedWriteable(Condition.class);
+            conditions.put(condition.name, condition);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
-            minSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            minPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            minAge = in.readOptionalTimeValue();
-            minDocs = in.readOptionalVLong();
-            minPrimaryShardDocs = in.readOptionalVLong();
-        } else {
-            minSize = null;
-            minPrimaryShardSize = null;
-            minAge = null;
-            minDocs = null;
-            minPrimaryShardDocs = null;
-        }
+        this.conditions = Collections.unmodifiableMap(conditions);
+    }
+
+    public RolloverConditions(Map<String, Condition<?>> conditions) {
+        this.conditions = Collections.unmodifiableMap(conditions);
+    }
+
+    /**
+     * Returns true if there is at least one condition of type MAX
+     */
+    public boolean hasMaxConditions() {
+        return conditions.values().stream().anyMatch(c -> Condition.Type.MAX == c.type());
+    }
+
+    /**
+     * Returns true if there is at least one condition of type MIN
+     */
+    public boolean hasMinConditions() {
+        return conditions.values().stream().anyMatch(c -> Condition.Type.MIN == c.type());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(maxSize);
-        out.writeOptionalWriteable(maxPrimaryShardSize);
-        out.writeOptionalTimeValue(maxAge);
-        out.writeOptionalVLong(maxDocs);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            out.writeOptionalVLong(maxPrimaryShardDocs);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
-            out.writeOptionalWriteable(minSize);
-            out.writeOptionalWriteable(minPrimaryShardSize);
-            out.writeOptionalTimeValue(minAge);
-            out.writeOptionalVLong(minDocs);
-            out.writeOptionalVLong(minPrimaryShardDocs);
-        }
+        out.writeCollection(
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList(),
+            StreamOutput::writeNamedWriteable
+        );
     }
 
+    /**
+     * Returns the size an index can reach before rollover is triggered, if defined, or null otherwise
+     */
+    @Nullable
     public ByteSizeValue getMaxSize() {
-        return maxSize;
+        return conditions.containsKey(MaxSizeCondition.NAME) ? (ByteSizeValue) conditions.get(MaxSizeCondition.NAME).value() : null;
     }
 
+    /**
+     * Returns the size a primary shard can reach before rollover is triggered, if defined, or null otherwise
+     */
+    @Nullable
     public ByteSizeValue getMaxPrimaryShardSize() {
-        return maxPrimaryShardSize;
+        return conditions.containsKey(MaxPrimaryShardSizeCondition.NAME)
+            ? (ByteSizeValue) conditions.get(MaxPrimaryShardSizeCondition.NAME).value()
+            : null;
     }
 
+    /**
+     * Returns the age an index can reach before rollover is triggered, if defined, or null otherwise
+     */
+    @Nullable
     public TimeValue getMaxAge() {
-        return maxAge;
+        return conditions.containsKey(MaxAgeCondition.NAME) ? (TimeValue) conditions.get(MaxAgeCondition.NAME).value() : null;
     }
 
+    /**
+     * Returns the max count of documents an index can reach before rollover is triggered, if it is defined, or null otherwise
+     */
+    @Nullable
     public Long getMaxDocs() {
-        return maxDocs;
+        return conditions.containsKey(MaxDocsCondition.NAME) ? (Long) conditions.get(MaxDocsCondition.NAME).value() : null;
     }
 
+    /**
+     * Returns the max count of documents a primary shard can reach before rollover is triggered, if it is defined, or null otherwise
+     */
+    @Nullable
     public Long getMaxPrimaryShardDocs() {
-        return maxPrimaryShardDocs;
+        return conditions.containsKey(MaxPrimaryShardDocsCondition.NAME)
+            ? (Long) conditions.get(MaxPrimaryShardDocsCondition.NAME).value()
+            : null;
     }
 
+    /**
+     * Returns the minimum size an index is required to have before rollover is allowed, if it is defined, or null otherwise
+     */
+    @Nullable
     public ByteSizeValue getMinSize() {
-        return minSize;
+        return conditions.containsKey(MinSizeCondition.NAME) ? (ByteSizeValue) conditions.get(MinSizeCondition.NAME).value() : null;
     }
 
+    /**
+     * Returns the minimum size a primary shard is required to have before rollover is allowed, if it is defined, or null otherwise
+     */
+    @Nullable
     public ByteSizeValue getMinPrimaryShardSize() {
-        return minPrimaryShardSize;
+        return conditions.containsKey(MinPrimaryShardSizeCondition.NAME)
+            ? (ByteSizeValue) conditions.get(MinPrimaryShardSizeCondition.NAME).value()
+            : null;
     }
 
+    /**
+     * Returns the minimum age an index is required to have before rollover is allowed, if it is defined, or null otherwise
+     */
+    @Nullable
     public TimeValue getMinAge() {
-        return minAge;
+        return conditions.containsKey(MinAgeCondition.NAME) ? (TimeValue) conditions.get(MinAgeCondition.NAME).value() : null;
     }
 
+    /**
+     * Returns the minimum document count an index is required to have before rollover is allowed, if it is defined, or null otherwise
+     */
+    @Nullable
     public Long getMinDocs() {
-        return minDocs;
+        return conditions.containsKey(MinDocsCondition.NAME) ? (Long) conditions.get(MinDocsCondition.NAME).value() : null;
     }
 
+    /**
+     * Returns the minimum document count a primary shard is required to have before rollover is allowed, if it is defined,
+     * or null otherwise
+     */
+    @Nullable
     public Long getMinPrimaryShardDocs() {
-        return minPrimaryShardDocs;
+        return conditions.containsKey(MinPrimaryShardDocsCondition.NAME)
+            ? (Long) conditions.get(MinPrimaryShardDocsCondition.NAME).value()
+            : null;
+    }
+
+    public Map<String, Condition<?>> getConditions() {
+        return conditions;
+    }
+
+    /**
+     * Given the results of evaluating each individual condition, determine whether the rollover request should proceed -- that is,
+     * whether the conditions are met.
+     *
+     * If there are no conditions at all, then the request is unconditional (i.e. a command), and the conditions are met.
+     *
+     * If the request has conditions, then all min_* conditions and at least one max_* condition must have a true result.
+     *
+     * @param conditionResults a map of individual conditions and their associated evaluation results
+     *
+     * @return where the conditions for rollover are satisfied or not
+     */
+    public boolean areConditionsMet(Map<String, Boolean> conditionResults) {
+        boolean allMinConditionsMet = conditions.values()
+            .stream()
+            .filter(c -> Condition.Type.MIN == c.type())
+            .allMatch(c -> conditionResults.getOrDefault(c.toString(), false));
+
+        boolean anyMaxConditionsMet = conditions.values()
+            .stream()
+            .filter(c -> Condition.Type.MAX == c.type())
+            .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
+
+        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet);
+    }
+
+    public static RolloverConditions fromXContent(XContentParser parser) throws IOException {
+        RolloverConditions.Builder builder = RolloverConditions.newBuilder();
+        PARSER.parse(parser, builder, null);
+        return builder.build();
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (maxSize != null) {
-            builder.field(MAX_SIZE_FIELD.getPreferredName(), maxSize.getStringRep());
-        }
-        if (maxPrimaryShardSize != null) {
-            builder.field(MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(), maxPrimaryShardSize.getStringRep());
-        }
-        if (maxAge != null) {
-            builder.field(MAX_AGE_FIELD.getPreferredName(), maxAge.getStringRep());
-        }
-        if (maxDocs != null) {
-            builder.field(MAX_DOCS_FIELD.getPreferredName(), maxDocs);
-        }
-        if (maxPrimaryShardDocs != null) {
-            builder.field(MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), maxPrimaryShardDocs);
-        }
-        if (minSize != null) {
-            builder.field(MIN_SIZE_FIELD.getPreferredName(), minSize.getStringRep());
-        }
-        if (minPrimaryShardSize != null) {
-            builder.field(MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(), minPrimaryShardSize.getStringRep());
-        }
-        if (minAge != null) {
-            builder.field(MIN_AGE_FIELD.getPreferredName(), minAge.getStringRep());
-        }
-        if (minDocs != null) {
-            builder.field(MIN_DOCS_FIELD.getPreferredName(), minDocs);
-        }
-        if (minPrimaryShardDocs != null) {
-            builder.field(MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), minPrimaryShardDocs);
+        for (Condition<?> condition : conditions.values()) {
+            condition.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
     }
 
-    public static RolloverConditions fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RolloverConditions that = (RolloverConditions) o;
+        return Objects.equals(conditions, that.conditions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            maxSize,
-            maxPrimaryShardSize,
-            maxAge,
-            maxDocs,
-            maxPrimaryShardDocs,
-            minSize,
-            minPrimaryShardSize,
-            minAge,
-            minDocs,
-            minPrimaryShardDocs
-        );
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (obj.getClass() != getClass()) {
-            return false;
-        }
-        RolloverConditions other = (RolloverConditions) obj;
-        return Objects.equals(maxSize, other.maxSize)
-            && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
-            && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs)
-            && Objects.equals(maxPrimaryShardDocs, other.maxPrimaryShardDocs)
-            && Objects.equals(minSize, other.minSize)
-            && Objects.equals(minPrimaryShardSize, other.minPrimaryShardSize)
-            && Objects.equals(minAge, other.minAge)
-            && Objects.equals(minDocs, other.minDocs)
-            && Objects.equals(minPrimaryShardDocs, other.minPrimaryShardDocs);
+        return Objects.hash(conditions);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * Helps to build or create a mutation of rollover conditions
+     */
+    public static class Builder {
+        private final Map<String, Condition<?>> conditions;
+
+        private Builder(Map<String, Condition<?>> conditions) {
+            this.conditions = conditions;
+        }
+
+        /**
+         * Adds condition to check if the index is at least <code>age</code> old
+         */
+        public Builder addMaxIndexAgeCondition(TimeValue age) {
+            if (age != null) {
+                MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
+                if (this.conditions.containsKey(maxAgeCondition.name)) {
+                    throw new IllegalArgumentException(maxAgeCondition.name + " condition is already set");
+                }
+                this.conditions.put(maxAgeCondition.name, maxAgeCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds condition to check if the index has at least <code>numDocs</code>
+         */
+        public Builder addMaxIndexDocsCondition(Long numDocs) {
+            if (numDocs != null) {
+                MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
+                if (this.conditions.containsKey(maxDocsCondition.name)) {
+                    throw new IllegalArgumentException(maxDocsCondition.name + " condition is already set");
+                }
+                this.conditions.put(maxDocsCondition.name, maxDocsCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds a size-based condition to check if the index size is at least <code>size</code>.
+         */
+        public Builder addMaxIndexSizeCondition(ByteSizeValue size) {
+            if (size != null) {
+                MaxSizeCondition maxSizeCondition = new MaxSizeCondition(size);
+                if (this.conditions.containsKey(maxSizeCondition.name)) {
+                    throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
+                }
+                this.conditions.put(maxSizeCondition.name, maxSizeCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
+         */
+        public Builder addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
+            if (size != null) {
+                MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
+                if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name)) {
+                    throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");
+                }
+                this.conditions.put(maxPrimaryShardSizeCondition.name, maxPrimaryShardSizeCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds a size-based condition to check if the docs of the largest primary shard has at least <code>numDocs</code>
+         */
+        public Builder addMaxPrimaryShardDocsCondition(Long numDocs) {
+            if (numDocs != null) {
+                MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);
+                if (this.conditions.containsKey(maxPrimaryShardDocsCondition.name)) {
+                    throw new IllegalArgumentException(maxPrimaryShardDocsCondition.name + " condition is already set");
+                }
+                this.conditions.put(maxPrimaryShardDocsCondition.name, maxPrimaryShardDocsCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds required condition to check if the index is at least <code>age</code> old
+         */
+        public Builder addMinIndexAgeCondition(TimeValue age) {
+            if (age != null) {
+                MinAgeCondition minAgeCondition = new MinAgeCondition(age);
+                if (this.conditions.containsKey(minAgeCondition.name)) {
+                    throw new IllegalArgumentException(minAgeCondition.name + " condition is already set");
+                }
+                this.conditions.put(minAgeCondition.name, minAgeCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds required condition to check if the index has at least <code>numDocs</code>
+         */
+        public Builder addMinIndexDocsCondition(Long numDocs) {
+            if (numDocs != null) {
+                MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);
+                if (this.conditions.containsKey(minDocsCondition.name)) {
+                    throw new IllegalArgumentException(minDocsCondition.name + " condition is already set");
+                }
+                this.conditions.put(minDocsCondition.name, minDocsCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds a size-based required condition to check if the index size is at least <code>size</code>.
+         */
+        public Builder addMinIndexSizeCondition(ByteSizeValue size) {
+            if (size != null) {
+                MinSizeCondition minSizeCondition = new MinSizeCondition(size);
+                if (this.conditions.containsKey(minSizeCondition.name)) {
+                    throw new IllegalArgumentException(minSizeCondition + " condition is already set");
+                }
+                this.conditions.put(minSizeCondition.name, minSizeCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds a size-based required condition to check if the size of the largest primary shard is at least <code>size</code>.
+         */
+        public Builder addMinPrimaryShardSizeCondition(ByteSizeValue size) {
+            if (size != null) {
+                MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(size);
+                if (this.conditions.containsKey(minPrimaryShardSizeCondition.name)) {
+                    throw new IllegalArgumentException(minPrimaryShardSizeCondition + " condition is already set");
+                }
+                this.conditions.put(minPrimaryShardSizeCondition.name, minPrimaryShardSizeCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds a size-based required condition to check if the docs of the largest primary shard has at least <code>numDocs</code>
+         */
+        public Builder addMinPrimaryShardDocsCondition(Long numDocs) {
+            if (numDocs != null) {
+                MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(numDocs);
+                if (this.conditions.containsKey(minPrimaryShardDocsCondition.name)) {
+                    throw new IllegalArgumentException(minPrimaryShardDocsCondition.name + " condition is already set");
+                }
+                this.conditions.put(minPrimaryShardDocsCondition.name, minPrimaryShardDocsCondition);
+            }
+            return this;
+        }
+
+        public RolloverConditions build() {
+            return new RolloverConditions(conditions);
+        }
+    }
+
+    public static RolloverConditions.Builder newBuilder(RolloverConditions conditions) {
+        return new Builder(new HashMap<>(conditions.conditions));
+    }
+
+    public static RolloverConditions.Builder newBuilder() {
+        return new Builder(new HashMap<>());
     }
 
 }

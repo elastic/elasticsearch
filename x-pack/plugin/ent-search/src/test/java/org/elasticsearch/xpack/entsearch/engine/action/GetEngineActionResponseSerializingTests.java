@@ -26,7 +26,7 @@ public class GetEngineActionResponseSerializingTests extends AbstractWireSeriali
                 ESTestCase.randomAlphaOfLengthBetween(1, 10),
                 generateRandomStringArray(10, 10, false, false),
                 randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) }),
-                System.currentTimeMillis()
+                randomNonNegativeLong()
             )
         );
     }

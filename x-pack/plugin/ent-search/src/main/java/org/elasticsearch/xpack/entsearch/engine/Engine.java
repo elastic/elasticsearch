@@ -41,7 +41,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class Engine implements Writeable, ToXContentObject {
     private final String name;
     private final String[] indices;
-    private final long updatedAt;
+    private final long updatedAtMillis;
     private final String analyticsCollectionName;
 
     /**
@@ -50,34 +50,22 @@ public class Engine implements Writeable, ToXContentObject {
      * @param name                    The name of the engine.
      * @param indices                 The list of indices targeted by this engine.
      * @param analyticsCollectionName The name of the associated analytics collection.
-     * @param updatedAt               Timestamp this Engine was last updated. Null uses current timestamp.
+     * @param updatedAtMillis         Timestamp in milliseconds this Engine was last updated.
      */
-    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName, Long updatedAt) {
+    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName, long updatedAtMillis) {
         this.name = name;
         this.indices = indices;
         Arrays.sort(indices);
 
         this.analyticsCollectionName = analyticsCollectionName;
-
-        this.updatedAt = (updatedAt != null ? updatedAt : System.currentTimeMillis());
-    }
-
-    /**
-     * Convenience constructor.
-     *
-     * @param name                    The name of the engine.
-     * @param indices                 The list of indices targeted by this engine.
-     * @param analyticsCollectionName The name of the associated analytics collection.
-     */
-    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName) {
-        this(name, indices, analyticsCollectionName, null);
+        this.updatedAtMillis = updatedAtMillis;
     }
 
     public Engine(StreamInput in) throws IOException {
         this.name = in.readString();
         this.indices = in.readStringArray();
         this.analyticsCollectionName = in.readOptionalString();
-        this.updatedAt = in.readLong();
+        this.updatedAtMillis = in.readLong();
     }
 
     @Override
@@ -85,7 +73,7 @@ public class Engine implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeStringArray(indices);
         out.writeOptionalString(analyticsCollectionName);
-        out.writeLong(updatedAt);
+        out.writeLong(updatedAtMillis);
     }
 
     private static final ConstructingObjectParser<Engine, String> PARSER = new ConstructingObjectParser<>(
@@ -95,22 +83,23 @@ public class Engine implements Writeable, ToXContentObject {
             @SuppressWarnings("unchecked")
             final String[] indices = ((List<String>) params[0]).toArray(String[]::new);
             final String analyticsCollectionName = (String) params[1];
-            final long updatedAt = (Long) params[2];
+            final Long maybeUpdatedAtMillis = (Long) params[2];
+            long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
 
-            return new Engine(engineName, indices, analyticsCollectionName, updatedAt);
+            return new Engine(engineName, indices, analyticsCollectionName, updatedAtMillis);
         }
     );
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField ANALYTICS_COLLECTION_NAME_FIELD = new ParseField("analytics_collection_name");
-    public static final ParseField UPDATED_AT_FIELD = new ParseField("updated_at");
+    public static final ParseField UPDATED_AT_MILLIS_FIELD = new ParseField("updated_at_millis");
     public static final ParseField BINARY_CONTENT_FIELD = new ParseField("binary_content");
 
     static {
         PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
-        PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_FIELD);
+        PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
     }
 
     /**
@@ -154,7 +143,7 @@ public class Engine implements Writeable, ToXContentObject {
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }
-        builder.field(UPDATED_AT_FIELD.getPreferredName(), updatedAt);
+        builder.field(UPDATED_AT_MILLIS_FIELD.getPreferredName(), updatedAtMillis);
         builder.endObject();
         return builder;
     }
@@ -186,8 +175,8 @@ public class Engine implements Writeable, ToXContentObject {
         return analyticsCollectionName;
     }
 
-    public long updatedAt() {
-        return updatedAt;
+    public long updatedAtMillis() {
+        return updatedAtMillis;
     }
 
     @Override
@@ -198,12 +187,12 @@ public class Engine implements Writeable, ToXContentObject {
         return name.equals(engine.name)
             && Arrays.equals(indices, engine.indices)
             && Objects.equals(analyticsCollectionName, engine.analyticsCollectionName)
-            && updatedAt == engine.updatedAt();
+            && updatedAtMillis == engine.updatedAtMillis();
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName, updatedAt);
+        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

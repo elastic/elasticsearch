@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.entsearch.engine.Engine;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
 public class TransportGetEngineAction extends HandledTransportAction<GetEngineAction.Request, GetEngineAction.Response> {
@@ -28,17 +27,7 @@ public class TransportGetEngineAction extends HandledTransportAction<GetEngineAc
 
     @Override
     protected void doExecute(Task task, GetEngineAction.Request request, ActionListener<GetEngineAction.Response> listener) {
-        engineIndexService.getEngine(request.getEngineId(), new ActionListener<>() {
-            @Override
-            public void onResponse(Engine engine) {
-                listener.onResponse(new GetEngineAction.Response(engine));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        engineIndexService.getEngine(request.getEngineId(), listener.map(GetEngineAction.Response::new));
     }
 
 }

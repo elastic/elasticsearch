@@ -92,7 +92,7 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
         @Override
         public IndicesRequest indices(String... indices) {
-            return new Request(new Engine(engine.name(), indices, engine.analyticsCollectionName()));
+            return new Request(new Engine(engine.name(), indices, engine.analyticsCollectionName(), System.currentTimeMillis()));
         }
 
         @Override

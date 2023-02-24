@@ -40,6 +40,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     private static final int NUM_INDICES = 10;
+    private static final long UPDATED_AT = System.currentTimeMillis();
 
     private EngineIndexService engineService;
     private ClusterService clusterService;
@@ -62,7 +63,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateEngine() throws Exception {
-        final Engine engine = new Engine("my_engine", new String[] { "index_1" }, null);
+        final Engine engine = new Engine("my_engine", new String[] { "index_1" }, null, UPDATED_AT);
 
         IndexResponse resp = awaitPutEngine(engine);
         assertThat(resp.status(), equalTo(RestStatus.CREATED));
@@ -86,7 +87,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateEngine() throws Exception {
         {
-            final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" }, null);
+            final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" }, null, UPDATED_AT);
             IndexResponse resp = awaitPutEngine(engine);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
@@ -95,7 +96,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
             assertThat(getEngine, equalTo(engine));
         }
 
-        final Engine engine = new Engine("my_engine", new String[] { "index_3", "index_4" }, "my_engine_analytics_collection");
+        final Engine engine = new Engine("my_engine", new String[] { "index_3", "index_4" }, "my_engine_analytics_collection", UPDATED_AT);
         IndexResponse newResp = awaitPutEngine(engine);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
@@ -106,7 +107,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testListEngine() throws Exception {
         for (int i = 0; i < NUM_INDICES; i++) {
-            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
+            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null, UPDATED_AT);
             IndexResponse resp = awaitPutEngine(engine);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
@@ -148,7 +149,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testListEngineWithQuery() throws Exception {
         for (int i = 0; i < 10; i++) {
-            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
+            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null, UPDATED_AT);
             IndexResponse resp = awaitPutEngine(engine);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
@@ -180,7 +181,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testDeleteEngine() throws Exception {
         for (int i = 0; i < 5; i++) {
-            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
+            final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null, UPDATED_AT);
             IndexResponse resp = awaitPutEngine(engine);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));

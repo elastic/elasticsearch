@@ -58,7 +58,7 @@ public class EngineTests extends ESTestCase {
             {
               "indices": ["my_index"],
               "analytics_collection_name": "my_engine_analytics",
-              "updated_at": 0
+              "updated_at_millis": 0
             }""");
         Engine engine = Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
@@ -74,7 +74,7 @@ public class EngineTests extends ESTestCase {
         String content = """
             {
               "indices": ["my_index", "my_index_2"],
-              "updated_at": 0
+              "updated_at_millis": 0
             }""";
 
         String update = """
@@ -140,6 +140,7 @@ public class EngineTests extends ESTestCase {
             indices[i] = randomAlphaOfLengthBetween(10, 20);
         }
         String analyticsCollectionName = randomBoolean() ? randomAlphaOfLengthBetween(10, 15) : null;
-        return new Engine(name, indices, analyticsCollectionName);
+        long updatedAtMillis = randomLong();
+        return new Engine(name, indices, analyticsCollectionName, updatedAtMillis);
     }
 }

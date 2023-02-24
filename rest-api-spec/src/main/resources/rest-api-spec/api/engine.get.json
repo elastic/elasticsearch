@@ -25,7 +25,7 @@
           "parts": {
             "engine_id": {
               "type": "string",
-              "description": "The name of the engine to be created or updated"
+              "description": "The name of the engine"
             }
           }
         }

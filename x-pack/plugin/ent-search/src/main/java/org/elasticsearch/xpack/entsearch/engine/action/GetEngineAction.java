@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,17 +23,23 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.entsearch.engine.EngineIndexService.ENGINE_CONCRETE_INDEX_NAME;
 
 public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
     public static final GetEngineAction INSTANCE = new GetEngineAction();
-    public static final String NAME = "cluster:admin/xpack/engines/get";
+    public static final String NAME = "indices:admin/engine/get";
 
     private GetEngineAction() {
         super(NAME, GetEngineAction.Response::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+
+        public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
+
+        private String[] names = new String[] { ENGINE_CONCRETE_INDEX_NAME };
+        private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
         private final String engineId;
 
@@ -76,6 +84,22 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(engineId);
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.names = indices;
+            return this;
+        }
+
+        @Override
+        public String[] indices() {
+            return names;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return indicesOptions;
         }
     }
 

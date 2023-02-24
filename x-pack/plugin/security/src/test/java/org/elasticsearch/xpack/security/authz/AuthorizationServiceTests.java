@@ -3037,6 +3037,28 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
+    public void testActionDeniedForRemoteAccessAuthentication() {
+        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        when(authorizationInfo.asMap()).thenReturn(
+            Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
+        );
+        threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        final ElasticsearchSecurityException e = authorizationService.actionDenied(authentication, authorizationInfo, action, mock());
+        assertThat(e.getCause(), nullValue());
+        assertThat(
+            e.getMessage(),
+            containsString(
+                Strings.format(
+                    "action [%s] towards remote cluster is unauthorized for %s",
+                    action,
+                    AuthorizationDenialMessages.successfulAuthenticationDescription(authentication, authorizationInfo)
+                )
+            )
+        );
+    }
+
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {
         return ArgumentMatchers.argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
     }

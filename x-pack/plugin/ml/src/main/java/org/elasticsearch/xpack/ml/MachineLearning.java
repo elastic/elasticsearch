@@ -52,6 +52,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.ingest.Processor;
@@ -1866,6 +1867,12 @@ public class MachineLearning extends Plugin
         Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
+        if (this.enabled == false) {
+            // if ML is disabled, the custom cleanup can fail, but we can still clean up indices
+            // by calling the superclass cleanup method
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, unwrappedClient, finalListener);
+            return;
+        }
         logger.info("Starting machine learning feature reset");
         OriginSettingClient client = new OriginSettingClient(unwrappedClient, ML_ORIGIN);
 

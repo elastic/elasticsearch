@@ -12,6 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -63,5 +65,10 @@ public class MlPluginDisabledIT extends ESRestTestCase {
         assertThat(exception.getMessage(), containsString("method [PUT]"));
         assertThat(exception.getMessage(), containsString("URI [/_ml/anomaly_detectors/foo]"));
         assertThat(exception.getMessage(), containsString("400 Bad Request"));
+    }
+
+    public void testMlFeatureReset() throws IOException {
+        Request request = new Request("POST", "/_features/_reset");
+        client().performRequest(request);
     }
 }

@@ -21,6 +21,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 
 import java.io.IOException;
@@ -28,7 +29,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * A wrapper of {@link IntervalsSource} for the case when positions are not indexed.
@@ -37,13 +37,13 @@ public final class SourceIntervalsSource extends IntervalsSource {
 
     private final IntervalsSource in;
     private final Query approximation;
-    private final Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
+    private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
     public SourceIntervalsSource(
         IntervalsSource in,
         Query approximation,
-        Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
+        IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
     ) {
         this.in = Objects.requireNonNull(in);

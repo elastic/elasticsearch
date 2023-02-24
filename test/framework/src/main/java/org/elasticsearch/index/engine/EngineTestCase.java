@@ -30,6 +30,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -1259,6 +1260,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
                 Bits liveDocs = reader.getLiveDocs();
+                StoredFields storedFields = reader.storedFields();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
                         if (primaryTermDocValues.advanceExact(i) == false) {
@@ -1266,7 +1268,7 @@ public abstract class EngineTestCase extends ESTestCase {
                             continue;
                         }
                         final long primaryTerm = primaryTermDocValues.longValue();
-                        Document doc = reader.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
+                        Document doc = storedFields.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
                         BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
                         String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
                         final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);

@@ -119,7 +119,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
                 // we weren't the master, and now we are
-                onBecomeMaster();
+                maybeScheduleJob();
             } else {
                 // we were the master, and now we aren't
                 cancelJob();
@@ -273,10 +273,6 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         // don't rollover an empty index
         rolloverRequest.addMinIndexDocsCondition(1);
         return rolloverRequest;
-    }
-
-    private void onBecomeMaster() {
-        maybeScheduleJob();
     }
 
     private void updatePollInterval(TimeValue newInterval) {

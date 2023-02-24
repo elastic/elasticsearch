@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.engine.TranslogMetadata;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
@@ -93,7 +94,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         indexDocuments(indexName);
     }
 
-    public void testTranslogWrittenToObjectStore() throws Exception {
+    public void testTranslogAccessibilityViaObjectStore() throws Exception {
         startMasterOnlyNode();
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
@@ -121,13 +122,15 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 DiscoveryNode indexNode = findIndexNode(entry.getKey(), shardId);
                 IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
                 var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class).getTranslogBlobContainer(indexNode);
-                final int finalShardId = shardId;
+                var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode.getName());
+                final ShardId objShardId = new ShardId(entry.getKey(), shardId);
+
+                // Check that the translog is correctly written to the object store
                 assertBusy(() -> {
                     long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
                     long totalOps = 0;
                     for (String file : blobContainer.listBlobs().keySet()) {
                         try (StreamInput remote = new InputStreamStreamInput(blobContainer.readBlob(file))) {
-                            ShardId objShardId = new ShardId(entry.getKey(), finalShardId);
                             Map<ShardId, TranslogMetadata> map = remote.readMap(ShardId::new, TranslogMetadata::new);
                             if (map.containsKey(objShardId)) {
                                 TranslogMetadata translogMetadata = map.get(objShardId);
@@ -139,6 +142,19 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                     assertThat(maxSeqNo, equalTo(indexShard.seqNoStats().getMaxSeqNo()));
                     assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));
                 });
+
+                // Check that the translog is correctly read from the object store
+                var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
+                var reader = new TranslogReplicatorReader(indexObjectStoreService, objShardId, 0);
+                long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+                long totalOps = 0;
+                while (reader.hasNext()) {
+                    var translogEntry = reader.next();
+                    maxSeqNo = SequenceNumbers.max(maxSeqNo, translogEntry.metadata().maxSeqNo());
+                    totalOps += translogEntry.metadata().totalOps();
+                }
+                assertThat(maxSeqNo, equalTo(indexShard.seqNoStats().getMaxSeqNo()));
+                assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));
             }
         }
     }

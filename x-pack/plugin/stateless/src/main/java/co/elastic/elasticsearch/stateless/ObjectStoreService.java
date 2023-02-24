@@ -234,7 +234,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     BlobContainer getTranslogBlobContainer(DiscoveryNode discoveryNode) {
         final BlobStoreRepository objectStore = getObjectStore();
-        return objectStore.blobStore().blobContainer(objectStore.basePath().add("nodes").add(discoveryNode.getEphemeralId()));
+        return objectStore.blobStore()
+            .blobContainer(objectStore.basePath().add("nodes").add(discoveryNode.getEphemeralId()).add("translog"));
+    }
+
+    /**
+     * Gets the translog blob container of the local node
+     */
+    public BlobContainer getLocalTranslogBlobContainer() {
+        final DiscoveryNode discoveryNode = clusterService.localNode();
+        return getTranslogBlobContainer(discoveryNode);
     }
 
     private static RepositoryMetadata getRepositoryMetadata(Settings settings) {
@@ -388,8 +397,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRun() throws Exception {
-            final DiscoveryNode discoveryNode = clusterService.localNode();
-            final BlobContainer blobContainer = getTranslogBlobContainer(discoveryNode);
+            final BlobContainer blobContainer = getLocalTranslogBlobContainer();
 
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(fileName, reference, false);

@@ -22,22 +22,27 @@ import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -46,12 +51,13 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.zip.CRC32;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -72,16 +78,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 
-    public void testTranslogBytesAreSyncedPeriodically() throws IOException {
+    public void testTranslogBytesAreSyncedPeriodically() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
-        ArrayList<BytesReference> references = new ArrayList<>();
-        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
-        doAnswer(invocation -> {
-            references.add(getBytes(invocation.getArgument(1)));
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
-            return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
@@ -97,23 +98,20 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
-        assertThat(references.size(), equalTo(1));
-        StreamInput streamInput = references.get(0).streamInput();
-        var expected = Map.of(shardId, new TranslogMetadata(0, 64, 0, 3, 4));
-        assertThat("Unexpected metadata", streamInput.readMap(ShardId::new, TranslogMetadata::new), equalTo(expected));
-        assertThat("Unexpected checksum", streamInput.readLong(), equalTo(calculateCrcChecksum(expected)));
+        assertThat(compoundFiles.size(), equalTo(1));
+
+        var reader = new TranslogReplicatorReader(objectStoreService, shardId, 0);
+        var firstEntry = reader.next();
+        assertThat(firstEntry.metadata(), equalTo(new TranslogMetadata(0, 64, 0, 3, 4)));
+        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 4), BytesReference.toBytes(firstEntry.data()));
+        assertThat(reader.hasNext(), equalTo(false));
     }
 
-    public void testTranslogBytesAreSyncedWhenReachingSizeThreshold() throws IOException {
+    public void testTranslogBytesAreSyncedWhenReachingSizeThreshold() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
-        ArrayList<BytesReference> references = new ArrayList<>();
-        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
-        doAnswer(invocation -> {
-            references.add(getBytes(invocation.getArgument(1)));
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
-            return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
             threadPool,
@@ -136,21 +134,17 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
-        assertThat(references.size(), equalTo(1));
-        StreamInput streamInput = references.get(0).streamInput();
-        var expected = Map.of(shardId, new TranslogMetadata(0, 64, 0, 3, 4));
-        assertThat("Unexpected metadata", streamInput.readMap(ShardId::new, TranslogMetadata::new), equalTo(expected));
-        assertThat("Unexpected checksum", streamInput.readLong(), equalTo(calculateCrcChecksum(expected)));
+        var reader = new TranslogReplicatorReader(objectStoreService, shardId, 0);
+        var firstEntry = reader.next();
+        assertThat(firstEntry.metadata(), equalTo(new TranslogMetadata(0, 64, 0, 3, 4)));
+        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 4), BytesReference.toBytes(firstEntry.data()));
+        assertThat(reader.hasNext(), equalTo(false));
     }
 
-    public void testTranslogBytesAreSyncedEdgeCondition() {
+    public void testTranslogBytesAreSyncedEdgeCondition() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
-        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
-        doAnswer(invocation -> {
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
-            return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        ObjectStoreService objectStoreService = mockObjectStoreService(new ArrayList<>());
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
@@ -173,6 +167,46 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location incompleteLocation = new Translog.Location(location.generation, location.translogLocation + location.size, 1);
         translogReplicator.sync(shardId, incompleteLocation, synchronouslyIncompleteFuture);
         assertFalse(synchronouslyIncompleteFuture.isDone());
+    }
+
+    public void testTranslogChecksumIsChecked() throws Exception {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        translogReplicator.doStart();
+
+        BytesArray bytesArray = new BytesArray(new byte[16]);
+        Translog.Location finalLocation = new Translog.Location(0, 0, bytesArray.length());
+        translogReplicator.add(shardId, bytesArray, 0, finalLocation);
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        translogReplicator.sync(shardId, finalLocation, future);
+        future.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(1));
+
+        // Fiddle the checksum of the compound file
+        try (StreamInput streamInput = compoundFiles.get(0).streamInput()) {
+            BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(compoundFiles.get(0).streamInput(), "test");
+            Map<ShardId, TranslogMetadata> checkpoints = checksumStreamInput.readMap(ShardId::new, TranslogMetadata::new);
+            long wrongChecksum = checksumStreamInput.getChecksum() + randomLongBetween(1, 100);
+            BytesReference translogs = streamInput.readBytesReference();
+            try (BytesStreamOutput newCompoundFile = new BytesStreamOutput()) {
+                newCompoundFile.writeMap(checkpoints);
+                newCompoundFile.writeLong(wrongChecksum);
+                translogs.writeTo(newCompoundFile);
+                compoundFiles.replaceAll((ignored) -> newCompoundFile.bytes());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        var reader = new TranslogReplicatorReader(objectStoreService, shardId, 0);
+        var exception = expectThrows(TranslogCorruptedException.class, () -> reader.next());
+        assertThat(exception.getMessage(), containsString("checksum verification failed"));
     }
 
     public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws InterruptedException {
@@ -229,17 +263,13 @@ public class TranslogReplicatorTests extends ESTestCase {
         future2.actionGet();
     }
 
-    public void testCompoundTranslogFile() throws IOException {
+    public void testCompoundTranslogFile() throws Exception {
         ShardId shardId1 = new ShardId(new Index("name1", "uuid"), 0);
         ShardId shardId2 = new ShardId(new Index("name2", "uuid"), 0);
 
-        ArrayList<BytesReference> references = new ArrayList<>();
-        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
-        doAnswer(invocation -> {
-            references.add(getBytes(invocation.getArgument(1)));
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
-            return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
@@ -256,14 +286,19 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId1, finalLocationShard1, future);
         future.actionGet();
 
-        assertThat(references.size(), equalTo(1));
-        StreamInput streamInput = references.get(0).streamInput();
+        assertThat(compoundFiles.size(), equalTo(1));
 
-        var expected1 = new LinkedHashMap<ShardId, TranslogMetadata>();// iteration order sensitive
-        expected1.put(shardId1, new TranslogMetadata(48, 32, 0, 1, 2));
-        expected1.put(shardId2, new TranslogMetadata(0, 48, 0, 3, 3));
-        assertThat("Unexpected metadata", streamInput.readMap(ShardId::new, TranslogMetadata::new), equalTo(expected1));
-        assertThat("Unexpected checksum", streamInput.readLong(), equalTo(calculateCrcChecksum(expected1)));
+        var reader1 = new TranslogReplicatorReader(objectStoreService, shardId1, 0);
+        var reader1entry1 = reader1.next();
+        assertThat(reader1entry1.metadata(), equalTo(new TranslogMetadata(48, 32, 0, 1, 2)));
+        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 2), BytesReference.toBytes(reader1entry1.data()));
+        assertThat(reader1.hasNext(), equalTo(false));
+
+        var reader2 = new TranslogReplicatorReader(objectStoreService, shardId2, 0);
+        var reader2entry1 = reader2.next();
+        assertThat(reader2entry1.metadata(), equalTo(new TranslogMetadata(0, 48, 0, 3, 3)));
+        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 3), BytesReference.toBytes(reader2entry1.data()));
+        assertThat(reader2.hasNext(), equalTo(false));
 
         PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId2, intermediateLocationShard2, future2);
@@ -278,11 +313,22 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId2, bytesArray, 2, finalLocationShard2);
         future3.actionGet();
 
-        assertThat(references.size(), equalTo(2));
-        streamInput = references.get(1).streamInput();
-        var expected2 = Map.of(shardId2, new TranslogMetadata(0, 16, 2, 2, 1));
-        assertThat("Unexpected metadata", streamInput.readMap(ShardId::new, TranslogMetadata::new), equalTo(expected2));
-        assertThat("Unexpected checksum", streamInput.readLong(), equalTo(calculateCrcChecksum(expected2)));
+        assertThat(compoundFiles.size(), equalTo(2));
+
+        reader1 = new TranslogReplicatorReader(objectStoreService, shardId1, 0);
+        reader1entry1 = reader1.next();
+        assertThat(reader1entry1.metadata(), equalTo(new TranslogMetadata(48, 32, 0, 1, 2)));
+        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 2), BytesReference.toBytes(reader1entry1.data()));
+        assertThat(reader1.hasNext(), equalTo(false));
+
+        reader2 = new TranslogReplicatorReader(objectStoreService, shardId2, 0);
+        reader2entry1 = reader2.next();
+        assertThat(reader2entry1.metadata(), equalTo(new TranslogMetadata(0, 48, 0, 3, 3)));
+        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 3), BytesReference.toBytes(reader2entry1.data()));
+        var reader2entry2 = reader2.next();
+        assertThat(reader2entry2.metadata(), equalTo(new TranslogMetadata(0, 16, 2, 2, 1)));
+        assertArrayEquals("unexpected byte contents", bytesArray.array(), BytesReference.toBytes(reader2entry2.data()));
+        assertThat(reader2.hasNext(), equalTo(false));
     }
 
     public void testSchedulesFlushCheck() {
@@ -294,7 +340,7 @@ public class TranslogReplicatorTests extends ESTestCase {
     }
 
     private static BytesReference getBytes(BytesReference reference) {
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();) {
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
             reference.writeTo(bytesStreamOutput);
             return bytesStreamOutput.bytes();
         } catch (IOException e) {
@@ -302,25 +348,38 @@ public class TranslogReplicatorTests extends ESTestCase {
         }
     }
 
-    private static long calculateCrcChecksum(Map<ShardId, TranslogMetadata> metadata) throws IOException {
-        var crc32 = new CRC32();
-        new StreamOutput() {
-            @Override
-            public void writeByte(byte b) {
-                crc32.update(b);
+    private ObjectStoreService mockObjectStoreService(ArrayList<BytesReference> compoundFiles) throws Exception {
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        doAnswer(invocation -> {
+            compoundFiles.add(getBytes(invocation.getArgument(1)));
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        doAnswer(invocation -> {
+            var map = new LinkedHashMap<String, BlobMetadata>();
+            for (int i = 0; i < compoundFiles.size(); i++) {
+                String filename = Strings.format("%019d", i);
+                map.put(filename, new BlobMetadata(filename, compoundFiles.get(i).length()));
             }
+            return map;
+        }).when(blobContainer).listBlobs();
+        doAnswer(invocation -> {
+            String filename = invocation.getArgument(0);
+            int index = Integer.parseInt(filename);
+            return compoundFiles.get(index).streamInput();
+        }).when(blobContainer).readBlob(any());
+        doReturn(blobContainer).when(objectStoreService).getLocalTranslogBlobContainer();
 
-            @Override
-            public void writeBytes(byte[] b, int offset, int length) {
-                crc32.update(b, offset, length);
-            }
+        return objectStoreService;
+    }
 
-            @Override
-            public void flush() {}
-
-            @Override
-            public void close() {}
-        }.writeMap(metadata);
-        return crc32.getValue();
+    private byte[] repeatBytes(byte[] array, int times) throws Exception {
+        ByteArrayOutputStream expectedBytesStream = new ByteArrayOutputStream();
+        for (int i = 0; i < times; i++) {
+            expectedBytesStream.write(array);
+        }
+        return expectedBytesStream.toByteArray();
     }
 }

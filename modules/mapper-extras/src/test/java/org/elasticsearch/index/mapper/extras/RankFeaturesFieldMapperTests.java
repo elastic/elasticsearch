@@ -129,8 +129,8 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     public void testDotinFieldname() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", Map.of("politi.cs", 10, "sports", 20))))
         );
         assertThat(ex.getCause().getMessage(), containsString("do not support dots in feature names"));

@@ -131,7 +131,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
             )
         );
 
-        assertFirstException(bulkItemResponses.values(), DocumentParsingException.class, "[-1:-1] document parsing error");
+        assertFirstException(bulkItemResponses.values(), DocumentParsingException.class, "document parsing error");
         bulkItemResponses.remove(1);
         assertFirstException(bulkItemResponses.values(), ResourceNotFoundException.class, "resource not found error");
         bulkItemResponses.remove(2);

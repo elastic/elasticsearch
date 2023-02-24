@@ -1860,6 +1860,13 @@ The total time in milliseconds spent performing I/O operations for the device
 since starting {es}.
 ========
 
+`total` (Linux only)::
+(object)
+The sum of the disk metrics for all devices that back an {es} data path.
++
+.Properties of `total`
+[%collapsible%open]
+========
 `operations` (Linux only)::
     (integer)
     The total number of read and write operations across all devices used by
@@ -1889,6 +1896,8 @@ since starting {es}.
     (integer)
     The total time in milliseconds spent performing I/O operations across all
     devices used by {es} since starting {es}.
+========
+
 =======
 ======
 

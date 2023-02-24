@@ -10,6 +10,7 @@ package org.elasticsearch.common.blobstore.support;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.ConcurrentRegisterOperationException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
@@ -103,17 +104,18 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException {
+    public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException,
+        ConcurrentRegisterOperationException {
         return delegate.compareAndExchangeRegister(key, expected, updated);
     }
 
     @Override
-    public boolean compareAndSetRegister(String key, long expected, long updated) throws IOException {
+    public boolean compareAndSetRegister(String key, long expected, long updated) throws IOException, ConcurrentRegisterOperationException {
         return delegate.compareAndSetRegister(key, expected, updated);
     }
 
     @Override
-    public long getRegister(String key) throws IOException {
+    public long getRegister(String key) throws IOException, ConcurrentRegisterOperationException {
         return delegate.getRegister(key);
     }
 }

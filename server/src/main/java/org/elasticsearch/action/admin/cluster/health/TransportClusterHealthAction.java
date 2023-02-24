@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -163,12 +165,19 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                     if (e instanceof ProcessClusterEventTimeoutException) {
                         listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
                     } else {
-                        final Level level = e instanceof NotMasterException ? Level.TRACE : Level.ERROR;
-                        assert e instanceof NotMasterException : e; // task cannot fail, nor will it trigger a publication which fails
+                        final Level level = isExpectedFailure(e) ? Level.TRACE : Level.ERROR;
                         logger.log(level, () -> "unexpected failure during [" + source + "]", e);
+                        assert isExpectedFailure(e) : e; // task cannot fail, nor will it trigger a publication which fails
                         // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
                         listener.onFailure(e);
                     }
+                }
+
+                static boolean isExpectedFailure(Exception e) {
+                    return e instanceof NotMasterException
+                        || e instanceof FailedToCommitClusterStateException
+                            && e.getCause()instanceof EsRejectedExecutionException esre
+                            && esre.isExecutorShutdown();
                 }
             });
         }

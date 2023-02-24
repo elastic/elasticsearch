@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -102,7 +103,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final Path configPath;
 
     /**
-     * We keep around a list of plugins and modules
+     * We keep around a list of plugins and modules. The order of
+     * this list is that which the plugins and modules were loaded in.
      */
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
@@ -130,10 +132,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         // load modules
         List<PluginDescriptor> modulesList = new ArrayList<>();
+        Set<String> moduleNameList = new HashSet<>();
         if (modulesDirectory != null) {
             try {
                 Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                modules.stream().map(PluginBundle::pluginDescriptor).forEach(modulesList::add);
+                modules.stream().map(PluginBundle::pluginDescriptor).forEach(m -> {
+                    modulesList.add(m);
+                    moduleNameList.add(m.getName());
+                });
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
@@ -156,7 +162,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        Map<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles);
+        LinkedHashMap<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles);
 
         var inspector = PluginIntrospector.getInstance();
         this.info = new PluginsAndModules(getRuntimeInfos(inspector, pluginsList, loadedPlugins), modulesList);
@@ -171,8 +177,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
-        logPluginInfo(info.getModuleInfos(), "module", logger);
-        logPluginInfo(pluginsList, "plugin", logger);
+        for (String name : loadedPlugins.keySet()) {
+            if (moduleNameList.contains(name)) {
+                logger.info("loaded module [{}]", name);
+            } else {
+                logger.info("loaded plugin [{}]", name);
+            }
+        }
     }
 
     // package-private for testing
@@ -189,17 +200,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 + String.join(", ", existingPlugins)
                 + "]";
             throw new IllegalStateException(message);
-        }
-    }
-
-    private static void logPluginInfo(final List<PluginDescriptor> pluginDescriptors, final String type, final Logger logger) {
-        assert pluginDescriptors != null;
-        if (pluginDescriptors.isEmpty()) {
-            logger.info("no " + type + "s loaded");
-        } else {
-            for (final String name : pluginDescriptors.stream().map(PluginDescriptor::getName).sorted().toList()) {
-                logger.info("loaded " + type + " [" + name + "]");
-            }
         }
     }
 
@@ -280,8 +280,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return this.plugins;
     }
 
-    private Map<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
-        Map<String, LoadedPlugin> loaded = new HashMap<>();
+    private LinkedHashMap<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
+        LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
         Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();

@@ -124,7 +124,7 @@ grant codeBase "${codebase.netty-transport}" {
 };
 
 grant {
-  permission java.net.SocketPermission "127.0.0.1", "connect, resolve";
+  permission java.net.SocketPermission "127.0.0.1", "accept, connect, resolve";
   permission java.nio.file.LinkPermission "symbolic";
   // needed for keystore tests
   permission java.lang.RuntimePermission "accessUserInformation";

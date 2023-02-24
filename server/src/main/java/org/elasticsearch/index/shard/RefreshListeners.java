@@ -68,7 +68,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      *
      * We never set this to non-null while closed it {@code true}.
      */
-    private volatile List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> locationRefreshListeners = null;
+    private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> locationRefreshListeners = null;
     private volatile List<Tuple<Long, ActionListener<Void>>> checkpointRefreshListeners = null;
 
     /**
@@ -77,7 +77,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private volatile Translog.Location lastRefreshedLocation;
 
     private volatile long lastRefreshedCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-    private volatile long lastRefreshedGeneration = SequenceNumbers.NO_OPS_PERFORMED;
 
     public RefreshListeners(
         final IntSupplier getMaxRefreshListeners,
@@ -129,27 +128,27 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      *        false otherwise.
      * @return did we call the listener (true) or register the listener to call later (false)?
      */
-    public boolean addOrNotify(Translog.Location location, Consumer<AsyncRefreshResult> listener) {
+    public boolean addOrNotify(Translog.Location location, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
         requireNonNull(location, "location cannot be null");
 
         if (lastRefreshedLocation != null && lastRefreshedLocation.compareTo(location) >= 0) {
             // Location already visible, just call the listener
-            listener.accept(new AsyncRefreshResult(false, lastRefreshedGeneration));
+            listener.accept(false);
             return true;
         }
         synchronized (this) {
             if (closed) {
                 throw new IllegalStateException("can't wait for refresh on a closed index");
             }
-            List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> listeners = locationRefreshListeners;
+            List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = locationRefreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
             if (refreshForcers == 0 && roomForListener(maxRefreshes, listeners, checkpointRefreshListeners)) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
-                Consumer<AsyncRefreshResult> contextPreservingListener = result -> {
+                Consumer<Boolean> contextPreservingListener = forced -> {
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         storedContext.restore();
-                        listener.accept(result);
+                        listener.accept(forced);
                     }
                 };
                 if (listeners == null) {
@@ -163,7 +162,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         }
         // No free slot so force a refresh and call the listener in this thread
         forceRefresh.run();
-        listener.accept(new AsyncRefreshResult(true, lastRefreshedGeneration));
+        listener.accept(true);
         return true;
     }
 
@@ -227,7 +226,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
     @Override
     public void close() throws IOException {
-        List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> oldLocationListeners;
+        List<Tuple<Translog.Location, Consumer<Boolean>>> oldLocationListeners;
         List<Tuple<Long, ActionListener<Void>>> oldCheckpointListeners;
         synchronized (this) {
             oldLocationListeners = locationRefreshListeners;
@@ -253,7 +252,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * The total number of pending listeners.
      */
     public synchronized int pendingCount() {
-        List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> locationListeners = locationRefreshListeners;
+        List<Tuple<Translog.Location, Consumer<Boolean>>> locationListeners = locationRefreshListeners;
         List<Tuple<Long, ActionListener<Void>>> checkpointListeners = checkpointRefreshListeners;
         // A null list means we haven't accumulated any listeners. Otherwise, we need the size.
         return (locationListeners == null ? 0 : locationListeners.size()) + (checkpointListeners == null ? 0 : checkpointListeners.size());
@@ -281,13 +280,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
-     * Setup the most recent commit generation supplier.
-     */
-    public void setIndexCommitGenerationSupplier(LongSupplier generationSupplier) {
-        this.generationSupplier = generationSupplier;
-    }
-
-    /**
      * Snapshot of the translog location before the current refresh if there is a refresh going on or null. Doesn't have to be volatile
      * because when it is used by the refreshing thread.
      */
@@ -301,7 +293,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private long currentRefreshCheckpoint;
     private LongSupplier processedCheckpointSupplier;
     private LongSupplier maxIssuedSeqNoSupplier;
-    private LongSupplier generationSupplier;
 
     @Override
     public void beforeRefresh() throws IOException {
@@ -324,11 +315,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
          * that doesn't seem worth it given that we already skip this process early if there aren't any listeners to iterate. */
         lastRefreshedLocation = currentRefreshLocation;
         lastRefreshedCheckpoint = currentRefreshCheckpoint;
-        lastRefreshedGeneration = generationSupplier.getAsLong();
         /* Grab the current refresh listeners and replace them with null while synchronized. Any listeners that come in after this won't be
          * in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
          * lastRefreshedLocation. */
-        List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> locationCandidates;
+        List<Tuple<Translog.Location, Consumer<Boolean>>> locationCandidates;
         List<Tuple<Long, ActionListener<Void>>> checkpointCandidates;
         synchronized (this) {
             locationCandidates = locationRefreshListeners;
@@ -341,10 +331,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             checkpointRefreshListeners = null;
         }
         // Iterate the list of location listeners, copying the listeners to fire to one list and those to preserve to another list.
-        List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> locationListenersToFire = null;
-        List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> preservedLocationListeners = null;
+        List<Tuple<Translog.Location, Consumer<Boolean>>> locationListenersToFire = null;
+        List<Tuple<Translog.Location, Consumer<Boolean>>> preservedLocationListeners = null;
         if (locationCandidates != null) {
-            for (Tuple<Translog.Location, Consumer<AsyncRefreshResult>> tuple : locationCandidates) {
+            for (Tuple<Translog.Location, Consumer<Boolean>> tuple : locationCandidates) {
                 Translog.Location location = tuple.v1();
                 if (location.compareTo(currentRefreshLocation) <= 0) {
                     if (locationListenersToFire == null) {
@@ -424,12 +414,11 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     /**
      * Fire location listeners. Does nothing if the list of listeners is null.
      */
-    private void fireListeners(final List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> listenersToFire) {
+    private void fireListeners(final List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire) {
         if (listenersToFire != null) {
-            AsyncRefreshResult asyncRefreshResult = new AsyncRefreshResult(false, lastRefreshedGeneration);
-            for (final Tuple<Translog.Location, Consumer<AsyncRefreshResult>> listener : listenersToFire) {
+            for (final Tuple<Translog.Location, Consumer<Boolean>> listener : listenersToFire) {
                 try {
-                    listener.v2().accept(asyncRefreshResult);
+                    listener.v2().accept(false);
                 } catch (final Exception e) {
                     logger.warn("error firing location refresh listener", e);
                 }
@@ -439,7 +428,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
     private static boolean roomForListener(
         final int maxRefreshes,
-        final List<Tuple<Translog.Location, Consumer<AsyncRefreshResult>>> locationListeners,
+        final List<Tuple<Translog.Location, Consumer<Boolean>>> locationListeners,
         final List<Tuple<Long, ActionListener<Void>>> checkpointListeners
     ) {
         final int locationListenerCount = locationListeners == null ? 0 : locationListeners.size();
@@ -476,21 +465,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                     assert false;
                 }
             }
-        }
-    }
-
-    /**
-     * Captures the result of a async refresh listener on the index shard.
-     * <p>
-     * <code>refreshForced</code> is true if adding the listener forced a refresh. <code>generation</code>
-     * contains the generation of the index commit that the reader has opened upon refresh.
-     */
-    public record AsyncRefreshResult(boolean refreshForced, long generation) {
-
-        public static final long UNKNOWN_GENERATION = -1L;
-
-        public AsyncRefreshResult(boolean refreshForced) {
-            this(refreshForced, UNKNOWN_GENERATION);
         }
     }
 }

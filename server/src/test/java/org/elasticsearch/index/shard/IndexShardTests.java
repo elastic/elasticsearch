@@ -2988,8 +2988,8 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         Consumer<IndexShard> assertListenerCalled = shard -> {
             AtomicBoolean called = new AtomicBoolean();
-            shard.addRefreshListener(null, result -> {
-                assertFalse(result.refreshForced());
+            shard.addRefreshListener(null, forced -> {
+                assertFalse(forced);
                 called.set(true);
             });
 

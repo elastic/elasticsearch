@@ -63,9 +63,7 @@ public class PostWriteRefresh {
                 if (location != null) {
                     indexShard.addRefreshListener(
                         location,
-                        refreshResult -> {
-                            afterRefresh(indexShard, isPrimary, transportService, listener, refreshResult.refreshForced(), null);
-                        }
+                        forced -> { afterRefresh(indexShard, isPrimary, transportService, listener, forced, null); }
                     );
                 } else {
                     listener.onResponse(false);

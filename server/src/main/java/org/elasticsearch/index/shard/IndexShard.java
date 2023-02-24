@@ -2015,8 +2015,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
         refreshListeners.setCurrentProcessedCheckpointSupplier(newEngine::getProcessedLocalCheckpoint);
         refreshListeners.setMaxIssuedSeqNoSupplier(newEngine::getMaxSeqNo);
-        // TODO: Remove if not needed
-        refreshListeners.setIndexCommitGenerationSupplier(() -> -1L);
     }
 
     /**
@@ -3919,7 +3917,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
      */
-    public void addRefreshListener(Translog.Location location, Consumer<RefreshListeners.AsyncRefreshResult> listener) {
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
         final boolean readAllowed;
         if (isReadAllowed()) {
             readAllowed = true;
@@ -3935,7 +3933,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             refreshListeners.addOrNotify(location, listener);
         } else {
             // we're not yet ready for reads, just ignore refresh cycles
-            listener.accept(new RefreshListeners.AsyncRefreshResult(false));
+            listener.accept(false);
         }
     }
 

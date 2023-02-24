@@ -22,6 +22,7 @@ setup:
         engine_id: my-test-engine
         body:
           indices: [ "test-index1", "test-index2"]
+          analytics_collection_name: "test-analytics"
 
 
 ---
@@ -31,6 +32,8 @@ setup:
         engine_id: my-test-engine
 
   - match: { indices: [ "test-index1", "test-index2" ] }
+  - match: { analytics_collection_name: "test-analytics" }
+  - match: { engine_alias: "engine-my-test-engine" }
 
 ---
 "Get Engine - Engine does not exist":

@@ -1623,7 +1623,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON))
         );
-        assertThat(e.getMessage(), equalTo("[-1:-1] failed to parse, document is empty"));
+        assertThat(e.getMessage(), equalTo("[0:0] failed to parse, document is empty"));
     }
 
     public void testNoLevel() throws Exception {

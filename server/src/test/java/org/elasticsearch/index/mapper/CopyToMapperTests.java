@@ -229,10 +229,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             () -> docMapper.parse(source(b -> b.field("copy_test", "foo")))
         );
 
-        assertThat(
-            e.getMessage(),
-            startsWith("[-1:-1] failed to parse: mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed")
-        );
+        assertThat(e.getMessage(), startsWith("[1:14] mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed"));
     }
 
     public void testCopyToInnerStrictDynamicInnerObjectParsing() throws Exception {
@@ -268,7 +265,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
         assertThat(
             e.getMessage(),
-            startsWith("[-1:-1] failed to parse: mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed")
+            startsWith("[1:14] mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed")
         );
     }
 

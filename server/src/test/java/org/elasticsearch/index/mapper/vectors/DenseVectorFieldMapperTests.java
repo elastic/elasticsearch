@@ -556,7 +556,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             containsString("element_type [byte] vectors only support integers between [-128, 127] but found [128] at dim [0];")
         );
 
-        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", new float[] { 18.2f, 0, 0 }))));
+        e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", new float[] { 18.2f, 0, 0 }))));
         assertThat(
             e.getCause().getMessage(),
             containsString("element_type [byte] vectors only support non-decimal values but found decimal value [18.2] at dim [0];")

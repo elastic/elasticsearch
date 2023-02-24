@@ -153,7 +153,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         }));
 
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
-        assertThat(e.getMessage(), equalTo("[-1:-1] Error executing script on field [message_error]"));
+        assertThat(e.getMessage(), equalTo("Error executing script on field [message_error]"));
         assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
     }
 

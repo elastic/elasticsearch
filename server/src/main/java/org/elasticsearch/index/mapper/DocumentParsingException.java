@@ -35,6 +35,6 @@ public class DocumentParsingException extends ElasticsearchException {
     }
 
     private static String message(XContentLocation location, String message) {
-        return "[" + location + "] " + message;
+        return location == XContentLocation.UNKNOWN ? message : "[" + location + "] " + message;
     }
 }

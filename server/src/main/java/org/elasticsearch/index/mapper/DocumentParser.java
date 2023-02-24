@@ -23,6 +23,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -59,6 +60,9 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
+        if (source.source() != null && source.source().length() == 0) {
+            throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
+        }
         final InternalDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
@@ -67,8 +71,11 @@ public final class DocumentParser {
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context);
             validateEnd(context.parser());
-        } catch (Exception e) {
-            throw wrapInDocumentParsingException(source, e);
+        } catch (XContentParseException e) {
+            throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
+        } catch (IOException e) {
+            // IOException from jackson, we don't have any useful location information here
+            throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error parsing document", e);
         }
         String remainingPath = context.path().pathAsText("");
         if (remainingPath.isEmpty() == false) {
@@ -101,25 +108,30 @@ public final class DocumentParser {
         RootObjectMapper root,
         MetadataFieldMapper[] metadataFieldsMappers,
         DocumentParserContext context
-    ) throws IOException {
+    ) {
 
-        final boolean emptyDoc = isEmptyDoc(root, context.parser());
+        try {
 
-        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-            metadataMapper.preParse(context);
-        }
+            final boolean emptyDoc = isEmptyDoc(root, context.parser());
 
-        if (root.isEnabled() == false) {
-            // entire type is disabled
-            context.parser().skipChildren();
-        } else if (emptyDoc == false) {
-            parseObjectOrNested(context, root);
-        }
+            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
+                metadataMapper.preParse(context);
+            }
 
-        executeIndexTimeScripts(context);
+            if (root.isEnabled() == false) {
+                // entire type is disabled
+                context.parser().skipChildren();
+            } else if (emptyDoc == false) {
+                parseObjectOrNested(context, root);
+            }
 
-        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-            metadataMapper.postParse(context);
+            executeIndexTimeScripts(context);
+
+            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
+                metadataMapper.postParse(context);
+            }
+        } catch (Exception e) {
+            throw wrapInDocumentParsingException(context, e);
         }
     }
 
@@ -207,18 +219,12 @@ public final class DocumentParser {
         );
     }
 
-    private static DocumentParsingException wrapInDocumentParsingException(SourceToParse source, Exception e) {
-        // if its already a mapper parsing exception, no need to wrap it...
+    private static DocumentParsingException wrapInDocumentParsingException(DocumentParserContext context, Exception e) {
+        // if its already a document parsing exception, no need to wrap it...
         if (e instanceof DocumentParsingException) {
             return (DocumentParsingException) e;
         }
-
-        // Throw a more meaningful message if the document is empty.
-        if (source.source() != null && source.source().length() == 0) {
-            return new DocumentParsingException(XContentLocation.UNKNOWN, "failed to parse, document is empty");
-        }
-
-        return new DocumentParsingException(XContentLocation.UNKNOWN, "failed to parse: " + e.getMessage(), e);
+        return new DocumentParsingException(context.parser().getTokenLocation(), "failed to parse: " + e.getMessage(), e);
     }
 
     static Mapping createDynamicUpdate(DocumentParserContext context) {
@@ -444,7 +450,7 @@ public final class DocumentParser {
         throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentObjectMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(parentObjectMapper.fullPath(), currentFieldName);
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), parentObjectMapper.fullPath(), currentFieldName);
         } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, parentObjectMapper, currentFieldName);
             // not dynamic, read everything up to end object
@@ -517,7 +523,7 @@ public final class DocumentParser {
         } else {
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(parentMapper.fullPath(), lastFieldName);
+                throw new StrictDynamicMappingException(context.parser().getTokenLocation(), parentMapper.fullPath(), lastFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
                 context.parser().skipChildren();
             } else {
@@ -613,7 +619,7 @@ public final class DocumentParser {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
         } else if (parentMapper.dynamic() == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(parentMapper.fullPath(), lastFieldName);
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), parentMapper.fullPath(), lastFieldName);
         }
     }
 
@@ -625,7 +631,7 @@ public final class DocumentParser {
     ) throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), parentMapper.fullPath(), currentFieldName);
         }
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, parentMapper, currentFieldName);

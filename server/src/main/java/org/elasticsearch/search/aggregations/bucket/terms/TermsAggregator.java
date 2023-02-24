@@ -35,8 +35,8 @@ import java.util.Set;
 public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     /**
-         * This class provides bucket thresholds configuration, but can be used ensure default value immutability
-         */
+     * This class provides bucket thresholds configuration, but can be used ensure default value immutability
+     */
     public record ConstantBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {}
 
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {

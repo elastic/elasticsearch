@@ -63,7 +63,7 @@ public class PostWriteRefresh {
                 if (location != null) {
                     indexShard.addRefreshListener(
                         location,
-                        forced -> { afterRefresh(indexShard, isPrimary, transportService, listener, forced, null); }
+                        forced -> afterRefresh(indexShard, isPrimary, transportService, location, listener, forced, null)
                     );
                 } else {
                     listener.onResponse(false);
@@ -71,7 +71,7 @@ public class PostWriteRefresh {
             }
             case IMMEDIATE -> {
                 Engine.RefreshResult refreshResult = indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
-                afterRefresh(indexShard, isPrimary, transportService, listener, true, refreshResult);
+                afterRefresh(indexShard, isPrimary, transportService, location, listener, true, refreshResult);
             }
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
@@ -81,6 +81,7 @@ public class PostWriteRefresh {
         IndexShard indexShard,
         boolean isPrimary,
         @Nullable TransportService transportService,
+        Translog.Location location,
         ActionListener<Boolean> listener,
         boolean wasForced,
         Engine.RefreshResult refreshResult
@@ -88,7 +89,6 @@ public class PostWriteRefresh {
         if (isPrimary && indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
             assert transportService != null : "TransportService cannot be null if unpromotables present";
 
-            final long generation;
             // Was wait_for, still need to fetch generation
             if (refreshResult == null) {
                 Engine engineOrNull = indexShard.getEngineOrNull();
@@ -96,34 +96,47 @@ public class PostWriteRefresh {
                     listener.onFailure(new EngineException(indexShard.shardId(), "Engine closed during refresh."));
                     return;
                 }
-                try {
-                    generation = engineOrNull.getCurrentGeneration();
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                    return;
-                }
-            } else {
-                generation = refreshResult.generation();
-            }
-            assert generation != Long.MIN_VALUE;
+                engineOrNull.addFlushListener(location, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Long generation) {
+                        sendUnpromotableRequests(indexShard, transportService, generation, wasForced, listener);
+                    }
 
-            UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                indexShard.getReplicationGroup().getRoutingTable(),
-                generation
-            );
-            transportService.sendRequest(
-                transportService.getLocalNode(),
-                TransportUnpromotableShardRefreshAction.NAME,
-                unpromotableReplicaRequest,
-                new ActionListenerResponseHandler<>(
-                    listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
-                    (in) -> ActionResponse.Empty.INSTANCE,
-                    ThreadPool.Names.REFRESH
-                )
-            );
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+
+            } else {
+                sendUnpromotableRequests(indexShard, transportService, refreshResult.generation(), wasForced, listener);
+            }
         } else {
             listener.onResponse(wasForced);
         }
+    }
+
+    private static void sendUnpromotableRequests(
+        IndexShard indexShard,
+        TransportService transportService,
+        long generation,
+        boolean wasForced,
+        ActionListener<Boolean> listener
+    ) {
+        UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
+            indexShard.getReplicationGroup().getRoutingTable(),
+            generation
+        );
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            TransportUnpromotableShardRefreshAction.NAME,
+            unpromotableReplicaRequest,
+            new ActionListenerResponseHandler<>(
+                listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
+                (in) -> ActionResponse.Empty.INSTANCE,
+                ThreadPool.Names.REFRESH
+            )
+        );
     }
 
 }

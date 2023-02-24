@@ -8,19 +8,21 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.logging.Logger;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
-public class CommitListeners {
+public class FlushListeners implements Closeable {
 
     private final Logger logger;
     private final ThreadContext threadContext;
@@ -33,7 +35,7 @@ public class CommitListeners {
     private volatile boolean closed = false;
     private volatile List<Tuple<Translog.Location, ActionListener<Long>>> locationCommitListeners = null;
 
-    public CommitListeners(final Logger logger, final ThreadContext threadContext) {
+    public FlushListeners(final Logger logger, final ThreadContext threadContext) {
         this.logger = logger;
         this.threadContext = threadContext;
     }
@@ -113,5 +115,14 @@ public class CommitListeners {
                 }
             }
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        synchronized (this) {
+            closed = true;
+            // TODO: Fail listeners
+        }
+
     }
 }

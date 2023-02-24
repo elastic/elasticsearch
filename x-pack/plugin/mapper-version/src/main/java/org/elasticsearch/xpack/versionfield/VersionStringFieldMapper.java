@@ -317,16 +317,14 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
 
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
                 // Field does not exist on this shard.
                 return null;
             }
-            CompiledAutomaton prefixAutomaton = VersionEncoder.prefixAutomaton(string, caseInsensitive);
+            CompiledAutomaton prefixAutomaton = VersionEncoder.prefixAutomaton(prefix, caseInsensitive);
             BytesRef searchBytes = searchAfter == null ? null : VersionEncoder.encodeVersion(searchAfter).bytesRef;
 
             if (prefixAutomaton.type == AUTOMATON_TYPE.ALL) {

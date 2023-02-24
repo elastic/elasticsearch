@@ -28,7 +28,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -94,6 +94,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
 
+    private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final Map<String, Processor.Factory> processorFactories;
@@ -177,6 +178,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
 
         this.threadPool = threadPool;
+        this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -320,11 +322,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "delete-pipeline-" + request.getId(),
             new DeletePipelineClusterStateUpdateTask(listener, request),
-            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
-            PIPELINE_TASK_EXECUTOR
+            request.masterNodeTimeout()
         );
     }
 
@@ -471,11 +472,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         nodeInfoListener.accept(ActionListener.wrap(nodeInfos -> {
             validatePipelineRequest(request, nodeInfos);
 
-            clusterService.submitStateUpdateTask(
+            taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
                 new PutPipelineClusterStateUpdateTask(listener, request),
-                ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
-                PIPELINE_TASK_EXECUTOR
+                request.masterNodeTimeout()
             );
         }, listener::onFailure));
     }

@@ -357,14 +357,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
         if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_REMOTE_INDICES)) {
             out.writeArray(remoteIndicesPrivileges);
-        } else if (hasRemoteIndicesPrivileges()) {
-            throw new IllegalArgumentException(
-                "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_REMOTE_INDICES
-                    + "] can't handle remote indices privileges and attempted to send to ["
-                    + out.getTransportVersion()
-                    + "]"
-            );
         }
     }
 

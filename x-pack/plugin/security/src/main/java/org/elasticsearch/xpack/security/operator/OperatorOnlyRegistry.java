@@ -41,6 +41,7 @@ public class OperatorOnlyRegistry {
         "cluster:admin/repository/analyze",
         "cluster:admin/repository/analyze/blob",
         "cluster:admin/repository/analyze/blob/read",
+        "cluster:admin/repository/analyze/register",
         // Node shutdown APIs are operator only
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",

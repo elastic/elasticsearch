@@ -55,6 +55,7 @@ public class S3HttpHandler implements HttpHandler {
     private final String path;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
 
     public S3HttpHandler(final String bucket) {
         this(bucket, null);
@@ -83,17 +84,17 @@ public class S3HttpHandler implements HttpHandler {
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
                 final String uploadId = UUIDs.randomBase64UUID();
                 byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                    + "<InitiateMultipartUploadResult>\n"
-                    + "  <Bucket>"
-                    + bucket
-                    + "</Bucket>\n"
-                    + "  <Key>"
-                    + exchange.getRequestURI().getPath()
-                    + "</Key>\n"
-                    + "  <UploadId>"
-                    + uploadId
-                    + "</UploadId>\n"
-                    + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                                   + "<InitiateMultipartUploadResult>\n"
+                                   + "  <Bucket>"
+                                   + bucket
+                                   + "</Bucket>\n"
+                                   + "  <Key>"
+                                   + exchange.getRequestURI().getPath()
+                                   + "</Key>\n"
+                                   + "  <UploadId>"
+                                   + uploadId
+                                   + "</UploadId>\n"
+                                   + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                 blobs.put(multipartKey(uploadId, 0), BytesArray.EMPTY);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
@@ -139,14 +140,14 @@ public class S3HttpHandler implements HttpHandler {
                 blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
 
                 byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                    + "<CompleteMultipartUploadResult>\n"
-                    + "<Bucket>"
-                    + bucket
-                    + "</Bucket>\n"
-                    + "<Key>"
-                    + exchange.getRequestURI().getPath()
-                    + "</Key>\n"
-                    + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                                   + "<CompleteMultipartUploadResult>\n"
+                                   + "<Bucket>"
+                                   + bucket
+                                   + "</Bucket>\n"
+                                   + "<Key>"
+                                   + exchange.getRequestURI().getPath()
+                                   + "</Key>\n"
+                                   + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -237,7 +238,7 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("DELETE /" + path + "/*", request)) {
                 int deletions = 0;
-                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
+                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
                     if (blob.getKey().startsWith(exchange.getRequestURI().toString())) {
                         iterator.remove();
@@ -252,7 +253,7 @@ public class S3HttpHandler implements HttpHandler {
                 final StringBuilder deletes = new StringBuilder();
                 deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 deletes.append("<DeleteResult>");
-                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
+                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
                     String key = blob.getKey().replace("/" + bucket + "/", "");
                     if (requestBody.contains("<Key>" + key + "</Key>")) {
@@ -266,10 +267,37 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
+            } else if (Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)) {
+                final var prefix = exchange.getRequestURI().getQuery().substring("?uploads&prefix=".length());
+                final var uploadsList = new StringBuilder();
+                uploadsList.append("<?xml version='1.0' encoding='UTF-8'?>");
+                uploadsList.append("<ListMultipartUploadsResult xmlns='http://s3.amazonaws.com/doc/2006-03-01/'>");
+                uploadsList.append("<Bucket>").append(bucket).append("</Bucket>");
+                uploadsList.append("<KeyMarker />");
+                uploadsList.append("<UploadIdMarker />");
+                uploadsList.append("<NextKeyMarker>--unused--</NextKeyMarker>");
+                uploadsList.append("<NextUploadIdMarker />");
+                uploadsList.append("<Delimiter />");
+                uploadsList.append("<Prefix>").append(prefix).append("</Prefix>");
+                uploadsList.append("<MaxUploads>10000</MaxUploads>");
+                uploadsList.append("<IsTruncated>false</IsTruncated>");
 
+                for (MultipartUpload value : uploads.values()) {
+                    value.appendXml(uploadsList);
+                }
+
+                uploadsList.append("</ListMultipartUploadsResult>");
+
+                byte[] response = uploadsList.toString().getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                exchange.getResponseBody().write(response);
             } else {
                 exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             }
+        } catch (Throwable t) {
+            System.err.println(t.toString());
+            throw t;
         } finally {
             exchange.close();
         }

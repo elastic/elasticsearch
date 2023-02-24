@@ -15,7 +15,7 @@ dependencies {
   api project(':server')
 }
 
-tasks.named("preProcessFixture").configure {
+tasks.named("assemble").configure {
   dependsOn "jar", configurations.runtimeClasspath
   doLast {
     file("${testFixturesDir}/shared").mkdirs()

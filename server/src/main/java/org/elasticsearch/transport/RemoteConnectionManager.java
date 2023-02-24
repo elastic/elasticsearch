@@ -89,6 +89,8 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     @Override
     public void openConnection(DiscoveryNode node, @Nullable ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+        assert profile == null || profile.getTransportProfile().equals(getConnectionProfile().getTransportProfile())
+            : "A single remote connection manager can only ever handle a single transport profile";
         delegate.openConnection(
             node,
             profile,
@@ -304,6 +306,8 @@ public class RemoteConnectionManager implements ConnectionManager {
         private final boolean isNewRcs;
 
         InternalRemoteConnection(Transport.Connection connection, String clusterAlias, String transportProfile) {
+            assert false == connection instanceof ProxyConnection
+                : "proxy connection should wrap internal remote connection, not the other way around";
             this.clusterAlias = Objects.requireNonNull(clusterAlias);
             this.connection = Objects.requireNonNull(connection);
             this.isNewRcs = RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(Objects.requireNonNull(transportProfile));
@@ -392,7 +396,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
     }
 
-    static InternalRemoteConnection wrapConnectionWithClusterAlias(
+    static InternalRemoteConnection wrapConnectionWithRemoteClusterInfo(
         Transport.Connection connection,
         String clusterAlias,
         String transportProfile

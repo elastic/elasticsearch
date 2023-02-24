@@ -280,7 +280,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                         handshakeNodeWithProxy,
                         (connection, profile, l) -> transportService.connectionValidator(handshakeNodeWithProxy)
                             .validate(
-                                RemoteConnectionManager.wrapConnectionWithClusterAlias(connection, clusterAlias, transportProfile),
+                                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                                    connection,
+                                    clusterAlias,
+                                    connectionManager.getConnectionProfile().getTransportProfile()
+                                ),
                                 profile,
                                 l
                             ),
@@ -311,7 +315,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 ThreadPool threadPool = transportService.getThreadPool();
                 ThreadContext threadContext = threadPool.getThreadContext();
 
-                if (RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(transportProfile)) {
+                if (RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(
+                    connectionManager.getConnectionProfile().getTransportProfile()
+                )) {
                     TransportService.ContextRestoreResponseHandler<RemoteClusterNodesAction.Response> responseHandler =
                         new TransportService.ContextRestoreResponseHandler<>(
                             threadContext.newRestorableContext(false),
@@ -430,7 +436,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     connectionManager.connectToRemoteClusterNode(nodeWithProxy, (connection, profile, l) -> {
                         transportService.connectionValidator(node)
                             .validate(
-                                RemoteConnectionManager.wrapConnectionWithClusterAlias(connection, clusterAlias, transportProfile),
+                                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                                    connection,
+                                    clusterAlias,
+                                    connectionManager.getConnectionProfile().getTransportProfile()
+                                ),
                                 profile,
                                 l
                             );

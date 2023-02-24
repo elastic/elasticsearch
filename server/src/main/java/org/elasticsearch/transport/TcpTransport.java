@@ -340,6 +340,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
 
             final Compression.Scheme schemeToUse = getCompressionScheme(wrapped);
+            assert false == RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME.equals(action)
+                || REMOTE_CLUSTER_PROFILE.equals(channel.getProfile())
+                : "remote cluster handshake can only be sent through RCS remote cluster connection";
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getTransportVersion(), schemeToUse, false);
         }
 

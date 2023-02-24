@@ -32,16 +32,16 @@ import java.util.Objects;
  */
 public class RolloverConditions implements Writeable, ToXContentObject {
     public static final String NAME = "rollover";
-    public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
-    public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
-    public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
-    public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
-    public static final ParseField MAX_PRIMARY_SHARD_DOCS_FIELD = new ParseField("max_primary_shard_docs");
-    public static final ParseField MIN_SIZE_FIELD = new ParseField("min_size");
-    public static final ParseField MIN_PRIMARY_SHARD_SIZE_FIELD = new ParseField("min_primary_shard_size");
-    public static final ParseField MIN_DOCS_FIELD = new ParseField("min_docs");
-    public static final ParseField MIN_AGE_FIELD = new ParseField("min_age");
-    public static final ParseField MIN_PRIMARY_SHARD_DOCS_FIELD = new ParseField("min_primary_shard_docs");
+    public static final ParseField MAX_SIZE_FIELD = new ParseField(MaxSizeCondition.NAME);
+    public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField(MaxPrimaryShardSizeCondition.NAME);
+    public static final ParseField MAX_DOCS_FIELD = new ParseField(MaxDocsCondition.NAME);
+    public static final ParseField MAX_AGE_FIELD = new ParseField(MaxAgeCondition.NAME);
+    public static final ParseField MAX_PRIMARY_SHARD_DOCS_FIELD = new ParseField(MaxPrimaryShardDocsCondition.NAME);
+    public static final ParseField MIN_SIZE_FIELD = new ParseField(MinSizeCondition.NAME);
+    public static final ParseField MIN_PRIMARY_SHARD_SIZE_FIELD = new ParseField(MinPrimaryShardSizeCondition.NAME);
+    public static final ParseField MIN_DOCS_FIELD = new ParseField(MinDocsCondition.NAME);
+    public static final ParseField MIN_AGE_FIELD = new ParseField(MinAgeCondition.NAME);
+    public static final ParseField MIN_PRIMARY_SHARD_DOCS_FIELD = new ParseField(MinPrimaryShardDocsCondition.NAME);
 
     private static final ConstructingObjectParser<RolloverConditions, Void> PARSER = new ConstructingObjectParser<>(
         NAME,

@@ -76,11 +76,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     public Path operatorSettingsDir() {
-        return fileWatchService.operatorSettingsDir;
+        return fileWatchService.watchedDirectoryPath;
     }
 
     public Path operatorSettingsFile() {
-        return fileWatchService.operatorSettingsDir.resolve(fileWatchService.settingsFileName);
+        return fileWatchService.watchedDirectoryPath.resolve(fileWatchService.watchedFileName);
     }
 
     // visible for testing
@@ -150,7 +150,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (fileWatchService.watching() && Files.exists(fileWatchService.operatorSettingsFile())) {
+        if (fileWatchService.watching() && Files.exists(fileWatchService.watchedFile())) {
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);

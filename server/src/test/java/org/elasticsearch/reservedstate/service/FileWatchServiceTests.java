@@ -87,9 +87,9 @@ public class FileWatchServiceTests extends ESTestCase {
         var service = spy(fileWatchService);
         doAnswer(i -> 0L).when(service).retryDelayMillis(anyInt());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedDirectory());
 
-        var mockedPath = spy(service.operatorSettingsDir());
+        var mockedPath = spy(service.watchedDirectory());
         var prevWatchKey = mock(WatchKey.class);
         var newWatchKey = mock(WatchKey.class);
 
@@ -103,7 +103,7 @@ public class FileWatchServiceTests extends ESTestCase {
                 eq(StandardWatchEventKinds.ENTRY_DELETE)
             );
 
-        var result = service.enableSettingsWatcher(prevWatchKey, mockedPath);
+        var result = service.enableDirWatcher(prevWatchKey, mockedPath);
         assertThat(result, sameInstance(newWatchKey));
         assertTrue(result != prevWatchKey);
 
@@ -111,11 +111,11 @@ public class FileWatchServiceTests extends ESTestCase {
     }
 
     public void testOperatorSettingsDir() {
-        assertThat(fileWatchService.operatorSettingsDir(), equalTo(directory));
+        assertThat(fileWatchService.watchedDirectory(), equalTo(directory));
     }
 
     public void testOperatorSettingsFile() {
-        assertThat(fileWatchService.operatorSettingsFile(), equalTo(directory.resolve(FILENAME)));
+        assertThat(fileWatchService.watchedFile(), equalTo(directory.resolve(FILENAME)));
     }
 
     public void testIsActive() {
@@ -127,7 +127,7 @@ public class FileWatchServiceTests extends ESTestCase {
 
     public void testStartWatcherWithInitialFileSettings() throws Exception {
 
-        writeTestFile(fileWatchService.operatorSettingsFile(), "{}");
+        writeTestFile(fileWatchService.watchedFile(), "{}");
 
         // startup latch = process a settings file latch
         CountDownLatch processFileSettingsLatch = new CountDownLatch(2);
@@ -139,7 +139,7 @@ public class FileWatchServiceTests extends ESTestCase {
 
         // we modify the timestamp of the file, it should trigger a change
         Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
-        Files.setLastModifiedTime(fileWatchService.operatorSettingsFile(), FileTime.from(now));
+        Files.setLastModifiedTime(fileWatchService.watchedFile(), FileTime.from(now));
 
         assertTrue(processFileSettingsLatch.await(30, TimeUnit.SECONDS));
         assertThat(noInitialFileSettingsLatch.getCount(), equalTo(1L));
@@ -157,13 +157,13 @@ public class FileWatchServiceTests extends ESTestCase {
 
         assertTrue(noInitialFileSettingsLatch.await(30, TimeUnit.SECONDS));
 
-        writeTestFile(fileWatchService.operatorSettingsFile(), "{}");
+        writeTestFile(fileWatchService.watchedFile(), "{}");
 
         assertTrue(processFileSettingsLatch.await(30, TimeUnit.SECONDS));
     }
 
     public void testStopWatcher() throws Exception {
-        writeTestFile(fileWatchService.operatorSettingsFile(), "{}");
+        writeTestFile(fileWatchService.watchedFile(), "{}");
         fileWatchService.startWatcher(() -> {}, () -> {});
         assertTrue(fileWatchService.watching());
 

@@ -25,30 +25,30 @@ import java.nio.file.attribute.BasicFileAttributes;
 public class FileWatchService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(FileWatchService.class);
-    final String settingsFileName;
+    final String watchedFileName;
     private static final int REGISTER_RETRY_COUNT = 5;
 
-    final Path operatorSettingsDir;
+    final Path watchedDirectoryPath;
 
     private WatchService watchService; // null;
     private Thread watcherThread;
-    FileUpdateState fileUpdateState;
-    WatchKey settingsDirWatchKey;
-    WatchKey configDirWatchKey;
+    private FileUpdateState fileUpdateState;
+    private WatchKey watchedDirectoryWatchKey;
+    private WatchKey parentDirectoryWatchKey;
 
     private volatile boolean active = false;
 
-    FileWatchService(Path operatorSettingsDir, String settingsFileName) {
-        this.operatorSettingsDir = operatorSettingsDir;
-        this.settingsFileName = settingsFileName;
+    FileWatchService(Path watchedDirectoryPath, String watchedFileName) {
+        this.watchedDirectoryPath = watchedDirectoryPath;
+        this.watchedFileName = watchedFileName;
     }
 
-    public Path operatorSettingsDir() {
-        return operatorSettingsDir;
+    public Path watchedDirectory() {
+        return watchedDirectoryPath;
     }
 
-    public Path operatorSettingsFile() {
-        return operatorSettingsDir.resolve(settingsFileName);
+    public Path watchedFile() {
+        return watchedDirectoryPath.resolve(watchedFileName);
     }
 
     // platform independent way to tell if a file changed
@@ -71,7 +71,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        active = Files.exists(operatorSettingsDir().getParent());
+        active = Files.exists(watchedDirectory().getParent());
     }
 
     @Override
@@ -94,24 +94,24 @@ public class FileWatchService extends AbstractLifecycleComponent {
         return watcherThread != null;
     }
 
-    synchronized void startWatcher(Runnable processFileSettingsAction, Runnable noInitialFileSettingsAction) {
+    synchronized void startWatcher(Runnable processFileAction, Runnable noInitialFileAction) {
         /*
          * We essentially watch for two things:
-         *  - the creation of the operator directory (if it doesn't exist), symlink changes to the operator directory
-         *  - any changes to files inside the operator directory if it exists, filtering for settings.json
+         *  - the creation of the watched directory (if it doesn't exist), symlink changes to the watched directory
+         *  - any changes to files inside the watched directory if it exists, filtering for the particular watched file
          */
         try {
-            Path settingsDirPath = operatorSettingsDir();
-            this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
-            if (Files.exists(settingsDirPath)) {
-                settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDirPath);
+            Path watchedDirPath = watchedDirectory();
+            this.watchService = watchedDirPath.getParent().getFileSystem().newWatchService();
+            if (Files.exists(watchedDirPath)) {
+                watchedDirectoryWatchKey = enableDirWatcher(watchedDirectoryWatchKey, watchedDirPath);
             } else {
-                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
+                logger.debug("watched directory [{}] not found, will watch for its creation...", watchedDirPath);
             }
-            // We watch the config directory always, even if initially we had an operator directory
-            // it can be deleted and created later. The config directory never goes away, we only
+            // We watch the parent directory always, even if initially we had a watched directory
+            // it can be deleted and created later. We assume the parent directory never goes away, we only
             // register it once for watching.
-            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, settingsDirPath.getParent());
+            parentDirectoryWatchKey = enableDirWatcher(parentDirectoryWatchKey, watchedDirPath.getParent());
         } catch (Exception e) {
             if (watchService != null) {
                 try {
@@ -127,24 +127,21 @@ public class FileWatchService extends AbstractLifecycleComponent {
             throw new IllegalStateException("unable to launch a new watch service", e);
         }
 
-        watcherThread = new Thread(
-            () -> watcherThread(processFileSettingsAction, noInitialFileSettingsAction),
-            "elasticsearch[file-settings-watcher]"
-        );
+        watcherThread = new Thread(() -> watcherThread(processFileAction, noInitialFileAction), "elasticsearch[file-watcher]");
         watcherThread.start();
     }
 
-    private void watcherThread(Runnable processFileSettingsAction, Runnable noInitialFileAction) {
+    private void watcherThread(Runnable processFileAction, Runnable noInitialFileAction) {
         try {
-            logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
+            logger.info("file watch service up and running [tid={}]", Thread.currentThread().getId());
 
-            Path path = operatorSettingsFile();
+            Path filePath = watchedFile();
 
-            if (Files.exists(path)) {
-                logger.debug("found initial operator settings file [{}], applying...", path);
-                processFileSettingsAction.run();
+            if (Files.exists(filePath)) {
+                logger.debug("found initial file to watch [{}], applying...", filePath);
+                processFileAction.run();
             } else {
-                // Notify everyone we don't have any initial file settings
+                // Notify everyone we don't have any initial file to watch
                 noInitialFileAction.run();
             }
 
@@ -164,8 +161,8 @@ public class FileWatchService extends AbstractLifecycleComponent {
                  * After we get an indication that something has changed, we check the timestamp, file id,
                  * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
                  */
-                Path settingsPath = operatorSettingsDir();
-                if (Files.exists(settingsPath)) {
+                Path dirPath = watchedDirectory();
+                if (Files.exists(dirPath)) {
                     try {
                         if (logger.isDebugEnabled()) {
                             key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
@@ -174,17 +171,17 @@ public class FileWatchService extends AbstractLifecycleComponent {
                         }
                         key.reset();
 
-                        // We re-register the settings directory watch key, because we don't know
+                        // We re-register the watched directory watch key, because we don't know
                         // if the file name maps to the same native file system file id. Symlinks
                         // are one potential cause of inconsistency here, since their handling by
                         // the WatchService is platform dependent.
-                        settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsPath);
+                        watchedDirectoryWatchKey = enableDirWatcher(watchedDirectoryWatchKey, dirPath);
 
-                        if (watchedFileChanged(path)) {
-                            processFileSettingsAction.run();
+                        if (watchedFileChanged(filePath)) {
+                            processFileAction.run();
                         }
                     } catch (IOException e) {
-                        logger.warn("encountered I/O error while watching file settings", e);
+                        logger.warn("encountered I/O error while watching file", e);
                     }
                 } else {
                     key.pollEvents();
@@ -208,11 +205,11 @@ public class FileWatchService extends AbstractLifecycleComponent {
                 watcherThread.join();
 
                 // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
-                if (configDirWatchKey != null) {
-                    configDirWatchKey.cancel();
+                if (parentDirectoryWatchKey != null) {
+                    parentDirectoryWatchKey.cancel();
                 }
-                if (settingsDirWatchKey != null) {
-                    settingsDirWatchKey.cancel();
+                if (watchedDirectoryWatchKey != null) {
+                    watchedDirectoryWatchKey.cancel();
                 }
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
@@ -220,12 +217,12 @@ public class FileWatchService extends AbstractLifecycleComponent {
                 logger.info("interrupted while closing the watch service", interruptedException);
             } finally {
                 watcherThread = null;
-                settingsDirWatchKey = null;
-                configDirWatchKey = null;
+                watchedDirectoryWatchKey = null;
+                parentDirectoryWatchKey = null;
                 logger.info("watcher service stopped");
             }
         } else {
-            logger.trace("file settings service already stopped");
+            logger.trace("file watch service already stopped");
         }
     }
 
@@ -236,7 +233,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
     }
 
     // package private for testing
-    WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
+    WatchKey enableDirWatcher(WatchKey previousKey, Path watchedDir) throws IOException, InterruptedException {
         if (previousKey != null) {
             previousKey.cancel();
         }
@@ -244,7 +241,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
         do {
             try {
-                return settingsDir.register(
+                return watchedDir.register(
                     watchService,
                     StandardWatchEventKinds.ENTRY_MODIFY,
                     StandardWatchEventKinds.ENTRY_CREATE,

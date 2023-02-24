@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.is;
 
 public class DataLifecycleServiceTests extends ESTestCase {
 
-    private ClusterService clusterService;
     private long now;
     private ThreadPool threadPool;
     private DataLifecycleService dataLifecycleService;
@@ -68,7 +67,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.add(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
 
         now = randomNonNegativeLong();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));

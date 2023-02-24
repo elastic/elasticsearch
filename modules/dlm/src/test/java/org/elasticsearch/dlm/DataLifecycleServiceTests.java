@@ -23,32 +23,32 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -66,17 +66,15 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
     @Before
     public void setupServices() {
-        clusterService = mock(ClusterService.class);
+        threadPool = new TestThreadPool(getTestName());
+        Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        builtInClusterSettings.add(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
+            builtInClusterSettings);
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
+
         now = randomNonNegativeLong();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
-
-        doAnswer(invocationOnMock -> null).when(clusterService).addListener(any());
-
-        Settings settings = Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "1s").build();
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(settings, Collections.singleton(DataLifecycleService.DLM_POLL_INTERVAL_SETTING))
-        );
-        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
         Client client = mock(Client.class);
         AdminClient adminClient = mock(AdminClient.class);
@@ -85,10 +83,15 @@ public class DataLifecycleServiceTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesClient);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
-        threadPool = new TestThreadPool(getTestName());
-        dataLifecycleService = new DataLifecycleService(Settings.EMPTY, client, clusterService, clock, threadPool, () -> now);
+        dataLifecycleService = new DataLifecycleService(
+            Settings.EMPTY,
+            client,
+            clusterService,
+            clock,
+            threadPool,
+            () -> now
+        );
         dataLifecycleService.init();
-        Mockito.verify(clusterService).addListener(dataLifecycleService);
 
         rolloverRequestCaptor = ArgumentCaptor.forClass(RolloverRequest.class);
         deleteRequestCaptor = ArgumentCaptor.forClass(DeleteIndexRequest.class);
@@ -96,7 +99,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
     @After
     public void cleanup() {
-        when(clusterService.lifecycleState()).thenReturn(randomFrom(Lifecycle.State.STOPPED, Lifecycle.State.CLOSED));
         dataLifecycleService.close();
         threadPool.shutdownNow();
     }

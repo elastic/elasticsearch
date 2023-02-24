@@ -1514,7 +1514,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     RolloverResponse resp = client().admin()
                         .indices()
                         .prepareRolloverIndex(dsName)
-                        .setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build())
+                        .setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L))
                         .get();
                     if (resp.isRolledOver()) {
                         logger.info("--> thread [{}] successfully rolled over: {}", i, Strings.toString(resp));

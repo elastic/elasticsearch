@@ -23,7 +23,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 

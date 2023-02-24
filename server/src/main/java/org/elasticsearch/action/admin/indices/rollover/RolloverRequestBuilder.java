@@ -33,6 +33,11 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
+    public RolloverRequestBuilder setConditions(RolloverConditions.Builder rolloverConditions) {
+        this.request.setConditions(rolloverConditions.build());
+        return this;
+    }
+
     public RolloverRequestBuilder dryRun(boolean dryRun) {
         this.request.dryRun(dryRun);
         return this;

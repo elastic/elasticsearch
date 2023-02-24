@@ -50,6 +50,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
+    private static final String THREAD_NAME = "file-settings-watcher";
 
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
@@ -72,7 +73,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.eventListeners = new CopyOnWriteArrayList<>();
 
         Path operatorSettings = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
-        this.fileWatchService = new FileWatchService(operatorSettings, SETTINGS_FILE_NAME);
+        this.fileWatchService = new FileWatchService(operatorSettings, SETTINGS_FILE_NAME, THREAD_NAME);
     }
 
     public Path operatorSettingsDir() {

@@ -29,6 +29,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
     private static final int REGISTER_RETRY_COUNT = 5;
 
     final Path watchedDirectoryPath;
+    private final String threadName;
 
     private WatchService watchService; // null;
     private Thread watcherThread;
@@ -38,9 +39,10 @@ public class FileWatchService extends AbstractLifecycleComponent {
 
     private volatile boolean active = false;
 
-    FileWatchService(Path watchedDirectoryPath, String watchedFileName) {
+    FileWatchService(Path watchedDirectoryPath, String watchedFileName, String threadName) {
         this.watchedDirectoryPath = watchedDirectoryPath;
         this.watchedFileName = watchedFileName;
+        this.threadName = threadName;
     }
 
     public Path watchedDirectory() {
@@ -127,7 +129,7 @@ public class FileWatchService extends AbstractLifecycleComponent {
             throw new IllegalStateException("unable to launch a new watch service", e);
         }
 
-        watcherThread = new Thread(() -> watcherThread(processFileAction, noInitialFileAction), "elasticsearch[file-watcher]");
+        watcherThread = new Thread(() -> watcherThread(processFileAction, noInitialFileAction), "elasticsearch[" + threadName + "]");
         watcherThread.start();
     }
 

@@ -50,7 +50,7 @@ public class FileWatchServiceTests extends ESTestCase {
         super.setUp();
 
         directory = createTempDir();
-        fileWatchService = new FileWatchService(directory, FILENAME);
+        fileWatchService = new FileWatchService(directory, FILENAME, "file-watcher");
     }
 
     @After

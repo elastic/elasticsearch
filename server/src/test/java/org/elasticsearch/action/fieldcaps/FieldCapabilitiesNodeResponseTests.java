@@ -129,7 +129,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
     }
 
     public void testSerializeNodeResponseBetweenOldNodes() throws IOException {
-        final TransportVersion minCompactVersion = TransportVersion.CURRENT.minimumCompatibilityVersion();
+        final TransportVersion minCompactVersion = TransportVersion.MINIMUM_COMPATIBLE;
         assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersion.V_8_2_0));
         List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
             randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),

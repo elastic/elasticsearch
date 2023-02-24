@@ -240,15 +240,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
     }
 
     /**
-     * Placeholder method for code compatibility with code calling {@code CURRENT.minimumCompatibilityVersion}.
-     */
-    @Deprecated(forRemoval = true)
-    public TransportVersion minimumCompatibilityVersion() {
-        assert this.equals(CURRENT) : "Should be CURRENT, but was: " + this;
-        return MINIMUM_COMPATIBLE;
-    }
-
-    /**
      * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
      */
     public static boolean isCompatible(TransportVersion version) {

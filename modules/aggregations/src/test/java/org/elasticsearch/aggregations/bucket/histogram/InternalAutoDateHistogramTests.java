@@ -477,7 +477,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
         );
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.CURRENT.minimumCompatibilityVersion(),
+            TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_3_0)
         );
         InternalAutoDateHistogram deserialized = copyInstance(instance, version);

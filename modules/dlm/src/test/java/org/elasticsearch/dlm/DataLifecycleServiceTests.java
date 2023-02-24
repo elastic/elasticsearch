@@ -207,6 +207,50 @@ public class DataLifecycleServiceTests extends ESTestCase {
         verify(indicesClient, times(0)).delete(any(), any());
     }
 
+    public void testIsTimeToBeDeleted() {
+        String dataStreamName = "metrics-foo";
+        {
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .creationDate(now - 3000L);
+            MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
+            indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
+
+            IndexMetadata rolledIndex = indexMetaBuilder.build();
+            assertThat(
+                DataLifecycleService.isTimeToBeDeleted(dataStreamName, rolledIndex, () -> now, TimeValue.timeValueMillis(1000)),
+                is(true)
+            );
+
+            assertThat(
+                DataLifecycleService.isTimeToBeDeleted(dataStreamName, rolledIndex, () -> now, TimeValue.timeValueMillis(5000)),
+                is(false)
+            );
+        }
+
+        {
+            // if rollover info is missing the creation date should be used
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .creationDate(now - 3000L);
+            IndexMetadata noRolloverIndex = indexMetaBuilder.build();
+
+            assertThat(
+                DataLifecycleService.isTimeToBeDeleted(dataStreamName, noRolloverIndex, () -> now, TimeValue.timeValueMillis(2000)),
+                is(true)
+            );
+
+            assertThat(
+                DataLifecycleService.isTimeToBeDeleted(dataStreamName, noRolloverIndex, () -> now, TimeValue.timeValueMillis(5000)),
+                is(false)
+            );
+        }
+    }
+
     private DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,

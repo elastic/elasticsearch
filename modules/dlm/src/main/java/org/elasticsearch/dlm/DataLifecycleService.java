@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -41,10 +42,9 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a DLM lifecycle configured.
@@ -156,60 +156,97 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 continue;
             }
 
-            IndexMetadata writeIndex = state.metadata().index(dataStream.getWriteIndex());
-            if (writeIndex != null && isManagedByDLM(dataStream, writeIndex)) {
-                RolloverRequest rolloverRequest = defaultRolloverRequestSupplier.apply(dataStream.getName());
-                transportActionsDeduplicator.executeOnce(
-                    rolloverRequest,
-                    ActionListener.noop(),
-                    (req, reqListener) -> rolloverDataStream(rolloverRequest, reqListener)
-                );
+            try {
+                maybeExecuteRollover(state, dataStream);
+            } catch (Exception e) {
+                logger.error(() -> String.format(Locale.ROOT, "DLM failed to rollver data stream [%s]", dataStream.getName()), e);
             }
 
-            TimeValue retention = getRetentionConfiguration(dataStream);
-            if (retention != null) {
-                List<Index> backingIndices = dataStream.getIndices();
-                // we'll look at the current write index in the next run if it's rolled over (and not the write index anymore)
-                for (int i = 0; i < backingIndices.size() - 1; i++) {
-                    IndexMetadata backingIndex = state.metadata().index(backingIndices.get(i));
-                    if (backingIndex == null || isManagedByDLM(dataStream, backingIndex) == false) {
-                        continue;
-                    }
+            try {
+                maybeExecuteRetention(state, dataStream);
+            } catch (Exception e) {
+                logger.error(
+                    () -> String.format(Locale.ROOT, "DLM failed to execute retention for data stream [%s]", dataStream.getName()),
+                    e
+                );
+            }
+        }
+    }
 
-                    TimeValue indexLifecycleDate = getCreationOrRolloverDate(dataStream.getName(), backingIndex);
+    private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
+        IndexMetadata writeIndex = state.metadata().index(dataStream.getWriteIndex());
+        if (writeIndex != null && isManagedByDLM(dataStream, writeIndex)) {
+            RolloverRequest rolloverRequest = defaultRolloverRequestSupplier.apply(dataStream.getName());
+            transportActionsDeduplicator.executeOnce(
+                rolloverRequest,
+                ActionListener.noop(),
+                (req, reqListener) -> rolloverDataStream(rolloverRequest, reqListener)
+            );
+        }
+    }
 
-                    long nowMillis = nowSupplier.getAsLong();
-                    if (nowMillis >= indexLifecycleDate.getMillis() + retention.getMillis()) {
-                        // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
-                        // let's start simple and reevaluate
-                        DeleteIndexRequest deleteRequest = new DeleteIndexRequest(backingIndex.getIndex().getName()).masterNodeTimeout(
-                            TimeValue.MAX_VALUE
-                        );
+    private void maybeExecuteRetention(ClusterState state, DataStream dataStream) {
+        TimeValue retention = getRetentionConfiguration(dataStream);
+        if (retention != null) {
+            List<Index> backingIndices = dataStream.getIndices();
+            // we'll look at the current write index in the next run if it's rolled over (and not the write index anymore)
+            for (int i = 0; i < backingIndices.size() - 1; i++) {
+                IndexMetadata backingIndex = state.metadata().index(backingIndices.get(i));
+                if (backingIndex == null || isManagedByDLM(dataStream, backingIndex) == false) {
+                    continue;
+                }
 
-                        // time to delete the index
-                        transportActionsDeduplicator.executeOnce(
-                            deleteRequest,
-                            ActionListener.noop(),
-                            (req, reqListener) -> deleteIndex(deleteRequest, reqListener)
-                        );
-                    }
+                if (isTimeToBeDeleted(dataStream.getName(), backingIndex, nowSupplier, retention)) {
+                    // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
+                    // let's start simple and reevaluate
+                    DeleteIndexRequest deleteRequest = new DeleteIndexRequest(backingIndex.getIndex().getName()).masterNodeTimeout(
+                        TimeValue.MAX_VALUE
+                    );
+
+                    // time to delete the index
+                    transportActionsDeduplicator.executeOnce(
+                        deleteRequest,
+                        ActionListener.noop(),
+                        (req, reqListener) -> deleteIndex(deleteRequest, reqListener)
+                    );
                 }
             }
         }
     }
 
+    /**
+     * Checks if the provided index is ready to be deleted according to the configured retention.
+     */
+    static boolean isTimeToBeDeleted(
+        String dataStreamName,
+        IndexMetadata backingIndex,
+        LongSupplier nowSupplier,
+        TimeValue configuredRetention
+    ) {
+        TimeValue indexLifecycleDate = getCreationOrRolloverDate(dataStreamName, backingIndex);
+
+        long nowMillis = nowSupplier.getAsLong();
+        return nowMillis >= indexLifecycleDate.getMillis() + configuredRetention.getMillis();
+    }
+
     private void rolloverDataStream(RolloverRequest rolloverRequest, ActionListener<Void> listener) {
         // "saving" the rollover target name here so we don't capture the entire request
         String rolloverTarget = rolloverRequest.getRolloverTarget();
+        logger.trace("DLM issues rollover request for data stream [{}]", rolloverTarget);
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
+                logger.info(
+                    "DLM successfully rolled over datastream [{}]. The new index is [{}]",
+                    rolloverTarget,
+                    rolloverResponse.getNewIndex()
+                );
                 listener.onResponse(null);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> format("DLM rollover of [%s] failed", rolloverTarget), e);
+                logger.error(() -> Strings.format("DLM rollover of [%s] failed", rolloverTarget), e);
                 listener.onFailure(e);
             }
         });
@@ -219,16 +256,17 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         assert deleteIndexRequest.indices() != null && deleteIndexRequest.indices().length == 1 : "DLM deletes one index at a time";
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = deleteIndexRequest.indices()[0];
+        logger.trace("DLM issue delete request for index [{}]", targetIndex);
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                logger.info("DLM successfully deleted index [{}]", targetIndex);
                 listener.onResponse(null);
             }
 
             @Override
             public void onFailure(Exception e) {
-                // we're capturin
-                logger.error(() -> format("DLM request to delete [%s] failed", targetIndex), e);
+                logger.error(() -> Strings.format("DLM request to delete [%s] failed", targetIndex), e);
                 listener.onFailure(e);
             }
         });

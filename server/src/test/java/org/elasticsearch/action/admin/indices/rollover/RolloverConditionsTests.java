@@ -8,10 +8,12 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -23,6 +25,12 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class RolloverConditionsTests extends AbstractXContentSerializingTestCase<RolloverConditions> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
+    }
+
     @Override
     protected Writeable.Reader<RolloverConditions> instanceReader() {
         return RolloverConditions::new;
@@ -30,10 +38,6 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected RolloverConditions createTestInstance() {
-        return randomInstance();
-    }
-
-    public static RolloverConditions randomInstance() {
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
         ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
@@ -41,12 +45,8 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
             ? null
             : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
-        Long maxPrimaryShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
-            ? randomNonNegativeLong()
-            : null;
+        TimeValue maxAge = randomBoolean() ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
+        Long maxPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
         ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
         ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
@@ -67,7 +67,6 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
             .addMaxIndexAgeCondition(maxAge)
             .addMaxIndexDocsCondition(maxDocs)
             .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
-
             .addMinIndexSizeCondition(minSize)
             .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
             .addMinIndexAgeCondition(minAge)
@@ -152,28 +151,30 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
 
         TimeValue age = TimeValue.timeValueSeconds(5);
         rolloverConditions = RolloverConditions.newBuilder().addMaxIndexAgeCondition(age).build();
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, false)));
-        assertTrue(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true)));
+        String maxAgeCondition = new MaxAgeCondition(age).toString();
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, false)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true)));
 
         rolloverConditions = RolloverConditions.newBuilder(rolloverConditions).addMaxIndexDocsCondition(100L).build();
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, false)));
-        assertTrue(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true)));
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxDocsCondition.NAME, false)));
-        assertTrue(rolloverConditions.areConditionsMet(Map.of(MaxDocsCondition.NAME, true)));
+        String maxDocsCondition = new MaxDocsCondition(100L).toString();
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, false)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(maxDocsCondition, false)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(maxDocsCondition, true)));
 
         rolloverConditions = RolloverConditions.newBuilder(rolloverConditions).addMinIndexDocsCondition(1L).build();
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, false)));
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true)));
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxDocsCondition.NAME, false)));
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxDocsCondition.NAME, true)));
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MinDocsCondition.NAME, true)));
-        assertTrue(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true, MinDocsCondition.NAME, true)));
+        String minDocsCondition = new MinDocsCondition(1L).toString();
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, false)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(maxDocsCondition, false)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(maxDocsCondition, true)));
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(minDocsCondition, true)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true)));
 
         rolloverConditions = RolloverConditions.newBuilder(rolloverConditions).addMinIndexAgeCondition(age).build();
-        assertFalse(rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true, MinDocsCondition.NAME, true)));
-        assertTrue(
-            rolloverConditions.areConditionsMet(Map.of(MaxAgeCondition.NAME, true, MinDocsCondition.NAME, true, MinAgeCondition.NAME, true))
-        );
+        String minAgeCondition = new MinAgeCondition(age).toString();
+        assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true)));
+        assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true, minAgeCondition, true)));
     }
 
     private static final List<Consumer<RolloverConditions.Builder>> conditionsGenerator = Arrays.asList(

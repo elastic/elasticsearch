@@ -34,19 +34,21 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     }
 
     public static RolloverAction randomInstance() {
+        // Ensure that at least one max* condition will be defined to produce a valid instance
+        int useCondition = randomIntBetween(0, 4);
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeValue maxSize = (useCondition == 0 || randomBoolean())
+            ? null
+            : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
         ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxPrimaryShardSize = randomBoolean()
+        ByteSizeValue maxPrimaryShardSize = (useCondition == 1 || randomBoolean())
             ? null
             : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
-        Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
+        Long maxDocs = (useCondition == 2 || randomBoolean()) ? null : randomNonNegativeLong();
+        TimeValue maxAge = (useCondition == 3 || randomBoolean())
+            ? TimeValue.timeValueMillis(randomMillisUpToYear9999())
             : null;
-        Long maxPrimaryShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
-            ? randomNonNegativeLong()
-            : null;
+        Long maxPrimaryShardDocs = (useCondition == 4 || randomBoolean()) ? randomNonNegativeLong() : null;
         ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
         ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());

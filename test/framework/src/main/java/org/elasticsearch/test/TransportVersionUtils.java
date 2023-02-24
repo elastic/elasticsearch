@@ -111,7 +111,7 @@ public class TransportVersionUtils {
         return VersionUtils.findVersion(version).minimumCompatibilityVersion().transportVersion;
     }
 
-    /** Returns a random {@code TransportVersion that is compatible with {@link TransportVersion#CURRENT} */
+    /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#CURRENT} */
     public static TransportVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT);
     }

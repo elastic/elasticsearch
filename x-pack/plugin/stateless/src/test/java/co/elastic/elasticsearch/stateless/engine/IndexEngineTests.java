@@ -18,11 +18,9 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,7 +29,7 @@ import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IndexEngineTests extends EngineTestCase {
+public class IndexEngineTests extends AbstractEngineTestCase {
 
     public void testShouldPeriodicallyFlush() throws IOException {
 
@@ -41,13 +39,7 @@ public class IndexEngineTests extends EngineTestCase {
             .build();
 
         var currentTime = new AtomicLong(0L);
-
-        IOUtils.close(engine);
-        var config = copy(engine.config(), settings, currentTime::get);
-        try (var engine = new IndexEngine(config)) {
-            // skip recovery, otherwise flush is not possible (see `InternalEngine.ensureCanFlush()`)
-            engine.skipTranslogRecovery();
-
+        try (var engine = newIndexEngine(copy(indexConfig(), settings, currentTime::get))) {
             // should not flush immediately after creation until interval is elapsed
             assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
             // should flush after interval is elapsed even if there are no prior flushes

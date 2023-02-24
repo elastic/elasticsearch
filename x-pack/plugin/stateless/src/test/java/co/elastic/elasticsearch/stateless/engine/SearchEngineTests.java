@@ -14,16 +14,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -35,10 +27,94 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class SearchEngineTests extends ESIntegTestCase {
+public class SearchEngineTests extends AbstractEngineTestCase {
+
+    public void testCommitNotifications() throws IOException {
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            assertThat("Index engine recovery executes 2 commits", indexEngine.getCurrentGeneration(), equalTo(2L));
+            assertThat("Search engine recovery executes 1 commit", searchEngine.getCurrentGeneration(), equalTo(1L));
+
+            int notifications = notifyCommits(indexEngine, searchEngine);
+            assertThat(searchEngine.getPendingCommitNotifications(), equalTo((long) notifications));
+            assertThat(searchEngine.getCurrentGeneration(), equalTo(1L));
+            assertThat("Index engine is 1 commit ahead after recovery", notifications, equalTo(1));
+
+            searchTaskQueue.runAllRunnableTasks();
+
+            assertThat(searchEngine.getCurrentGeneration(), equalTo(indexEngine.getCurrentGeneration()));
+            assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
+
+            final int flushes = randomBoolean() ? randomInt(20) : 0;
+            if (flushes > 0) {
+                for (int i = 0; i < flushes; i++) {
+                    indexEngine.index(randomDoc(String.valueOf(i)));
+                    indexEngine.flush();
+                }
+            }
+            assertThat(indexEngine.getCurrentGeneration(), equalTo(2L + flushes));
+
+            notifications = notifyCommits(indexEngine, searchEngine);
+            assertThat(searchEngine.getPendingCommitNotifications(), equalTo((long) notifications));
+            assertThat(searchEngine.getCurrentGeneration(), equalTo(2L));
+            assertThat(notifications, equalTo(flushes));
+
+            searchTaskQueue.runAllRunnableTasks();
+
+            assertThat(searchEngine.getCurrentGeneration(), equalTo(indexEngine.getCurrentGeneration()));
+            assertThat(searchEngine.getCurrentGeneration(), equalTo(1L + 1L + flushes));
+            assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
+        }
+    }
+
+    public void testCommitNotificationsAfterCorruption() throws IOException {
+        final var indexConfig = indexConfig();
+
+        try (var indexEngine = newIndexEngine(indexConfig)) {
+            final int flushesBeforeCorruption = randomBoolean() ? randomInt(20) : 0;
+            if (flushesBeforeCorruption > 0) {
+                for (int i = 0; i < flushesBeforeCorruption; i++) {
+                    indexEngine.index(randomDoc(String.valueOf(i)));
+                    indexEngine.flush();
+                }
+                assertThat(indexEngine.getCurrentGeneration(), equalTo(2L + flushesBeforeCorruption));
+            }
+
+            final var searchTaskQueue = new DeterministicTaskQueue();
+            try (var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)) {
+                notifyCommits(indexEngine, searchEngine);
+                searchTaskQueue.runAllRunnableTasks();
+
+                final long searchGenerationBeforeCorruption = searchEngine.getCurrentGeneration();
+                assertThat(searchGenerationBeforeCorruption, equalTo(indexEngine.getCurrentGeneration()));
+
+                final int flushesAfterCorruption = randomIntBetween(1, 20);
+                for (int i = 0; i < flushesAfterCorruption; i++) {
+                    indexEngine.index(randomDoc(String.valueOf(i)));
+                    indexEngine.flush();
+                }
+                assertThat(indexEngine.getCurrentGeneration(), equalTo(2L + flushesBeforeCorruption + flushesAfterCorruption));
+
+                int notifications = notifyCommits(indexEngine, searchEngine);
+                assertThat(searchEngine.getPendingCommitNotifications(), equalTo((long) notifications));
+                assertThat(searchEngine.getCurrentGeneration(), equalTo(searchGenerationBeforeCorruption));
+
+                searchEngine.failEngine("test", randomCorruptionException());
+                searchTaskQueue.runAllRunnableTasks();
+
+                assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
+                assertThat(searchEngine.getCurrentGeneration(), equalTo(searchGenerationBeforeCorruption));
+            }
+        }
+    }
 
     public void testFailEngineWithCorruption() throws IOException {
-        try (SearchEngine searchEngine = new SearchEngine(config())) {
+        try (SearchEngine searchEngine = newSearchEngine()) {
             assertThat(searchEngine.segments(), empty());
             var store = searchEngine.config().getStore();
             assertThat(store.isMarkedCorrupted(), is(false));
@@ -49,14 +125,14 @@ public class SearchEngineTests extends ESIntegTestCase {
             assertThat(store.isMarkedCorrupted(), is(true));
             expectThrows(AlreadyClosedException.class, searchEngine::segments);
             var listener = searchEngine.config().getEventListener();
-            assertThat(listener, instanceOf(FailedEngineEventListener.class));
-            assertThat(((FailedEngineEventListener) listener).reason.get(), equalTo("test"));
-            assertThat(((FailedEngineEventListener) listener).exception.get(), sameInstance(exception));
+            assertThat(listener, instanceOf(CapturingEngineEventListener.class));
+            assertThat(((CapturingEngineEventListener) listener).reason.get(), equalTo("test"));
+            assertThat(((CapturingEngineEventListener) listener).exception.get(), sameInstance(exception));
         }
     }
 
     public void testMarkedStoreCorrupted() throws IOException {
-        try (SearchEngine searchEngine = new SearchEngine(config())) {
+        try (SearchEngine searchEngine = newSearchEngine()) {
             var store = searchEngine.config().getStore();
             assertThat(store.isMarkedCorrupted(), is(false));
             var directory = SearchDirectory.unwrapDirectory(store.directory());
@@ -73,41 +149,6 @@ public class SearchEngineTests extends ESIntegTestCase {
         }
     }
 
-    private EngineConfig config() {
-        var shardId = new ShardId(new Index("index", "_na_"), randomInt(10));
-        var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
-        var directory = new SearchDirectory(null, shardId);
-        var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
-        return new EngineConfig(
-            shardId,
-            null,
-            indexSettings,
-            null,
-            store,
-            null,
-            null,
-            null,
-            null,
-            new FailedEngineEventListener(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> { throw new AssertionError(); },
-            null,
-            null,
-            null,
-            null,
-            null,
-            false
-        );
-    }
-
     private Exception randomCorruptionException() {
         return switch (randomInt(2)) {
             case 0 -> new CorruptIndexException("Test corruption", "test");
@@ -115,17 +156,5 @@ public class SearchEngineTests extends ESIntegTestCase {
             case 2 -> new IndexFormatTooNewException("Test corruption", 0, 0, 0);
             default -> throw new AssertionError("Unexpected value");
         };
-    }
-
-    private static class FailedEngineEventListener implements Engine.EventListener {
-
-        final SetOnce<String> reason = new SetOnce<>();
-        final SetOnce<Exception> exception = new SetOnce<>();
-
-        @Override
-        public void onFailedEngine(String reason, Exception e) {
-            this.reason.set(reason);
-            this.exception.set(e);
-        }
     }
 }

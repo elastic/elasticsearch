@@ -12,8 +12,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
+
+import static org.mockito.Mockito.mock;
 
 public abstract class TransportWriteActionTestHelper {
 
@@ -41,7 +44,7 @@ public abstract class TransportWriteActionTestHelper {
             location,
             writerResult,
             logger,
-            new PostWriteRefresh(null),
+            new PostWriteRefresh(mock(TransportService.class)),
             null
         ).run();
         try {

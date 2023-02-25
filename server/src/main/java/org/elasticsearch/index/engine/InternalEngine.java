@@ -2002,7 +2002,7 @@ public class InternalEngine extends Engine {
                         throw new FlushFailedEngineException(shardId, e);
                     }
                     refreshLastCommittedSegmentInfos();
-                    flushListener.markFlushCompleted(lastCommittedSegmentInfos.getGeneration(), commitLocation);
+                    flushListener.afterFlush(lastCommittedSegmentInfos.getGeneration(), commitLocation);
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);

@@ -82,7 +82,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
             postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.WAIT_UNTIL, primary, result.getTranslogLocation(), f);
-            Releasable releasable = simulatePeriodicRefresh(primary, false);
+            Releasable releasable = simulateScheduledRefresh(primary, false);
             f.actionGet();
             assertFalse(unpromotableRefreshRequestReceived.get());
             assertEngineContainsIdNoRefresh(primary, id);
@@ -135,7 +135,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             postWriteRefresh.refreshShard(policy, primary, result.getTranslogLocation(), f);
             final Releasable releasable;
             if (policy == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
-                releasable = simulatePeriodicRefresh(primary, true);
+                releasable = simulateScheduledRefresh(primary, true);
             } else {
                 releasable = () -> {};
             }
@@ -158,7 +158,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             Engine.IndexResult result = indexDoc(replica, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
             PostWriteRefresh.refreshReplicaShard(WriteRequest.RefreshPolicy.WAIT_UNTIL, replica, result.getTranslogLocation(), f);
-            Releasable releasable = simulatePeriodicRefresh(replica, false);
+            Releasable releasable = simulateScheduledRefresh(replica, false);
             f.actionGet();
             assertEngineContainsIdNoRefresh(replica, id);
             releasable.close();
@@ -190,7 +190,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         assertThat(ids, contains(id));
     }
 
-    private static Releasable simulatePeriodicRefresh(IndexShard shard, boolean needsFlush) {
+    private static Releasable simulateScheduledRefresh(IndexShard shard, boolean needsFlush) {
         // Simulate periodic refresh
         Thread thread = new Thread(() -> {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(randomLongBetween(100, 500)));

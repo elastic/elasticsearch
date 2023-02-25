@@ -99,6 +99,7 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase {
 
@@ -1062,7 +1063,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 primary,
                 logger,
                 // TODO: Fix
-                new PostWriteRefresh(null)
+                new PostWriteRefresh(mock(TransportService.class))
 
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRe
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,7 +27,7 @@ public class PostWriteRefresh {
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
 
-    public PostWriteRefresh(@Nullable TransportService transportService) {
+    public PostWriteRefresh(final TransportService transportService) {
         this.transportService = transportService;
     }
 
@@ -87,13 +87,11 @@ public class PostWriteRefresh {
         Engine.RefreshResult refreshResult
     ) {
         if (isPrimary && indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
-            assert transportService != null : "TransportService cannot be null if unpromotables present";
-
             // Was wait_for, still need to fetch generation
             if (refreshResult == null) {
                 Engine engineOrNull = indexShard.getEngineOrNull();
                 if (engineOrNull == null) {
-                    listener.onFailure(new EngineException(indexShard.shardId(), "Engine closed during refresh."));
+                    listener.onFailure(new AlreadyClosedException("Engine closed during refresh."));
                     return;
                 }
                 engineOrNull.addFlushListener(location, new ActionListener<>() {

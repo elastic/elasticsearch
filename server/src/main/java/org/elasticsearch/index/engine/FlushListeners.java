@@ -17,7 +17,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,7 +40,7 @@ public class FlushListeners implements Closeable {
         this.threadContext = threadContext;
     }
 
-    public boolean addOrNotify(Translog.Location location, ActionListener<Long> listener) {
+    public void addOrNotify(Translog.Location location, ActionListener<Long> listener) {
         requireNonNull(listener, "listener cannot be null");
         requireNonNull(location, "location cannot be null");
 
@@ -49,17 +48,17 @@ public class FlushListeners implements Closeable {
         if (lastCommitBeforeSynchronized != null && lastCommitBeforeSynchronized.v2().compareTo(location) >= 0) {
             // Location already visible, just call the listener
             listener.onResponse(lastCommitBeforeSynchronized.v1());
-            return true;
+            return;
         }
         synchronized (this) {
             if (closed) {
-                throw new IllegalStateException("can't wait for refresh on a closed index");
+                throw new IllegalStateException("can't wait for flush on a closed index");
             }
             Tuple<Long, Translog.Location> lastCommitAfterSynchronized = lastCommit;
             if (lastCommitAfterSynchronized != null && lastCommitAfterSynchronized.v2().compareTo(location) >= 0) {
                 // Location already visible, just call the listener
                 listener.onResponse(lastCommitAfterSynchronized.v1());
-                return true;
+                return;
             }
 
             List<Tuple<Translog.Location, ActionListener<Long>>> listeners = locationCommitListeners;
@@ -70,11 +69,10 @@ public class FlushListeners implements Closeable {
             // We have a free slot so register the listener
             listeners.add(new Tuple<>(location, contextPreservingListener));
             locationCommitListeners = listeners;
-            return false;
         }
     }
 
-    public void markFlushCompleted(final long generation, final Translog.Location lastCommitLocation) {
+    public void afterFlush(final long generation, final Translog.Location lastCommitLocation) {
         this.lastCommit = new Tuple<>(generation, lastCommitLocation);
 
         List<Tuple<Translog.Location, ActionListener<Long>>> listenersToFire = null;
@@ -119,21 +117,22 @@ public class FlushListeners implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         synchronized (this) {
-            closed = true;
-            if (locationCommitListeners != null) {
-                for (final Tuple<Translog.Location, ActionListener<Long>> listener : locationCommitListeners) {
-                    try {
-                        listener.v2().onFailure(new AlreadyClosedException("shard is closed"));
-                    } catch (final Exception e) {
-                        logger.warn("error firing checkpoint refresh listener", e);
-                        assert false;
+            if (closed == false) {
+                closed = true;
+                if (locationCommitListeners != null) {
+                    for (final Tuple<Translog.Location, ActionListener<Long>> listener : locationCommitListeners) {
+                        try {
+                            listener.v2().onFailure(new AlreadyClosedException("shard is closed"));
+                        } catch (final Exception e) {
+                            logger.warn("error firing checkpoint refresh listener", e);
+                            assert false;
+                        }
                     }
+                    locationCommitListeners = null;
                 }
-                locationCommitListeners = null;
             }
         }
-
     }
 }

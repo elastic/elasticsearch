@@ -20,6 +20,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -36,6 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * cat API class for handling get componentTemplate.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatComponentTemplateAction extends AbstractCatAction {
     @Override
     public String getName() {

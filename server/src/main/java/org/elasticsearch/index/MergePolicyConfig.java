@@ -120,13 +120,13 @@ public final class MergePolicyConfig {
     public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = new ByteSizeValue(100, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     /**
-     * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 16. This default value differs from the Lucene default of 10 in
-     * order to account for the fact that Elasticsearch uses {@link LogByteSizeMergePolicy} for time-based data, where it usually makes
-     * sense to merge data less aggressively, and because {@link LogByteSizeMergePolicy} merges segments more aggressively than
-     * {@link TieredMergePolicy} for the same number of segments per tier / merge factor because {@link TieredMergePolicy} makes decisions
-     * at the whole index level, while {@link LogByteSizeMergePolicy} makes decisions on a per-tier basis.
+     * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 32. This default value differs from the Lucene default of 10 in
+     * order to account for the fact that Elasticsearch uses {@link LogByteSizeMergePolicy} for time-based data, where adjacent segment
+     * merging ensures that segments have mostly non-overlapping time ranges if data gets ingested in timestamp order. In turn, this allows
+     * range queries on the timestamp to remain efficient with high numbers of segments since most segments either don't match the query
+     * range or are fully contained by the query range.
      */
-    public static final int DEFAULT_MERGE_FACTOR = 16;
+    public static final int DEFAULT_MERGE_FACTOR = 32;
     public static final double DEFAULT_DELETES_PCT_ALLOWED = 20.0d;
     private static final String INDEX_COMPOUND_FORMAT_SETTING_KEY = "index.compound_format";
     public static final Setting<CompoundFileThreshold> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(

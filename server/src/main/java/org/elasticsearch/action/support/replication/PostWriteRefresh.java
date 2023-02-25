@@ -37,7 +37,40 @@ public class PostWriteRefresh {
         @Nullable Translog.Location location,
         ActionListener<Boolean> listener
     ) {
-        doRefreshShard(policy, true, transportService, indexShard, location, listener);
+        switch (policy) {
+            case NONE -> listener.onResponse(false);
+            case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
+                @Override
+                public void onResponse(Boolean forced) {
+                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
+                        refreshUnpromotables(indexShard, location, listener, forced);
+                    } else {
+                        listener.onResponse(forced);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+            case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
+                @Override
+                public void onResponse(Engine.RefreshResult refreshResult) {
+                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
+                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener);
+                    } else {
+                        listener.onResponse(true);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+            default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
+        }
     }
 
     public static void refreshReplicaShard(
@@ -46,81 +79,48 @@ public class PostWriteRefresh {
         @Nullable Translog.Location location,
         ActionListener<Boolean> listener
     ) {
-        doRefreshShard(policy, false, null, indexShard, location, listener);
-    }
-
-    private static void doRefreshShard(
-        WriteRequest.RefreshPolicy policy,
-        boolean isPrimary,
-        @Nullable TransportService transportService,
-        IndexShard indexShard,
-        @Nullable Translog.Location location,
-        ActionListener<Boolean> listener
-    ) {
         switch (policy) {
             case NONE -> listener.onResponse(false);
-            case WAIT_UNTIL -> {
-                if (location != null) {
-                    indexShard.addRefreshListener(
-                        location,
-                        forced -> afterRefresh(indexShard, isPrimary, transportService, location, listener, forced, null)
-                    );
-                } else {
-                    listener.onResponse(false);
-                }
-            }
-            case IMMEDIATE -> {
-                Engine.RefreshResult refreshResult = indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
-                afterRefresh(indexShard, isPrimary, transportService, location, listener, true, refreshResult);
-            }
+            case WAIT_UNTIL -> waitUntil(indexShard, location, listener);
+            case IMMEDIATE -> immediate(indexShard, listener.map(r -> true));
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
     }
 
-    private static void afterRefresh(
-        IndexShard indexShard,
-        boolean isPrimary,
-        @Nullable TransportService transportService,
-        Translog.Location location,
-        ActionListener<Boolean> listener,
-        boolean wasForced,
-        Engine.RefreshResult refreshResult
-    ) {
-        if (isPrimary && indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
-            // Was wait_for, still need to fetch generation
-            if (refreshResult == null) {
-                Engine engineOrNull = indexShard.getEngineOrNull();
-                if (engineOrNull == null) {
-                    listener.onFailure(new AlreadyClosedException("Engine closed during refresh."));
-                    return;
-                }
-                engineOrNull.addFlushListener(location, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Long generation) {
-                        sendUnpromotableRequests(indexShard, transportService, generation, wasForced, listener);
-                    }
+    private static void immediate(IndexShard indexShard, ActionListener<Engine.RefreshResult> listener) {
+        Engine.RefreshResult refreshResult = indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
+        listener.onResponse(refreshResult);
+    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-
-            } else {
-                sendUnpromotableRequests(indexShard, transportService, refreshResult.generation(), wasForced, listener);
-            }
+    private static void waitUntil(IndexShard indexShard, Translog.Location location, ActionListener<Boolean> listener) {
+        if (location != null) {
+            indexShard.addRefreshListener(location, listener::onResponse);
         } else {
-            listener.onResponse(wasForced);
+            listener.onResponse(false);
         }
     }
 
-    private static void sendUnpromotableRequests(
-        IndexShard indexShard,
-        TransportService transportService,
-        long generation,
-        boolean wasForced,
-        ActionListener<Boolean> listener
-    ) {
+    private void refreshUnpromotables(IndexShard indexShard, Translog.Location location, ActionListener<Boolean> listener, boolean forced) {
+        Engine engineOrNull = indexShard.getEngineOrNull();
+        if (engineOrNull == null) {
+            listener.onFailure(new AlreadyClosedException("Engine closed during refresh."));
+            return;
+        }
+
+        engineOrNull.addFlushListener(location, new ActionListener<>() {
+            @Override
+            public void onResponse(Long generation) {
+                sendUnpromotableRequests(indexShard, generation, forced, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void sendUnpromotableRequests(IndexShard indexShard, long generation, boolean wasForced, ActionListener<Boolean> listener) {
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
             generation

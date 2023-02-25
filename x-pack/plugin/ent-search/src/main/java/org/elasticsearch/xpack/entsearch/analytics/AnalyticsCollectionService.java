@@ -36,9 +36,9 @@ public class AnalyticsCollectionService {
     }
 
     /**
-     * Retrieve an analytics collection by name {@AnalyticsCollection}
+     * Retrieve an analytics collection by name {@link AnalyticsCollection}
      *
-     * @param collectionName {@AnalyticsCollection} name.
+     * @param collectionName {@link AnalyticsCollection} name.
      * @param listener The action listener to invoke on response/failure.
      */
     public void getAnalyticsCollection(String collectionName, ActionListener<AnalyticsCollection> listener) {
@@ -46,9 +46,9 @@ public class AnalyticsCollectionService {
     }
 
     /**
-     * Create a new {@AnalyticsCollection}
+     * Create a new {@link AnalyticsCollection}
      *
-     * @param analyticsCollection {@AnalyticsCollection} to be created.
+     * @param analyticsCollection {@link AnalyticsCollection} to be created.
      * @param listener The action listener to invoke on response/failure.
      */
     public void createAnalyticsCollection(AnalyticsCollection analyticsCollection, ActionListener<AnalyticsCollection> listener) {
@@ -56,9 +56,9 @@ public class AnalyticsCollectionService {
     }
 
     /**
-     * Delete an analytics collection by name {@AnalyticsCollection}
+     * Delete an analytics collection by name {@link AnalyticsCollection}
      *
-     * @param collectionName {@AnalyticsCollection} name.
+     * @param collectionName {@link AnalyticsCollection} name.
      * @param listener The action listener to invoke on response/failure.
      */
     public void deleteAnalyticsCollection(String collectionName, ActionListener<AnalyticsCollection> listener) {

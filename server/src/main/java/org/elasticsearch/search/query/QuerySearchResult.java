@@ -384,7 +384,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 setRescoreDocIds(new RescoreDocIds(in));
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                rankShardResult = RankShardResult.readOptionalFrom(in);
+                rankShardResult = in.readNamedWriteable(RankShardResult.class);
             }
             success = true;
         } finally {
@@ -439,7 +439,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             getRescoreDocIds().writeTo(out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeOptionalWriteable(rankShardResult);
+            out.writeNamedWriteable(rankShardResult);
         }
     }
 

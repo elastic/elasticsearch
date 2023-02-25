@@ -17,8 +17,6 @@ import java.io.IOException;
 
 public class RRFRankDoc extends RankDoc {
 
-    public static final String NAME = "rrf";
-
     public int rank;
     public final int[] positions;
     public final float[] scores;
@@ -53,7 +51,7 @@ public class RRFRankDoc extends RankDoc {
     }
 
     @Override
-    public String getName() {
-        return NAME;
+    public String getWriteableName() {
+        return RRFRankContextBuilder.NAME;
     }
 }

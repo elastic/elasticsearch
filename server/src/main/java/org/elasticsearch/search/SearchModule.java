@@ -224,7 +224,11 @@ import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankContextBuilder;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
+import org.elasticsearch.search.rank.rrf.RRFRankDoc;
+import org.elasticsearch.search.rank.rrf.RRFRankShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -812,6 +816,12 @@ public class SearchModule {
                 new ParseField(RRFRankContextBuilder.NAME),
                 RRFRankContextBuilder::fromXContent
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(RankShardResult.class, RRFRankContextBuilder.NAME, RRFRankShardResult::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(RankDoc.class, RRFRankContextBuilder.NAME, RRFRankDoc::new)
         );
     }
 

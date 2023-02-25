@@ -81,8 +81,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static final int NO_RANK = -1;
     private int rank = NO_RANK;
 
-    private RankDoc rankDoc;
-
     private final Text id;
 
     private final NestedIdentity nestedIdentity;
@@ -141,7 +139,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         score = in.readFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             rank = in.readVInt();
-            rankDoc = in.readOptionalWriteable(RankDoc::readRankResult);
         }
         id = in.readOptionalText();
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
@@ -244,7 +241,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         out.writeFloat(score);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeVInt(rank);
-            out.writeOptionalWriteable(rankDoc);
         }
         out.writeOptionalText(id);
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
@@ -308,14 +304,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     public int getRank() {
         return this.rank;
-    }
-
-    public void setRankResult(RankDoc rankDoc) {
-        this.rankDoc = rankDoc;
-    }
-
-    public RankDoc getRankResult() {
-        return this.rankDoc;
     }
 
     public void version(long version) {
@@ -705,10 +693,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.field(Fields._RANK, rank);
         }
 
-        if (rankDoc != null) {
-            builder.field(Fields._RANK_RESULT, rankDoc);
-        }
-
         for (DocumentField field : metaFields.values()) {
             // ignore empty metadata fields
             if (field.getValues().size() == 0) {
@@ -908,7 +892,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
         searchHit.setRank(get(Fields._RANK, values, NO_RANK));
-        searchHit.setRankResult(get(Fields._RANK_RESULT, values, null));
         searchHit.version(get(Fields._VERSION, values, -1L));
         searchHit.setSeqNo(get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO));
         searchHit.setPrimaryTerm(get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM));

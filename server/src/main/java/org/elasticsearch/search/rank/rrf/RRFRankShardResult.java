@@ -8,38 +8,36 @@
 
 package org.elasticsearch.search.rank.rrf;
 
-import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.rank.RankShardResult;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Objects;
 
-public class RRFRankShardResult extends RankShardResult {
+public class RRFRankShardResult implements RankShardResult {
 
-    private final List<TopDocs> topDocs;
+    public final int queryCount;
+    public final RRFRankDoc[] rrfRankDocs;
 
-    public RRFRankShardResult(List<TopDocs> topDocs) {
-        this.topDocs = topDocs;
+    public RRFRankShardResult(int queryCount, RRFRankDoc[] rrfRankDocs) {
+        this.queryCount = queryCount;
+        this.rrfRankDocs = Objects.requireNonNull(rrfRankDocs);
     }
 
     public RRFRankShardResult(StreamInput in) throws IOException {
-        topDocs = in.readList(Lucene::readOnlyTopDocs);
+        queryCount = in.readVInt();
+        rrfRankDocs = in.readArray(RRFRankDoc::new, RRFRankDoc[]::new);
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return RRFRankContextBuilder.NAME;
     }
 
-    public List<TopDocs> getTopDocs() {
-        return topDocs;
-    }
-
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeCollection(topDocs, Lucene::writeOnlyTopDocs);
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(queryCount);
+        out.writeArray(rrfRankDocs);
     }
 }

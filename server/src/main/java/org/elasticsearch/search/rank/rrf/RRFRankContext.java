@@ -17,14 +17,19 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankContext;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class RRFRankContext extends RankContext {
 
@@ -39,7 +44,103 @@ public class RRFRankContext extends RankContext {
 
     @Override
     public SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocsStats) {
-        List<List<TopDocs>> unmergedTopDocs = new ArrayList<>();
+        List<RRFRankShardResult> rrfRankShardResults = new ArrayList<>();
+        List<Integer> shardIndices = new ArrayList<>();
+        int queryCount = -1;
+        int[] docCounts = null;
+        for (QuerySearchResult querySearchResult : querySearchResults) {
+            if (querySearchResult.searchTimedOut()) {
+                topDocsStats.timedOut = true;
+                continue;
+            }
+            if (querySearchResult.terminatedEarly() != null && querySearchResult.terminatedEarly()) {
+                topDocsStats.terminatedEarly = true;
+            }
+            assert querySearchResult.getRankShardResult() instanceof RRFRankShardResult;
+            RRFRankShardResult rrfRankShardResult = (RRFRankShardResult) querySearchResult.getRankShardResult();
+            rrfRankShardResults.add(rrfRankShardResult);
+            shardIndices.add(querySearchResult.getShardIndex());
+
+            if (queryCount == -1) {
+                queryCount = rrfRankShardResult.queryCount;
+                docCounts = new int[queryCount];
+            }
+            assert queryCount == rrfRankShardResult.queryCount;
+
+            for (int qi = 0; qi < queryCount; ++qi) {
+                docCounts[qi] += rrfRankShardResult.rrfRankDocs.length;
+            }
+        }
+
+
+        for (int qi = 0; qi < queryCount; ++qi) {
+            RRFRankDoc[] rrfRankDocs = new RRFRankDoc[docCounts[qi]];
+            int docCount = 0;
+            for (int si = 0; si < rrfRankShardResults.size(); ++si) {
+                RRFRankShardResult rrfRankShardResult = rrfRankShardResults.get(si);
+
+                for (RRFRankDoc rrfRankDoc : rrfRankShardResult.rrfRankDocs) {
+                    assert rrfRankDoc.positions.length == queryCount && rrfRankDoc.scores.length == queryCount;
+                    if (rrfRankDoc.shardIndex == -1) {
+                        rrfRankDoc.shardIndex = shardIndices.get(si);
+                    }
+                    rrfRankDocs[docCount++] = rrfRankDoc;
+                }
+            }
+
+            final int fqi = qi;
+            Arrays.sort(rrfRankDocs, (rrf1, rrf2) -> {
+                float score1 = rrf1.scores[fqi];
+                float score2 = rrf2.scores[fqi];
+                if (score1 != score2) {
+                    return score1 < score2 ? 1 : -1;
+                }
+                if (rrf1.shardIndex != rrf2.shardIndex) {
+                    return rrf1.shardIndex < rrf2.shardIndex ? -1 : 1;
+                }
+                return rrf1.doc < rrf2.doc ? -1 : 1;
+            });
+
+            for (int rank = 0; rank < rrfRankDocs.length; ++rank) {
+                RRFRankDoc doc = rrfRankDocs[rank];
+                doc.positions[fqi] = rank + 1;
+                if (Float.isNaN(doc.score)) {
+                    doc.score = 0f;
+                }
+                doc.score += 1.0f / (rankConstant + rank + 1);
+            }
+
+            int x = 0;
+        }
+
+        PriorityQueue<RRFRankDoc> queue = new PriorityQueue<>(
+            (rrf1, rrf2) -> {
+                float score1 = rrf1.score;
+                float score2 = rrf2.score;
+                if (score1 != score2) {
+                    return score1 < score2 ? -1 : 1;
+                }
+                if (rrf1.shardIndex != rrf2.shardIndex) {
+                    return rrf1.shardIndex < rrf2.shardIndex ? 1 : -1;
+                }
+                return rrf1.doc < rrf2.doc ? 1 : -1;
+            }
+        );
+
+        for (RRFRankShardResult rrfRankShardResult : rrfRankShardResults) {
+            for (RRFRankDoc doc : rrfRankShardResult.rrfRankDocs) {
+                if (queue.size() < size + from) {
+                    queue.add(doc);
+                } else if (queue.peek().score < doc.score) {
+                    queue.remove();
+                    queue.add(doc);
+                }
+            }
+        }
+
+
+
+        /*List<List<TopDocs>> unmergedTopDocs = new ArrayList<>();
         int shardCount = -1;
 
         for (QuerySearchResult querySearchResult : querySearchResults) {
@@ -121,13 +222,13 @@ public class RRFRankContext extends RankContext {
             copy.collapseField(),
             copy.collapseValues(),
             copy.numberOfCompletionsSuggestions()
-        );
+        );*/
+        return SortedTopDocs.EMPTY;
     }
 
     public void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit) {
         assert scoreDoc instanceof RRFRankDoc;
         RRFRankDoc rankResult = (RRFRankDoc) scoreDoc;
         searchHit.setRank(rankResult.rank);
-        searchHit.setRankResult(rankResult);
     }
 }

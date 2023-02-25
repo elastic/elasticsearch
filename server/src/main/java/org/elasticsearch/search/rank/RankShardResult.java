@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,27 +17,6 @@ import org.elasticsearch.search.rank.rrf.RRFRankShardResult;
 
 import java.io.IOException;
 
-public abstract class RankShardResult implements Writeable {
+public interface RankShardResult extends NamedWriteable {
 
-    public static RankShardResult readOptionalFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            String name = in.readString();
-
-            if (RRFRankContextBuilder.NAME.equals(name)) {
-                return new RRFRankShardResult(in);
-            }
-        }
-
-        return null;
-    }
-
-    public abstract String getName();
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        doWriteTo(out);
-    }
-
-    public abstract void doWriteTo(StreamOutput out) throws IOException;
 }

@@ -55,7 +55,7 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(100).rankConstant(1))
             .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
-            .setQuery(QueryBuilders.rangeQuery("int").lt(10))
+            .setQuery(QueryBuilders.rangeQuery("int").lt(2))
             // .addSort("int", SortOrder.ASC)
             .addFetchField("*")
             .setSize(10)

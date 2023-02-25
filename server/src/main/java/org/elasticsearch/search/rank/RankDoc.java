@@ -9,6 +9,7 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,17 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public abstract class RankDoc extends ScoreDoc implements ToXContent, Writeable {
-
-    public static RankDoc readRankResult(StreamInput in) throws IOException {
-        String name = in.readString();
-
-        if (RRFRankDoc.NAME.equals(name)) {
-            return new RRFRankDoc(in);
-        } else {
-            throw new IllegalStateException("unexpected rank result type [" + name + "]");
-        }
-    }
+public abstract class RankDoc extends ScoreDoc implements ToXContent, NamedWriteable {
 
     public RankDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
@@ -37,8 +28,6 @@ public abstract class RankDoc extends ScoreDoc implements ToXContent, Writeable 
     protected RankDoc(StreamInput in) throws IOException {
         super(in.readVInt(), in.readFloat(), in.readVInt());
     }
-
-    public abstract String getName();
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -49,7 +38,6 @@ public abstract class RankDoc extends ScoreDoc implements ToXContent, Writeable 
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
         out.writeVInt(doc);
         out.writeFloat(score);
         out.writeVInt(shardIndex);

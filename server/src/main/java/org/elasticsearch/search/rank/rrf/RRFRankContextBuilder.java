@@ -136,7 +136,7 @@ public class RRFRankContextBuilder extends RankContextBuilder {
             queries.add(queryBuilder.toQuery(searchExecutionContext));
         }
 
-        return new RRFRankShardContext(queries, size, from, windowSize);
+        return new RRFRankShardContext(queries, size, from, windowSize, rankConstant);
     }
 
     @Override

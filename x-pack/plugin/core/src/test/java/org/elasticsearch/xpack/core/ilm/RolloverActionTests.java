@@ -38,28 +38,24 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         int useCondition = randomIntBetween(0, 4);
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxSize = (useCondition == 0 || randomBoolean())
-            ? null
-            : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+            ? new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit)
+            : null;
         ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxPrimaryShardSize = (useCondition == 1 || randomBoolean())
-            ? null
-            : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
-        Long maxDocs = (useCondition == 2 || randomBoolean()) ? null : randomNonNegativeLong();
+            ? new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit)
+            : null;
+        Long maxDocs = (useCondition == 2 || randomBoolean()) ? randomNonNegativeLong() : null;
         TimeValue maxAge = (useCondition == 3 || randomBoolean()) ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
         Long maxPrimaryShardDocs = (useCondition == 4 || randomBoolean()) ? randomNonNegativeLong() : null;
         ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue minSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
+        ByteSizeValue minSize = randomBoolean() ? new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit) : null;
         ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minPrimaryShardSize = randomBoolean()
             ? null
             : new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
-        Long minDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue minAge = (minDocs == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
-        Long minPrimaryShardDocs = (minSize == null && minPrimaryShardSize == null && minAge == null && minDocs == null || randomBoolean())
-            ? randomNonNegativeLong()
-            : null;
+        Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
         return new RolloverAction(
             maxSize,
             maxPrimaryShardSize,

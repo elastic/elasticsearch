@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -72,7 +71,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected IndexLifecycleMetadata doParseInstance(XContentParser parser) throws IOException {
+    protected IndexLifecycleMetadata doParseInstance(XContentParser parser) {
         return IndexLifecycleMetadata.PARSER.apply(parser, null);
     }
 

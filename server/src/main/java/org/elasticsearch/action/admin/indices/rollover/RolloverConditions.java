@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -217,10 +218,8 @@ public class RolloverConditions implements Writeable, ToXContentObject {
     /**
      * Given the results of evaluating each individual condition, determine whether the rollover request should proceed -- that is,
      * whether the conditions are met.
-     *
-     * If there are no conditions at all, then the request is unconditional (i.e. a command), and the conditions are met.
-     *
-     * If the request has conditions, then all min_* conditions and at least one max_* condition must have a true result.
+     * - If there are no conditions at all, then the request is unconditional (i.e. a command), and the conditions are met.
+     * - If the request has conditions, then all min_* conditions and at least one max_* condition must have a true result.
      *
      * @param conditionResults a map of individual conditions and their associated evaluation results
      *
@@ -254,6 +253,56 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
+    }
+
+    public static RolloverConditions parseSetting(String input, String setting) {
+        String[] sConditions = input.split(",");
+        RolloverConditions.Builder builder = newBuilder();
+        for (String sCondition : sConditions) {
+            String[] keyValue = sCondition.split("=");
+            if (keyValue.length != 2) {
+                throw new ElasticsearchParseException("Invalid condition: '{}', format must be 'condition=value'", sCondition);
+            }
+            var condition = keyValue[0];
+            var value = keyValue[1];
+            if (MAX_SIZE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
+            } else if (MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
+            } else if (MAX_AGE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxIndexAgeCondition(TimeValue.parseTimeValue(value, setting));
+            } else if (MAX_DOCS_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxIndexDocsCondition(parseLong(value, setting));
+            } else if (MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxPrimaryShardDocsCondition(parseLong(value, setting));
+            } else if (MIN_SIZE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
+            } else if (MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
+            } else if (MIN_AGE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinIndexAgeCondition(TimeValue.parseTimeValue(value, setting));
+            } else if (MIN_DOCS_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinIndexDocsCondition(parseLong(value, setting));
+            } else if (MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinPrimaryShardDocsCondition(parseLong(value, condition));
+            } else {
+                throw new ElasticsearchParseException("Unknown condition: '{}'", condition);
+            }
+        }
+        return builder.build();
+    }
+
+    private static Long parseLong(String sValue, String settingName) {
+        try {
+            return Long.parseLong(sValue);
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException(
+                "failed to parse setting [{}] with value [{}] as a long: {}",
+                e.getMessage(),
+                settingName,
+                sValue
+            );
+        }
     }
 
     @Override

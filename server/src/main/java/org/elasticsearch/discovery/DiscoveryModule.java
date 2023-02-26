@@ -14,7 +14,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.QuorumStrategy;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -110,8 +111,8 @@ public class DiscoveryModule {
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
         hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
-        final Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
-        electionStrategies.put(DEFAULT_ELECTION_STRATEGY, ElectionStrategy.DEFAULT_INSTANCE);
+        final Map<String, QuorumStrategy> electionStrategies = new HashMap<>();
+        electionStrategies.put(DEFAULT_ELECTION_STRATEGY, QuorumStrategy.DEFAULT_INSTANCE);
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getSeedHostProviders(transportService, networkService).forEach((key, value) -> {
                 if (hostProviders.put(key, value) != null) {
@@ -156,8 +157,8 @@ public class DiscoveryModule {
             return Collections.unmodifiableList(addresses);
         };
 
-        final ElectionStrategy electionStrategy = electionStrategies.get(ELECTION_STRATEGY_SETTING.get(settings));
-        if (electionStrategy == null) {
+        final QuorumStrategy quorumStrategy = electionStrategies.get(ELECTION_STRATEGY_SETTING.get(settings));
+        if (quorumStrategy == null) {
             throw new IllegalArgumentException("Unknown election strategy " + ELECTION_STRATEGY_SETTING.get(settings));
         }
 
@@ -193,10 +194,11 @@ public class DiscoveryModule {
                 joinValidators,
                 new Random(Randomness.get().nextLong()),
                 rerouteService,
-                electionStrategy,
+                quorumStrategy,
                 nodeHealthService,
                 circuitBreakerService,
-                new Reconfigurator(settings, clusterSettings)
+                new Reconfigurator(settings, clusterSettings),
+                LeaderHeartbeatService.NO_OP
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

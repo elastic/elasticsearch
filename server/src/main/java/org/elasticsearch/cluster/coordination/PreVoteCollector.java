@@ -42,7 +42,7 @@ public class PreVoteCollector {
     private final TransportService transportService;
     private final Runnable startElection;
     private final LongConsumer updateMaxTermSeen;
-    private final ElectionStrategy electionStrategy;
+    private final QuorumStrategy quorumStrategy;
     private NodeHealthService nodeHealthService;
 
     // Tuple for simple atomic updates. null until the first call to `update()`.
@@ -52,13 +52,13 @@ public class PreVoteCollector {
         final TransportService transportService,
         final Runnable startElection,
         final LongConsumer updateMaxTermSeen,
-        final ElectionStrategy electionStrategy,
+        final QuorumStrategy quorumStrategy,
         NodeHealthService nodeHealthService
     ) {
         this.transportService = transportService;
         this.startElection = startElection;
         this.updateMaxTermSeen = updateMaxTermSeen;
-        this.electionStrategy = electionStrategy;
+        this.quorumStrategy = quorumStrategy;
         this.nodeHealthService = nodeHealthService;
 
         transportService.registerRequestHandler(
@@ -219,7 +219,7 @@ public class PreVoteCollector {
                 )
             );
 
-            if (electionStrategy.isElectionQuorum(
+            if (quorumStrategy.isElectionQuorum(
                 clusterState.nodes().getLocalNode(),
                 localPreVoteResponse.getCurrentTerm(),
                 localPreVoteResponse.getLastAcceptedTerm(),

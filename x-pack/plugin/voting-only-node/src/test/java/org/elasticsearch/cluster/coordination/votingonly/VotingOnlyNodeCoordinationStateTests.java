@@ -39,7 +39,7 @@ public class VotingOnlyNodeCoordinationStateTests extends ESTestCase {
                     )
                 )
                 .collect(Collectors.toList()),
-            new VotingOnlyNodePlugin.VotingOnlyNodeElectionStrategy()
+            new VotingOnlyNodePlugin.VotingOnlyNodeQuorumStrategy()
         ).runRandomly();
     }
 

@@ -1,0 +1,573 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.cluster.coordination;
+
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.ClusterStateUpdaters;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
+
+@TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
+public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
+    private KeyedAtomicRegister keyedAtomicRegister;
+
+    @Before
+    public void setUpNewRegister() {
+        keyedAtomicRegister = new KeyedAtomicRegister();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
+        // The configuration is fixed in this scenario
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testDoesNotShrinkConfigurationBelowThreeNodes() {
+        // The configuration is fixed in this scenario
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testCanShrinkFromFiveNodesToThree() {}
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testDoesNotShrinkConfigurationBelowFiveNodesIfAutoShrinkDisabled() {}
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testExpandsConfigurationWhenGrowingFromOneNodeToThreeButDoesNotShrink() {
+        // Configuration test
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testSingleNodeDiscoveryWithoutQuorum() {}
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {}
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testUnhealthyNodesGetsRemoved() {
+        // This test checks that the voting configuration shrinks after a node is removed from the cluster
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
+        // In this test the disconnected leader still attempts to update the
+        // cluster state in the blob store
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testLeaderDisconnectionWithoutDisconnectEventDetectedQuickly() {
+        // The leader still has connection to the blob store
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testMasterStatsOnFailedUpdate() {
+        // The leader has access to the blob store, therefore it can do updates
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testUnhealthyLeaderIsReplaced() {
+        // The leader makes progress
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testUnresponsiveLeaderDetectedEventually() {
+        // In this test the leader still has access to the blob store,
+        // therefore it is still considered as a leader
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testLogsWarningPeriodicallyIfClusterNotFormed() {
+        // It's possible to form a single-node cluster with this mechanism, maybe we should fix this
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testAckListenerReceivesNacksIfLeaderStandsDown() {
+        // The leader still has connectivity to the blob store
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testAckListenerReceivesNacksIfPublicationTimesOut() {
+        // The leader still has connectivity to the blob store
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testAppliesNoMasterBlockWritesByDefault() {
+        // If the disconnected node is the leader it will continue to have connectivity
+        // into the blob store and therefore the no master block won't be applied
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testAppliesNoMasterBlockWritesIfConfigured() {
+        // If the disconnected node is the leader it will continue to have connectivity
+        // into the blob store and therefore the no master block won't be applied
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testAppliesNoMasterBlockAllIfConfigured() {
+        // If the disconnected node is the leader it will continue to have connectivity
+        // into the blob store and therefore the no master block won't be applied
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testAppliesNoMasterBlockMetadataWritesIfConfigured() {
+        // If the disconnected node is the leader it will continue to have connectivity
+        // into the blob store and therefore the no master block won't be applied
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testClusterCannotFormWithFailingJoinValidation() {
+        // A single node can form a cluster in this case
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "TODO")
+    public void testCannotJoinClusterWithDifferentUUID() {
+        // The cluster2 leader is considered dead since we only run the nodes in cluster 1
+        // therefore the node coming from cluster 2 ends up taking over the old master in cluster 2
+        // TODO: add more checks to avoid forming a mixed cluster between register based and traditional clusters
+    }
+
+    @Override
+    public void testJoiningNodeReceivesFullState() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            cluster.addNodesAndStabilise(1);
+            final Cluster.ClusterNode newNode = cluster.clusterNodes.get(cluster.clusterNodes.size() - 1);
+            final PublishClusterStateStats newNodePublishStats = newNode.coordinator.stats().getPublishStats();
+            // initial cluster state send when joining
+            assertEquals(1L, newNodePublishStats.getFullClusterStateReceivedCount());
+            // no reconfiguration
+            assertEquals(0, newNodePublishStats.getCompatibleClusterStateDiffReceivedCount());
+            assertEquals(0L, newNodePublishStats.getIncompatibleClusterStateDiffReceivedCount());
+        }
+    }
+
+    @Override
+    protected CoordinatorStrategy getCoordinatorStrategy() {
+        return new AtomicRegisterCoordinatorStrategy(keyedAtomicRegister);
+    }
+
+    record HeartBeat(DiscoveryNode leader, long absoluteTimeInMillis) {
+        long timeSinceLastHeartbeatInMillis(long nowInMillis) {
+            return nowInMillis - absoluteTimeInMillis;
+        }
+    }
+
+    static class AtomicRegisterHeartbeatService implements LeaderHeartbeatService {
+        private final KeyedAtomicRegister keyedAtomicRegister;
+        private final ThreadPool threadPool;
+        private final String registerKey;
+        private final TimeValue heartbeatFrequency;
+        private final TimeValue maxTimeSinceLastHeartbeat;
+
+        private DiscoveryNode currentLeader;
+        private Scheduler.Cancellable heartbeatTask;
+        private HeartBeat latestHeartBeat;
+
+        AtomicRegisterHeartbeatService(
+            KeyedAtomicRegister keyedAtomicRegister,
+            ThreadPool threadPool,
+            String registerKey,
+            TimeValue heartbeatFrequency,
+            TimeValue maxTimeSinceLastHeartbeat
+        ) {
+            this.keyedAtomicRegister = keyedAtomicRegister;
+            this.threadPool = threadPool;
+            this.registerKey = registerKey;
+            this.heartbeatFrequency = heartbeatFrequency;
+            this.maxTimeSinceLastHeartbeat = maxTimeSinceLastHeartbeat;
+        }
+
+        @Override
+        public void start(DiscoveryNode currentLeader) {
+            this.currentLeader = currentLeader;
+
+            sendHeartBeatToBlobStore();
+            this.heartbeatTask = threadPool.scheduleWithFixedDelay(
+                this::sendHeartBeatToBlobStore,
+                heartbeatFrequency,
+                ThreadPool.Names.GENERIC
+            );
+        }
+
+        private void sendHeartBeatToBlobStore() {
+            var heartBeat = new HeartBeat(this.currentLeader, threadPool.absoluteTimeInMillis());
+            keyedAtomicRegister.setHeartBeat(registerKey, heartBeat);
+            this.latestHeartBeat = heartBeat;
+        }
+
+        @Override
+        public void stop() {
+            this.currentLeader = null;
+            var heartBeatTask = this.heartbeatTask;
+            if (heartBeatTask != null) {
+                heartBeatTask.cancel();
+            }
+            keyedAtomicRegister.removeHeartBeat(registerKey, latestHeartBeat);
+        }
+
+        private Optional<DiscoveryNode> getCurrentLeaderFromRegister() {
+            var latestHeartBeat = keyedAtomicRegister.latestHeartBeat(registerKey);
+            if (latestHeartBeat == null) {
+                return Optional.empty();
+            }
+
+            if (maxTimeSinceLastHeartbeat.millis() > latestHeartBeat.timeSinceLastHeartbeatInMillis(threadPool.absoluteTimeInMillis())) {
+                return Optional.of(latestHeartBeat.leader());
+            } else {
+                return Optional.empty();
+            }
+        }
+    }
+
+    class AtomicRegisterCoordinatorStrategy implements CoordinatorStrategy {
+        static final Setting<String> REGISTER_KEY = Setting.simpleString("register_key", "default", Setting.Property.NodeScope);
+        static final Setting<TimeValue> HEARTBEAT_FREQUENCY = Setting.timeSetting(
+            "heartbeat_frequency",
+            TimeValue.timeValueSeconds(15),
+            Setting.Property.NodeScope
+        );
+        static final Setting<Integer> MAX_MISSED_HEARTBEATS = Setting.intSetting("max_missed_heartbeats", 2, 1, Setting.Property.NodeScope);
+
+        private final KeyedAtomicRegister keyedAtomicRegister;
+
+        AtomicRegisterCoordinatorStrategy(KeyedAtomicRegister keyedAtomicRegister) {
+            this.keyedAtomicRegister = keyedAtomicRegister;
+        }
+
+        @Override
+        public CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+            final TimeValue heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
+            var atomicHeartBeat = new AtomicRegisterHeartbeatService(
+                keyedAtomicRegister,
+                threadPool,
+                REGISTER_KEY.get(settings),
+                heartbeatFrequency,
+                TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings))
+            );
+            var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
+            var quorumStrategy = new AtomicRegisterQuorumStrategy(atomicHeartBeat::getCurrentLeaderFromRegister);
+            return new CoordinationServices() {
+                @Override
+                public QuorumStrategy getQuorumStrategy() {
+                    return quorumStrategy;
+                }
+
+                @Override
+                public Reconfigurator getReconfigurator() {
+                    return reconfigurator;
+                }
+
+                @Override
+                public LeaderHeartbeatService getLeaderHeartbeatService() {
+                    return atomicHeartBeat;
+                }
+            };
+        }
+
+        @Override
+        public CoordinationState.PersistedState createFreshPersistedState(
+            DiscoveryNode localNode,
+            BooleanSupplier disruptStorage,
+            Settings settings
+        ) {
+            return new AtomicRegisterPersistedState(localNode, REGISTER_KEY.get(settings), keyedAtomicRegister);
+        }
+
+        @Override
+        public CoordinationState.PersistedState createPersistedStateFromExistingState(
+            DiscoveryNode newLocalNode,
+            CoordinationState.PersistedState oldState,
+            Function<Metadata, Metadata> adaptGlobalMetadata,
+            Function<Long, Long> adaptCurrentTerm,
+            LongSupplier currentTimeInMillisSupplier,
+            NamedWriteableRegistry namedWriteableRegistry,
+            BooleanSupplier disruptStorage,
+            Settings settings
+        ) {
+            return new AtomicRegisterPersistedState(newLocalNode, REGISTER_KEY.get(settings), keyedAtomicRegister);
+        }
+
+        @Override
+        public CoordinationMetadata.VotingConfiguration getInitialConfigurationForNode(
+            DiscoveryNode localNode,
+            CoordinationMetadata.VotingConfiguration initialConfiguration
+        ) {
+            return new CoordinationMetadata.VotingConfiguration(Set.of(localNode.getId()));
+        }
+    }
+
+    static class SingleNodeReconfigurator extends Reconfigurator {
+        SingleNodeReconfigurator(Settings settings, ClusterSettings clusterSettings) {
+            super(settings, clusterSettings);
+        }
+
+        @Override
+        public CoordinationMetadata.VotingConfiguration reconfigure(
+            Set<DiscoveryNode> liveNodes,
+            Set<String> retiredNodeIds,
+            DiscoveryNode currentMaster,
+            CoordinationMetadata.VotingConfiguration currentConfig
+        ) {
+            assert currentConfig.hasQuorum(Set.of(currentMaster.getId()));
+            return currentConfig;
+        }
+
+        @Override
+        public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
+            return ClusterState.builder(clusterState)
+                .metadata(
+                    Metadata.builder(clusterState.metadata())
+                        .coordinationMetadata(
+                            CoordinationMetadata.builder(clusterState.coordinationMetadata())
+                                .lastAcceptedConfiguration(
+                                    new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
+                                )
+                                .lastCommittedConfiguration(
+                                    new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
+                                )
+                                .build()
+                        )
+                )
+                .build();
+        }
+    }
+
+    static class AtomicRegisterQuorumStrategy extends QuorumStrategy {
+        private final Supplier<Optional<DiscoveryNode>> currentLeaderSupplier;
+
+        AtomicRegisterQuorumStrategy(Supplier<Optional<DiscoveryNode>> currentLeaderSupplier) {
+            this.currentLeaderSupplier = currentLeaderSupplier;
+        }
+
+        @Override
+        protected boolean satisfiesAdditionalQuorumConstraints(
+            DiscoveryNode localNode,
+            long localCurrentTerm,
+            long localAcceptedTerm,
+            long localAcceptedVersion,
+            CoordinationMetadata.VotingConfiguration lastCommittedConfiguration,
+            CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
+            CoordinationState.VoteCollection joinVotes
+        ) {
+            return true;
+        }
+
+        @Override
+        public boolean isElectionQuorum(
+            DiscoveryNode localNode,
+            long localCurrentTerm,
+            long localAcceptedTerm,
+            long localAcceptedVersion,
+            CoordinationMetadata.VotingConfiguration lastCommittedConfiguration,
+            CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
+            CoordinationState.VoteCollection joinVotes
+        ) {
+            // Safety is guaranteed by the blob store CAS, elect the current node immediately as
+            // master and let the blob store decide whether this node should be the master.
+            return lastCommittedConfiguration.isEmpty() == false && lastAcceptedConfiguration.isEmpty() == false
+            // if there's a leader that's not the local node wait, otherwise win the election immediately
+                && currentLeaderSupplier.get().map(f -> f.equals(localNode)).orElse(true)
+                && joinVotes.containsVoteFor(localNode);
+        }
+
+        @Override
+        public boolean isPublishQuorum(
+            CoordinationState.VoteCollection voteCollection,
+            CoordinationMetadata.VotingConfiguration lastCommittedConfiguration,
+            CoordinationMetadata.VotingConfiguration latestPublishedConfiguration
+        ) {
+            assert latestPublishedConfiguration.getNodeIds().size() == 1;
+
+            return voteCollection.isQuorum(latestPublishedConfiguration);
+        }
+    }
+
+    record PersistentClusterState(long term, long version, Metadata state) {
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PersistentClusterState that = (PersistentClusterState) o;
+            return term == that.term
+                && version == that.version
+                && Objects.equals(state.coordinationMetadata(), that.state().coordinationMetadata());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(term, version, state.coordinationMetadata());
+        }
+    }
+
+    static class KeyedAtomicRegister {
+        private final Map<String, PersistentClusterState> clusterStates = new HashMap<>();
+        private final Map<String, HeartBeat> heartBeats = new HashMap<>();
+
+        PersistentClusterState readClusterState(String key) {
+            return clusterStates.get(key);
+        }
+
+        boolean compareAndSetClusterState(String key, PersistentClusterState expectedValue, PersistentClusterState newValue) {
+            final var currentValue = clusterStates.get(key);
+            if (Objects.equals(expectedValue, currentValue)) {
+                clusterStates.put(key, newValue);
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        void setHeartBeat(String key, HeartBeat heartBeat) {
+            heartBeats.put(key, heartBeat);
+        }
+
+        @Nullable
+        HeartBeat latestHeartBeat(String key) {
+            return heartBeats.get(key);
+        }
+
+        void removeHeartBeat(String key, HeartBeat latestHeartBeat) {
+            heartBeats.remove(key, latestHeartBeat);
+        }
+    }
+
+    class AtomicRegisterPersistedState implements CoordinationState.PersistedState {
+        private final DiscoveryNode localNode;
+        private final KeyedAtomicRegister keyedAtomicRegister;
+        private final String registerKey;
+        private long currentTerm;
+        private ClusterState latestAcceptedState;
+        private boolean empty;
+
+        AtomicRegisterPersistedState(DiscoveryNode localNode, String registerKey, KeyedAtomicRegister keyedAtomicRegister) {
+            this.localNode = localNode;
+            this.keyedAtomicRegister = keyedAtomicRegister;
+            this.registerKey = registerKey;
+            loadClusterStateFromRegister();
+        }
+
+        private void loadClusterStateFromRegister() {
+            final var currentState = keyedAtomicRegister.readClusterState(registerKey);
+            if (currentState == null) {
+                this.currentTerm = 0;
+                this.latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
+                    clusterState(
+                        0L,
+                        0L,
+                        this.localNode,
+                        CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                        CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                        0L
+                    )
+                );
+                this.empty = true;
+            } else {
+                this.currentTerm = Math.max(currentState.term(), this.currentTerm);
+                this.latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
+                    ClusterState.builder(new ClusterName("elasticsearch"))
+                        .metadata(currentState.state())
+                        .version(currentState.version())
+                        .nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build())
+                        .build()
+                );
+                this.empty = false;
+            }
+        }
+
+        @Override
+        public long getCurrentTerm() {
+            return currentTerm;
+        }
+
+        @Override
+        public ClusterState getLastAcceptedState() {
+            return latestAcceptedState;
+        }
+
+        @Override
+        public void setCurrentTerm(long currentTerm) {
+            this.currentTerm = currentTerm;
+        }
+
+        @Override
+        public void setLastAcceptedState(ClusterState clusterState) {
+            if (clusterState.nodes().isLocalNodeElectedMaster()) {
+                writeClusterState(clusterState);
+            }
+            this.latestAcceptedState = clusterState;
+        }
+
+        void writeClusterState(ClusterState state) {
+            final var newPersistedState = new PersistentClusterState(state.term(), state.version(), state.metadata());
+            final var expected = empty
+                ? null
+                : new PersistentClusterState(latestAcceptedState.term(), latestAcceptedState.version(), latestAcceptedState.metadata());
+            assert expected == null || expected.term() <= newPersistedState.term();
+            if (keyedAtomicRegister.compareAndSetClusterState(registerKey, expected, newPersistedState) == false) {
+                // TODO: call updateMaxTermSeen?
+                loadClusterStateFromRegister();
+                throw new RuntimeException("Conflicting cluster state update");
+            }
+            this.empty = false;
+        }
+
+        @Override
+        public void close() {
+            assertTrue(openPersistedStates.remove(this));
+        }
+    }
+}

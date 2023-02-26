@@ -100,13 +100,13 @@ public class CoordinationStateTestCluster {
     }
 
     static class ClusterNode {
-        private final ElectionStrategy electionStrategy;
+        private final QuorumStrategy quorumStrategy;
 
         DiscoveryNode localNode;
         CoordinationState.PersistedState persistedState;
         CoordinationState state;
 
-        ClusterNode(DiscoveryNode localNode, ElectionStrategy electionStrategy) {
+        ClusterNode(DiscoveryNode localNode, QuorumStrategy quorumStrategy) {
             this.localNode = localNode;
             persistedState = new InMemoryPersistedState(
                 0L,
@@ -119,8 +119,8 @@ public class CoordinationStateTestCluster {
                     0L
                 )
             );
-            this.electionStrategy = electionStrategy;
-            state = new CoordinationState(localNode, persistedState, electionStrategy);
+            this.quorumStrategy = quorumStrategy;
+            state = new CoordinationState(localNode, persistedState, quorumStrategy);
         }
 
         void reboot() {
@@ -159,7 +159,7 @@ public class CoordinationStateTestCluster {
                 localNode.getVersion()
             );
 
-            state = new CoordinationState(localNode, persistedState, electionStrategy);
+            state = new CoordinationState(localNode, persistedState, quorumStrategy);
         }
 
         void setInitialState(CoordinationMetadata.VotingConfiguration initialConfig, long initialValue) {
@@ -177,17 +177,17 @@ public class CoordinationStateTestCluster {
         }
     }
 
-    final ElectionStrategy electionStrategy;
+    final QuorumStrategy quorumStrategy;
     final List<Message> messages;
     final List<ClusterNode> clusterNodes;
     final CoordinationMetadata.VotingConfiguration initialConfiguration;
     final long initialValue;
 
-    public CoordinationStateTestCluster(List<DiscoveryNode> nodes, ElectionStrategy electionStrategy) {
-        this.electionStrategy = electionStrategy;
+    public CoordinationStateTestCluster(List<DiscoveryNode> nodes, QuorumStrategy quorumStrategy) {
+        this.quorumStrategy = quorumStrategy;
         messages = new ArrayList<>();
 
-        clusterNodes = nodes.stream().map(node -> new ClusterNode(node, electionStrategy)).collect(Collectors.toList());
+        clusterNodes = nodes.stream().map(node -> new ClusterNode(node, quorumStrategy)).collect(Collectors.toList());
 
         initialConfiguration = randomVotingConfig();
         initialValue = randomLong();

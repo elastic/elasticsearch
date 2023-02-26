@@ -106,6 +106,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -578,7 +579,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             assertTrue(leaderId + " has been bootstrapped", leader.coordinator.isInitialConfigurationSet());
             assertTrue(leaderId + " exists in its last-applied state", leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
             assertThat(
-                leaderId + " has no NO_MASTER_BLOCK",
+                leaderId + " has no NO_MASTER_BLOCK " + leader.getLastAppliedClusterState(),
                 leader.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
                 equalTo(false)
             );
@@ -902,23 +903,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return coordinatorStrategy.getInitialConfigurationForNode(localNode, initialConfiguration);
         }
 
-        private Reconfigurator getReconfigurator(Settings settings, ClusterSettings clusterSettings) {
-            return coordinatorStrategy.getReconfigurator(settings, clusterSettings);
-        }
-
-        private ElectionStrategy getElectionStrategy() {
-            return coordinatorStrategy.getElectionStrategy();
-        }
-
-        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode) {
-            return coordinatorStrategy.createFreshPersistedState(localNode, () -> disruptStorage);
+        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, Settings settings) {
+            return coordinatorStrategy.createFreshPersistedState(localNode, () -> disruptStorage, settings);
         }
 
         CoordinationState.PersistedState createPersistedStateFromExistingState(
             DiscoveryNode newLocalNode,
             CoordinationState.PersistedState oldState,
             Function<Metadata, Metadata> adaptGlobalMetadata,
-            Function<Long, Long> adaptCurrentTerm
+            Function<Long, Long> adaptCurrentTerm,
+            Settings settings
         ) {
             return coordinatorStrategy.createPersistedStateFromExistingState(
                 newLocalNode,
@@ -927,7 +921,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 adaptCurrentTerm,
                 deterministicTaskQueue::getCurrentTimeMillis,
                 getNamedWriteableRegistry(),
-                () -> disruptStorage
+                () -> disruptStorage,
+                settings
             );
         }
 
@@ -964,7 +959,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ClusterNode(
                 int nodeIndex,
                 DiscoveryNode localNode,
-                Function<DiscoveryNode, CoordinationState.PersistedState> persistedStateSupplier,
+                BiFunction<DiscoveryNode, Settings, CoordinationState.PersistedState> persistedStateSupplier,
                 Settings nodeSettings,
                 NodeHealthService nodeHealthService
             ) {
@@ -972,7 +967,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 this.nodeIndex = nodeIndex;
                 this.localNode = localNode;
                 this.nodeSettings = nodeSettings;
-                persistedState = persistedStateSupplier.apply(localNode);
+                persistedState = persistedStateSupplier.apply(localNode, nodeSettings);
                 assertTrue("must use a fresh PersistedState", openPersistedStates.add(persistedState));
                 boolean success = false;
                 try {
@@ -1090,6 +1085,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+                var y = getCoordinatorStrategy().getCoordinationServices(threadPool, settings, clusterSettings);
                 coordinator = new Coordinator(
                     "test_node",
                     settings,
@@ -1105,10 +1101,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     onJoinValidators,
                     Randomness.get(),
                     (s, p, r) -> {},
-                    getElectionStrategy(),
+                    y.getQuorumStrategy(),
                     nodeHealthService,
                     new NoneCircuitBreakerService(),
-                    getReconfigurator(settings, clusterSettings)
+                    y.getReconfigurator(),
+                    y.getLeaderHeartbeatService()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1195,7 +1192,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     return new ClusterNode(
                         nodeIndex,
                         newLocalNode,
-                        node -> createPersistedStateFromExistingState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm),
+                        (node, nodeSettings) -> createPersistedStateFromExistingState(
+                            newLocalNode,
+                            persistedState,
+                            adaptGlobalMetadata,
+                            adaptCurrentTerm,
+                            nodeSettings
+                        ),
                         settings,
                         nodeHealthService
                     );
@@ -1461,11 +1464,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     protected interface CoordinatorStrategy {
-        ElectionStrategy getElectionStrategy();
+        default CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+            return null;
+        }
 
-        Reconfigurator getReconfigurator(Settings settings, ClusterSettings clusterSettings);
-
-        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage);
+        CoordinationState.PersistedState createFreshPersistedState(
+            DiscoveryNode localNode,
+            BooleanSupplier disruptStorage,
+            Settings settings
+        );
 
         CoordinationState.PersistedState createPersistedStateFromExistingState(
             DiscoveryNode newLocalNode,
@@ -1474,35 +1481,58 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage
+            BooleanSupplier disruptStorage,
+            Settings settings
         );
 
         VotingConfiguration getInitialConfigurationForNode(DiscoveryNode localNode, VotingConfiguration initialConfiguration);
     }
 
+    protected interface CoordinationServices {
+        QuorumStrategy getQuorumStrategy();
+
+        Reconfigurator getReconfigurator();
+
+        LeaderHeartbeatService getLeaderHeartbeatService();
+    }
+
     public class DefaultCoordinatorStrategy implements CoordinatorStrategy {
-        private final ElectionStrategy electionStrategy;
+        private final QuorumStrategy quorumStrategy;
 
         public DefaultCoordinatorStrategy() {
-            this(ElectionStrategy.DEFAULT_INSTANCE);
+            this(QuorumStrategy.DEFAULT_INSTANCE);
         }
 
-        public DefaultCoordinatorStrategy(ElectionStrategy electionStrategy) {
-            this.electionStrategy = electionStrategy;
-        }
-
-        @Override
-        public ElectionStrategy getElectionStrategy() {
-            return ElectionStrategy.DEFAULT_INSTANCE;
+        public DefaultCoordinatorStrategy(QuorumStrategy quorumStrategy) {
+            this.quorumStrategy = quorumStrategy;
         }
 
         @Override
-        public Reconfigurator getReconfigurator(Settings settings, ClusterSettings clusterSettings) {
-            return new Reconfigurator(settings, clusterSettings);
+        public CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+            return new CoordinationServices() {
+                @Override
+                public QuorumStrategy getQuorumStrategy() {
+                    return quorumStrategy;
+                }
+
+                @Override
+                public Reconfigurator getReconfigurator() {
+                    return new Reconfigurator(settings, clusterSettings);
+                }
+
+                @Override
+                public LeaderHeartbeatService getLeaderHeartbeatService() {
+                    return LeaderHeartbeatService.NO_OP;
+                }
+            };
         }
 
         @Override
-        public CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+        public CoordinationState.PersistedState createFreshPersistedState(
+            DiscoveryNode localNode,
+            BooleanSupplier disruptStorage,
+            Settings settings
+        ) {
             return new MockPersistedState(localNode, disruptStorage);
         }
 
@@ -1514,7 +1544,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage
+            BooleanSupplier disruptStorage,
+            Settings settings
         ) {
             assert oldState instanceof MockPersistedState;
             return new MockPersistedState(
@@ -1655,10 +1686,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         final ClusterState oldClusterState = event.previousState();
                         final ClusterState newClusterState = event.state();
                         assert oldClusterState.version() <= newClusterState.version()
-                            : "updating cluster state from version "
-                                + oldClusterState.version()
-                                + " to stale version "
-                                + newClusterState.version();
+                            : "updating cluster state from version " + oldClusterState + " to stale version " + newClusterState;
                     }
                     case FAIL -> throw new ElasticsearchException("simulated cluster state applier failure");
                 }

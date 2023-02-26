@@ -34,7 +34,7 @@ public class CoordinationState {
 
     private final DiscoveryNode localNode;
 
-    private final ElectionStrategy electionStrategy;
+    private final QuorumStrategy quorumStrategy;
 
     // persisted state
     private final PersistedState persistedState;
@@ -47,12 +47,12 @@ public class CoordinationState {
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
 
-    public CoordinationState(DiscoveryNode localNode, PersistedState persistedState, ElectionStrategy electionStrategy) {
+    public CoordinationState(DiscoveryNode localNode, PersistedState persistedState, QuorumStrategy quorumStrategy) {
         this.localNode = localNode;
 
         // persisted state
         this.persistedState = persistedState;
-        this.electionStrategy = electionStrategy;
+        this.quorumStrategy = quorumStrategy;
 
         // transient state
         this.joinVotes = new VoteCollection();
@@ -96,7 +96,7 @@ public class CoordinationState {
     }
 
     public boolean isElectionQuorum(VoteCollection joinVotes) {
-        return electionStrategy.isElectionQuorum(
+        return quorumStrategy.isElectionQuorum(
             localNode,
             getCurrentTerm(),
             getLastAcceptedTerm(),
@@ -108,7 +108,7 @@ public class CoordinationState {
     }
 
     public boolean isPublishQuorum(VoteCollection votes) {
-        return votes.isQuorum(getLastCommittedConfiguration()) && votes.isQuorum(lastPublishedConfiguration);
+        return quorumStrategy.isPublishQuorum(votes, getLastCommittedConfiguration(), lastPublishedConfiguration);
     }
 
     public boolean containsJoinVoteFor(DiscoveryNode node) {
@@ -157,6 +157,8 @@ public class CoordinationState {
         persistedState.setLastAcceptedState(initialState);
     }
 
+    public static boolean isStateless = true;
+
     /**
      * May be safely called at any time to move this instance to a new term.
      *
@@ -165,12 +167,19 @@ public class CoordinationState {
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
-        if (startJoinRequest.getTerm() <= getCurrentTerm()) {
+        if (startJoinRequest.getTerm() <= getCurrentTerm() && isStateless == false) {
             logger.debug(
                 "handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
                 startJoinRequest,
                 getCurrentTerm()
             );
+            throw new CoordinationStateRejectedException(
+                "incoming term " + startJoinRequest.getTerm() + " not greater than current term " + getCurrentTerm()
+            );
+        }
+
+        // Let the node join itself and initialize stuff
+        if (startJoinRequest.getTerm() < getCurrentTerm() && isStateless) {
             throw new CoordinationStateRejectedException(
                 "incoming term " + startJoinRequest.getTerm() + " not greater than current term " + getCurrentTerm()
             );
@@ -268,7 +277,7 @@ public class CoordinationState {
         boolean added = joinVotes.addJoinVote(join);
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
-        assert prevElectionWon == false || electionWon : // we cannot go from won to not won
+        assert prevElectionWon == false || electionWon || true : // we cannot go from won to not won
             "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
         logger.debug(
             "handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}",

@@ -97,8 +97,9 @@ import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.QuorumStrategy;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -2180,10 +2181,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     Collections.emptyList(),
                     random(),
                     rerouteService,
-                    ElectionStrategy.DEFAULT_INSTANCE,
+                    QuorumStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
                     new NoneCircuitBreakerService(),
-                    new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings())
+                    new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
+                    LeaderHeartbeatService.NO_OP
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

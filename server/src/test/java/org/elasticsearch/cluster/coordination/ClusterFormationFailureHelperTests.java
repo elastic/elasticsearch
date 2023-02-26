@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class ClusterFormationFailureHelperTests extends ESTestCase {
 
-    private static final ElectionStrategy electionStrategy = ElectionStrategy.DEFAULT_INSTANCE;
+    private static final QuorumStrategy QUORUM_STRATEGY = QuorumStrategy.DEFAULT_INSTANCE;
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.
     private static final String LOGGER_NAME = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper";
@@ -93,7 +93,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     emptyList(),
                     emptyList(),
                     0L,
-                    electionStrategy,
+                    QUORUM_STRATEGY,
                     new StatusInfo(HEALTHY, "healthy-info"),
                     emptyList()
                 );
@@ -191,7 +191,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 15L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -209,7 +209,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(otherAddress),
                 emptyList(),
                 16L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -228,7 +228,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 singletonList(otherNode),
                 17L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -255,7 +255,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 15L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(UNHEALTHY, "unhealthy-info"),
                 emptyList()
             ).getDescription(),
@@ -281,7 +281,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 15L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(UNHEALTHY, "unhealthy-info"),
                 emptyList()
             ).getDescription(),
@@ -304,7 +304,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 1L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -325,7 +325,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(otherAddress),
                 emptyList(),
                 2L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -348,7 +348,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 singletonList(otherNode),
                 3L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -370,7 +370,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 4L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -422,7 +422,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -443,7 +443,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(otherAddress),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -466,7 +466,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 singletonList(otherNode),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -489,7 +489,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 singletonList(yetAnotherNode),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -518,7 +518,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -539,7 +539,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 singletonList(otherAddress),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -562,7 +562,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 singletonList(otherNode),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -585,7 +585,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 singletonList(yetAnotherNode),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -607,7 +607,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -627,7 +627,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -647,7 +647,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -667,7 +667,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -687,7 +687,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -707,7 +707,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -727,7 +727,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -747,7 +747,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -767,7 +767,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -787,7 +787,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -807,7 +807,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -851,7 +851,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -885,7 +885,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -920,7 +920,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 List.of(new JoinStatus(otherNode1, 1, JoinHelper.PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO))
             ).getDescription(),
@@ -934,7 +934,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 List.of(
                     new JoinStatus(otherNode1, 2, JoinHelper.PENDING_JOIN_CONNECTING, TimeValue.timeValueMillis(10000)),
@@ -980,7 +980,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(),
                 emptyList(),
                 0L,
-                electionStrategy,
+                QUORUM_STRATEGY,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 manyStatuses
             ).getDescription(),
@@ -1011,7 +1011,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             resolvedAddresses,
             foundPeers,
             0L,
-            electionStrategy,
+            QUORUM_STRATEGY,
             new StatusInfo(HEALTHY, "healthy-info"),
             joinStatuses
         );
@@ -1060,7 +1060,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     resolvedAddresses,
                     foundPeers,
                     currentTerm + 1,
-                    electionStrategy,
+                    QUORUM_STRATEGY,
                     statusInfo,
                     joinStatuses
                 );
@@ -1074,7 +1074,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     resolvedAddresses,
                     newFoundPeers,
                     currentTerm,
-                    electionStrategy,
+                    QUORUM_STRATEGY,
                     statusInfo,
                     joinStatuses
                 );
@@ -1095,7 +1095,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     resolvedAddresses,
                     foundPeers,
                     currentTerm,
-                    electionStrategy,
+                    QUORUM_STRATEGY,
                     statusInfo,
                     newJoinStatuses
                 );
@@ -1108,7 +1108,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     resolvedAddresses,
                     foundPeers,
                     currentTerm,
-                    electionStrategy,
+                    QUORUM_STRATEGY,
                     newStatusInfo,
                     joinStatuses
                 );
@@ -1120,7 +1120,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     resolvedAddresses,
                     foundPeers,
                     currentTerm,
-                    electionStrategy,
+                    QUORUM_STRATEGY,
                     statusInfo,
                     joinStatuses
                 );

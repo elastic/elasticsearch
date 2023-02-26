@@ -8,7 +8,10 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -180,9 +183,19 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
-            .cluster()
-            .nodesStats(nodesStatsRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> {
+            ActionListener<NodesStatsResponse> listener = new RestChunkedToXContentListener<>(channel);
+            final String level = channel.request().param("level", "node");
+            try {
+                ActionResponse.validateNodeResponseLevel(level);
+            } catch (IllegalArgumentException e) {
+                listener.onFailure(e);
+                return;
+            }
+            new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+                .cluster()
+                .nodesStats(nodesStatsRequest, listener);
+        };
     }
 
     private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

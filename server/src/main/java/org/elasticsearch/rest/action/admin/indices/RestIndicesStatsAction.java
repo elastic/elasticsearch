@@ -8,9 +8,12 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -138,9 +141,19 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
-            .indices()
-            .stats(indicesStatsRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> {
+            ActionListener<IndicesStatsResponse> listener = new RestChunkedToXContentListener<>(channel);
+            final String level = channel.request().param("level", "indices");
+            try {
+                ActionResponse.validateClusterResponseLevel(level);
+            } catch (IllegalArgumentException e) {
+                listener.onFailure(e);
+                return;
+            }
+            new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+                .indices()
+                .stats(indicesStatsRequest, listener);
+        };
     }
 
     @Override

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -78,12 +79,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         final String level = params.param("level", "indices");
-        final boolean isLevelValid = "cluster".equalsIgnoreCase(level)
-            || "indices".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
-        }
+        ActionResponse.validateClusterResponseLevel(level);
 
         builder.startArray("total");
         for (CacheIndexInputStats cis : getTotal()) {

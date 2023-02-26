@@ -9,6 +9,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -217,12 +218,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final String level = params.param("level", "node");
-        final boolean isLevelValid = "indices".equalsIgnoreCase(level)
-            || "node".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
-        }
+        ActionResponse.validateNodeResponseLevel(level);
 
         // "node" level
         builder.startObject(Fields.INDICES);

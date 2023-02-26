@@ -1,0 +1,5 @@
+pr: 94135
+summary: Add template not found exception support.
+area: Template API
+type: enhancement
+issues: [93125]

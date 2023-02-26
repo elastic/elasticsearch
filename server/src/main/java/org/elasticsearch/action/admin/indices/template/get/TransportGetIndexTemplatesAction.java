@@ -79,6 +79,8 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
                 }
             } else if (state.metadata().templates().containsKey(name)) {
                 results.add(state.metadata().templates().get(name));
+            } else {
+                listener.onFailure(new TemplateNotFoundException(name));
             }
         }
 

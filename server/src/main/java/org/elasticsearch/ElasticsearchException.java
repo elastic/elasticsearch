@@ -8,6 +8,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.action.admin.indices.template.get.TemplateNotFoundException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,6 +75,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String SHARD_METADATA_KEY = "es.shard";
     private static final String RESOURCE_METADATA_TYPE_KEY = "es.resource.type";
     private static final String RESOURCE_METADATA_ID_KEY = "es.resource.id";
+    private static final String TEMPLATE_METADATA_KEY = "es.template";
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
@@ -1580,6 +1582,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
             TransportVersion.V_8_5_0
+        ),
+        TEMPLATE_NOT_FOUND_EXCEPTION(
+            TemplateNotFoundException.class,
+            TemplateNotFoundException::new,
+            168,
+            TransportVersion.V_8_8_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;
@@ -1634,6 +1642,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         );
     }
 
+    public String getTemplate() {
+        List<String> template = getMetadata(TEMPLATE_METADATA_KEY);
+        if (template != null && template.isEmpty() == false) {
+            return template.get(0);
+        }
+        return null;
+    }
+
     public Index getIndex() {
         List<String> index = getMetadata(INDEX_METADATA_KEY);
         if (index != null && index.isEmpty() == false) {
@@ -1650,6 +1666,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return new ShardId(getIndex(), Integer.parseInt(shard.get(0)));
         }
         return null;
+    }
+
+    public void setTemplate(String template) {
+        if (template != null) {
+            addMetadata(TEMPLATE_METADATA_KEY, template);
+        }
     }
 
     public void setIndex(Index index) {

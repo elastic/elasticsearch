@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.license.License.LicenseType;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.rest.RestStatus;
 
 import java.nio.charset.StandardCharsets;
@@ -84,5 +85,18 @@ public class LicenseUtils {
         return LicenseOverrides.overrideDateForLicense(licenseUidHash)
             .map(date -> date.toInstant().toEpochMilli())
             .orElse(license.expiryDate());
+    }
+
+    /**
+     * Gets the current status of a license
+     */
+    public static LicenseStatus status(License license) {
+        long now = System.currentTimeMillis();
+        if (license.issueDate() > now) {
+            return LicenseStatus.INVALID;
+        } else if (getExpiryDate(license) < now) {
+            return LicenseStatus.EXPIRED;
+        }
+        return LicenseStatus.ACTIVE;
     }
 }

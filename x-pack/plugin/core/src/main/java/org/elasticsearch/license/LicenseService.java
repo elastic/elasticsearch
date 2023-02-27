@@ -32,7 +32,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -221,19 +220,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 logExpirationWarning(LicenseUtils.getExpiryDate(license), true);
             }
         });
-    }
-
-    /**
-     * Gets the current status of a license
-     */
-    public static LicenseStatus status(License license) {
-        long now = System.currentTimeMillis();
-        if (license.issueDate() > now) {
-            return LicenseStatus.INVALID;
-        } else if (LicenseUtils.getExpiryDate(license) < now) {
-            return LicenseStatus.EXPIRED;
-        }
-        return LicenseStatus.ACTIVE;
     }
 
     /**

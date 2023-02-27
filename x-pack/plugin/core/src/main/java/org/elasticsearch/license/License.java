@@ -514,7 +514,7 @@ public class License implements ToXContentObject {
             licenseVersion = this.version;
         }
         if (restViewMode) {
-            builder.field(Fields.STATUS, LicenseService.status(this).label());
+            builder.field(Fields.STATUS, LicenseUtils.status(this).label());
         }
         builder.field(Fields.UID, uid);
         final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;

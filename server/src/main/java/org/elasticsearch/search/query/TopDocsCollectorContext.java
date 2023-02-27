@@ -206,22 +206,44 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             this.sortAndFormats = sortAndFormats;
 
             final TopDocsCollector<?> topDocsCollector;
+            final Collector hitCountCollector;
 
             if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0])) && hasInfMaxScore(query)) {
                 // disable max score optimization since we have a mandatory clause
                 // that doesn't track the maximum score
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, Integer.MAX_VALUE);
+                // top docs collector counts total hits
+                hitCountCollector = null;
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
                 totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
             } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                // don't compute hit counts via the collector
+                // don't compute hit counts at all
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1);
+                hitCountCollector = null;
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
                 totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
-                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, trackTotalHitsUpTo);
+                // compute hit counts separately, so we can rely on TotalHitCountCollector to shortcut to Weight#count when possible
+                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1);
+                TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
+                if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                    hitCountCollector = totalHitCountCollector;
+                    totalHitsSupplier = () -> new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
+                } else {
+                    EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(
+                        totalHitCountCollector,
+                        trackTotalHitsUpTo,
+                        false
+                    );
+                    hitCountCollector = earlyTerminatingCollector;
+                    totalHitsSupplier = () -> new TotalHits(
+                        totalHitCountCollector.getTotalHits(),
+                        earlyTerminatingCollector.hasEarlyTerminated()
+                            ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                            : TotalHits.Relation.EQUAL_TO
+                    );
+                }
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
-                totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
             }
             MaxScoreCollector maxScoreCollector = null;
             if (sortAndFormats == null) {
@@ -240,8 +262,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 maxScoreSupplier = () -> Float.NaN;
             }
 
-            this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
-
+            this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector, hitCountCollector);
         }
 
         @Override

@@ -39,6 +39,7 @@ import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -47,7 +48,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(TestGeoShapeFieldMapperPlugin.class);
+        return List.of(TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -228,7 +229,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 ScoreDoc[] scoreDocs = scoreDocsList.toArray(new ScoreDoc[0]);
 
                 KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs);
-                Query query = queryBuilder.doToQuery(context);
+                final Query query = queryBuilder.doToQuery(context);
+                final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
 
                 TopDocs topDocs = searcher.search(query, 100);
                 assertEquals(scoreDocs.length, topDocs.totalHits.value);
@@ -240,6 +242,14 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                     assertEquals(scoreDocs[i].doc, topDocs.scoreDocs[i].doc);
                     assertEquals(scoreDocs[i].score, topDocs.scoreDocs[i].score, 0.0001f);
                     assertTrue(searcher.explain(query, scoreDocs[i].doc).isMatch());
+                }
+
+                for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
+                    Scorer scorer = w.scorer(leafReaderContext);
+                    // If we have matching docs, the score should always be greater than 0 for that segment
+                    if (scorer != null) {
+                        assertThat(leafReaderContext.toString(), scorer.getMaxScore(NO_MORE_DOCS), greaterThan(0.0f));
+                    }
                 }
             }
         }

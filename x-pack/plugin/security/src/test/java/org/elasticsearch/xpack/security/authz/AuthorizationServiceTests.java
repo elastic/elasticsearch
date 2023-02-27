@@ -257,7 +257,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         auditTrail = mock(AuditTrail.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         threadContext = new ThreadContext(settings);
         securityContext = new SecurityContext(settings, threadContext);
         threadPool = mock(ThreadPool.class);

@@ -8,12 +8,18 @@
 
 package org.elasticsearch.dlm;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -25,10 +31,13 @@ import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 
 /**
  * Plugin encapsulating Data Lifecycle Management Service.
@@ -36,6 +45,7 @@ import java.util.function.Supplier;
 public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
+    private final SetOnce<DataLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
 
     public DataLifecyclePlugin(Settings settings) {
         this.settings = settings;
@@ -66,20 +76,39 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         Tracer tracer,
         AllocationService allocationService
     ) {
-        return super.createComponents(
-            client,
-            clusterService,
-            threadPool,
-            resourceWatcherService,
-            scriptService,
-            xContentRegistry,
-            environment,
-            nodeEnvironment,
-            namedWriteableRegistry,
-            indexNameExpressionResolver,
-            repositoriesServiceSupplier,
-            tracer,
-            allocationService
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
+        dataLifecycleInitialisationService.set(
+            new DataLifecycleService(
+                settings,
+                new OriginSettingClient(client, DLM_ORIGIN),
+                clusterService,
+                getClock(),
+                threadPool,
+                threadPool::absoluteTimeInMillis
+            )
         );
+        dataLifecycleInitialisationService.get().init();
+        return List.of(dataLifecycleInitialisationService.get());
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
+        return List.of(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
+    }
+
+    @Override
+    public void close() throws IOException {
+        try {
+            IOUtils.close(dataLifecycleInitialisationService.get());
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to close the data lifecycle service", e);
+        }
     }
 }

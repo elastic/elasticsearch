@@ -261,7 +261,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(realms.getActiveRealms(), contains(firstRealm, secondRealm));
 
         auditTrail = mock(AuditTrail.class);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,

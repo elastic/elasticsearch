@@ -119,6 +119,6 @@ public class RollupJob implements SimpleDiffable<RollupJob>, PersistentTaskParam
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 }

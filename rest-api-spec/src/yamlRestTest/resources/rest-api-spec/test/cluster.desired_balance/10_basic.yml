@@ -68,6 +68,24 @@ setup:
   - gte: { 'cluster_balance_stats.nodes.$node_name.actual_disk_usage_bytes' : 0 }
 
 ---
+"Test cluster_balance_stats contains node ID":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "Node ID added in in 8.8.0"
+
+  - do:
+      cluster.state: {}
+  - set: { nodes._arbitrary_key_ : node_id }
+  - set: { nodes.$node_id.name : node_name }
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'cluster_balance_stats.nodes.$node_name'
+  - is_true: 'cluster_balance_stats.nodes.$node_name.node_id'
+
+---
 "Test get desired balance for single shard":
   - do:
       indices.create:

@@ -63,7 +63,7 @@ public class InboundDecoder implements Releasable {
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                    Header header = readHeader(version, messageLength, reference);
+                    Header header = readHeader(messageLength, reference);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         isCompressed = true;
@@ -171,8 +171,7 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    // exposed for use in tests
-    static Header readHeader(TransportVersion version, int networkMessageSize, BytesReference bytesReference) throws IOException {
+    private static Header readHeader(int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();
@@ -183,7 +182,7 @@ public class InboundDecoder implements Releasable {
             if (header.isHandshake()) {
                 checkHandshakeVersionCompatibility(header.getVersion());
             } else {
-                checkVersionCompatibility(header.getVersion(), version);
+                checkVersionCompatibility(header.getVersion());
             }
 
             if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
@@ -216,10 +215,14 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    static void checkVersionCompatibility(TransportVersion remoteVersion, TransportVersion currentVersion) {
-        if (remoteVersion.isCompatible(currentVersion) == false) {
+    static void checkVersionCompatibility(TransportVersion remoteVersion) {
+        if (TransportVersion.isCompatible(remoteVersion) == false) {
             throw new IllegalStateException(
-                "Received message from unsupported version: [" + remoteVersion + "] minimal compatible version is: [" + currentVersion + "]"
+                "Received message from unsupported version: ["
+                    + remoteVersion
+                    + "] minimal compatible version is: ["
+                    + TransportVersion.MINIMUM_COMPATIBLE
+                    + "]"
             );
         }
     }

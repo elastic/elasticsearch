@@ -700,6 +700,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
                 )
+                .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
                 .build(),
             new TestGatewayAllocator() {
                 @Override

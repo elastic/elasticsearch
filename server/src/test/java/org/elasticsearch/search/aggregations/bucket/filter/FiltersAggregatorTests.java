@@ -1512,6 +1512,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             Map.of(),
             null,
             false,
+            null,
             null
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
@@ -1534,6 +1535,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 Map.of(),
                 null,
                 false,
+                null,
                 null
             )
         );

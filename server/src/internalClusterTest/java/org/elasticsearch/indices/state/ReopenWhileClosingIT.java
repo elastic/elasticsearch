@@ -142,7 +142,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
                             if (Glob.globMatch(indexPattern, index)) {
                                 logger.info("request {} intercepted for index {}", requestId, index);
                                 onIntercept.run();
-                                release.addListener(ActionListener.wrap(() -> {
+                                release.addListener(ActionListener.running(() -> {
                                     logger.info("request {} released for index {}", requestId, index);
                                     try {
                                         connection.sendRequest(requestId, action, request, options);

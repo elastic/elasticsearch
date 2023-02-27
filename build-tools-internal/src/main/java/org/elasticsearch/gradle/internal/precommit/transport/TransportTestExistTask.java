@@ -25,18 +25,21 @@ import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
-import org.objectweb.asm.ClassReader;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -110,6 +113,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
 
         private final Logger logger = Logging.getLogger(TransportTestExistTask.class);
+        private static final String MODULE_INFO = "module-info.class";
 
         private final ExecOperations execOperations;
 
@@ -120,55 +124,36 @@ public abstract class TransportTestExistTask extends PrecommitTask {
 
         @Override
         public void execute() {
-            Set<File> mainClasses = getParameters().getMainSources().getFiles();
-            Set<File> testClasses = getParameters().getTestSources().getFiles();
-            Set<File> compileClassPath = getParameters().getCompileClasspath().getFiles();
-            Set<File> testClassPath = getParameters().getTestClasspath().getFiles();
-            Set<String> skipClasses = getParameters().getSkipClasses().get();
+            URL[] allUrls = allClasses();
+            ClassLoader cl = new URLClassLoader(allUrls);
 
-            // this is always run.. should be cached?
-            ClassHierarchyScanner compileClassPathScanner = new ClassHierarchyScanner();
-            ClassReaders.forEach(compileClassPath, cr -> cr.accept(compileClassPathScanner, ClassReader.SKIP_CODE));
+            String writeableClassName = "org.elasticsearch.common.io.stream.Writeable";
+            Class<?> writeableClass = loadClass(cl, writeableClassName);
 
-            ClassHierarchyScanner transportClassesScanner = new ClassHierarchyScanner();
-            ClassReaders.forEach(mainClasses, cr -> { cr.accept(transportClassesScanner, ClassReader.SKIP_CODE); });
+            Set<String> transportClasses = traverseClassesInRoots(getParameters().getMainSources()).stream()
+                .filter(n -> isSubclassOf(n, cl, Set.of(writeableClass)))
+                .collect(Collectors.toSet());
 
-            String writeableClassName = "org/elasticsearch/common/io/stream/Writeable";
-            Map<String, String> subclassesOfWriteable = compileClassPathScanner.allFoundSubclasses(
-                Map.of(writeableClassName, writeableClassName)
+            Set<Class<?>> transportTestRootClasses = Set.of(
+                loadClass(cl, "org.elasticsearch.test.AbstractWireTestCase"),
+                loadClass(cl, "org.elasticsearch.test.AbstractQueryTestCase"),
+                loadClass(cl, "org.elasticsearch.search.aggregations.BaseAggregationTestCase"),
+                loadClass(cl, "org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase"),
+                loadClass(cl, "org.elasticsearch.test.AbstractQueryVectorBuilderTestCase")
             );
-            Set<String> transportClasses = transportClassesScanner.getConcreteSubclasses(subclassesOfWriteable);
+            Set<String> transportTests = traverseClassesInRoots(getParameters().getTestSources()).stream()
+                .filter(n -> isSubclassOf(n, cl, transportTestRootClasses))
+                .collect(Collectors.toSet());
 
-            // this is always run.. should be cached?
-            ClassHierarchyScanner testClassPathScanner = new ClassHierarchyScanner();
-            ClassReaders.forEach(testClassPath, cr -> cr.accept(testClassPathScanner, ClassReader.SKIP_CODE));
+            Set<String> missingTestClasses = findMissingTestClasses(transportClasses, transportTests);
 
-            ClassHierarchyScanner transportTestsScanner = new ClassHierarchyScanner();
-            ClassReaders.forEach(testClasses, cr -> cr.accept(transportTestsScanner, ClassReader.SKIP_CODE));
-            Map<String, String> subclassesOfTransportTestCase = testClassPathScanner.allFoundSubclasses(
-                mapOfPairs(
-                    "org/elasticsearch/test/AbstractWireTestCase",
-                    "org/elasticsearch/test/AbstractQueryTestCase",
-                    "org/elasticsearch/search/aggregations/BaseAggregationTestCase",
-                    "org/elasticsearch/search/aggregations/BasePipelineAggregationTestCase",
-                    "org/elasticsearch/test/AbstractQueryVectorBuilderTestCase"
-
-                )
-            );
-            Set<String> transportTestClasses = transportTestsScanner.getConcreteSubclasses(subclassesOfTransportTestCase);
-            transportClasses.removeAll(skipClasses);
-
-            List<String> classesWithoutTests = new ArrayList<>();
-            for (String transportClass : transportClasses) {
-                findTest(transportClass, transportTestClasses, transportTestsScanner.getInnerClasses(), classesWithoutTests);
-            }
-            if (classesWithoutTests.size() > 0) {
+            if (missingTestClasses.size() > 0) {
                 throw new GradleException(
                     "There are "
-                        + classesWithoutTests.size()
+                        + missingTestClasses.size()
                         + " missing tests for classes\n"
                         + "tasks.named(\"transportTestExistCheck\").configure { task ->\n"
-                        + classesWithoutTests.stream()
+                        + missingTestClasses.stream()
                             .map(s -> "task.skipMissingTransportTest(\"" + s + "\",\"missing test\")")
                             .collect(Collectors.joining("\n"))
                         + "\n}"
@@ -176,41 +161,86 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             }
         }
 
-        private Map<String, String> mapOfPairs(String... className) {
-            return Arrays.stream(className).collect(Collectors.toMap(Function.identity(), Function.identity()));
-        }
-
-        private void findTest(
-            String transportClassWithPackage,
-            Set<String> transportTestClasses,
-            Map<String, String> innerClasses,
-            List<String> classesWithoutTests
-        ) {
-            String transportClass = getClassName(transportClassWithPackage);
-            Optional<String> any = transportTestClasses.stream().filter(p -> p.contains(transportClass)).findAny();
-            if (any.isPresent()) {
-                System.out.println("Test " + any.get() + " for class " + transportClass);
-
-            } else if (innerClasses.containsKey(transportClassWithPackage)) {
-                String enclosingClassName = getClassName(innerClasses.get(transportClassWithPackage));
-                Optional<String> enclosing = transportTestClasses.stream().filter(p -> p.contains(enclosingClassName)).findAny();
-                if (enclosing.isPresent() == false) {
-                    classesWithoutTests.add(transportClass);
+        private Set<String> findMissingTestClasses(Set<String> transportClasses, Set<String> transportTests) {
+            Set<String> missingTestClasses = new HashSet<>();
+            for (String c : transportClasses) {
+                var name = getClassName(c);
+                var nameToLook = name.contains("$") ? name.substring(0, name.indexOf('$')) : name;
+                Optional<String> found = transportTests.stream().filter(tt -> tt.contains(nameToLook)).findAny();
+                if (found.isEmpty()) {
+                    missingTestClasses.add(c);
                 } else {
-                    System.out.println("Test " + enclosing.get() + " for class " + transportClass);
+                    System.out.println("Found test " + found.get() + " for class " + c);
                 }
-                // System.out.println("Test missing for class " + transportClass);
-            } else {
-                classesWithoutTests.add(transportClass);
-
             }
-
+            missingTestClasses.stream().forEach(s -> System.out.println(s));
+            return missingTestClasses;
         }
 
-        private static String getClassName(String transportClassWithPackage) {
-            return transportClassWithPackage.substring(transportClassWithPackage.lastIndexOf('/') + 1);
+        private URL[] allClasses() {
+            Set<URL> mainClasses = getURLs(getParameters().getMainSources());
+            Set<URL> testClasses = getURLs(getParameters().getTestSources());
+
+            Set<URL> compileClassPath = getURLs(getParameters().getCompileClasspath());
+            Set<URL> testClassPath = getURLs(getParameters().getTestClasspath());
+
+            URL[] allUrls = Stream.of(mainClasses, testClasses, compileClassPath, testClassPath).flatMap(Set::stream).toArray(URL[]::new);
+            return allUrls;
         }
 
+        private boolean isSubclassOf(String name, ClassLoader cl, Set<Class<?>> rootClasses) {
+            try {
+                Class<?> clazz = Class.forName(name, false, cl);
+                return rootClasses.stream().filter(c -> c.isAssignableFrom(clazz)).findAny().isPresent();
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private Set<String> traverseClassesInRoots(ConfigurableFileCollection roots) {
+            return roots.getFiles().stream().map(f -> {
+                try (var stream = Files.walk(Path.of(f.toString()))) {
+                    return stream.filter(Files::isRegularFile)
+                        .filter(p -> p.toString().endsWith(".class"))
+                        .filter(p -> p.toString().endsWith(MODULE_INFO) == false)
+                        .filter(p -> p.toString().startsWith("/META-INF") == false)// skip multi-release files
+                        .map(p -> getNameFromFilePath(p.toString()))
+                        .collect(Collectors.toList());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).flatMap(List::stream).collect(Collectors.toSet());
+        }
+
+        private Set<URL> getURLs(ConfigurableFileCollection mainSources1) {
+            return mainSources1.getFiles().stream().map(f -> {
+                try {
+                    return f.toURI().toURL();
+                } catch (MalformedURLException e) {
+                    return null;
+                }
+            }).filter(f -> f != null).collect(Collectors.toSet());
+        }
+
+        private static String getNameFromFilePath(String file1) {
+            String file = file1.split("java\\/(main|test)")[1].substring(1);
+            String withoutDotClass = file.substring(0, file.lastIndexOf("."));
+            return withoutDotClass.replace('/', '.');
+        }
+
+        private String getClassName(String transportClassWithPackage) {
+            return transportClassWithPackage.substring(transportClassWithPackage.lastIndexOf('.') + 1);
+        }
+
+        private static Class<?> loadClass(ClassLoader cl, String writeableClassName) {
+            Class<?> writeableClass = null;
+            try {
+                writeableClass = Class.forName(writeableClassName, false, cl);
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+            return writeableClass;
+        }
     }
 
     interface Parameters extends WorkParameters {

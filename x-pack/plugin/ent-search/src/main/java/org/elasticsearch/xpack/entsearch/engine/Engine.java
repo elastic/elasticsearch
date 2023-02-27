@@ -155,6 +155,7 @@ public class Engine implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(INDICES_FIELD.getPreferredName(), indices);
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);

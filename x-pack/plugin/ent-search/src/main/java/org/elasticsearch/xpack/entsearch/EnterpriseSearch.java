@@ -44,12 +44,15 @@ import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 import org.elasticsearch.xpack.entsearch.engine.action.DeleteEngineAction;
 import org.elasticsearch.xpack.entsearch.engine.action.GetEngineAction;
+import org.elasticsearch.xpack.entsearch.engine.action.ListEnginesAction;
 import org.elasticsearch.xpack.entsearch.engine.action.PutEngineAction;
 import org.elasticsearch.xpack.entsearch.engine.action.RestDeleteEngineAction;
 import org.elasticsearch.xpack.entsearch.engine.action.RestGetEngineAction;
+import org.elasticsearch.xpack.entsearch.engine.action.RestListEnginesAction;
 import org.elasticsearch.xpack.entsearch.engine.action.RestPutEngineAction;
 import org.elasticsearch.xpack.entsearch.engine.action.TransportDeleteEngineAction;
 import org.elasticsearch.xpack.entsearch.engine.action.TransportGetEngineAction;
+import org.elasticsearch.xpack.entsearch.engine.action.TransportListEnginesAction;
 import org.elasticsearch.xpack.entsearch.engine.action.TransportPutEngineAction;
 
 import java.util.Arrays;
@@ -82,6 +85,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         }
         return List.of(
             new ActionPlugin.ActionHandler<>(GetEngineAction.INSTANCE, TransportGetEngineAction.class),
+            new ActionHandler<>(ListEnginesAction.INSTANCE, TransportListEnginesAction.class),
             new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class),
             new ActionHandler<>(DeleteEngineAction.INSTANCE, TransportDeleteEngineAction.class)
         );
@@ -101,7 +105,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return List.of(new RestGetEngineAction(), new RestPutEngineAction(), new RestDeleteEngineAction());
+        return List.of(new RestGetEngineAction(), new RestListEnginesAction(), new RestPutEngineAction(), new RestDeleteEngineAction());
     }
 
     @Override

@@ -573,7 +573,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     // pkg private for tests
-    static SchedulerEngine.Schedule nextLicenseCheck(License license) {
+    SchedulerEngine.Schedule nextLicenseCheck(License license) {
         return (startTime, time) -> {
             if (time < license.issueDate()) {
                 // when we encounter a license with a future issue date

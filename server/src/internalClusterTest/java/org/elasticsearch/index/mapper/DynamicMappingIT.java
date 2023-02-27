@@ -433,7 +433,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(bulkItemResponses.getItems()[1].getFailure().getCause(), instanceOf(DocumentParsingException.class));
         assertThat(
             bulkItemResponses.getItems()[1].getFailureMessage(),
-            containsString("Can't find dynamic template for dynamic template name [bar_foo] of field [address.location]")
+            containsString("[1:21] Can't find dynamic template for dynamic template name [bar_foo] of field [address.location]")
         );
     }
 

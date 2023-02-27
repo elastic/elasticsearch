@@ -24,6 +24,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -1977,5 +1978,10 @@ public abstract class Engine implements Closeable {
         public RefreshResult(boolean refreshed) {
             this(refreshed, UNKNOWN_GENERATION);
         }
+    }
+
+    // Checks whether the given doc id (provided as uid) exists in the versionMap
+    public boolean isInVersionMap(BytesRef uid) {
+        throw new UnsupportedOperationException();
     }
 }

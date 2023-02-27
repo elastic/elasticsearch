@@ -63,6 +63,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         );
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
+        // register the internal TransportGetFromTranslogAction
+        new TransportGetFromTranslogAction(transportService, indicesService, actionFilters);
     }
 
     @Override
@@ -120,15 +122,16 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         var shardRouting = clusterService.state().getRoutingNodes().node(clusterService.localNode().getId()).getByShardId(shardId);
 
         if (request.realtime() && shardRouting.isPromotableToPrimary() == false) {
-            PlainActionFuture<TransportGetFromTranslog.Response> listener = new PlainActionFuture<>();
+            // TODO: this shouldn't be blocking like this
+            PlainActionFuture<TransportGetFromTranslogAction.Response> listener = new PlainActionFuture<>();
             var node = clusterService.state()
                 .nodes()
                 .get(clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().currentNodeId());
             transportService.sendRequest(
                 node,
-                TransportGetFromTranslog.NAME,
+                TransportGetFromTranslogAction.NAME,
                 request,
-                new ActionListenerResponseHandler<>(listener, TransportGetFromTranslog.Response::new)
+                new ActionListenerResponseHandler<>(listener, TransportGetFromTranslogAction.Response::new)
             );
             var response = FutureUtils.get(listener);
             if (response.getResult() != null) {

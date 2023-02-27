@@ -769,13 +769,12 @@ public class InternalEngine extends Engine {
         }
     }
 
-    public boolean isInVersionMap(Get get) {
-        assert get.realtime();
-        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+    @Override
+    public boolean isInVersionMap(final BytesRef uid) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
-                return getVersionFromMap(get.uid().bytes()) != null;
+            try (Releasable ignore = versionMap.acquireLock(uid)) {
+                return versionMap.exists(uid);
             }
         }
     }

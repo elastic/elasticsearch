@@ -14,6 +14,7 @@ import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
@@ -58,8 +59,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -72,6 +71,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.getRegisterUsingConsistentRead;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
@@ -795,7 +795,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
-        var clientReference = blobStore.clientReference();
+        final var clientReference = blobStore.clientReference();
         ActionListener.run(ActionListener.releaseAfter(listener.delegateResponse((delegate, e) -> {
             if (e instanceof AmazonS3Exception amazonS3Exception && amazonS3Exception.getStatusCode() == 404) {
                 // an uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it
@@ -815,28 +815,14 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void getRegister(String key, ActionListener<OptionalLong> listener) {
         ActionListener.completeWith(listener, () -> {
-            try (var stream = readBlob(key)) {
-                int len = Long.BYTES;
-                int pos = 0;
-                final byte[] bytes = new byte[len];
-                while (len > 0) {
-                    final var read = stream.read(bytes, pos, len);
-                    if (read == -1) {
-                        throw new IllegalStateException(
-                            Strings.format("failed reading register [%s] due to truncation at [%d] bytes", buildKey(key), pos)
-                        );
-                    }
-                    len -= read;
-                    pos += read;
-                }
-                if (stream.read() != -1) {
-                    throw new IllegalStateException(
-                        Strings.format("failed reading register [%s] due to unexpected trailing data", buildKey(key))
-                    );
-                }
-                return OptionalLong.of(ByteBuffer.wrap(bytes).getLong());
-            } catch (NoSuchFileException e) {
-                return OptionalLong.of(0L);
+            final var getObjectRequest = new GetObjectRequest(blobStore.bucket(), buildKey(key));
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
+            try (
+                var clientReference = blobStore.clientReference();
+                var s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
+                var stream = s3Object.getObjectContent()
+            ) {
+                return getRegisterUsingConsistentRead(stream, keyPath, key);
             }
         });
     }

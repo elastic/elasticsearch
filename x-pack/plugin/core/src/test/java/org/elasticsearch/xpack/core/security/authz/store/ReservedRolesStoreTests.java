@@ -754,7 +754,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Fleet audit log indices
-        Array.asList(".logs-fleet.audit_logs-" + randomAlphaOfLengthBetween(3, 8)).forEach((index) -> {
+        Arrays.asList(".logs-fleet.audit_logs-" + randomAlphaOfLengthBetween(3, 8)).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));

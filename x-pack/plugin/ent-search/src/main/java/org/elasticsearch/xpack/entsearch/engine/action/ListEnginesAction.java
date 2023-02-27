@@ -63,7 +63,7 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
         @Override
         public ActionRequestValidationException validate() {
-            // TODO check params validation work in constructor
+            // Validation is done as part of PageParams constructor
             return null;
         }
 

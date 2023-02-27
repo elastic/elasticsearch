@@ -29,15 +29,14 @@ import java.util.function.Supplier;
  */
 class MockHttpProxyServer implements Closeable {
 
-    private final EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-    private final EventLoopGroup workerGroup = new NioEventLoopGroup();
+    private final EventLoopGroup eventLoop = new NioEventLoopGroup(1);
 
     private ChannelFuture channelFuture;
     private InetSocketAddress socketAddress;
 
     MockHttpProxyServer handler(Supplier<SimpleChannelInboundHandler<FullHttpRequest>> handler) {
         try {
-            channelFuture = new ServerBootstrap().group(bossGroup, workerGroup)
+            channelFuture = new ServerBootstrap().group(eventLoop)
                 .channel(NioServerSocketChannel.class)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
@@ -69,7 +68,6 @@ class MockHttpProxyServer implements Closeable {
     @Override
     public void close() throws IOException {
         channelFuture.channel().close().awaitUninterruptibly();
-        bossGroup.shutdownGracefully();
-        workerGroup.shutdownGracefully();
+        eventLoop.shutdownGracefully();
     }
 }

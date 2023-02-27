@@ -107,8 +107,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     public void testDefaultKeepAliveSettings() throws IOException {
         assumeTrue("setting default keepalive options not supported on this platform", (IOUtils.LINUX || IOUtils.MAC_OS_X));
         try (
-            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)
+            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY)
         ) {
 
             try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
@@ -151,8 +151,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         );
 
         try (
-            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
-            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)
+            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, TransportVersion.CURRENT, Settings.EMPTY)
         ) {
 
             try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), connectionProfile)) {
@@ -230,7 +230,17 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 TransportRequestOptions.Type.STATE
             );
             // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
-            try (TransportService service = buildService("TS_TPC", Version.CURRENT, null, Settings.EMPTY, true, false)) {
+            try (
+                TransportService service = buildService(
+                    "TS_TPC",
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    null,
+                    Settings.EMPTY,
+                    true,
+                    false
+                )
+            ) {
                 IOUtils.close(openConnection(service, first, builder.build()));
                 builder.setConnectTimeout(TimeValue.timeValueMillis(1));
                 final ConnectionProfile profile = builder.build();

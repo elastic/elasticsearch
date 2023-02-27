@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,8 +34,8 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
         return builder.build();
     }
 
-    public static TextEmbeddingConfigUpdate mutateForVersion(TextEmbeddingConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+    public static TextEmbeddingConfigUpdate mutateForVersion(TextEmbeddingConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_1_0)) {
             return new TextEmbeddingConfigUpdate(instance.getResultsField(), null);
         }
         return instance;
@@ -100,7 +100,7 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
     }
 
     @Override
-    protected TextEmbeddingConfigUpdate mutateInstanceForVersion(TextEmbeddingConfigUpdate instance, Version version) {
+    protected TextEmbeddingConfigUpdate mutateInstanceForVersion(TextEmbeddingConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 }

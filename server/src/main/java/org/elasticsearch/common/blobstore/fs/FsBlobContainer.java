@@ -14,19 +14,19 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.ConcurrentRegisterOperationException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,7 +34,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryStream;
@@ -47,8 +47,10 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -376,20 +378,17 @@ public class FsBlobContainer extends AbstractBlobContainer {
         return Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
     }
 
-    private static final KeyedLock<String> registerLocks = new KeyedLock<>();
-
     @Override
     @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
-    public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException {
-        try (
-            FileChannel channel = openOrCreateAtomic(path.resolve(key));
-            FileLock ignored1 = channel.lock();
-            Releasable ignored2 = registerLocks.acquire(key)
-        ) {
+    public long compareAndExchangeRegister(String key, long expected, long updated) throws IOException,
+        ConcurrentRegisterOperationException {
+
+        try (LockedFileChannel lockedFileChannel = LockedFileChannel.open(path.resolve(key))) {
+            final FileChannel fileChannel = lockedFileChannel.fileChannel();
             final ByteBuffer buf = ByteBuffer.allocate(Long.BYTES);
             final long found;
             while (buf.remaining() > 0) {
-                if (channel.read(buf) == -1) {
+                if (fileChannel.read(buf) == -1) {
                     break;
                 }
             }
@@ -398,7 +397,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             } else if (buf.position() == Long.BYTES) {
                 found = buf.getLong(0);
                 buf.clear();
-                if (channel.read(buf) != -1) {
+                if (fileChannel.read(buf) != -1) {
                     throw new IllegalStateException("Read file of length greater than [" + Long.BYTES + "] for [" + key + "]");
                 }
             } else {
@@ -407,22 +406,57 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (found == expected) {
                 buf.clear().putLong(updated).flip();
                 while (buf.remaining() > 0) {
-                    channel.write(buf, buf.position());
+                    fileChannel.write(buf, buf.position());
                 }
-                channel.force(true);
+                fileChannel.force(true);
             }
             return found;
+        } catch (OverlappingFileLockException e) {
+            throw new ConcurrentRegisterOperationException(e);
         }
     }
 
-    private static FileChannel openOrCreateAtomic(Path path) throws IOException {
-        try {
-            if (Files.exists(path) == false) {
-                return FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+    private record LockedFileChannel(FileChannel fileChannel, Closeable fileLock) implements Closeable {
+
+        // Avoid concurrently opening/closing locked files, because this can trip an assertion within the JDK (see #93955 for details).
+        // Perhaps it would work with finer-grained locks too, but we don't currently need to be fancy here.
+        private static final Object mutex = new Object();
+
+        static LockedFileChannel open(Path path) throws IOException {
+            synchronized (mutex) {
+                List<Closeable> resources = new ArrayList<>(2);
+                try {
+                    final FileChannel fileChannel = openOrCreateAtomic(path);
+                    resources.add(fileChannel);
+
+                    final Closeable fileLock = fileChannel.lock()::close;
+                    resources.add(fileLock);
+
+                    final var result = new LockedFileChannel(fileChannel, fileLock);
+                    resources.clear();
+                    return result;
+                } finally {
+                    IOUtils.closeWhileHandlingException(resources);
+                }
             }
-        } catch (FileAlreadyExistsException e) {
-            // ok, created concurrently
         }
-        return FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
+
+        private static FileChannel openOrCreateAtomic(Path path) throws IOException {
+            try {
+                if (Files.exists(path) == false) {
+                    return FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                }
+            } catch (FileAlreadyExistsException e) {
+                // ok, created concurrently by another process
+            }
+            return FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
+        }
+
+        @Override
+        public void close() throws IOException {
+            synchronized (mutex) {
+                IOUtils.close(fileLock, fileChannel);
+            }
+        }
     }
 }

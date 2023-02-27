@@ -10,6 +10,9 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -18,15 +21,26 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A future implementation that allows for the result to be passed to listeners waiting for
- * notification. This is useful for cases where a computation is requested many times
- * concurrently, but really only needs to be performed a single time. Once the computation
- * has been performed the registered listeners will be notified by submitting a runnable
- * for execution in the provided {@link ExecutorService}. If the computation has already
- * been performed, a request to add a listener will simply result in execution of the listener
- * on the calling thread.
+ * An {@link ActionListener} which allows for the result to fan out to a (dynamic) collection of other listeners, added using {@link
+ * #addListener}. Listeners added before completion are retained until completion; listeners added after completion are completed
+ * immediately.
+ *
+ * Similar to {@link ListenableActionFuture}, with the following differences:
+ *
+ * <ul>
+ * <li>This listener must not be completed more than once, whereas {@link ListenableActionFuture} will silently ignore additional
+ * completions.
+ * <li>This listener optionally allows for the completions of any retained listeners to be dispatched to an executor rather than handled
+ * directly by the completing thread, whilst still allowing listeners to be completed immediately on the subscribing thread. In contrast,
+ * when using {@link ListenableActionFuture} you must use {@link ThreadedActionListener} if dispatching is needed, and this will always
+ * dispatch.
+ * <li>This listener optionally allows for the retained listeners to be completed in the thread context of the subscribing thread, captured
+ * at subscription time. This is often useful when subscribing listeners from several different contexts. In contrast, when using {@link
+ * ListenableActionFuture} you must remember to use {@link ContextPreservingActionListener} to capture the thread context yourself.
+ * </ul>
  */
-public final class ListenableFuture<V> extends BaseFuture<V> implements ActionListener<V> {
+// The name {@link ListenableFuture} dates back a long way and could be improved - TODO find a better name
+public final class ListenableFuture<V> extends PlainActionFuture<V> {
 
     private volatile boolean done = false;
     private List<Tuple<ActionListener<V>, ExecutorService>> listeners;

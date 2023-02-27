@@ -1750,7 +1750,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     () -> repositoriesService,
                     rerouteServiceSetOnce::get
                 );
-                allocationService = ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
+                allocationService = ESAllocationTestCase.createAllocationService(
+                    Settings.builder()
+                        .put(settings)
+                        .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
+                        .build(),
+                    snapshotsInfoService
+                );
                 rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(

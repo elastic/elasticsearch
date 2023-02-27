@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
 
 public class RemoteAccessAuthenticationService {
 
@@ -100,7 +100,7 @@ public class RemoteAccessAuthenticationService {
                 Collections.emptyList(),
                 // drop remote access authentication headers since we've read their values, and we want to maintain the invariant that
                 // either the remote access authentication header is in the context, or the authentication header, but not both
-                List.of(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+                List.of(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
             )
         ) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);

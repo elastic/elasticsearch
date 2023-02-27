@@ -203,8 +203,9 @@ public interface BlobContainer {
      * @param expected the expected value
      * @param updated the new value
      * @return the value read from the register (before it was updated)
+     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
      */
-    long compareAndExchangeRegister(String key, long expected, long updated) throws IOException;
+    long compareAndExchangeRegister(String key, long expected, long updated) throws IOException, ConcurrentRegisterOperationException;
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
@@ -214,8 +215,10 @@ public interface BlobContainer {
      * @param expected the expected value
      * @param updated the new value
      * @return true if successful, false if the expected value did not match the updated value
+     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
      */
-    default boolean compareAndSetRegister(String key, long expected, long updated) throws IOException {
+    default boolean compareAndSetRegister(String key, long expected, long updated) throws IOException,
+        ConcurrentRegisterOperationException {
         return compareAndExchangeRegister(key, expected, updated) == expected;
     }
 
@@ -225,8 +228,9 @@ public interface BlobContainer {
      *
      * @param key key of the value to get
      * @return value found
+     * @throws ConcurrentRegisterOperationException if concurrent activity prevents us from even reading the value of the register
      */
-    default long getRegister(String key) throws IOException {
+    default long getRegister(String key) throws IOException, ConcurrentRegisterOperationException {
         return compareAndExchangeRegister(key, 0, 0);
     }
 

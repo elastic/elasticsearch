@@ -766,7 +766,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
                 // Fleet Audit Logs data stream. Fleet creates + writes to + reads from these indices for audit logs
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-fleet.audit_logs*")
+                    .indices("logs-fleet.audit_logs-*")
                     .privileges("auto_configure", "read", "write")
                     .build(),
                 // Legacy "Alerts as data" used in Security Solution.
@@ -810,7 +810,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
                         ".logs-osquery_manager.actions-*",
-                        ".logs-osquery_manager.action.responses-*"
+                        ".logs-osquery_manager.action.responses-*",
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),

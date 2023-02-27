@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -52,8 +53,10 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -292,6 +295,45 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testFailsIfRegisterIncorrect() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+
+        blobStore.setDisruption(new Disruption() {
+            private final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
+
+            @Override
+            public long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+                if (registerWasCorrupted.compareAndSet(false, true)) {
+                    register.incrementAndGet();
+                }
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+    }
+
+    public void testFailsIfRegisterHoldsSpuriousValue() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+
+        final AtomicBoolean sawSpuriousValue = new AtomicBoolean();
+        final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+                if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
+                    return randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1));
+                }
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+        try {
+            analyseRepository(request);
+            assertFalse(sawSpuriousValue.get());
+        } catch (RepositoryVerificationException e) {
+            assertTrue(sawSpuriousValue.get());
+        }
+    }
+
     private RepositoryAnalyzeAction.Response analyseRepository(RepositoryAnalyzeAction.Request request) {
         return client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
     }
@@ -399,6 +441,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         default boolean createBlobOnAbort() {
             return false;
         }
+
+        default long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+            return register.compareAndExchange(expected, updated);
+        }
     }
 
     static class DisruptableBlobContainer implements BlobContainer {
@@ -407,6 +453,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         private final Consumer<DisruptableBlobContainer> deleteContainer;
         private final Disruption disruption;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, AtomicLong> registers = ConcurrentCollections.newConcurrentMap();
 
         DisruptableBlobContainer(BlobPath path, Consumer<DisruptableBlobContainer> deleteContainer, Disruption disruption) {
             this.path = path;
@@ -539,9 +586,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public long compareAndExchangeRegister(String key, long expected, long updated) {
-            assert false : "should not have been called";
-            throw new UnsupportedOperationException();
+        public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+            final var register = registers.computeIfAbsent(key, ignored -> new AtomicLong());
+            listener.onResponse(OptionalLong.of(disruption.onCompareAndExchange(register, expected, updated)));
         }
     }
 

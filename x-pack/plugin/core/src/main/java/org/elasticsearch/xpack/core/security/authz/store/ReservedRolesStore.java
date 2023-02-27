@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
@@ -81,9 +82,35 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         null,
         new String[] { "*" },
         MetadataUtils.DEFAULT_RESERVED_METADATA,
-        Collections.emptyMap()
+        Collections.emptyMap(),
+        TcpTransport.isUntrustedRemoteClusterEnabled()
+            ? new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
+                    "*"
+                ),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("*")
+                        .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
+                        .allowRestrictedIndices(true)
+                        .build(),
+                    "*"
+                ) }
+            : null
     );
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
+
+    private static RoleDescriptor.RemoteIndicesPrivileges getRemoteIndicesReadPrivileges(String indexPattern) {
+        return new RoleDescriptor.RemoteIndicesPrivileges(
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(indexPattern)
+                .privileges("read", "read_cross_cluster")
+                .allowRestrictedIndices(false)
+                .build(),
+            "*"
+        );
+    }
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
         return MapBuilder.<String, RoleDescriptor>newMapBuilder()
@@ -126,7 +153,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    TcpTransport.isUntrustedRemoteClusterEnabled()
+                        ? new RoleDescriptor.RemoteIndicesPrivileges[] {
+                            getRemoteIndicesReadPrivileges(".monitoring-*"),
+                            getRemoteIndicesReadPrivileges("metricbeat-*") }
+                        : null
                 )
             )
             .put(
@@ -854,7 +886,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 new WriteProfileDataPrivileges(Set.of("kibana*")) },
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
-            null
+            null,
+            TcpTransport.isUntrustedRemoteClusterEnabled()
+                ? new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    getRemoteIndicesReadPrivileges(".monitoring-*"),
+                    getRemoteIndicesReadPrivileges("apm-*"),
+                    getRemoteIndicesReadPrivileges("logs-apm.*"),
+                    getRemoteIndicesReadPrivileges("metrics-apm.*"),
+                    getRemoteIndicesReadPrivileges("traces-apm.*"),
+                    getRemoteIndicesReadPrivileges("traces-apm-*") }
+                : null
         );
     }
 

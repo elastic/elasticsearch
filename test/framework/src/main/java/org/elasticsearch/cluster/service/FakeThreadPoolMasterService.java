@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -79,8 +80,7 @@ public class FakeThreadPoolMasterService extends MasterService {
             TimeUnit.SECONDS,
             r -> { throw new AssertionError("should not create new threads"); },
             null,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         ) {
 
             @Override
@@ -90,14 +90,18 @@ public class FakeThreadPoolMasterService extends MasterService {
 
             @Override
             public void execute(Runnable command) {
-                pendingTasks.add(command);
-                scheduleNextTaskIfNecessary();
+                if (command.toString().equals("awaitsfix thread keepalive") == false) {
+                    // TODO remove this temporary fix
+                    pendingTasks.add(command);
+                    scheduleNextTaskIfNecessary();
+                }
+            }
+
+            @Override
+            public Pending[] getPending() {
+                return pendingTasks.stream().map(r -> new Pending(r, Priority.NORMAL, 0L, false)).toArray(Pending[]::new);
             }
         };
-    }
-
-    public int getFakeMasterServicePendingTaskCount() {
-        return pendingTasks.size();
     }
 
     private void scheduleNextTaskIfNecessary() {

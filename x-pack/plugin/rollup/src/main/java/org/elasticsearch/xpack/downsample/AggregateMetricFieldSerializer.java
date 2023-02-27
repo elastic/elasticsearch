@@ -12,17 +12,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 
-public class AggregateMetricFieldSerializer implements RollupFieldSerializer {
-    private final Collection<AbstractRollupFieldProducer> producers;
+public class AggregateMetricFieldSerializer implements DownsampleFieldSerializer {
+    private final Collection<AbstractDownsampleFieldProducer> producers;
     private final String name;
 
     /**
      * @param name the name of the aggregate_metric_double field as it will be serialized
      *             in the downsampled index
-     * @param producers a collection of {@link AbstractRollupFieldProducer} instances with the subfields
+     * @param producers a collection of {@link AbstractDownsampleFieldProducer} instances with the subfields
      *                  of the aggregate_metric_double field.
      */
-    public AggregateMetricFieldSerializer(String name, Collection<AbstractRollupFieldProducer> producers) {
+    public AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
         this.name = name;
         this.producers = producers;
     }
@@ -34,7 +34,7 @@ public class AggregateMetricFieldSerializer implements RollupFieldSerializer {
         }
 
         builder.startObject(name);
-        for (AbstractRollupFieldProducer rollupFieldProducer : producers) {
+        for (AbstractDownsampleFieldProducer rollupFieldProducer : producers) {
             assert name.equals(rollupFieldProducer.name()) : "producer has a different name";
             if (rollupFieldProducer.isEmpty() == false) {
                 if (rollupFieldProducer instanceof MetricFieldProducer metricFieldProducer) {
@@ -55,7 +55,7 @@ public class AggregateMetricFieldSerializer implements RollupFieldSerializer {
     }
 
     private boolean isEmpty() {
-        for (AbstractRollupFieldProducer p : producers) {
+        for (AbstractDownsampleFieldProducer p : producers) {
             if (p.isEmpty() == false) {
                 return false;
             }

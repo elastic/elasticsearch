@@ -37,11 +37,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
+import org.elasticsearch.xpack.core.ilm.DownsampleStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.ilm.RollupStep;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
@@ -76,7 +76,7 @@ public class IndexLifecycleService
         IndexEventListener,
         ShutdownAwarePlugin {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, RollupStep.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, DownsampleStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 

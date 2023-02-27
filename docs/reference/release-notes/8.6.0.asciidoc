@@ -9,6 +9,8 @@ Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
 
 include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
 
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
 [[bug-8.6.0]]
 [float]
 === Bug fixes

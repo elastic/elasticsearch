@@ -6,11 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.precommit.transport.test_classes;
+package org.elasticsearch.gradle.internal.precommit.transport.test_classes.test;
 
-public class EnclosingInnerTransport {
+import org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass;
 
-    public class Transport implements Writeable {
-
-    }
-}
+public class ExampleSubclassTests extends TransportTestBaseClass {}

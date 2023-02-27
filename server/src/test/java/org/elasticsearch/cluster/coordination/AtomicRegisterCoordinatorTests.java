@@ -23,6 +23,7 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -46,132 +47,149 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         keyedAtomicRegister = new KeyedAtomicRegister();
     }
 
+    @Before
+    public void enableCoordinatorRegisterMode() {
+        Coordinator.REGISTER_COORDINATION_MODE_ENABLED = true;
+    }
+
+    @After
+    public void disableCoordinatorRegisterMode() {
+        Coordinator.REGISTER_COORDINATION_MODE_ENABLED = false;
+    }
+
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5644")
     public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
-        // The configuration is fixed in this scenario
+        // Voting configuration test
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5644")
     public void testDoesNotShrinkConfigurationBelowThreeNodes() {
-        // The configuration is fixed in this scenario
+        // Voting configuration test
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
-    public void testCanShrinkFromFiveNodesToThree() {}
+    @AwaitsFix(bugUrl = "ES-5644")
+    public void testCanShrinkFromFiveNodesToThree() {
+        // Voting configuration test
+    }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
-    public void testDoesNotShrinkConfigurationBelowFiveNodesIfAutoShrinkDisabled() {}
+    @AwaitsFix(bugUrl = "ES-5644")
+    public void testDoesNotShrinkConfigurationBelowFiveNodesIfAutoShrinkDisabled() {
+        // Voting configuration test
+    }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5644")
     public void testExpandsConfigurationWhenGrowingFromOneNodeToThreeButDoesNotShrink() {
+        // Voting configuration test
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "ES-5644")
+    public void testSingleNodeDiscoveryWithoutQuorum() {
+        // Voting configuration test
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "ES-5644")
+    public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {
         // Configuration test
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
-    public void testSingleNodeDiscoveryWithoutQuorum() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "TODO")
-    public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5644")
     public void testUnhealthyNodesGetsRemoved() {
         // This test checks that the voting configuration shrinks after a node is removed from the cluster
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
-        // In this test the disconnected leader still attempts to update the
-        // cluster state in the blob store
+        // In this test the leader still has access to the register, therefore it is still considered as a leader.
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testLeaderDisconnectionWithoutDisconnectEventDetectedQuickly() {
-        // The leader still has connection to the blob store
+        // In this test the leader still has access to the register, therefore it is still considered as a leader.
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testMasterStatsOnFailedUpdate() {
-        // The leader has access to the blob store, therefore it can do updates
+        // In this test the leader still has access to the register, therefore it is still considered as a leader, and it can perform
+        // updates.
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testUnhealthyLeaderIsReplaced() {
-        // The leader makes progress
+        // In this test the leader still has access to the register, therefore it is still considered as a leader.
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testUnresponsiveLeaderDetectedEventually() {
-        // In this test the leader still has access to the blob store,
-        // therefore it is still considered as a leader
+        // In this test the leader still has access to the register, therefore it is still considered as a leader.
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testLogsWarningPeriodicallyIfClusterNotFormed() {
-        // It's possible to form a single-node cluster with this mechanism, maybe we should fix this
+        // All nodes have access to the register, therefore it's possible to form a single-node cluster
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testAckListenerReceivesNacksIfLeaderStandsDown() {
-        // The leader still has connectivity to the blob store
+        // The leader still has access to the register, therefore it acknowledges the state update
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testAckListenerReceivesNacksIfPublicationTimesOut() {
-        // The leader still has connectivity to the blob store
+        // The leader still has access to the register, therefore it acknowledges the state update
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testAppliesNoMasterBlockWritesByDefault() {
         // If the disconnected node is the leader it will continue to have connectivity
-        // into the blob store and therefore the no master block won't be applied
+        // into the register and therefore the no master block won't be applied
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testAppliesNoMasterBlockWritesIfConfigured() {
         // If the disconnected node is the leader it will continue to have connectivity
-        // into the blob store and therefore the no master block won't be applied
+        // into the register and therefore the no master block won't be applied
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testAppliesNoMasterBlockAllIfConfigured() {
         // If the disconnected node is the leader it will continue to have connectivity
-        // into the blob store and therefore the no master block won't be applied
+        // into the register and therefore the no master block won't be applied
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testAppliesNoMasterBlockMetadataWritesIfConfigured() {
         // If the disconnected node is the leader it will continue to have connectivity
-        // into the blob store and therefore the no master block won't be applied
+        // into the register and therefore the no master block won't be applied
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testClusterCannotFormWithFailingJoinValidation() {
         // A single node can form a cluster in this case
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testCannotJoinClusterWithDifferentUUID() {
         // The cluster2 leader is considered dead since we only run the nodes in cluster 1
         // therefore the node coming from cluster 2 ends up taking over the old master in cluster 2
@@ -491,7 +509,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private final String registerKey;
         private long currentTerm;
         private ClusterState latestAcceptedState;
-        private boolean empty;
+        private boolean isLatestAcceptedStateFromRegister;
 
         AtomicRegisterPersistedState(DiscoveryNode localNode, String registerKey, KeyedAtomicRegister keyedAtomicRegister) {
             this.localNode = localNode;
@@ -503,8 +521,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private void loadClusterStateFromRegister() {
             final var currentState = keyedAtomicRegister.readClusterState(registerKey);
             if (currentState == null) {
-                this.currentTerm = 0;
-                this.latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
+                currentTerm = 0;
+                latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
                     clusterState(
                         0L,
                         0L,
@@ -514,17 +532,17 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                         0L
                     )
                 );
-                this.empty = true;
+                isLatestAcceptedStateFromRegister = false;
             } else {
-                this.currentTerm = Math.max(currentState.term(), this.currentTerm);
-                this.latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
+                currentTerm = Math.max(currentState.term(), currentTerm);
+                latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
                     ClusterState.builder(new ClusterName("elasticsearch"))
                         .metadata(currentState.state())
                         .version(currentState.version())
                         .nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build())
                         .build()
                 );
-                this.empty = false;
+                isLatestAcceptedStateFromRegister = true;
             }
         }
 
@@ -553,16 +571,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         void writeClusterState(ClusterState state) {
             final var newPersistedState = new PersistentClusterState(state.term(), state.version(), state.metadata());
-            final var expected = empty
+            final var expectedPersistedState = isLatestAcceptedStateFromRegister == false
                 ? null
                 : new PersistentClusterState(latestAcceptedState.term(), latestAcceptedState.version(), latestAcceptedState.metadata());
-            assert expected == null || expected.term() <= newPersistedState.term();
-            if (keyedAtomicRegister.compareAndSetClusterState(registerKey, expected, newPersistedState) == false) {
+            assert expectedPersistedState == null || expectedPersistedState.term() <= newPersistedState.term();
+            if (keyedAtomicRegister.compareAndSetClusterState(registerKey, expectedPersistedState, newPersistedState) == false) {
                 // TODO: call updateMaxTermSeen?
                 loadClusterStateFromRegister();
                 throw new RuntimeException("Conflicting cluster state update");
             }
-            this.empty = false;
+            this.isLatestAcceptedStateFromRegister = true;
         }
 
         @Override

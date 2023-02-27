@@ -129,6 +129,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
+    static volatile boolean REGISTER_COORDINATION_MODE_ENABLED = false;
+
     private final Settings settings;
     private final boolean singleNodeDiscovery;
     private final QuorumStrategy quorumStrategy;
@@ -1059,7 +1061,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     public void invariant() {
         synchronized (mutex) {
             final Optional<DiscoveryNode> peerFinderLeader = peerFinder.getLeader();
-            assert peerFinder.getCurrentTerm() == getCurrentTerm() : peerFinder.getCurrentTerm() + " vs " + getCurrentTerm();
+            assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term() == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode() == getMode() : followersChecker.getFastResponseState();
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
@@ -1085,7 +1087,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 // TODO: explain this
                 assert getLocalNode().equals(applierState.nodes().getMasterNode())
                     || (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm())
-                    || true;
+                    || REGISTER_COORDINATION_MODE_ENABLED;
                 assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning() == false;
 
@@ -1105,8 +1107,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
                     lastPublishedState.nodes().forEach(lastPublishedNodes::add);
                     assert lastPublishedNodes.remove(getLocalNode()); // followersChecker excludes local node
-                    // In register based it's possible to be a leader
-                    assert lastPublishedNodes.equals(followersChecker.getKnownFollowers()) || true
+                    assert lastPublishedNodes.equals(followersChecker.getKnownFollowers()) || REGISTER_COORDINATION_MODE_ENABLED
                         : lastPublishedNodes + " != " + followersChecker.getKnownFollowers();
                 }
 
@@ -1119,8 +1120,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         + " != "
                         + coordinationState.get().getLastCommittedConfiguration();
             } else if (mode == Mode.FOLLOWER) {
-                // TODO: clear electionWon?
-                assert coordinationState.get().electionWon() == false || true
+                // TODO: clear electionWon in register coordination mode?
+                assert coordinationState.get().electionWon() == false || REGISTER_COORDINATION_MODE_ENABLED
                     : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
                 assert joinAccumulator instanceof JoinHelper.FollowerJoinAccumulator;
@@ -1602,7 +1603,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
-                            logger.info("--> find quorum");
                             startElectionScheduler();
                         }
                     } else {
@@ -1952,11 +1952,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             PublishRequest publishRequest,
             ActionListener<PublishWithJoinResponse> responseActionListener
         ) {
-            logger.info(
-                "--> send publish request with cluster UUID {}/{}",
-                publishRequest.getAcceptedState().metadata().clusterUUID(),
-                getLocalNode().getId()
-            );
             publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
         }
 

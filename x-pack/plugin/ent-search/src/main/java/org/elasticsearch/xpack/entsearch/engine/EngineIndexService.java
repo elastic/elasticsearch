@@ -186,7 +186,7 @@ public class EngineIndexService {
     }
 
     private static String getEngineAliasName(Engine engine) {
-        return Engine.getEngineAliasName(engine.name());
+        return engine.engineAlias();
     }
 
     /**

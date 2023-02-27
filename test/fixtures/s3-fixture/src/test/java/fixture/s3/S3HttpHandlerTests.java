@@ -173,15 +173,15 @@ public class S3HttpHandlerTests extends ESTestCase {
               <UploadId>%s</UploadId>
             </InitiateMultipartUploadResult>""", uploadId)), createUploadResponse);
 
-        final var part0 = randomAlphaOfLength(50);
-        final var uploadPart0Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=0", part0);
-        final var part0Etag = Objects.requireNonNull(uploadPart0Response.etag());
-        assertEquals(new TestHttpResponse(RestStatus.OK, "", part0Etag), uploadPart0Response);
-
         final var part1 = randomAlphaOfLength(50);
         final var uploadPart1Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=1", part1);
         final var part1Etag = Objects.requireNonNull(uploadPart1Response.etag());
         assertEquals(new TestHttpResponse(RestStatus.OK, "", part1Etag), uploadPart1Response);
+
+        final var part2 = randomAlphaOfLength(50);
+        final var uploadPart2Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=2", part2);
+        final var part2Etag = Objects.requireNonNull(uploadPart2Response.etag());
+        assertEquals(new TestHttpResponse(RestStatus.OK, "", part2Etag), uploadPart2Response);
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, Strings.format("""
@@ -202,6 +202,19 @@ public class S3HttpHandlerTests extends ESTestCase {
             <Bucket>bucket</Bucket><KeyMarker /><UploadIdMarker /><NextKeyMarker>--unused--</NextKeyMarker><NextUploadIdMarker />\
             <Delimiter /><Prefix>path/blob</Prefix><MaxUploads>10000</MaxUploads><IsTruncated>false</IsTruncated>\
             </ListMultipartUploadsResult>"""), handleRequest(handler, "GET", "/bucket/?uploads&prefix=path/blob"));
+
+        assertEquals(RestStatus.NOT_FOUND, handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + uploadId, Strings.format("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+               <Part>
+                  <ETag>%s</ETag>
+                  <PartNumber>1</PartNumber>
+               </Part>
+               <Part>
+                  <ETag>%s</ETag>
+                  <PartNumber>2</PartNumber>
+               </Part>
+            </CompleteMultipartUpload>""", part1Etag, part2Etag)).status());
     }
 
     private static String getUploadId(String createUploadResponseBody) {

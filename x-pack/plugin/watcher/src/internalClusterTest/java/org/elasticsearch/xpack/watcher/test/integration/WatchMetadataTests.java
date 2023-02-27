@@ -79,6 +79,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                     throw e;
                 }
             }
+            assertNotNull(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
         });
     }

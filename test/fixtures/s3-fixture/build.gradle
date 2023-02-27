@@ -16,7 +16,7 @@ dependencies {
   testImplementation project(':test:framework')
 }
 
-tasks.named("assemble").configure {
+tasks.named("preProcessFixture").configure {
   dependsOn "jar", configurations.runtimeClasspath
   doLast {
     file("${testFixturesDir}/shared").mkdirs()

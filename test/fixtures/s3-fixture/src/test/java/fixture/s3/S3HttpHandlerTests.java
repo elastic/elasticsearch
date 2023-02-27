@@ -32,7 +32,7 @@ import java.util.Objects;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-public class S3HttpHandlerTest extends ESTestCase {
+public class S3HttpHandlerTests extends ESTestCase {
 
     public void testRejectsBadUri() {
         assertEquals(

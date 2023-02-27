@@ -828,6 +828,12 @@ class S3BlobContainer extends AbstractBlobContainer {
                 var stream = s3Object.getObjectContent()
             ) {
                 return getRegisterUsingConsistentRead(stream, keyPath, key);
+            } catch (AmazonS3Exception e) {
+                if (e.getStatusCode() == 404) {
+                    return OptionalLong.of(0L);
+                } else {
+                    throw e;
+                }
             }
         });
     }

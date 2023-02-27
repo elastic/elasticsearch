@@ -27,12 +27,14 @@ import java.util.stream.Stream;
 public class TransportTestsScanner {
     private static final String MODULE_INFO = "module-info.class";
 
+    private Set<String> skipMissingClasses;
     private final String writeableClassName;
 
     private final Set<String> transportTestClassesRoots;
 
-    public TransportTestsScanner() {
+    public TransportTestsScanner(Set<String> skipMissingClasses) {
         this(
+            skipMissingClasses,
             "org.elasticsearch.common.io.stream.Writeable",
             Set.of(
                 "org.elasticsearch.test.AbstractWireTestCase",
@@ -44,7 +46,8 @@ public class TransportTestsScanner {
         );
     }
 
-    TransportTestsScanner(String writeableClassName, Set<String> transportTestClassesRoots) {
+    TransportTestsScanner(Set<String> skipMissingClasses, String writeableClassName, Set<String> transportTestClassesRoots) {
+        this.skipMissingClasses = skipMissingClasses;
         this.writeableClassName = writeableClassName;
         this.transportTestClassesRoots = transportTestClassesRoots;
     }
@@ -80,10 +83,8 @@ public class TransportTestsScanner {
             var name = getClassName(c);
             var nameToLook = name.contains("$") ? name.substring(0, name.indexOf('$')) : name;
             Optional<String> found = transportTests.stream().filter(tt -> tt.contains(nameToLook)).findAny();
-            if (found.isEmpty()) {
+            if (found.isEmpty()  && skipMissingClasses.contains(c) == false) {
                 missingTestClasses.add(c);
-            } else {
-                System.out.println("Found test " + found.get() + " for class " + c);
             }
         }
         missingTestClasses.stream().forEach(s -> System.out.println(s));

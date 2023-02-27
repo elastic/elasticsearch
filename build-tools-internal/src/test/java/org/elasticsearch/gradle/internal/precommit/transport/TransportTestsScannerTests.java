@@ -27,7 +27,7 @@ public class TransportTestsScannerTests {
             "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
         );
 
-        TransportTestsScanner scanner = new TransportTestsScanner(writeable, transportTestClassesRoots);
+        TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
             .filter(s -> s.contains("test" + File.separator + "classes"))
@@ -49,7 +49,7 @@ public class TransportTestsScannerTests {
             "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
         );
 
-        TransportTestsScanner scanner = new TransportTestsScanner(writeable, transportTestClassesRoots);
+        TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
             .filter(s -> s.contains("test" + File.separator + "classes"))
@@ -71,7 +71,7 @@ public class TransportTestsScannerTests {
             "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
         );
 
-        TransportTestsScanner scanner = new TransportTestsScanner(writeable, transportTestClassesRoots);
+        TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
             .filter(s -> s.contains("test" + File.separator + "classes"))
@@ -97,7 +97,7 @@ public class TransportTestsScannerTests {
             "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
         );
 
-        TransportTestsScanner scanner = new TransportTestsScanner(writeable, transportTestClassesRoots);
+        TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
             .filter(s -> s.contains("test" + File.separator + "classes"))
@@ -110,5 +110,37 @@ public class TransportTestsScannerTests {
             transportClassesMissingTests,
             Matchers.not(Matchers.hasItem("org.elasticsearch.gradle.internal.precommit.transport.test_classes.prod.AbstractTransportClass"))
         );
+    }
+
+    @Test
+    public void testSkipMisssingClasses() throws IOException {
+        String writeable = "org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable";
+        Set<String> transportTestClassesRoots = Set.of(
+            "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
+        );
+
+        Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
+            .filter(s -> s.contains("build-tools-internal"))
+            .filter(s -> s.contains("test" + File.separator + "classes"))
+            .map(s -> new File(s))
+            .collect(Collectors.toSet());
+
+        TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
+        Set<String> transportClassesMissingTests = scanner.findTransportClassesMissingTests(all, all, Set.of(), Set.of());
+        assertThat(
+            transportClassesMissingTests,
+            Matchers.hasItem("org.elasticsearch.gradle.internal.precommit.transport.test_classes.prod.TransportWithoutTest")
+        );
+
+        //the class without a test should be skipped
+        Set<String> missingClassesToSkip =
+            Set.of("org.elasticsearch.gradle.internal.precommit.transport.test_classes.prod.TransportWithoutTest");
+        scanner = new TransportTestsScanner(missingClassesToSkip, writeable, transportTestClassesRoots);
+        transportClassesMissingTests = scanner.findTransportClassesMissingTests(all, all, Set.of(), Set.of());
+        assertThat(
+            transportClassesMissingTests,
+            Matchers.not(Matchers.hasItem("org.elasticsearch.gradle.internal.precommit.transport.test_classes.prod.TransportWithoutTest"))
+        );
+
     }
 }

@@ -132,7 +132,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
 
         @Override
         public void execute() {
-            TransportTestsScanner transportTestsScanner = new TransportTestsScanner();
+            TransportTestsScanner transportTestsScanner = new TransportTestsScanner(Set.of());
             Set<String> missingTestClasses = transportTestsScanner.findTransportClassesMissingTests(
                 getParameters().getMainSources().getFiles(),
                 getParameters().getTestSources().getFiles(),

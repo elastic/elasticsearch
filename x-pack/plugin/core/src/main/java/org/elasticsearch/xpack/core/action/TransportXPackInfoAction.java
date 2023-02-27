@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
@@ -66,7 +67,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                     license.type(),
                     license.operationMode().description(),
                     LicenseService.status(license),
-                    LicenseService.getExpiryDate(license)
+                    LicenseUtils.getExpiryDate(license)
                 );
             }
         }

@@ -9,8 +9,11 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.license.License.LicenseType;
 import org.elasticsearch.rest.RestStatus;
+
+import java.nio.charset.StandardCharsets;
 
 public class LicenseUtils {
 
@@ -43,7 +46,7 @@ public class LicenseUtils {
 
     public static boolean licenseNeedsExtended(License license) {
         return LicenseType.isBasic(license.type())
-            && LicenseService.getExpiryDate(license) != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+            && getExpiryDate(license) != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
     }
 
     /**
@@ -71,5 +74,15 @@ public class LicenseUtils {
             assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
             return License.VERSION_ENTERPRISE;
         }
+    }
+
+    /**
+     * Gets the effective expiry date of the given license, including any overrides.
+     */
+    public static long getExpiryDate(License license) {
+        String licenseUidHash = MessageDigests.toHexString(MessageDigests.sha256().digest(license.uid().getBytes(StandardCharsets.UTF_8)));
+        return LicenseOverrides.overrideDateForLicense(licenseUidHash)
+            .map(date -> date.toInstant().toEpochMilli())
+            .orElse(license.expiryDate());
     }
 }

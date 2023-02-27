@@ -311,7 +311,7 @@ public class License implements ToXContentObject {
     }
 
     /**
-     * The expiration date as it appears in the license. For most uses, prefer {@link LicenseService#getExpiryDate(License)}, as in
+     * The expiration date as it appears in the license. For most uses, prefer {@link LicenseUtils#getExpiryDate(License)}, as in
      * rare cases the effective expiration date may differ from the expiration date specified in the license.
      *
      * @return the expiry date in milliseconds

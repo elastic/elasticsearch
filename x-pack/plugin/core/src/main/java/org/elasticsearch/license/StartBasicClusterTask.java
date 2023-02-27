@@ -101,7 +101,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         return currentLicense == null
             || License.LicenseType.isBasic(currentLicense.type()) == false
             || LicenseService.SELF_GENERATED_LICENSE_MAX_NODES != currentLicense.maxNodes()
-            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseService.getExpiryDate(currentLicense);
+            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseUtils.getExpiryDate(currentLicense);
     }
 
     private License generateBasicLicense(DiscoveryNodes discoveryNodes) {

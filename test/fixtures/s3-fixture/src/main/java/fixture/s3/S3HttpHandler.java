@@ -83,6 +83,36 @@ public class S3HttpHandler implements HttpHandler {
                 } else {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
+            } else if (Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)) {
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+
+                final var prefix = params.get("prefix");
+
+                final var uploadsList = new StringBuilder();
+                uploadsList.append("<?xml version='1.0' encoding='UTF-8'?>");
+                uploadsList.append("<ListMultipartUploadsResult xmlns='http://s3.amazonaws.com/doc/2006-03-01/'>");
+                uploadsList.append("<Bucket>").append(bucket).append("</Bucket>");
+                uploadsList.append("<KeyMarker />");
+                uploadsList.append("<UploadIdMarker />");
+                uploadsList.append("<NextKeyMarker>--unused--</NextKeyMarker>");
+                uploadsList.append("<NextUploadIdMarker />");
+                uploadsList.append("<Delimiter />");
+                uploadsList.append("<Prefix>").append(prefix).append("</Prefix>");
+                uploadsList.append("<MaxUploads>10000</MaxUploads>");
+                uploadsList.append("<IsTruncated>false</IsTruncated>");
+
+                for (MultipartUpload value : uploads.values()) {
+                    value.appendXml(uploadsList);
+                }
+
+                uploadsList.append("</ListMultipartUploadsResult>");
+
+                byte[] response = uploadsList.toString().getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                exchange.getResponseBody().write(response);
+
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
                 final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), exchange.getRequestURI().getPath());
                 uploads.put(upload.getUploadId(), upload);
@@ -115,6 +145,7 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.getResponseHeaders().add("ETag", blob.v1());
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
+
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploadId=*", request)) {
 
                 final Map<String, String> params = new HashMap<>();
@@ -141,6 +172,8 @@ public class S3HttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
                 final var upload = uploads.remove(params.get("uploadId"));
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
+
+
             } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
                 blobs.put(exchange.getRequestURI().toString(), blob.v2());
@@ -253,35 +286,6 @@ public class S3HttpHandler implements HttpHandler {
                 deletes.append("</DeleteResult>");
 
                 byte[] response = deletes.toString().getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                exchange.getResponseBody().write(response);
-            } else if (Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-
-                final var prefix = params.get("prefix");
-
-                final var uploadsList = new StringBuilder();
-                uploadsList.append("<?xml version='1.0' encoding='UTF-8'?>");
-                uploadsList.append("<ListMultipartUploadsResult xmlns='http://s3.amazonaws.com/doc/2006-03-01/'>");
-                uploadsList.append("<Bucket>").append(bucket).append("</Bucket>");
-                uploadsList.append("<KeyMarker />");
-                uploadsList.append("<UploadIdMarker />");
-                uploadsList.append("<NextKeyMarker>--unused--</NextKeyMarker>");
-                uploadsList.append("<NextUploadIdMarker />");
-                uploadsList.append("<Delimiter />");
-                uploadsList.append("<Prefix>").append(prefix).append("</Prefix>");
-                uploadsList.append("<MaxUploads>10000</MaxUploads>");
-                uploadsList.append("<IsTruncated>false</IsTruncated>");
-
-                for (MultipartUpload value : uploads.values()) {
-                    value.appendXml(uploadsList);
-                }
-
-                uploadsList.append("</ListMultipartUploadsResult>");
-
-                byte[] response = uploadsList.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);

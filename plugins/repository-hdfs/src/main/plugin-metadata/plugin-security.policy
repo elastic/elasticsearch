@@ -68,4 +68,7 @@ grant {
   // client binds to the address returned from the host name of any principal set up as a service principal
   // org.apache.hadoop.ipc.Client.Connection.setupConnection
   permission java.net.SocketPermission "localhost:0", "listen,resolve";
+
+  // org.apache.hadoop.hdfs.web.SSLConnectionConfigurator
+  permission java.lang.RuntimePermission "setFactory";
 };

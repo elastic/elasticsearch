@@ -46,7 +46,10 @@ class HdfsSecurityContext {
             // 2) allow hadoop to add credentials to our Subject
             new AuthPermission("modifyPrivateCredentials"),
             // 3) RPC Engine requires this for re-establishing pooled connections over the lifetime of the client
-            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read") };
+            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read"),
+            // 4) Allow WebHDFS to act as the logged in Subject
+            new AuthPermission("doAs")
+        };
 
         // If Security is enabled, we need all the following elevated permissions:
         KERBEROS_AUTH_PERMISSIONS = new Permission[] {

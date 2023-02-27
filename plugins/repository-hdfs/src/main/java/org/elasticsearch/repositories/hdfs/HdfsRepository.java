@@ -39,6 +39,7 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.List;
 import java.util.Locale;
 
 public final class HdfsRepository extends BlobStoreRepository {
@@ -46,6 +47,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(HdfsRepository.class);
 
     private static final String CONF_SECURITY_PRINCIPAL = "security.principal";
+
+    private static final List<String> allowedSchemes = List.of("hdfs", "webhdfs", "swebhdfs");
 
     private final Environment environment;
     private final ByteSizeValue chunkSize;
@@ -70,13 +73,14 @@ public final class HdfsRepository extends BlobStoreRepository {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
         uri = URI.create(uriSetting);
-        if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
+        if (uri.getScheme() == null || allowedSchemes.contains(uri.getScheme().toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
+                    "Invalid scheme [%s] specified in uri [%s]; only one of %s uris allowed for hdfs snapshot/restore",
                     uri.getScheme(),
-                    uriSetting
+                    uriSetting,
+                    String.join(", ", allowedSchemes)
                 )
             );
         }
@@ -111,6 +115,8 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         // Disable FS cache
         hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);
+        hadoopConfiguration.setBoolean("fs.webhdfs.impl.disable.cache", true);
+        hadoopConfiguration.setBoolean("fs.swebhdfs.impl.disable.cache", true);
 
         // Create a hadoop user
         UserGroupInformation ugi = login(hadoopConfiguration, repositorySettings);

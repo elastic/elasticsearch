@@ -196,6 +196,36 @@ public class HdfsTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testWebhdfsIsAllowedScheme() {
+        client().admin()
+            .cluster()
+            .preparePutRepository("test-repo")
+            .setType("hdfs")
+            .setSettings(
+                Settings.builder()
+                    .put("uri", "webhdfs:///")
+                    .put("conf.fs.AbstractFileSystem.webhdfs.impl", TestingFs.class.getName())
+                    .put("path", "foo")
+                    .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                    .put("compress", randomBoolean())
+            )
+            .get();
+    }
+
+    public void testSwebhdfsIsAllowedScheme() {
+        client().admin()
+            .cluster()
+            .preparePutRepository("test-repo")
+            .setType("hdfs")
+            .setSettings(
+                Settings.builder()
+                    .put("uri", "swebhdfs:///")
+                    .put("conf.fs.AbstractFileSystem.swebhdfs.impl", TestingFs.class.getName())
+                    .put("path", "foo")
+            )
+            .get();
+    }
+
     public void testMissingPath() {
         try {
             client().admin()

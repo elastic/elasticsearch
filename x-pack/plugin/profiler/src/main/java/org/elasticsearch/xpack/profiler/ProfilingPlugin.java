@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -124,18 +123,16 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return List.of(responseExecutorBuilder(settings));
+        return List.of(responseExecutorBuilder());
     }
 
     /**
-     * @param settings Current settings.
      * @return <p>An <code>ExecutorBuilder</code> that creates an executor to offload internal query response processing from the
      * transport thread. The executor will occupy no thread by default to avoid using resources when the plugin is not needed but once used,
      * it will hold onto allocated pool threads for 30 minutes by default to keep response times low.</p>
      */
-    public static ExecutorBuilder<?> responseExecutorBuilder(Settings settings) {
-        int maxThreads = Math.max(8, EsExecutors.allocatedProcessors(settings) / 4);
-        return new ScalingExecutorBuilder(PROFILING_THREAD_POOL_NAME, 0, maxThreads, TimeValue.timeValueMinutes(30L), false);
+    public static ExecutorBuilder<?> responseExecutorBuilder() {
+        return new ScalingExecutorBuilder(PROFILING_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(30L), false);
     }
 
     @Override

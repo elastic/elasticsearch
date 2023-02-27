@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
@@ -48,7 +47,7 @@ public final class EsqlTestUtils {
         return new LocalRelation(Source.EMPTY, emptyList(), LocalSupplier.EMPTY);
     }
 
-    public static <P extends Node<P>, T extends P> T as(P node, Class<T> type) {
+    public static <T> T as(Object node, Class<T> type) {
         Assert.assertThat(node, instanceOf(type));
         return type.cast(node);
     }

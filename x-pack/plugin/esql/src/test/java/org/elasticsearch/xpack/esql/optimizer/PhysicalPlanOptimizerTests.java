@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -483,6 +484,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | where emp_no > salary
             """);
 
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
         var exchange = as(topLimit.child(), ExchangeExec.class);
@@ -493,7 +496,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = source(extract.child());
 
-        assertThat(Expressions.names(filter.condition().collect(x -> x instanceof FieldAttribute)), contains("emp_no", "salary"));
+        assertThat(Expressions.names(filter.condition().collect(FieldAttribute.class::isInstance)), contains("emp_no", "salary"));
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no", "salary"));
         assertNull(source.query());
     }
@@ -525,26 +528,26 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | where salary < 10
             """);
         var userFilter = new RangeQueryBuilder("emp_no").gt(-1);
-        plan = plan.transformUp(EsQueryExec.class, node -> new EsQueryExec(node.source(), node.index(), userFilter));
+        plan = plan.transformUp(EsSourceExec.class, node -> new EsSourceExec(node.source(), node.index(), node.output(), userFilter));
 
         var optimized = optimizedPlan(plan);
+
         var topLimit = as(optimized, LimitExec.class);
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
 
-        QueryBuilder query = source.query();
-        assertTrue(query instanceof BoolQueryBuilder);
-        List<QueryBuilder> mustClauses = ((BoolQueryBuilder) query).must();
+        var query = as(source.query(), BoolQueryBuilder.class);
+        List<QueryBuilder> mustClauses = query.must();
         assertEquals(2, mustClauses.size());
-        assertTrue(mustClauses.get(0) instanceof RangeQueryBuilder);
-        assertThat(mustClauses.get(0).toString(), containsString("""
+        var mustClause = as(mustClauses.get(0), RangeQueryBuilder.class);
+        assertThat(mustClause.toString(), containsString("""
                 "emp_no" : {
                   "gt" : -1,
             """));
-        assertTrue(mustClauses.get(1) instanceof RangeQueryBuilder);
-        assertThat(mustClauses.get(1).toString(), containsString("""
+        mustClause = as(mustClauses.get(1), RangeQueryBuilder.class);
+        assertThat(mustClause.toString(), containsString("""
                 "salary" : {
                   "lt" : 10,
             """));
@@ -636,8 +639,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort nullsum
             | limit 1
             """));
-        var topProject = as(optimized, ProjectExec.class);
-        var topN = as(topProject.child(), TopNExec.class);
+        // var topProject = as(optimized, ProjectExec.class);
+        var topN = as(optimized, TopNExec.class);
         var exchange = as(topN.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
@@ -715,10 +718,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort emp_no
             """));
 
-        var project = as(optimized, ProjectExec.class);
-        var topN = as(project.child(), TopNExec.class);
+        var topN = as(optimized, TopNExec.class);
         var exchange = as(topN.child(), ExchangeExec.class);
-        project = as(exchange.child(), ProjectExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         topN = as(extract.child(), TopNExec.class);
         extract = as(topN.child(), FieldExtractExec.class);
@@ -733,14 +735,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort emp_no
             """));
 
-        var project = as(optimized, ProjectExec.class);
-        var topN = as(project.child(), TopNExec.class);
+        var topN = as(optimized, TopNExec.class);
         var exchange = as(topN.child(), ExchangeExec.class);
-        project = as(exchange.child(), ProjectExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         topN = as(extract.child(), TopNExec.class);
-        var filter = as(topN.child(), FilterExec.class);
-        extract = as(filter.child(), FieldExtractExec.class);
+        extract = as(topN.child(), FieldExtractExec.class);
         var source = source(extract.child());
     }
 
@@ -752,10 +752,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort x
             """));
 
-        var project = as(optimized, ProjectExec.class);
-        var topN = as(project.child(), TopNExec.class);
+        var topN = as(optimized, TopNExec.class);
         var exchange = as(topN.child(), ExchangeExec.class);
-        project = as(exchange.child(), ProjectExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         topN = as(extract.child(), TopNExec.class);
         var eval = as(topN.child(), EvalExec.class);

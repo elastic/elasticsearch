@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -47,9 +48,9 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 @Experimental
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
@@ -69,42 +70,30 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     static Iterable<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {
         // keep filters pushing before field extraction insertion
-        var pushdown = new Batch<>("Global plan", Limiter.ONCE, new PushFiltersToSource());
         var exchange = new Batch<>("Data flow", Limiter.ONCE, new AddExchangeOnSingleNodeSplit());
 
         var parallelism = new Batch<>("Add task parallelization above query", Limiter.ONCE, new AddTaskParallelismAboveQuery());
-        // }
-
         var reducer = new Batch<>("Gather data flow", Limiter.ONCE, new EnsureSingleGatheringNode());
 
-        // local optimizations
-        Batch<PhysicalPlan> localPlanning;
+        // local planning - add marker
+        var localPlanningStart = new Batch<>("Local Plan Start", Limiter.ONCE, new MarkLocalPlan(), new LocalToGlobalLimitAndTopNExec());
+
+        // local rules
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(3);
+        esSourceRules.add(new ReplaceAttributeSourceWithDocId());
 
         if (isOptimizedForEsSource) {
-            localPlanning = new Batch<>(
-                "Local Plan",
-                Limiter.ONCE,
-                new MarkLocalPlan(),
-                new LocalToGlobalLimitAndTopNExec(),
-                new PushLimitToSource(), // needs to remain after local->global limit copying
-                new InsertFieldExtraction(),
-                new LocalOptimizations(),
-                new RemoveLocalPlanMarker()
-            );
-            return asList(pushdown, exchange, parallelism, reducer, localPlanning);
-        } else {
-            // this is for unit-testing (CsvTests) where we don't need to push anything to ES
-            localPlanning = new Batch<>(
-                "Local Plan",
-                Limiter.ONCE,
-                new MarkLocalPlan(),
-                new LocalToGlobalLimitAndTopNExec(),
-                new InsertFieldExtraction(),
-                new LocalOptimizations(),
-                new RemoveLocalPlanMarker()
-            );
-            return asList(exchange, parallelism, reducer, localPlanning);
+            esSourceRules.add(new PushLimitToSource());
+            esSourceRules.add(new PushFiltersToSource());
         }
+
+        @SuppressWarnings("unchecked")
+        Batch<PhysicalPlan> localPlanning = new Batch<>("Local planning", esSourceRules.toArray(Rule[]::new));
+
+        // local planning - clean-up
+        var localPlanningStop = new Batch<>("Local Plan Stop", Limiter.ONCE, new InsertFieldExtraction(), new RemoveLocalPlanMarker());
+
+        return asList(exchange, parallelism, reducer, localPlanningStart, localPlanning, localPlanningStop);
     }
 
     @Override
@@ -112,10 +101,22 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         return rules;
     }
 
+    private static class ReplaceAttributeSourceWithDocId extends OptimizerRule<EsSourceExec> {
+
+        ReplaceAttributeSourceWithDocId() {
+            super(UP);
+        }
+
+        @Override
+        protected PhysicalPlan rule(EsSourceExec plan) {
+            return new EsQueryExec(plan.source(), plan.index(), plan.query());
+        }
+    }
+
     private static class MarkLocalPlan extends Rule<PhysicalPlan, PhysicalPlan> {
 
         public PhysicalPlan apply(PhysicalPlan plan) {
-            var found = new Holder<Boolean>(Boolean.FALSE);
+            var found = new Holder<>(Boolean.FALSE);
             plan = plan.transformDown(ExchangeExec.class, e -> {
                 PhysicalPlan p = e;
                 if (found.get() == false) {
@@ -146,7 +147,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     private static class LocalToGlobalLimitAndTopNExec extends OptimizerRule<ExchangeExec> {
 
         private LocalToGlobalLimitAndTopNExec() {
-            super(OptimizerRules.TransformDirection.UP);
+            super(UP);
         }
 
         @Override
@@ -182,8 +183,6 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
          *         </ol>
          *     </li>
          * </ol>
-         * @param exchange
-         * @return
          */
         private PhysicalPlan maybeAddGlobalLimitOrTopN(ExchangeExec exchange) {
             List<UnaryExec> visitedNodes = new ArrayList<>();
@@ -242,30 +241,6 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         }
     }
 
-    // Execute local rules (only once) - should be a separate step
-    static class LocalOptimizations extends OptimizerRule<LocalPlanExec> {
-
-        private final class LocalRules extends RuleExecutor<PhysicalPlan> {
-
-            @Override
-            protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
-                return emptyList();
-            }
-
-            PhysicalPlan plan(PhysicalPlan plan) {
-                return execute(plan);
-            }
-        }
-
-        private final LocalRules localRules = new LocalRules();
-
-        @Override
-        // use the rule method to apply the local optimizations
-        protected PhysicalPlan rule(LocalPlanExec plan) {
-            return localRules.plan(plan);
-        }
-    }
-
     //
     // Materialize the concrete fields that need to be extracted from the storage until the last possible moment
     // 0. collect all fields necessary going down the tree
@@ -290,12 +265,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 }
                 // keep collecting global attributes
                 else if (keepCollecting.get()) {
-                    var input = p.inputSet();
-                    p.forEachExpression(FieldAttribute.class, f -> {
-                        if (input.contains(f) == false) {
-                            globalMissing.add(f);
-                        }
-                    });
+                    globalMissing.addAll(missingAttributes(p));
                 }
                 return pl;
             });
@@ -305,7 +275,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         private PhysicalPlan insertExtract(LocalPlanExec localPlan, Set<Attribute> missingUpstream) {
             PhysicalPlan plan = localPlan;
             // 1. add the extractors before each node that requires extra columns
-            var isProjectionNeeded = new Holder<Boolean>(Boolean.TRUE);
+            var isProjectionNeeded = new Holder<>(Boolean.TRUE);
             var lastFieldExtractorParent = new Holder<UnaryExec>();
 
             // apply the plan locally, adding a field extractor right before data is loaded
@@ -411,7 +381,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     private static class AddTaskParallelismAboveQuery extends ParameterizedOptimizerRule<EsQueryExec, PhysicalOptimizerContext> {
 
         protected AddTaskParallelismAboveQuery() {
-            super(OptimizerRules.TransformDirection.UP);
+            super(UP);
         }
 
         protected PhysicalPlan rule(EsQueryExec plan, PhysicalOptimizerContext context) {

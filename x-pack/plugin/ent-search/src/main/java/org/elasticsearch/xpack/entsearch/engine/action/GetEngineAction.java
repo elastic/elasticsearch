@@ -50,7 +50,7 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
         public Request(String engineId) {
             this.engineId = engineId;
-            names = new String[] { Engine.getEngineAliasName(this.engineId) };
+            names = new String[] { Engine.getEngineAliasName(engineId) };
         }
 
         @Override

@@ -15,12 +15,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.entsearch.engine.Engine;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.entsearch.engine.EngineIndexService.ENGINE_CONCRETE_INDEX_NAME;
 
 public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
 
@@ -35,7 +35,7 @@ public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
-        private String[] names = new String[] { ENGINE_CONCRETE_INDEX_NAME };
+        private String[] names;
         private final IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
         private final String engineId;
@@ -43,10 +43,12 @@ public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.engineId = in.readString();
+            names = new String[] { Engine.getEngineAliasName(this.engineId) };
         }
 
         public Request(String engineId) {
             this.engineId = engineId;
+            names = new String[] { Engine.getEngineAliasName(engineId) };
         }
 
         @Override

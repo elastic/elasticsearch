@@ -287,9 +287,19 @@ public class EngineIndexService {
     public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
         try {
             // TODO Delete alias when Engine is deleted
-            final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            clientWithOrigin.delete(deleteRequest, listener);
+            getEngine(engineName, new ActionListener<>() {
+                @Override
+                public void onResponse(Engine engine) {
+                    final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    clientWithOrigin.delete(deleteRequest, listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }

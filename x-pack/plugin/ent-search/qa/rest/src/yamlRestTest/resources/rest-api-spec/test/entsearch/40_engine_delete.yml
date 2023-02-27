@@ -25,6 +25,6 @@ setup:
 "Delete Engine - Index does not exist":
   - do:
       catch: "missing"
-      engine.put:
+      engine.delete:
         engine_id: test-nonexistent-engine
 

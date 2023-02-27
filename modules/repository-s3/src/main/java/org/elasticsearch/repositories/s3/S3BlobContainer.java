@@ -642,6 +642,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         private List<MultipartUpload> listMultipartUploads() {
             final var listRequest = new ListMultipartUploadsRequest(bucket);
             listRequest.setPrefix(blobKey);
+            listRequest.setRequestMetricCollector(blobStore.listMetricCollector);
             try {
                 return SocketAccess.doPrivileged(() -> client.listMultipartUploads(listRequest)).getMultipartUploads();
             } catch (AmazonS3Exception e) {
@@ -683,9 +684,9 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             final var blobContents = blobContents(updated);
 
-            final var uploadId = SocketAccess.doPrivileged(
-                () -> client.initiateMultipartUpload(new InitiateMultipartUploadRequest(bucket, blobKey))
-            ).getUploadId();
+            final var initiateRequest = new InitiateMultipartUploadRequest(bucket, blobKey);
+            initiateRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+            final var uploadId = SocketAccess.doPrivileged(() -> client.initiateMultipartUpload(initiateRequest)).getUploadId();
 
             final var uploadPartRequest = new UploadPartRequest();
             uploadPartRequest.setBucketName(bucket);
@@ -695,6 +696,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             uploadPartRequest.setLastPart(true);
             uploadPartRequest.setInputStream(blobContents.streamInput());
             uploadPartRequest.setPartSize(blobContents.length());
+            uploadPartRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
             final var partETag = SocketAccess.doPrivileged(() -> client.uploadPart(uploadPartRequest)).getPartETag();
 
             final var currentUploads = listMultipartUploads();
@@ -727,11 +729,14 @@ class S3BlobContainer extends AbstractBlobContainer {
                                 rawKey,
                                 delegate1.delegateFailure((delegate2, currentValue) -> ActionListener.completeWith(delegate2, () -> {
                                     if (currentValue.isPresent() && currentValue.getAsLong() == expected) {
-                                        SocketAccess.doPrivilegedVoid(
-                                            () -> client.completeMultipartUpload(
-                                                new CompleteMultipartUploadRequest(bucket, blobKey, uploadId, List.of(partETag))
-                                            )
+                                        final var completeMultipartUploadRequest = new CompleteMultipartUploadRequest(
+                                            bucket,
+                                            blobKey,
+                                            uploadId,
+                                            List.of(partETag)
                                         );
+                                        completeMultipartUploadRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+                                        SocketAccess.doPrivilegedVoid(() -> client.completeMultipartUpload(completeMultipartUploadRequest));
                                         isComplete.set(true);
                                     }
                                     return currentValue;

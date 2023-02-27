@@ -48,7 +48,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     public HealthMetadata(StreamInput in) throws IOException {
         this.diskMetadata = Disk.readFrom(in);
-        this.shardLimitsMetadata = ShardLimits.readFrom(in);
+        this.shardLimitsMetadata = in.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)
+            ? ShardLimits.readFrom(in)
+            : ShardLimits.UNKNOWN;
+
     }
 
     @Override
@@ -64,7 +67,9 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         diskMetadata.writeTo(out);
-        shardLimitsMetadata.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
+            shardLimitsMetadata.writeTo(out);
+        }
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -120,17 +125,15 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
      */
     public record ShardLimits(int maxShardsPerNode, int maxShardsPerNodeFrozen) implements ToXContentFragment, Writeable {
 
+        public static final ShardLimits UNKNOWN = new ShardLimits(-1, -1);
         private static final String TYPE = "shard_limits";
         private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
+        static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersion.V_8_8_0;
 
-        public static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersion.V_8_8_0;
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
-                return new ShardLimits(in.readInt(), in.readInt());
-            }
-            return null;
+            return new ShardLimits(in.readInt(), in.readInt());
         }
 
         @Override
@@ -142,10 +145,12 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
-                out.writeInt(maxShardsPerNode);
-                out.writeInt(maxShardsPerNodeFrozen);
-            }
+            out.writeInt(maxShardsPerNode);
+            out.writeInt(maxShardsPerNodeFrozen);
+        }
+
+        public boolean isUnknown() {
+            return maxShardsPerNode != -1 && maxShardsPerNodeFrozen != -1;
         }
 
         public static Builder newBuilder() {

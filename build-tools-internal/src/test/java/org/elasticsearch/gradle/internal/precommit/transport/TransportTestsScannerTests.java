@@ -132,9 +132,10 @@ public class TransportTestsScannerTests {
             Matchers.hasItem("org.elasticsearch.gradle.internal.precommit.transport.test_classes.prod.TransportWithoutTest")
         );
 
-        //the class without a test should be skipped
-        Set<String> missingClassesToSkip =
-            Set.of("org.elasticsearch.gradle.internal.precommit.transport.test_classes.prod.TransportWithoutTest");
+        // the class without a test should be skipped
+        Set<String> missingClassesToSkip = Set.of(
+            "org.elasticsearch.gradle.internal.precommit.transport.test_classes.prod.TransportWithoutTest"
+        );
         scanner = new TransportTestsScanner(missingClassesToSkip, writeable, transportTestClassesRoots);
         transportClassesMissingTests = scanner.findTransportClassesMissingTests(all, all, Set.of(), Set.of());
         assertThat(

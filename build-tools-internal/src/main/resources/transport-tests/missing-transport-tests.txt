@@ -1,0 +1,12 @@
+//:modules:aggregations
+org.elasticsearch.aggregations.metric.MatrixStatsAggregationBuilder
+org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder
+org.elasticsearch.aggregations.metric.RunningStats
+org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder
+org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder$RoundingInfo
+org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder
+org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregator$KeyedFilter
+org.elasticsearch.aggregations.metric.ArrayValuesSourceAggregationBuilder
+org.elasticsearch.aggregations.metric.ArrayValuesSourceAggregationBuilder$LeafOnly
+org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder
+org.elasticsearch.aggregations.metric.MatrixStatsResults

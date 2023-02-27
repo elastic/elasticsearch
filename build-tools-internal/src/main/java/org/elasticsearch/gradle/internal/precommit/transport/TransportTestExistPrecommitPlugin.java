@@ -14,7 +14,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -39,13 +38,13 @@ public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
                 t.setCompileClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
                 t.setTestClasspath(project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CLASSPATH_CONFIGURATION_NAME));
             });
-            //somehow this does not help for rest-api-spec project
-//        project.getPluginManager().withPlugin("java", p -> {
-//            // We want to get any compilation error before running the pre-commit checks.
-//            project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(sourceSet ->
-//                transportTestExistTask.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()))
-//            );
-//        });
+            // somehow this does not help for rest-api-spec project
+            // project.getPluginManager().withPlugin("java", p -> {
+            // // We want to get any compilation error before running the pre-commit checks.
+            // project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(sourceSet ->
+            // transportTestExistTask.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()))
+            // );
+            // });
         } catch (Exception e) {
             // System.out.println(project +" failing");
             // not all projects have main source set.

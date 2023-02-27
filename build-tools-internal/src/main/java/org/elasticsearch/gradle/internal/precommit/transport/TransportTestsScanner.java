@@ -83,7 +83,7 @@ public class TransportTestsScanner {
             var name = getClassName(c);
             var nameToLook = name.contains("$") ? name.substring(0, name.indexOf('$')) : name;
             Optional<String> found = transportTests.stream().filter(tt -> tt.contains(nameToLook)).findAny();
-            if (found.isEmpty()  && skipMissingClasses.contains(c) == false) {
+            if (found.isEmpty() && skipMissingClasses.contains(c) == false) {
                 missingTestClasses.add(c);
             }
         }

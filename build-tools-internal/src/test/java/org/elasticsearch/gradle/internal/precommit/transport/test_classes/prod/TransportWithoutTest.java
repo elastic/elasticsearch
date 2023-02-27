@@ -10,5 +10,4 @@ package org.elasticsearch.gradle.internal.precommit.transport.test_classes.prod;
 
 import org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable;
 
-public class TransportWithoutTest implements Writeable {
-}
+public class TransportWithoutTest implements Writeable {}

@@ -254,6 +254,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
      * @param listener
      */
     public synchronized void addBoundAddressListener(BoundAddressListener listener) {
+        // this expects that setupSocket is called within a synchronized method
         var b = boundAddress();
         if (b != null) {
             listener.addressBound(b);

@@ -131,7 +131,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
         static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersion.V_8_8_0;
 
-
         static ShardLimits readFrom(StreamInput in) throws IOException {
             return new ShardLimits(in.readInt(), in.readInt());
         }

@@ -355,6 +355,30 @@ public class QueryPhaseTests extends IndexShardTestCase {
             }
             return total;
         };
+
+        {
+            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+            context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            context.setSize(1);
+            context.terminateAfter(1);
+            BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
+                .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
+                .build();
+            context.parsedQuery(new ParsedQuery(bq));
+            QueryPhase.executeInternal(context);
+            assertTrue(context.queryResult().terminatedEarly());
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
+
+            context.setSize(0);
+            QueryPhase.executeInternal(context);
+            assertTrue(context.queryResult().terminatedEarly());
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
+        }
+
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
@@ -396,27 +420,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
-        }
-        {
-            context.setSize(1);
-            BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
-                .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
-                .build();
-            context.parsedQuery(new ParsedQuery(bq));
-            QueryPhase.executeInternal(context);
-            assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
-
-            context.setSize(0);
-            context.parsedQuery(new ParsedQuery(bq));
-            QueryPhase.executeInternal(context);
-            assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(1)));
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         }
         {
             context.setSize(1);

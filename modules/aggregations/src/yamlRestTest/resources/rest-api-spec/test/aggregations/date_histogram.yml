@@ -436,6 +436,58 @@ setup:
   - match: { aggregations.date_histogram_daily.buckets.1.key_as_string: "2020-03-09T00:00:00.000-04:00" }
   - match: { aggregations.date_histogram_daily.buckets.1.key: 1583726400000 }
   - match: { aggregations.date_histogram_daily.buckets.1.doc_count: 5 }
+---
+
+"Daylight with 25h offset date_histogram test":
+  - skip:
+      version: "- 7.16.99"
+      reason: Bug fixed before 7.16.99
+
+  - do:
+      search:
+        index: timezone_daylight_test
+        body:
+          size: 0
+          aggs:
+            date_histogram_daily:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1d"
+                time_zone: "America/New_York"
+                offset: "+25h"
+
+  - match:  { hits.total.value: 6 }
+  - length: { aggregations.date_histogram_daily.buckets: 2 }
+  - match: { aggregations.date_histogram_daily.buckets.0.key_as_string: "2020-03-08T01:00:00.000-05:00" }
+  - match: { aggregations.date_histogram_daily.buckets.0.key: 1583647200000 }
+  - match: { aggregations.date_histogram_daily.buckets.0.doc_count: 3 }
+  - match: { aggregations.date_histogram_daily.buckets.1.key_as_string: "2020-03-09T02:00:00.000-04:00" }
+  - match: { aggregations.date_histogram_daily.buckets.1.key: 1583733600000 }
+  - match: { aggregations.date_histogram_daily.buckets.1.doc_count: 3 }
+
+---
+"Daylight with 24h offset date_histogram test":
+  - do:
+      search:
+        index: timezone_daylight_test
+        body:
+          size: 0
+          aggs:
+            date_histogram_daily:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1d"
+                time_zone: "America/New_York"
+                offset: "+24h"
+
+  - match:  { hits.total.value: 6 }
+  - length: { aggregations.date_histogram_daily.buckets: 2 }
+  - match: { aggregations.date_histogram_daily.buckets.0.key_as_string: "2020-03-08T00:00:00.000-05:00" }
+  - match: { aggregations.date_histogram_daily.buckets.0.key: 1583643600000 }
+  - match: { aggregations.date_histogram_daily.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram_daily.buckets.1.key_as_string: "2020-03-09T01:00:00.000-04:00" }
+  - match: { aggregations.date_histogram_daily.buckets.1.key: 1583730000000 }
+  - match: { aggregations.date_histogram_daily.buckets.1.doc_count: 4 }
 
 ---
 "Date histogram with contradicting filters":

@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -48,7 +49,12 @@ public class RemoteAccessAuthenticationService {
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
-                .privileges("indices:admin/seq_no/add_retention_lease", "indices:monitor/stats")
+                .privileges(
+                    RetentionLeaseActions.Add.ACTION_NAME,
+                    RetentionLeaseActions.Remove.ACTION_NAME,
+                    RetentionLeaseActions.Renew.ACTION_NAME,
+                    "indices:monitor/stats"
+                )
                 .build() },
         null,
         null,

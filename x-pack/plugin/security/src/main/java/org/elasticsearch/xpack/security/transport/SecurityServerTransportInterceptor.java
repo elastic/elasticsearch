@@ -115,7 +115,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             IndicesStatsAction.NAME,
             "internal:admin/ccr/restore/file_chunk/get",
             "internal:admin/ccr/restore/session/clear",
-            "internal:admin/ccr/restore/session/put"
+            "internal:admin/ccr/restore/session/put",
+            "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/file_chunk/get",
+            "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/session/clear",
+            "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/session/put"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)

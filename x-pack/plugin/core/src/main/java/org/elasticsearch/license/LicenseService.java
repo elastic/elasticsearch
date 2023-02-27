@@ -93,7 +93,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Period before the license expires when warning starts being added to the response header
      */
-    static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = days(7);
+    static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = TimeValue.timeValueDays(7);
 
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
         XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
@@ -319,7 +319,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return allowedLicenseTypes.contains(type);
     }
 
-    private static TimeValue days(int days) {
+    private TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
     }
 

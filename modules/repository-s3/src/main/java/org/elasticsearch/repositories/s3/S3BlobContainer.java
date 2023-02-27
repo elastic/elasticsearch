@@ -45,7 +45,6 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
@@ -71,6 +70,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.getRegisterBlobContents;
 import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.getRegisterUsingConsistentRead;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
@@ -653,13 +653,6 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
         }
 
-        private static BytesReference blobContents(long newValue) throws IOException {
-            try (var bos = new BytesStreamOutput(Long.BYTES)) {
-                bos.writeLong(newValue);
-                return bos.bytes();
-            }
-        }
-
         private int getUploadIndex(String targetUploadId, List<MultipartUpload> multipartUploads) {
             var uploadIndex = 0;
             var found = false;
@@ -682,7 +675,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 return;
             }
 
-            final var blobContents = blobContents(updated);
+            final var blobContents = getRegisterBlobContents(updated);
 
             final var initiateRequest = new InitiateMultipartUploadRequest(bucket, blobKey);
             initiateRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
@@ -827,7 +820,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 var s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 var stream = s3Object.getObjectContent()
             ) {
-                return getRegisterUsingConsistentRead(stream, keyPath, key);
+                return OptionalLong.of(getRegisterUsingConsistentRead(stream, keyPath, key));
             } catch (AmazonS3Exception e) {
                 if (e.getStatusCode() == 404) {
                     return OptionalLong.of(0L);

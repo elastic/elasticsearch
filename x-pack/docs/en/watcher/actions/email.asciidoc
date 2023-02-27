@@ -391,7 +391,7 @@ xpack.notification.email.account:
 --------------------------------------------------
 <1> Some organizations configure Amazon SES to validate that the `from` field is a
     valid local email account.
-<1> `smtp.host` varies depending on the region
+<2> `smtp.host` varies depending on the region
 
 To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])

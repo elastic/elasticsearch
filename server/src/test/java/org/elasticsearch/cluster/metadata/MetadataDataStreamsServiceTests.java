@@ -352,7 +352,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             original.isReplicated(),
             original.isSystem(),
             original.isAllowCustomRouting(),
-            original.getIndexMode()
+            original.getIndexMode(),
+            original.getLifecycle()
         );
         var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
 

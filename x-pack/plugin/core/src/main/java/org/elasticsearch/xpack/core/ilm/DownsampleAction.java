@@ -104,7 +104,7 @@ public class DownsampleAction implements LifecycleAction {
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
         StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
         StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_DOWNSAMPLE_STEP_NAME);
-        StepKey rollupKey = new StepKey(phase, NAME, RollupStep.NAME);
+        StepKey rollupKey = new StepKey(phase, NAME, DownsampleStep.NAME);
         StepKey waitForRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
@@ -126,7 +126,7 @@ public class DownsampleAction implements LifecycleAction {
             readOnlyKey,
             client,
             (indexMetadata) -> IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(indexMetadata.getSettings()),
-            (indexMetadata) -> indexMetadata.getLifecycleExecutionState().rollupIndexName()
+            (indexMetadata) -> indexMetadata.getLifecycleExecutionState().downsampleIndexName()
         );
         // Mark source index as read-only
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
@@ -140,7 +140,7 @@ public class DownsampleAction implements LifecycleAction {
         );
 
         // Here is where the actual rollup action takes place
-        RollupStep rollupStep = new RollupStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
+        DownsampleStep rollupStep = new DownsampleStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
         // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-rollup-index"
@@ -151,7 +151,7 @@ public class DownsampleAction implements LifecycleAction {
                 waitForRollupIndexKey,
                 copyMetadataKey,
                 ClusterHealthStatus.YELLOW,
-                (indexName, lifecycleState) -> lifecycleState.rollupIndexName()
+                (indexName, lifecycleState) -> lifecycleState.downsampleIndexName()
             ),
             cleanupRollupIndexKey
         );
@@ -159,7 +159,7 @@ public class DownsampleAction implements LifecycleAction {
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
             dataStreamCheckBranchingKey,
-            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
             nextStepKey
         );
 
@@ -181,7 +181,7 @@ public class DownsampleAction implements LifecycleAction {
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(
             replaceDataStreamIndexKey,
             deleteIndexKey,
-            (sourceIndexName, lifecycleState) -> lifecycleState.rollupIndexName()
+            (sourceIndexName, lifecycleState) -> lifecycleState.downsampleIndexName()
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, nextStepKey, client);
 
@@ -189,7 +189,7 @@ public class DownsampleAction implements LifecycleAction {
             swapAliasesKey,
             nextStepKey,
             client,
-            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
             false
         );
 

@@ -116,13 +116,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        public static final ParseField DATASTREAMS_FIELD = new ParseField("data_streams");
+        public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
         public static class DataStreamInfo implements SimpleDiffable<DataStreamInfo>, ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
+            public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
             public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
             public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
@@ -212,6 +213,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(STATUS_FIELD.getPreferredName(), dataStreamStatus);
                 if (indexTemplate != null) {
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
+                }
+                if (dataStream.getLifecycle() != null) {
+                    builder.field(LIFECYCLE_FIELD.getPreferredName(), dataStream.getLifecycle());
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -306,7 +310,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.startArray(DATASTREAMS_FIELD.getPreferredName());
+            builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
                 dataStream.toXContent(builder, params);
             }

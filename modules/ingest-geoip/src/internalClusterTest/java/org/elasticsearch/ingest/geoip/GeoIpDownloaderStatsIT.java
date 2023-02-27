@@ -42,8 +42,6 @@ import static org.hamcrest.Matchers.hasSize;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, maxNumDataNodes = 1)
 public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
 
-    private static final String ENDPOINT = System.getProperty("geoip_endpoint");
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
@@ -52,8 +50,8 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        if (ENDPOINT != null) {
-            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
+        if (getEndpoint() != null) {
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
         }
         return settings.build();
     }
@@ -73,7 +71,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
          * Testing without the geoip endpoint fixture falls back to https://storage.googleapis.com/, which can cause this test to run too
          * slowly to pass.
          */
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         GeoIpDownloaderStatsAction.Request req = new GeoIpDownloaderStatsAction.Request();
         GeoIpDownloaderStatsAction.Response response = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
         XContentTestUtils.JsonMapView jsonMapView = new XContentTestUtils.JsonMapView(convertToMap(response));

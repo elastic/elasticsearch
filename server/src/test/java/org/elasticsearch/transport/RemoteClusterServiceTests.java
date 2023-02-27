@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -59,17 +60,23 @@ public class RemoteClusterServiceTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
-        return startTransport(id, knownNodes, version, Settings.EMPTY);
+    private MockTransportService startTransport(
+        String id,
+        List<DiscoveryNode> knownNodes,
+        Version version,
+        TransportVersion transportVersion
+    ) {
+        return startTransport(id, knownNodes, version, transportVersion, Settings.EMPTY);
     }
 
     private MockTransportService startTransport(
         final String id,
         final List<DiscoveryNode> knownNodes,
         final Version version,
+        final TransportVersion transportVersion,
         final Settings settings
     ) {
-        return RemoteClusterConnectionTests.startTransport(id, knownNodes, version, threadPool, settings);
+        return RemoteClusterConnectionTests.startTransport(id, knownNodes, version, transportVersion, threadPool, settings);
     }
 
     public void testSettingsAreRegistered() {
@@ -116,8 +123,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testGroupClusterIndices() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
+            MockTransportService cluster1Transport = startTransport(
+                "cluster_1_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT
+            );
+            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)
         ) {
             DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
             DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
@@ -129,6 +141,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     null
                 )
@@ -186,8 +199,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testGroupIndices() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
+            MockTransportService cluster1Transport = startTransport(
+                "cluster_1_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT
+            );
+            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)
         ) {
             DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
             DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
@@ -199,6 +217,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     null
                 )
@@ -285,8 +304,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testIncrementallyAddClusters() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
+            MockTransportService cluster1Transport = startTransport(
+                "cluster_1_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT
+            );
+            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)
         ) {
             DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
             DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
@@ -298,6 +322,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     null
                 )
@@ -352,7 +377,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testDefaultPingSchedule() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
             TimeValue pingSchedule;
@@ -366,7 +391,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
             }
             Settings settings = settingsBuilder.build();
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -390,8 +421,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testCustomPingSchedule() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
+            MockTransportService cluster1Transport = startTransport(
+                "cluster_1_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT
+            );
+            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)
         ) {
             DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
             DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
@@ -408,6 +444,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 MockTransportService transportService = MockTransportService.createNewService(
                     transportSettings,
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     null
                 )
@@ -437,7 +474,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testChangeSettings() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)) {
+        try (
+            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)
+        ) {
             DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
             knownNodes.add(cluster1Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
@@ -446,6 +485,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     null
                 )
@@ -491,10 +531,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         final Settings gateway = Settings.builder().put("node.attr.gateway", true).build();
         try (
-            MockTransportService c1N1 = startTransport("cluster_1_node_1", knownNodes, Version.CURRENT);
-            MockTransportService c1N2 = startTransport("cluster_1_node_2", knownNodes, Version.CURRENT, gateway);
-            MockTransportService c2N1 = startTransport("cluster_2_node_1", knownNodes, Version.CURRENT);
-            MockTransportService c2N2 = startTransport("cluster_2_node_2", knownNodes, Version.CURRENT, gateway)
+            MockTransportService c1N1 = startTransport("cluster_1_node_1", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
+            MockTransportService c1N2 = startTransport("cluster_1_node_2", knownNodes, Version.CURRENT, TransportVersion.CURRENT, gateway);
+            MockTransportService c2N1 = startTransport("cluster_2_node_1", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
+            MockTransportService c2N2 = startTransport("cluster_2_node_2", knownNodes, Version.CURRENT, TransportVersion.CURRENT, gateway)
         ) {
             final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
             final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
@@ -507,7 +547,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
             Collections.shuffle(knownNodes, random());
 
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -554,10 +600,22 @@ public class RemoteClusterServiceTests extends ESTestCase {
         final Settings data = nonMasterNode();
         final Settings dedicatedMaster = masterOnlyNode();
         try (
-            MockTransportService c1N1 = startTransport("cluster_1_node_1", knownNodes, Version.CURRENT, dedicatedMaster);
-            MockTransportService c1N2 = startTransport("cluster_1_node_2", knownNodes, Version.CURRENT, data);
-            MockTransportService c2N1 = startTransport("cluster_2_node_1", knownNodes, Version.CURRENT, dedicatedMaster);
-            MockTransportService c2N2 = startTransport("cluster_2_node_2", knownNodes, Version.CURRENT, data)
+            MockTransportService c1N1 = startTransport(
+                "cluster_1_node_1",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                dedicatedMaster
+            );
+            MockTransportService c1N2 = startTransport("cluster_1_node_2", knownNodes, Version.CURRENT, TransportVersion.CURRENT, data);
+            MockTransportService c2N1 = startTransport(
+                "cluster_2_node_1",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                dedicatedMaster
+            );
+            MockTransportService c2N2 = startTransport("cluster_2_node_2", knownNodes, Version.CURRENT, TransportVersion.CURRENT, data)
         ) {
             final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
             final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
@@ -570,7 +628,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
             Collections.shuffle(knownNodes, random());
 
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -621,10 +685,34 @@ public class RemoteClusterServiceTests extends ESTestCase {
         final List<DiscoveryNode> knownNodes_c2 = new CopyOnWriteArrayList<>();
 
         try (
-            MockTransportService c1N1 = startTransport("cluster_1_node_1", knownNodes_c1, Version.CURRENT, settings);
-            MockTransportService c1N2 = startTransport("cluster_1_node_2", knownNodes_c1, Version.CURRENT, settings);
-            MockTransportService c2N1 = startTransport("cluster_2_node_1", knownNodes_c2, Version.CURRENT, settings);
-            MockTransportService c2N2 = startTransport("cluster_2_node_2", knownNodes_c2, Version.CURRENT, settings)
+            MockTransportService c1N1 = startTransport(
+                "cluster_1_node_1",
+                knownNodes_c1,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                settings
+            );
+            MockTransportService c1N2 = startTransport(
+                "cluster_1_node_2",
+                knownNodes_c1,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                settings
+            );
+            MockTransportService c2N1 = startTransport(
+                "cluster_2_node_1",
+                knownNodes_c2,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                settings
+            );
+            MockTransportService c2N2 = startTransport(
+                "cluster_2_node_2",
+                knownNodes_c2,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                settings
+            )
         ) {
             final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
             final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
@@ -638,7 +726,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
             Collections.shuffle(knownNodes_c2, random());
 
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -870,8 +964,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testReconnectWhenStrategySettingsUpdated() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService cluster_node_0 = startTransport("cluster_node_0", knownNodes, Version.CURRENT);
-            MockTransportService cluster_node_1 = startTransport("cluster_node_1", knownNodes, Version.CURRENT)
+            MockTransportService cluster_node_0 = startTransport("cluster_node_0", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
+            MockTransportService cluster_node_1 = startTransport("cluster_node_1", knownNodes, Version.CURRENT, TransportVersion.CURRENT)
         ) {
 
             final DiscoveryNode node0 = cluster_node_0.getLocalDiscoNode();
@@ -884,6 +978,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     null
                 )
@@ -962,12 +1057,20 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testSkipUnavailable() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedNode);
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
-            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    builder.build(),
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 
@@ -986,7 +1089,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
         final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(
@@ -999,7 +1110,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testRemoteClusterServiceNotEnabledGetCollectNodes() {
         final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(

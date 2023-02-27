@@ -1,0 +1,5 @@
+pr: 94170
+summary: Reintroduce shortcut total hit count when collecting hits
+area: Search
+type: enhancement
+issues: []

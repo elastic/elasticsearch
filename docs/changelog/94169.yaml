@@ -1,0 +1,5 @@
+pr: 94169
+summary: "[Fleet] Add new privileges for Fleet audit logs to `kibana_system` user"
+area: Authorization
+type: enhancement
+issues: []

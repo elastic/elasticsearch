@@ -27,6 +27,7 @@ import org.junit.After;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
@@ -191,17 +192,17 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        Thread.sleep(5_000);
-
         // transform is yellow
-        Map<String, Object> stats = getTransformStats(transformId);
-        assertThat(extractValue(stats, "health", "status"), is(equalTo("yellow")));
-        List<Object> issues = (List<Object>) extractValue(stats, "health", "issues");
-        assertThat(issues, hasSize(1));
-        assertThat(
-            (String) extractValue((Map<String, Object>) issues.get(0), "details"),
-            containsString(String.format(Locale.ROOT, "no such index [%s]", destIndexName))
-        );
+        assertBusy(() -> {
+            Map<String, Object> stats = getTransformStats(transformId);
+            assertThat(extractValue(stats, "health", "status"), is(equalTo("yellow")));
+            List<Object> issues = (List<Object>) extractValue(stats, "health", "issues");
+            assertThat(issues, hasSize(1));
+            assertThat(
+                (String) extractValue((Map<String, Object>) issues.get(0), "details"),
+                containsString(String.format(Locale.ROOT, "no such index [%s]", destIndexName))
+            );
+        }, 10, TimeUnit.SECONDS);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());

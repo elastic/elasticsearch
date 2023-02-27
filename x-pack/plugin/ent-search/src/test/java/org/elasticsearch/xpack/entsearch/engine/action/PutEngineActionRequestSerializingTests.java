@@ -18,8 +18,7 @@ public class PutEngineActionRequestSerializingTests extends AbstractWireSerializ
         return new Engine(
             ESTestCase.randomAlphaOfLengthBetween(1, 10),
             generateRandomStringArray(10, 10, false, false),
-            randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) }),
-            randomLong()
+            randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) })
         );
     }
 

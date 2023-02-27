@@ -43,7 +43,7 @@ public class Engine implements Writeable, ToXContentObject {
     public static final String ENGINE_ALIAS_PREFIX = "engine-";
     private final String name;
     private final String[] indices;
-    private final long updatedAtMillis;
+    private long updatedAtMillis = System.currentTimeMillis();
     private final String analyticsCollectionName;
 
     private final String engineAlias;
@@ -54,15 +54,13 @@ public class Engine implements Writeable, ToXContentObject {
      * @param name                    The name of the engine.
      * @param indices                 The list of indices targeted by this engine.
      * @param analyticsCollectionName The name of the associated analytics collection.
-     * @param updatedAtMillis         Timestamp in milliseconds this Engine was last updated.
      */
-    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName, long updatedAtMillis) {
+    public Engine(String name, String[] indices, @Nullable String analyticsCollectionName) {
         this.name = name;
         this.indices = indices;
         Arrays.sort(indices);
 
         this.analyticsCollectionName = analyticsCollectionName;
-        this.updatedAtMillis = updatedAtMillis;
         this.engineAlias = getEngineAliasName(name);
     }
 
@@ -97,7 +95,9 @@ public class Engine implements Writeable, ToXContentObject {
             final Long maybeUpdatedAtMillis = (Long) params[2];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
 
-            return new Engine(engineName, indices, analyticsCollectionName, updatedAtMillis);
+            Engine newEngine = new Engine(engineName, indices, analyticsCollectionName);
+            newEngine.setUpdatedAtMillis(updatedAtMillis);
+            return newEngine;
         }
     );
 
@@ -191,6 +191,10 @@ public class Engine implements Writeable, ToXContentObject {
 
     public long updatedAtMillis() {
         return updatedAtMillis;
+    }
+
+    public void setUpdatedAtMillis(long updatedAtMillis) {
+        this.updatedAtMillis = updatedAtMillis;
     }
 
     public String engineAlias() {

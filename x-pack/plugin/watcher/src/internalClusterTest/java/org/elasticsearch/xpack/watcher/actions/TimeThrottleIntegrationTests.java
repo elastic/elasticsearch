@@ -46,7 +46,6 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(putWatchResponse.isCreated(), is(true));
 
         timeWarp().trigger(id);
-
         assertHistoryEntryExecuted(id);
 
         timeWarp().clock().fastForward(TimeValue.timeValueMillis(4000));

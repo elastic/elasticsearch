@@ -100,11 +100,10 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(1));
 
-        var reader = new TranslogReplicatorReader(objectStoreService, shardId, 0);
-        var firstEntry = reader.next();
-        assertThat(firstEntry.metadata(), equalTo(new TranslogMetadata(0, 64, 0, 3, 4)));
-        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 4), BytesReference.toBytes(firstEntry.data()));
-        assertThat(reader.hasNext(), equalTo(false));
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId, 0),
+            new TranslogEntry(new TranslogMetadata(0, 64, 0, 3, 4), repeatBytes(bytesArray.array(), 4))
+        );
     }
 
     public void testTranslogBytesAreSyncedWhenReachingSizeThreshold() throws Exception {
@@ -134,11 +133,10 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
-        var reader = new TranslogReplicatorReader(objectStoreService, shardId, 0);
-        var firstEntry = reader.next();
-        assertThat(firstEntry.metadata(), equalTo(new TranslogMetadata(0, 64, 0, 3, 4)));
-        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 4), BytesReference.toBytes(firstEntry.data()));
-        assertThat(reader.hasNext(), equalTo(false));
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId, 0),
+            new TranslogEntry(new TranslogMetadata(0, 64, 0, 3, 4), repeatBytes(bytesArray.array(), 4))
+        );
     }
 
     public void testTranslogBytesAreSyncedEdgeCondition() throws Exception {
@@ -205,7 +203,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         }
 
         var reader = new TranslogReplicatorReader(objectStoreService, shardId, 0);
-        var exception = expectThrows(TranslogCorruptedException.class, () -> reader.next());
+        var exception = expectThrows(TranslogCorruptedException.class, reader::next);
         assertThat(exception.getMessage(), containsString("checksum verification failed"));
     }
 
@@ -288,17 +286,14 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(1));
 
-        var reader1 = new TranslogReplicatorReader(objectStoreService, shardId1, 0);
-        var reader1entry1 = reader1.next();
-        assertThat(reader1entry1.metadata(), equalTo(new TranslogMetadata(48, 32, 0, 1, 2)));
-        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 2), BytesReference.toBytes(reader1entry1.data()));
-        assertThat(reader1.hasNext(), equalTo(false));
-
-        var reader2 = new TranslogReplicatorReader(objectStoreService, shardId2, 0);
-        var reader2entry1 = reader2.next();
-        assertThat(reader2entry1.metadata(), equalTo(new TranslogMetadata(0, 48, 0, 3, 3)));
-        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 3), BytesReference.toBytes(reader2entry1.data()));
-        assertThat(reader2.hasNext(), equalTo(false));
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId1, 0),
+            new TranslogEntry(new TranslogMetadata(48, 32, 0, 1, 2), repeatBytes(bytesArray.array(), 2))
+        );
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId2, 0),
+            new TranslogEntry(new TranslogMetadata(0, 48, 0, 3, 3), repeatBytes(bytesArray.array(), 3))
+        );
 
         PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId2, intermediateLocationShard2, future2);
@@ -315,20 +310,15 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(2));
 
-        reader1 = new TranslogReplicatorReader(objectStoreService, shardId1, 0);
-        reader1entry1 = reader1.next();
-        assertThat(reader1entry1.metadata(), equalTo(new TranslogMetadata(48, 32, 0, 1, 2)));
-        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 2), BytesReference.toBytes(reader1entry1.data()));
-        assertThat(reader1.hasNext(), equalTo(false));
-
-        reader2 = new TranslogReplicatorReader(objectStoreService, shardId2, 0);
-        reader2entry1 = reader2.next();
-        assertThat(reader2entry1.metadata(), equalTo(new TranslogMetadata(0, 48, 0, 3, 3)));
-        assertArrayEquals("unexpected byte contents", repeatBytes(bytesArray.array(), 3), BytesReference.toBytes(reader2entry1.data()));
-        var reader2entry2 = reader2.next();
-        assertThat(reader2entry2.metadata(), equalTo(new TranslogMetadata(0, 16, 2, 2, 1)));
-        assertArrayEquals("unexpected byte contents", bytesArray.array(), BytesReference.toBytes(reader2entry2.data()));
-        assertThat(reader2.hasNext(), equalTo(false));
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId1, 0),
+            new TranslogEntry(new TranslogMetadata(48, 32, 0, 1, 2), repeatBytes(bytesArray.array(), 2))
+        );
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId2, 0),
+            new TranslogEntry(new TranslogMetadata(0, 48, 0, 3, 3), repeatBytes(bytesArray.array(), 3)),
+            new TranslogEntry(new TranslogMetadata(0, 16, 2, 2, 1), bytesArray.array())
+        );
     }
 
     public void testSchedulesFlushCheck() {
@@ -382,4 +372,16 @@ public class TranslogReplicatorTests extends ESTestCase {
         }
         return expectedBytesStream.toByteArray();
     }
+
+    private static void assertTranslogContains(TranslogReplicatorReader reader, TranslogEntry... entries) {
+        for (int i = 0; i < entries.length; i++) {
+            assertThat("Reader does not have expected entry", reader.hasNext(), equalTo(true));
+            var entry = reader.next();
+            assertThat(entry.metadata(), equalTo(entries[i].metadata()));
+            assertArrayEquals("unexpected byte contents", entries[i].data(), BytesReference.toBytes(entry.data()));
+        }
+        assertThat("Reader has unexpected extra entries", reader.hasNext(), equalTo(false));
+    }
+
+    private record TranslogEntry(TranslogMetadata metadata, byte[] data) {}
 }

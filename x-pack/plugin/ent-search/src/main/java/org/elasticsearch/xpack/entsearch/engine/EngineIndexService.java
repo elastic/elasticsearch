@@ -84,8 +84,6 @@ public class EngineIndexService {
     public static final String ENGINE_CONCRETE_INDEX_NAME = ".engine-1";
     public static final String ENGINE_INDEX_NAME_PATTERN = ".engine-*";
 
-    public static final String ENGINE_ALIAS_PREFIX = "engine-";
-
     private final Client clientWithOrigin;
     private final ClusterService clusterService;
     public final NamedWriteableRegistry namedWriteableRegistry;
@@ -188,7 +186,7 @@ public class EngineIndexService {
     }
 
     private static String getEngineAliasName(Engine engine) {
-        return ENGINE_ALIAS_PREFIX + engine.name();
+        return engine.engineAlias();
     }
 
     /**

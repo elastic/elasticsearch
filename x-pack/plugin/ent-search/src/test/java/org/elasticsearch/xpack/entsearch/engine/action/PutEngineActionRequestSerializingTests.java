@@ -12,8 +12,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
 
-import java.io.IOException;
-
 public class PutEngineActionRequestSerializingTests extends AbstractWireSerializingTestCase<PutEngineAction.Request> {
 
     private static Engine randomEngine() {
@@ -35,7 +33,7 @@ public class PutEngineActionRequestSerializingTests extends AbstractWireSerializ
     }
 
     @Override
-    protected PutEngineAction.Request mutateInstance(PutEngineAction.Request instance) throws IOException {
+    protected PutEngineAction.Request mutateInstance(PutEngineAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

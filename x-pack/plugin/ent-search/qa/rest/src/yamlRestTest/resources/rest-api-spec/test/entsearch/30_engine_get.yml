@@ -1,0 +1,44 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      engine.put:
+        engine_id: my-test-engine
+        body:
+          indices: [ "test-index1", "test-index2"]
+          analytics_collection_name: "test-analytics"
+
+
+---
+"Get Engine":
+  - do:
+      engine.get:
+        engine_id: my-test-engine
+
+  - match: { indices: [ "test-index1", "test-index2" ] }
+  - match: { analytics_collection_name: "test-analytics" }
+  - match: { engine_alias: "engine-my-test-engine" }
+
+---
+"Get Engine - Engine does not exist":
+  - do:
+      catch: "missing"
+      engine.get:
+        engine_id: test-nonexistent-engine
+

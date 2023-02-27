@@ -89,11 +89,11 @@ public class S3HttpHandlerTests extends ESTestCase {
         final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
         final var uploadId = getUploadId(createUploadResponse.body());
         assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            <?xml version="1.0" encoding="UTF-8"?>
-            <InitiateMultipartUploadResult>
-              <Bucket>bucket</Bucket>
-              <Key>/bucket/path/blob</Key>
-              <UploadId>%s</UploadId>
+            <?xml version='1.0' encoding='UTF-8'?>\
+            <InitiateMultipartUploadResult>\
+            <Bucket>bucket</Bucket>\
+            <Key>path/blob</Key>\
+            <UploadId>%s</UploadId>\
             </InitiateMultipartUploadResult>""", uploadId)), createUploadResponse);
 
         final var part1 = randomAlphaOfLength(50);
@@ -112,7 +112,7 @@ public class S3HttpHandlerTests extends ESTestCase {
                 <ListMultipartUploadsResult xmlns='http://s3.amazonaws.com/doc/2006-03-01/'>\
                 <Bucket>bucket</Bucket><KeyMarker /><UploadIdMarker /><NextKeyMarker>--unused--</NextKeyMarker><NextUploadIdMarker />\
                 <Delimiter /><Prefix>path/blob</Prefix><MaxUploads>10000</MaxUploads><IsTruncated>false</IsTruncated>\
-                <Upload><Initiated>%s</Initiated><Key>/bucket/path/blob</Key><UploadId>%s</UploadId></Upload>\
+                <Upload><Initiated>%s</Initiated><Key>path/blob</Key><UploadId>%s</UploadId></Upload>\
                 </ListMultipartUploadsResult>""", handler.getUpload(uploadId).getInitiatedDateTime(), uploadId)),
             handleRequest(handler, "GET", "/bucket/?uploads&prefix=path/blob")
         );
@@ -166,11 +166,11 @@ public class S3HttpHandlerTests extends ESTestCase {
         final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
         final var uploadId = getUploadId(createUploadResponse.body());
         assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            <?xml version="1.0" encoding="UTF-8"?>
-            <InitiateMultipartUploadResult>
-              <Bucket>bucket</Bucket>
-              <Key>/bucket/path/blob</Key>
-              <UploadId>%s</UploadId>
+            <?xml version='1.0' encoding='UTF-8'?>\
+            <InitiateMultipartUploadResult>\
+            <Bucket>bucket</Bucket>\
+            <Key>path/blob</Key>\
+            <UploadId>%s</UploadId>\
             </InitiateMultipartUploadResult>""", uploadId)), createUploadResponse);
 
         final var part1 = randomAlphaOfLength(50);
@@ -189,7 +189,7 @@ public class S3HttpHandlerTests extends ESTestCase {
                 <ListMultipartUploadsResult xmlns='http://s3.amazonaws.com/doc/2006-03-01/'>\
                 <Bucket>bucket</Bucket><KeyMarker /><UploadIdMarker /><NextKeyMarker>--unused--</NextKeyMarker><NextUploadIdMarker />\
                 <Delimiter /><Prefix>path/blob</Prefix><MaxUploads>10000</MaxUploads><IsTruncated>false</IsTruncated>\
-                <Upload><Initiated>%s</Initiated><Key>/bucket/path/blob</Key><UploadId>%s</UploadId></Upload>\
+                <Upload><Initiated>%s</Initiated><Key>path/blob</Key><UploadId>%s</UploadId></Upload>\
                 </ListMultipartUploadsResult>""", handler.getUpload(uploadId).getInitiatedDateTime(), uploadId)),
             handleRequest(handler, "GET", "/bucket/?uploads&prefix=path/blob")
         );

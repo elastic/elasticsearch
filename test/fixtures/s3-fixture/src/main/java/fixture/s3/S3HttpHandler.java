@@ -114,20 +114,21 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
-                final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), exchange.getRequestURI().getPath());
+                final var upload = new MultipartUpload(
+                    UUIDs.randomBase64UUID(),
+                    exchange.getRequestURI().getPath().substring(bucket.length() + 2)
+                );
                 uploads.put(upload.getUploadId(), upload);
-                byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                    + "<InitiateMultipartUploadResult>\n"
-                    + "  <Bucket>"
-                    + bucket
-                    + "</Bucket>\n"
-                    + "  <Key>"
-                    + upload.getPath()
-                    + "</Key>\n"
-                    + "  <UploadId>"
-                    + upload.getUploadId()
-                    + "</UploadId>\n"
-                    + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+
+                final var uploadResult = new StringBuilder();
+                uploadResult.append("<?xml version='1.0' encoding='UTF-8'?>");
+                uploadResult.append("<InitiateMultipartUploadResult>");
+                uploadResult.append("<Bucket>").append(bucket).append("</Bucket>");
+                uploadResult.append("<Key>").append(upload.getPath()).append("</Key>");
+                uploadResult.append("<UploadId>").append(upload.getUploadId()).append("</UploadId>");
+                uploadResult.append("</InitiateMultipartUploadResult>");
+
+                byte[] response = uploadResult.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -175,7 +176,6 @@ public class S3HttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
                 final var upload = uploads.remove(params.get("uploadId"));
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
-
 
             } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);

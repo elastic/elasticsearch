@@ -14,7 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
@@ -38,7 +39,7 @@ import java.util.TreeMap;
 public class ValuesSourceReaderOperator implements Operator {
 
     private final List<ValueSourceInfo> sources;
-    private final LuceneDocRef luceneDocRef;
+    private final int docChannel;
 
     private BlockDocValuesReader lastReader;
     private int lastShard = -1;
@@ -54,15 +55,15 @@ public class ValuesSourceReaderOperator implements Operator {
     /**
      * Creates a new extractor that uses ValuesSources load data
      * @param sources the value source, type and index readers to use for extraction
-     * @param luceneDocRef record containing the shard, leaf/segment and doc reference (channel)
+     * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field to use
      */
-    public record ValuesSourceReaderOperatorFactory(List<ValueSourceInfo> sources, LuceneDocRef luceneDocRef, String field)
+    public record ValuesSourceReaderOperatorFactory(List<ValueSourceInfo> sources, int docChannel, String field)
         implements
             OperatorFactory {
         @Override
         public Operator get() {
-            return new ValuesSourceReaderOperator(sources, luceneDocRef);
+            return new ValuesSourceReaderOperator(sources, docChannel);
         }
 
         @Override
@@ -74,11 +75,11 @@ public class ValuesSourceReaderOperator implements Operator {
     /**
      * Creates a new extractor
      * @param sources the value source, type and index readers to use for extraction
-     * @param luceneDocRef contains the channel for the shard, segment and doc Ids
+     * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public ValuesSourceReaderOperator(List<ValueSourceInfo> sources, LuceneDocRef luceneDocRef) {
+    public ValuesSourceReaderOperator(List<ValueSourceInfo> sources, int docChannel) {
         this.sources = sources;
-        this.luceneDocRef = luceneDocRef;
+        this.docChannel = docChannel;
     }
 
     @Override
@@ -105,9 +106,10 @@ public class ValuesSourceReaderOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        IntVector docs = page.<IntBlock>getBlock(luceneDocRef.docRef()).asVector();
-        IntVector leafOrd = page.<IntBlock>getBlock(luceneDocRef.segmentRef()).asVector();
-        IntVector shardOrd = page.<IntBlock>getBlock(luceneDocRef.shardRef()).asVector();
+        DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
+        IntVector shardOrd = docVector.shards();
+        IntVector leafOrd = docVector.segments();
+        IntVector docs = docVector.docs();
         if (leafOrd.isConstant() == false) {
             throw new IllegalArgumentException("Expected constant block, got: " + leafOrd);
         }

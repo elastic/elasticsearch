@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -26,7 +24,7 @@ import java.util.Objects;
 public class FieldExtractExec extends UnaryExec {
 
     private final Collection<Attribute> attributesToExtract;
-    private final List<Attribute> sourceAttribute;
+    private final Attribute sourceAttribute;
 
     public FieldExtractExec(Source source, PhysicalPlan child, Collection<Attribute> attributesToExtract) {
         super(source, child);
@@ -34,7 +32,7 @@ public class FieldExtractExec extends UnaryExec {
         this.sourceAttribute = extractSourceAttributesFrom(child);
 
         // TODO: this can be moved into the physical verifier
-        if (sourceAttribute.isEmpty()) {
+        if (sourceAttribute == null) {
             throw new QlIllegalArgumentException(
                 "Need to add field extractor for [{}] but cannot detect source attributes from node [{}]",
                 Expressions.names(attributesToExtract),
@@ -43,16 +41,8 @@ public class FieldExtractExec extends UnaryExec {
         }
     }
 
-    public static List<Attribute> extractSourceAttributesFrom(PhysicalPlan plan) {
-        var list = new ArrayList<Attribute>(EsQueryExec.NAMES_SET.size());
-        plan.outputSet().forEach(e -> {
-            if (EsQueryExec.isSourceAttribute(e)) {
-                list.add(e);
-            }
-        });
-        // the physical plan expected things sorted out alphabetically
-        Collections.sort(list, Comparator.comparing(Attribute::name));
-        return list;
+    public static Attribute extractSourceAttributesFrom(PhysicalPlan plan) {
+        return plan.outputSet().stream().filter(EsQueryExec::isSourceAttribute).findFirst().orElse(null);
     }
 
     @Override
@@ -69,7 +59,7 @@ public class FieldExtractExec extends UnaryExec {
         return attributesToExtract;
     }
 
-    public List<Attribute> sourceAttributes() {
+    public Attribute sourceAttribute() {
         return sourceAttribute;
     }
 

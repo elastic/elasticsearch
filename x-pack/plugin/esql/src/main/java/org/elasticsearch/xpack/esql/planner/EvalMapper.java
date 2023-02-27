@@ -255,7 +255,7 @@ final class EvalMapper {
                 case INT -> lit.value() instanceof Integer;
                 case LONG -> lit.value() instanceof Long;
                 case NULL -> true;
-                case UNKNOWN -> false;
+                case DOC, UNKNOWN -> false;
             };
         }
     }

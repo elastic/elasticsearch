@@ -13,7 +13,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValueSources;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -50,7 +49,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
 
-        var sourceAttrs = fieldExtractExec.sourceAttributes();
+        var sourceAttr = fieldExtractExec.sourceAttribute();
 
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
@@ -59,14 +58,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
             var sources = ValueSources.sources(searchContexts, attr.name(), LocalExecutionPlanner.toElementType(attr.dataType()));
 
-            var luceneDocRef = new LuceneDocRef(
-                previousLayout.getChannel(sourceAttrs.get(0).id()),
-                previousLayout.getChannel(sourceAttrs.get(1).id()),
-                previousLayout.getChannel(sourceAttrs.get(2).id())
-            );
+            int docChannel = previousLayout.getChannel(sourceAttr.id());
 
             op = op.with(
-                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(sources, luceneDocRef, attr.name()),
+                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(sources, docChannel, attr.name()),
                 layout.build()
             );
         }
@@ -119,17 +114,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         ElementType groupElementType,
         BigArrays bigArrays
     ) {
-        var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
-        var luceneDocRef = new LuceneDocRef(
-            source.layout.getChannel(sourceAttributes.get(0).id()),
-            source.layout.getChannel(sourceAttributes.get(1).id()),
-            source.layout.getChannel(sourceAttributes.get(2).id())
-        );
+        var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
+        int docChannel = source.layout.getChannel(sourceAttribute.id());
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
             ValueSources.sources(searchContexts, attrSource.name(), LocalExecutionPlanner.toElementType(attrSource.dataType())),
-            luceneDocRef,
+            docChannel,
             aggregatorFactories,
             BigArrays.NON_RECYCLING_INSTANCE
         );

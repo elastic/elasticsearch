@@ -40,12 +40,14 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -203,10 +205,10 @@ public class OperatorTests extends ESTestCase {
                         List.of(
                             new ValuesSourceReaderOperator(
                                 List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                new LuceneDocRef(0, 1, 2)
+                                0
                             ),
-                            new LongGroupingOperator(3, bigArrays),
-                            new LongMaxOperator(4), // returns highest group number
+                            new LongGroupingOperator(1, bigArrays),
+                            new LongMaxOperator(2), // returns highest group number
                             new LongTransformerOperator(0, i -> i + 1) // adds +1 to group number (which start with 0) to get group count
                         ),
                         new PageConsumerOperator(page -> {
@@ -276,7 +278,7 @@ public class OperatorTests extends ESTestCase {
                                 List.of(
                                     new ValuesSourceReaderOperator(
                                         List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                        new LuceneDocRef(0, 1, 2)
+                                        0
                                     )
                                 ),
                                 new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())),
@@ -367,33 +369,32 @@ public class OperatorTests extends ESTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 // implements cardinality on value field
-                var luceneDocRef = new LuceneDocRef(0, 1, 2);
                 Driver driver = new Driver(
                     new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                     List.of(
                         new ValuesSourceReaderOperator(
                             List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, intVs, ElementType.INT, reader)),
-                            luceneDocRef
+                            0
                         ),
                         new ValuesSourceReaderOperator(
                             List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, longVs, ElementType.LONG, reader)),
-                            luceneDocRef
+                            0
                         ),
                         new ValuesSourceReaderOperator(
                             List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, doubleVs, ElementType.DOUBLE, reader)),
-                            luceneDocRef
+                            0
                         ),
                         new ValuesSourceReaderOperator(
                             List.of(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, keywordVs, ElementType.BYTES_REF, reader)),
-                            luceneDocRef
+                            0
                         )
                     ),
                     new PageConsumerOperator(page -> {
                         logger.debug("New page: {}", page);
-                        IntBlock intValuesBlock = page.getBlock(3);
-                        LongBlock longValuesBlock = page.getBlock(4);
-                        DoubleBlock doubleValuesBlock = page.getBlock(5);
-                        BytesRefBlock keywordValuesBlock = page.getBlock(6);
+                        IntBlock intValuesBlock = page.getBlock(1);
+                        LongBlock longValuesBlock = page.getBlock(2);
+                        DoubleBlock doubleValuesBlock = page.getBlock(3);
+                        BytesRefBlock keywordValuesBlock = page.getBlock(4);
 
                         for (int i = 0; i < page.getPositionCount(); i++) {
                             assertFalse(intValuesBlock.isNull(i));
@@ -430,11 +431,12 @@ public class OperatorTests extends ESTestCase {
                 Set<Integer> actualDocIds = Collections.newSetFromMap(ConcurrentCollections.newConcurrentMap());
                 for (LuceneSourceOperator queryOperator : queryOperators) {
                     PageConsumerOperator docCollector = new PageConsumerOperator(page -> {
-                        IntBlock idBlock = page.getBlock(0);
-                        IntBlock segmentBlock = page.getBlock(1);
-                        for (int i = 0; i < idBlock.getPositionCount(); i++) {
-                            int docBase = reader.leaves().get(segmentBlock.getInt(i)).docBase;
-                            int docId = docBase + idBlock.getInt(i);
+                        DocVector docVector = page.<DocBlock>getBlock(0).asVector();
+                        IntVector doc = docVector.docs();
+                        IntVector segment = docVector.segments();
+                        for (int i = 0; i < doc.getPositionCount(); i++) {
+                            int docBase = reader.leaves().get(segment.getInt(i)).docBase;
+                            int docId = docBase + doc.getInt(i);
                             assertTrue("duplicated docId=" + docId, actualDocIds.add(docId));
                         }
                     });
@@ -599,7 +601,7 @@ public class OperatorTests extends ESTestCase {
                         List.of(
                             new ValuesSourceReaderOperator(
                                 List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                new LuceneDocRef(0, 1, 2)
+                                0
                             ),
                             new HashAggregationOperator(
                                 List.of(
@@ -607,10 +609,10 @@ public class OperatorTests extends ESTestCase {
                                         bigArrays,
                                         GroupingAggregatorFunction.COUNT,
                                         INITIAL,
-                                        3
+                                        1
                                     )
                                 ),
-                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(3, ElementType.LONG)), bigArrays)
+                                () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(1, ElementType.LONG)), bigArrays)
                             ),
                             new HashAggregationOperator(
                                 List.of(
@@ -683,9 +685,9 @@ public class OperatorTests extends ESTestCase {
                                     reader
                                 )
                             ),
-                            new LuceneDocRef(0, 1, 2),
+                            0,
                             List.of(
-                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, INITIAL, 3)
+                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, INITIAL, 1)
                             ),
                             bigArrays
                         ),

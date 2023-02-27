@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -355,9 +356,11 @@ public class LuceneSourceOperator extends SourceOperator {
                 || numCollectedDocs >= maxCollectedDocs) {
                 page = new Page(
                     currentPagePos,
-                    currentBlockBuilder.setNonDecreasing(true).build().asBlock(),
-                    IntBlock.newConstantBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos),
-                    IntBlock.newConstantBlockWith(shardId, currentPagePos)
+                    new DocVector(
+                        IntBlock.newConstantBlockWith(shardId, currentPagePos).asVector(),
+                        IntBlock.newConstantBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos).asVector(),
+                        currentBlockBuilder.setNonDecreasing(true).build()
+                    ).asBlock()
                 );
                 currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);
                 currentPagePos = 0;

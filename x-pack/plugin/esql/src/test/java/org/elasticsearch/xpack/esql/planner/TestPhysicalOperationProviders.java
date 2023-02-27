@@ -91,7 +91,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 finish();
             }
 
-            Block[] fakeSourceAttributesBlocks = new Block[3];
+            Block[] fakeSourceAttributesBlocks = new Block[1];
             // a block that contains the position of each document as int
             // will be used to "filter" and extract the block's values later on. Basically, a replacement for _doc, _shard and _segment ids
             IntBlock.Builder docIndexBlockBuilder = IntBlock.newBlockBuilder(testData.getPositionCount());
@@ -99,8 +99,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 docIndexBlockBuilder.appendInt(i);
             }
             fakeSourceAttributesBlocks[0] = docIndexBlockBuilder.build(); // instead of _doc
-            fakeSourceAttributesBlocks[1] = IntBlock.newConstantBlockWith(0, testData.getPositionCount()); // _shard id mocking
-            fakeSourceAttributesBlocks[2] = IntBlock.newConstantBlockWith(0, testData.getPositionCount()); // _segment id mocking
             Page newPageWithSourceAttributes = new Page(fakeSourceAttributesBlocks);
             return newPageWithSourceAttributes;
         }

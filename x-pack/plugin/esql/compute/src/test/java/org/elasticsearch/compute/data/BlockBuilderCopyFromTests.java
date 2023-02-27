@@ -23,7 +23,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
     public static List<Object[]> params() throws Exception {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL) {
+            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {

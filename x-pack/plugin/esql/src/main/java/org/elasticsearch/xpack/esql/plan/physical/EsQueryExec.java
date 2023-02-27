@@ -17,24 +17,21 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 @Experimental
 public class EsQueryExec extends LeafExec {
+    static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
 
-    static final EsField DOC_ID_FIELD = new EsField("_doc_id", DataTypes.INTEGER, Map.of(), false);
-    static final EsField SEGMENT_ID_FIELD = new EsField("_segment_id", DataTypes.INTEGER, Map.of(), false);
-    static final EsField SHARD_ID_FIELD = new EsField("_shard_id", DataTypes.INTEGER, Map.of(), false);
-    public static final Set<String> NAMES_SET = Set.of("_doc_id", "_segment_id", "_shard_id");
+    static final EsField DOC_ID_FIELD = new EsField("_doc", DOC_DATA_TYPE, Map.of(), false);
 
     public static boolean isSourceAttribute(Attribute attr) {
-        return NAMES_SET.contains(attr.name());
+        return "_doc".equals(attr.name());
     }
 
     private final EsIndex index;
@@ -43,17 +40,7 @@ public class EsQueryExec extends LeafExec {
     private final List<Attribute> attrs;
 
     public EsQueryExec(Source source, EsIndex index, QueryBuilder query) {
-        this(
-            source,
-            index,
-            List.of(
-                new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
-                new FieldAttribute(source, SEGMENT_ID_FIELD.getName(), SEGMENT_ID_FIELD),
-                new FieldAttribute(source, SHARD_ID_FIELD.getName(), SHARD_ID_FIELD)
-            ),
-            query,
-            null
-        );
+        this(source, index, List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD)), query, null);
     }
 
     public EsQueryExec(Source source, EsIndex index, List<Attribute> attrs, QueryBuilder query, Expression limit) {

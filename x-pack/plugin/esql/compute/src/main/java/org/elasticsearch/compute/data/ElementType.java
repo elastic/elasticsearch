@@ -25,6 +25,8 @@ public enum ElementType {
 
     BYTES_REF(BytesRefBlock::newBlockBuilder),
 
+    DOC(estimatedSize -> { throw new UnsupportedOperationException("can't build doc blocks"); }),
+
     /**
      * Intermediate blocks which don't support retrieving elements.
      */

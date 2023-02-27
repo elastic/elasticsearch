@@ -1072,7 +1072,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
 
-                assert coordinationState.get().electionWon() || true;
+                assert coordinationState.get().electionWon() || REGISTER_COORDINATION_MODE_ENABLED;
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
                 assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
@@ -1080,7 +1080,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert prevotingRound == null : prevotingRound;
                 assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderChecker.leader() == null : leaderChecker.leader();
-                // TODO: explain this
                 assert getLocalNode().equals(applierState.nodes().getMasterNode())
                     || (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm())
                     || REGISTER_COORDINATION_MODE_ENABLED;

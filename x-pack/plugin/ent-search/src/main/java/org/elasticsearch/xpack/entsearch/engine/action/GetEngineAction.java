@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.entsearch.engine.EngineIndexService.ENGINE_ALIAS_NAME;
 
 public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
@@ -38,7 +37,7 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
-        private String[] names = new String[] { ENGINE_ALIAS_NAME };
+        private String[] names;
         private final IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
         private final String engineId;
@@ -46,10 +45,12 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.engineId = in.readString();
+            names = new String[] { Engine.getEngineAliasName(this.engineId) };
         }
 
         public Request(String engineId) {
             this.engineId = engineId;
+            names = new String[] { Engine.getEngineAliasName(this.engineId) };
         }
 
         @Override

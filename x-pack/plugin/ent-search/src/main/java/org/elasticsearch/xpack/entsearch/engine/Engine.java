@@ -75,7 +75,7 @@ public class Engine implements Writeable, ToXContentObject {
         this.engineAlias = getEngineAliasName(this.name);
     }
 
-    static String getEngineAliasName(String engineName) {
+    public static String getEngineAliasName(String engineName) {
         return ENGINE_ALIAS_PREFIX + engineName;
     }
 

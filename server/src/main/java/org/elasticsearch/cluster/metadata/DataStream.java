@@ -82,6 +82,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final boolean system;
     private final boolean allowCustomRouting;
     private final IndexMode indexMode;
+    @Nullable
+    private final DataLifecycle lifecycle;
 
     public DataStream(
         String name,
@@ -92,9 +94,22 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean replicated,
         boolean system,
         boolean allowCustomRouting,
-        IndexMode indexMode
+        IndexMode indexMode,
+        DataLifecycle lifecycle
     ) {
-        this(name, indices, generation, metadata, hidden, replicated, system, System::currentTimeMillis, allowCustomRouting, indexMode);
+        this(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     // visible for testing
@@ -108,7 +123,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean system,
         LongSupplier timeProvider,
         boolean allowCustomRouting,
-        IndexMode indexMode
+        IndexMode indexMode,
+        DataLifecycle lifecycle
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -121,7 +137,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
+        this.lifecycle = DataLifecycle.isEnabled() ? lifecycle : null;
         assert assertConsistent(this.indices);
+    }
+
+    // mainly available for testing
+    public DataStream(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        boolean allowCustomRouting,
+        IndexMode indexMode
+    ) {
+        this(name, indices, generation, metadata, hidden, replicated, system, allowCustomRouting, indexMode, null);
     }
 
     private static boolean assertConsistent(List<Index> indices) {
@@ -273,6 +305,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return indexMode;
     }
 
+    @Nullable
+    public DataLifecycle getLifecycle() {
+        return lifecycle;
+    }
+
     /**
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
@@ -305,7 +342,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(name, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting, indexMode);
+        return new DataStream(name, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting, indexMode, lifecycle);
     }
 
     /**
@@ -370,7 +407,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     /**
@@ -402,7 +450,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     /**
@@ -449,11 +508,34 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     public DataStream promoteDataStream() {
-        return new DataStream(name, indices, getGeneration(), metadata, hidden, false, system, timeProvider, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            indices,
+            getGeneration(),
+            metadata,
+            hidden,
+            false,
+            system,
+            timeProvider,
+            allowCustomRouting,
+            indexMode,
+            lifecycle
+        );
     }
 
     /**
@@ -485,7 +567,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             replicated,
             system,
             allowCustomRouting,
-            indexMode
+            indexMode,
+            lifecycle
         );
     }
 
@@ -530,7 +613,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.readBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
+                ? in.readOptionalWriteable(DataLifecycle::new)
+                : null
         );
     }
 
@@ -559,6 +645,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            out.writeOptionalWriteable(lifecycle);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -571,6 +660,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
+    public static final ParseField LIFECYCLE = new ParseField("lifecycle");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
@@ -584,7 +674,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
             args[8] != null && (boolean) args[8],
-            args[9] != null ? IndexMode.fromString((String) args[9]) : null
+            args[9] != null ? IndexMode.fromString((String) args[9]) : null,
+            DataLifecycle.isEnabled() ? (DataLifecycle) args[10] : null
         );
     });
 
@@ -599,6 +690,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+        if (DataLifecycle.isEnabled()) {
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataLifecycle.fromXContent(p), LIFECYCLE);
+        }
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -622,6 +716,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode != null) {
             builder.field(INDEX_MODE.getPreferredName(), indexMode);
         }
+        if (lifecycle != null) {
+            builder.field(LIFECYCLE.getPreferredName(), lifecycle);
+        }
         builder.endObject();
         return builder;
     }
@@ -636,14 +733,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
             && hidden == that.hidden
+            && system == that.system
             && replicated == that.replicated
             && allowCustomRouting == that.allowCustomRouting
-            && indexMode == that.indexMode;
+            && indexMode == that.indexMode
+            && Objects.equals(lifecycle, that.lifecycle);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, indices, generation, metadata, hidden, replicated, allowCustomRouting, indexMode);
+        return Objects.hash(name, indices, generation, metadata, hidden, system, replicated, allowCustomRouting, indexMode, lifecycle);
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

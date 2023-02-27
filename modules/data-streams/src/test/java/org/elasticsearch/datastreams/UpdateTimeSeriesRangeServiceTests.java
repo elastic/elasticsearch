@@ -32,7 +32,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -114,7 +113,6 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant previousStartTime1 = getStartTime(in, dataStreamName, 0);
         Instant previousEndTime1 = getEndTime(in, dataStreamName, 0);
         Instant previousStartTime2 = getStartTime(in, dataStreamName, 1);
-        Instant previousEndTime2 = getEndTime(in, dataStreamName, 1);
 
         now = now.plus(1, ChronoUnit.HOURS);
         var result = instance.updateTimeSeriesTemporalRange(in, now);
@@ -146,7 +144,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                     true,
                     d.isSystem(),
                     d.isAllowCustomRouting(),
-                    d.getIndexMode()
+                    d.getIndexMode(),
+                    d.getLifecycle()
                 )
             )
             .build();

@@ -60,7 +60,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
-        configureRemoteClustersWithApiKey("""
+        final String remoteAccessApiKeyId = configureRemoteClustersWithApiKey("""
             [
                {
                  "names": ["index*", "not_found_index"],
@@ -151,7 +151,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(
                 exception.getMessage(),
-                containsString("action [indices:data/read/search] is unauthorized for user [remote_search_user] on indices [index2]")
+                containsString(
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
+                        + "with assigned roles [remote_search] authenticated by API key id ["
+                        + remoteAccessApiKeyId
+                        + "] of user [test_user] on indices [index2]"
+                )
             );
 
             // Check that access is denied because of API key privileges
@@ -163,7 +168,10 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(
                 exception2.getMessage(),
                 containsString(
-                    "action [indices:data/read/search] is unauthorized for user [remote_search_user] on indices [prefixed_index]"
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
+                        + "with assigned roles [remote_search] authenticated by API key id ["
+                        + remoteAccessApiKeyId
+                        + "] of user [test_user] on indices [prefixed_index]"
                 )
             );
 

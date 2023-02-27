@@ -64,7 +64,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         if (shouldGenerateNewBasicLicense(currentLicense)) {
             License selfGeneratedLicense = generateBasicLicense(discoveryNodes);
             if (request.isAcknowledged() == false && currentLicense != null) {
-                Map<String, String[]> ackMessageMap = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
+                Map<String, String[]> ackMessageMap = LicenseUtils.getAckMessages(selfGeneratedLicense, currentLicense);
                 if (ackMessageMap.isEmpty() == false) {
                     taskContext.success(
                         () -> listener.onResponse(

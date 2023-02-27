@@ -764,6 +764,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices(".fleet*").allowRestrictedIndices(true).privileges("all").build(),
                 // Fleet telemetry queries Agent Logs indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
+                // Fleet Audit Logs data stream. Fleet creates + writes to + reads from these indices for audit logs
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-fleet.audit_logs*")
+                    .privileges("auto_configure", "read", "write")
+                    .build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),

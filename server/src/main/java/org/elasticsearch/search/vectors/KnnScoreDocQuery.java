@@ -131,9 +131,13 @@ class KnnScoreDocQuery extends Query {
 
                     @Override
                     public float getMaxScore(int docId) {
-                        docId += context.docBase;
+                        // NO_MORE_DOCS indicates the maximum score for all docs in this segment
+                        // Anything less than must be accounted for via the docBase.
+                        if (docId != NO_MORE_DOCS) {
+                            docId += context.docBase;
+                        }
                         float maxScore = 0;
-                        for (int idx = Math.max(0, upTo); idx < upper && docs[idx] <= docId; idx++) {
+                        for (int idx = Math.max(lower, upTo); idx < upper && docs[idx] <= docId; idx++) {
                             maxScore = Math.max(maxScore, scores[idx] * boost);
                         }
                         return maxScore;

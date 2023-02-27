@@ -13,6 +13,7 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
 
@@ -37,6 +39,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransportGetProfilingAction extends HandledTransportAction<GetProfilingRequest, GetProfilingResponse> {
@@ -64,6 +67,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
     private final NodeClient nodeClient;
     private final TransportService transportService;
+    private final Executor responseExecutor;
     private final int desiredSlices;
     private final int desiredDetailSlices;
     private final boolean realtime;
@@ -71,6 +75,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     @Inject
     public TransportGetProfilingAction(
         Settings settings,
+        ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
         NodeClient nodeClient
@@ -78,6 +83,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         super(GetProfilingAction.NAME, transportService, actionFilters, GetProfilingRequest::new);
         this.nodeClient = nodeClient;
         this.transportService = transportService;
+        this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
         this.desiredSlices = PROFILING_MAX_STACKTRACE_QUERY_SLICES.get(settings);
         this.desiredDetailSlices = PROFILING_MAX_DETAIL_QUERY_SLICES.get(settings);
         this.realtime = PROFILING_QUERY_REALTIME.get(settings);
@@ -172,7 +178,9 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             client.prepareMultiGet()
                 .setRealtime(realtime)
                 .addIds("profiling-stacktraces", slice)
-                .execute(ActionListener.wrap(handler::onResponse, submitListener::onFailure));
+                .execute(
+                    new ThreadedActionListener<>(responseExecutor, ActionListener.wrap(handler::onResponse, submitListener::onFailure))
+                );
         }
     }
 
@@ -272,7 +280,12 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                 client.prepareMultiGet()
                     .addIds("profiling-stackframes", slice)
                     .setRealtime(realtime)
-                    .execute(ActionListener.wrap(handler::onStackFramesResponse, submitListener::onFailure));
+                    .execute(
+                        new ThreadedActionListener<>(
+                            responseExecutor,
+                            ActionListener.wrap(handler::onStackFramesResponse, submitListener::onFailure)
+                        )
+                    );
             }
         }
         // no data dependency - we can do this concurrently
@@ -283,7 +296,12 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                 client.prepareMultiGet()
                     .addIds("profiling-executables", slice)
                     .setRealtime(realtime)
-                    .execute(ActionListener.wrap(handler::onExecutableDetailsResponse, submitListener::onFailure));
+                    .execute(
+                        new ThreadedActionListener<>(
+                            responseExecutor,
+                            ActionListener.wrap(handler::onExecutableDetailsResponse, submitListener::onFailure)
+                        )
+                    );
             }
         }
     }

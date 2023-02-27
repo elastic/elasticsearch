@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -30,6 +31,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -49,6 +52,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         true,
         Setting.Property.NodeScope
     );
+    public static final String PROFILING_THREAD_POOL_NAME = "profiling";
+
     private final boolean enabled;
 
     public ProfilingPlugin(Settings settings) {
@@ -114,6 +119,20 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             TransportGetProfilingAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
             TransportGetProfilingAction.PROFILING_QUERY_REALTIME
         );
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(responseExecutorBuilder());
+    }
+
+    /**
+     * @return <p>An <code>ExecutorBuilder</code> that creates an executor to offload internal query response processing from the
+     * transport thread. The executor will occupy no thread by default to avoid using resources when the plugin is not needed but once used,
+     * it will hold onto allocated pool threads for 30 minutes by default to keep response times low.</p>
+     */
+    public static ExecutorBuilder<?> responseExecutorBuilder() {
+        return new ScalingExecutorBuilder(PROFILING_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(30L), false);
     }
 
     @Override

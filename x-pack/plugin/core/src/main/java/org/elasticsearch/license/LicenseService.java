@@ -310,7 +310,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private static boolean licenseIsCompatible(License license, Version version) {
+    private boolean licenseIsCompatible(License license, Version version) {
         final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
         return license.version() <= maxVersion;
     }

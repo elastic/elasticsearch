@@ -11,22 +11,19 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -114,35 +111,31 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            SearchResponse resp = awaitListEngine("*:*", 0, 10);
-            assertNotNull(resp.getHits());
-            assertThat(resp.getHits().getHits().length, equalTo(10));
-            assertThat(resp.getHits().getTotalHits().value, equalTo(10L));
+            Tuple<Engine[], Integer> searchResponse = awaitListEngine("*:*", 0, 10);
+            final Engine[] engines = searchResponse.v1();
+            assertNotNull(engines);
+            assertThat(engines.length, equalTo(10));
+            assertThat(searchResponse.v2(), equalTo(10));
 
-            SearchHits searchHits = resp.getHits();
             for (int i = 0; i < NUM_INDICES; i++) {
-                SearchHit hit = searchHits.getAt(i);
-                assertNotNull(hit.getFields().get("name"));
-                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_" + i)));
-                assertNotNull(hit.getFields().get("indices"));
-                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_" + i)));
+                Engine engine = engines[i];
+                assertThat(engine.name(), equalTo("my_engine_" + i));
+                assertThat(engine.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
 
         {
-            SearchResponse resp = awaitListEngine("*:*", 5, 10);
-            assertNotNull(resp.getHits());
-            assertThat(resp.getHits().getHits().length, equalTo(5));
-            assertThat(resp.getHits().getTotalHits().value, equalTo(10L));
+            Tuple<Engine[], Integer> searchResponse = awaitListEngine("*:*", 5, 10);
+            final Engine[] engines = searchResponse.v1();
+            assertNotNull(engines);
+            assertThat(engines.length, equalTo(5));
+            assertThat(searchResponse.v2(), equalTo(10));
 
-            SearchHits searchHits = resp.getHits();
             for (int i = 0; i < 5; i++) {
                 int index = i + 5;
-                SearchHit hit = searchHits.getAt(i);
-                assertNotNull(hit.getFields().get("name"));
-                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_" + index)));
-                assertNotNull(hit.getFields().get("indices"));
-                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_" + index)));
+                Engine engine = engines[i];
+                assertThat(engine.name(), equalTo("my_engine_" + index));
+                assertThat(engine.indices(), equalTo(new String[] { "index_" + index }));
             }
         }
     }
@@ -164,17 +157,14 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
                 "indices:index_4",
                 "index_4",
                 "*_4" }) {
-                SearchResponse resp = awaitListEngine(queryString, 0, 10);
-                assertNotNull(resp.getHits());
-                assertThat(resp.getHits().getHits().length, equalTo(1));
-                assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
 
-                SearchHits searchHits = resp.getHits();
-                SearchHit hit = searchHits.getAt(0);
-                assertNotNull(hit.getFields().get("name"));
-                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_4")));
-                assertNotNull(hit.getFields().get("indices"));
-                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_4")));
+                Tuple<Engine[], Integer> searchResponse = awaitListEngine(queryString, 0, 10);
+                final Engine[] engines = searchResponse.v1();
+                assertNotNull(engines);
+                assertThat(engines.length, equalTo(1));
+                assertThat(searchResponse.v2(), equalTo(1));
+                assertThat(engines[0].name(), equalTo("my_engine_4"));
+                assertThat(engines[0].indices(), equalTo(new String[] { "index_4" }));
             }
         }
     }
@@ -195,18 +185,16 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetEngine("my_engine_4"));
 
         {
-            SearchResponse searchResponse = awaitListEngine("*:*", 0, 10);
-            assertNotNull(searchResponse.getHits());
-            assertThat(searchResponse.getHits().getHits().length, equalTo(4));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L));
+            Tuple<Engine[], Integer> searchResponse = awaitListEngine("*:*", 0, 10);
+            final Engine[] engines = searchResponse.v1();
+            assertNotNull(engines);
+            assertThat(engines.length, equalTo(4));
+            assertThat(searchResponse.v2(), equalTo(4));
 
-            SearchHits searchHits = searchResponse.getHits();
             for (int i = 0; i < 4; i++) {
-                SearchHit hit = searchHits.getAt(i);
-                assertNotNull(hit.getFields().get("name"));
-                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_" + i)));
-                assertNotNull(hit.getFields().get("indices"));
-                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_" + i)));
+                Engine engine = engines[i];
+                assertThat(engine.name(), equalTo("my_engine_" + i));
+                assertThat(engine.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
     }
@@ -286,14 +274,14 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private SearchResponse awaitListEngine(String queryString, int from, int size) throws Exception {
+    private Tuple<Engine[], Integer> awaitListEngine(String queryString, int from, int size) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<SearchResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Tuple<Engine[], Integer>> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         engineService.listEngines(queryString, from, size, new ActionListener<>() {
             @Override
-            public void onResponse(SearchResponse searchResponse) {
-                resp.set(searchResponse);
+            public void onResponse(Tuple<Engine[], Integer> engineResultTuple) {
+                resp.set(engineResultTuple);
                 latch.countDown();
             }
 

@@ -353,7 +353,14 @@ public class LicenseServiceTests extends ESTestCase {
     private void assertExpiryWarning(long adjustment, String msg) {
         long now = System.currentTimeMillis();
         long expiration = now + adjustment;
-        String warning = LicenseService.getExpiryWarning(expiration, now);
+        final LicenseService service = new LicenseService(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            mockDefaultClusterService(),
+            mock(Clock.class),
+            mock(XPackLicenseState.class)
+        );
+        String warning = service.getExpiryWarning(expiration, now);
         if (msg == null) {
             assertThat(warning, is(nullValue()));
         } else {

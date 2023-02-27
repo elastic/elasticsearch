@@ -498,7 +498,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    protected static String getExpiryWarning(long licenseExpiryDate, long currentTime) {
+    protected String getExpiryWarning(long licenseExpiryDate, long currentTime) {
         final long diff = licenseExpiryDate - currentTime;
         if (LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);

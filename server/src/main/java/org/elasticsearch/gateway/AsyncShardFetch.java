@@ -53,19 +53,20 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected final String type;
     protected final ShardId shardId;
     protected final String customDataPath;
-    private final Map<String, NodeEntry<T>> cache = new HashMap<>();
+    private final Map<String, NodeEntry<T>> cache;
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
     private volatile int fetchingCount;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath) {
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath, int nodeNumber) {
         this.logger = logger;
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
         this.fetchingCount = 0;
+        this.cache = new HashMap<>(nodeNumber);
     }
 
     @Override

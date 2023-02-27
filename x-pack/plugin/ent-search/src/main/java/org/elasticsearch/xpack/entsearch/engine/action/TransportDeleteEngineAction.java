@@ -26,7 +26,7 @@ public class TransportDeleteEngineAction extends HandledTransportAction<DeleteEn
         ActionFilters actionFilters,
         EngineIndexService engineIndexService
     ) {
-        super(PutEngineAction.NAME, transportService, actionFilters, DeleteEngineAction.Request::new);
+        super(DeleteEngineAction.NAME, transportService, actionFilters, DeleteEngineAction.Request::new);
         this.engineIndexService = engineIndexService;
     }
 

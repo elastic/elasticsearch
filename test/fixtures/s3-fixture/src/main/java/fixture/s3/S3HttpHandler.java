@@ -120,22 +120,25 @@ public class S3HttpHandler implements HttpHandler {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
                 final var upload = uploads.remove(params.get("uploadId"));
-                final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                blobs.put(exchange.getRequestURI().getPath(), blobContents);
+                if (upload == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
+                    blobs.put(exchange.getRequestURI().getPath(), blobContents);
 
-                byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                    + "<CompleteMultipartUploadResult>\n"
-                    + "<Bucket>"
-                    + bucket
-                    + "</Bucket>\n"
-                    + "<Key>"
-                    + exchange.getRequestURI().getPath()
-                    + "</Key>\n"
-                    + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                exchange.getResponseBody().write(response);
-
+                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<CompleteMultipartUploadResult>\n"
+                        + "<Bucket>"
+                        + bucket
+                        + "</Bucket>\n"
+                        + "<Key>"
+                        + exchange.getRequestURI().getPath()
+                        + "</Key>\n"
+                        + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+                }
             } else if (Regex.simpleMatch("DELETE /" + path + "/*?uploadId=*", request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
@@ -146,7 +149,6 @@ public class S3HttpHandler implements HttpHandler {
                 blobs.put(exchange.getRequestURI().toString(), blob.v2());
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-
             } else if (Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);

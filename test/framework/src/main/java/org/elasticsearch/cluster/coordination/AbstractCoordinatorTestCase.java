@@ -1464,9 +1464,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     protected interface CoordinatorStrategy {
-        default CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
-            return null;
-        }
+        CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings);
 
         CoordinationState.PersistedState createFreshPersistedState(
             DiscoveryNode localNode,

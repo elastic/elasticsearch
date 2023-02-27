@@ -11,6 +11,8 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
+import java.util.Optional;
+
 /**
  * Allows plugging in a custom election strategy, restricting the notion of an election quorum.
  * Custom additional quorum restrictions can be defined by implementing the {@link #satisfiesAdditionalQuorumConstraints} method.
@@ -67,6 +69,14 @@ public abstract class QuorumStrategy {
         VotingConfiguration latestPublishedConfiguration
     ) {
         return voteCollection.isQuorum(lastCommittedConfiguration) && voteCollection.isQuorum(latestPublishedConfiguration);
+    }
+
+    public boolean shouldJoinLeaderInTerm(long currentTerm, long targetTerm, Optional<Join> lastJoin) {
+        return currentTerm < targetTerm;
+    }
+
+    public boolean isValidStartJoinRequest(StartJoinRequest startJoinRequest, long currentTerm) {
+        return startJoinRequest.getTerm() > currentTerm;
     }
 
     /**

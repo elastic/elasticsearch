@@ -452,6 +452,17 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
             return voteCollection.isQuorum(latestPublishedConfiguration);
         }
+
+        @Override
+        public boolean shouldJoinLeaderInTerm(long currentTerm, long targetTerm, Optional<Join> lastJoin) {
+            // Ensure that when we become candidate, and we've read the cluster state from a register we update our info
+            return currentTerm < targetTerm || currentTerm == targetTerm && lastJoin.isEmpty();
+        }
+
+        @Override
+        public boolean isValidStartJoinRequest(StartJoinRequest startJoinRequest, long currentTerm) {
+            return startJoinRequest.getTerm() > -currentTerm;
+        }
     }
 
     record PersistentClusterState(long term, long version, Metadata state) {

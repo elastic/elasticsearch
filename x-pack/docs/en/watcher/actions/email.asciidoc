@@ -389,9 +389,9 @@ xpack.notification.email.account:
             port: 587
             user: <username>
 --------------------------------------------------
-<1> Some organizations configure Amazon SES to validate that the `from` field is a
-    valid local email account.
-<2> `smtp.host` varies depending on the region
+<1> In certain cases `email_defaults.from` is validated by Amazon SES to ensure
+that it is a valid local email account.
+<2> `smtp.host` varies depending on the region.
 
 To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])

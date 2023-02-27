@@ -884,7 +884,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
-        // assert mode != Mode.LEADER : "do not switch to follower from leader (should be candidate first)";
+        assert mode != Mode.LEADER || REGISTER_COORDINATION_MODE_ENABLED
+            : "do not switch to follower from leader (should be candidate first)";
 
         if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
             logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}", method, leaderNode, getCurrentTerm());

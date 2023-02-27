@@ -41,8 +41,8 @@ public class TransportListEnginesAction extends HandledTransportAction<ListEngin
         final PageParams pageParams = request.pageParams();
         engineIndexService.listEngine(
             request.query(),
-            pageParams.from(),
-            pageParams.size(),
+            pageParams.getFrom(),
+            pageParams.getSize(),
             listener.map(r -> mapEnginesSearchResponse(r, pageParams))
         );
     }

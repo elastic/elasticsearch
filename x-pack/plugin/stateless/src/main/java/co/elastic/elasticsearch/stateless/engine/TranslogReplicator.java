@@ -20,20 +20,19 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -48,11 +47,15 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TranslogReplicator extends AbstractLifecycleComponent {
 
@@ -60,11 +63,23 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private static final TimeValue FLUSH_CHECK_INTERVAL = TimeValue.timeValueMillis(50);
 
+    public static final Setting<TimeValue> FLUSH_RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
+        "stateless.translog.flush.retry.initial_delay",
+        timeValueMillis(50),
+        timeValueMillis(10),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> FLUSH_RETRY_TIMEOUT_SETTING = Setting.timeSetting(
+        "stateless.translog.flush.retry.timeout",
+        timeValueSeconds(60),
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> FLUSH_INTERVAL_SETTING = Setting.timeSetting(
-        "stateless.translog.flush_interval",
-        TimeValue.timeValueMillis(200),
-        TimeValue.timeValueMillis(100),
-        Setting.Property.Dynamic,
+        "stateless.translog.flush.interval",
+        timeValueMillis(200),
+        timeValueMillis(10),
         Setting.Property.NodeScope
     );
 
@@ -73,7 +88,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         ByteSizeValue.ofMb(16),
         ByteSizeValue.ofBytes(0),
         ByteSizeValue.ofBytes(Long.MAX_VALUE),
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -86,12 +100,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private final AtomicLong lastFlushTime;
 
+    private final TimeValue flushRetryInitialDelay;
+    private final TimeValue flushRetryTimeout;
     private final TimeValue flushInterval;
     private final ByteSizeValue flushSize;
 
     public TranslogReplicator(final ThreadPool threadPool, final Settings settings, final ObjectStoreService objectStoreService) {
         this.threadPool = threadPool;
         this.objectStoreService = objectStoreService;
+        this.flushRetryInitialDelay = FLUSH_RETRY_INITIAL_DELAY_SETTING.get(settings);
+        this.flushRetryTimeout = FLUSH_RETRY_TIMEOUT_SETTING.get(settings);
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
         this.flushSize = FLUSH_SIZE_SETTING.get(settings);
         this.lastFlushTime = new AtomicLong(getCurrentTimeMillis());
@@ -141,8 +159,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public void add(final ShardId shardId, final BytesReference data, final long seqNo, final Translog.Location location) {
         try {
-            ShardSyncState shardState = shardSyncStateByShardId.computeIfAbsent(shardId, (s) -> new ShardSyncState());
-            shardState.writeToBuffer(data, seqNo, location);
+            shardSyncStateByShardId.computeIfAbsent(shardId, (s) -> new ShardSyncState()).writeToBuffer(data, seqNo, location);
         } catch (IOException e) {
             // TODO: IOException is required by the interface of BytesReference#write. However, it should never throw. If it were to throw,
             // this exception would propogate to the TranslogWriter and I think fail the engine. However, we should discuss whether this is
@@ -153,94 +170,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public void sync(final ShardId shardId, Translog.Location location, ActionListener<Void> listener) {
-        ShardSyncState shardSyncState = this.shardSyncStateByShardId.computeIfAbsent(shardId, (k) -> new ShardSyncState());
-        shardSyncState.ensureSynced(new Translog.Location(location.generation, location.translogLocation + location.size, 0), listener);
+        shardSyncStateByShardId.computeIfAbsent(shardId, (k) -> new ShardSyncState())
+            .ensureSynced(new Translog.Location(location.generation, location.translogLocation + location.size, 0), listener);
     }
 
     private void flush() throws IOException {
-        // This lock only needs to lock modifications to shardSyncStateByShardId and fileName generation.
-        // In the future what it "locks" could be slimmed down.
-        synchronized (generateFlushLock) {
-            lastFlushTime.set(getCurrentTimeMillis());
-            Map<ShardId, BufferState> toFlush = Maps.newMapWithExpectedSize(shardSyncStateByShardId.size());
-            for (Map.Entry<ShardId, ShardSyncState> syncState : shardSyncStateByShardId.entrySet()) {
-                BufferState bufferState = syncState.getValue().pollBufferForSync();
-                if (bufferState != null) {
-                    toFlush.put(syncState.getKey(), bufferState);
-                }
-            }
-            if (toFlush.isEmpty()) {
-                return;
-            }
-
-            ArrayList<Runnable> toRun = new ArrayList<>(toFlush.size());
-            Map<ShardId, TranslogMetadata> checkpoints = new HashMap<>();
-            ReleasableBytesStreamOutput compoundTranslog = new ReleasableBytesStreamOutput(bigArrays);
-            boolean success = false;
-            try {
-                // TODO: Harden exception handling here. There are no known throws, but we need to close resources and notify listeners if
-                // something fails.
-                for (Map.Entry<ShardId, BufferState> entry : toFlush.entrySet()) {
-                    BufferState buffer = entry.getValue();
-                    Translog.Location lastOpLocation = buffer.location;
-                    Translog.Location syncedLocation = new Translog.Location(
-                        lastOpLocation.generation,
-                        lastOpLocation.translogLocation + lastOpLocation.size,
-                        0
-                    );
-                    ShardSyncState shardSyncState = this.shardSyncStateByShardId.computeIfAbsent(
-                        entry.getKey(),
-                        (s) -> new ShardSyncState()
-                    );
-                    shardSyncState.markSyncStarting(syncedLocation);
-                    toRun.add(() -> shardSyncState.markSyncFinished(syncedLocation));
-                    long position = compoundTranslog.position();
-                    buffer.streamOutput.bytes().writeTo(compoundTranslog);
-                    long size = compoundTranslog.position() - position;
-                    checkpoints.put(
-                        entry.getKey(),
-                        new TranslogMetadata(position, size, buffer.minSeqNo, buffer.maxSeqNo, buffer.totalOps)
-                    );
-                    buffer.close();
-                }
-
-                try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-                    var bufferedChecksumStreamOutput = new BufferedChecksumStreamOutput(streamOutput);
-                    bufferedChecksumStreamOutput.writeMap(checkpoints);
-                    streamOutput.writeLong(bufferedChecksumStreamOutput.getChecksum());
-                    objectStoreService.uploadTranslogFile(
-                        Strings.format("%019d", fileName.getAndIncrement()), // 19 characters with leading zeroes to fit max value of long
-                        CompositeBytesReference.of(streamOutput.bytes(), compoundTranslog.bytes()),
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void unused) {
-                                compoundTranslog.close();
-                                for (Runnable runnable : toRun) {
-                                    runnable.run();
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                compoundTranslog.close();
-                                logger.error("Unexpected error calling replicator client", e);
-                                // TODO: RETRY and propagate error HANDLING. Currently the sync waiters do not know the difference between
-                                // an error. A failure here MUST not WRITE ACK and needs to propagate a failure to the client for SYNC
-                                // durability.
-                                for (Runnable runnable : toRun) {
-                                    runnable.run();
-                                }
-                            }
-
-                        }
-                    );
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    compoundTranslog.close();
-                }
-            }
+        var translog = createCompoundTranslog();
+        if (translog != null) {
+            uploadCompoundTranslog(translog);
         }
     }
 
@@ -256,28 +193,124 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         return size;
     }
 
+    private CompoundTranslog createCompoundTranslog() throws IOException {
+        synchronized (generateFlushLock) {
+            lastFlushTime.set(getCurrentTimeMillis());
+            var checkpoints = new HashMap<ShardId, TranslogMetadata>();
+            var onComplete = new ArrayList<Releasable>();
+
+            var compoundTranslog = new ReleasableBytesStreamOutput(bigArrays);
+            var header = new ReleasableBytesStreamOutput(bigArrays);
+
+            onComplete.add(compoundTranslog);
+            onComplete.add(header);
+
+            for (var entry : shardSyncStateByShardId.entrySet()) {
+                ShardId shardId = entry.getKey();
+                ShardSyncState state = entry.getValue();
+                BufferState buffer = state.pollBufferForSync();
+                if (buffer == null) {
+                    continue;
+                }
+
+                Translog.Location lastOpLocation = buffer.location;
+                Translog.Location syncedLocation = new Translog.Location(
+                    lastOpLocation.generation,
+                    lastOpLocation.translogLocation + lastOpLocation.size,
+                    0
+                );
+
+                state.markSyncStarting(syncedLocation);
+                onComplete.add(() -> state.markSyncFinished(syncedLocation));
+
+                long position = compoundTranslog.position();
+                buffer.data.bytes().writeTo(compoundTranslog);
+                long size = compoundTranslog.position() - position;
+                checkpoints.put(shardId, new TranslogMetadata(position, size, buffer.minSeqNo, buffer.maxSeqNo, buffer.totalOps));
+
+                buffer.close();
+            }
+
+            if (checkpoints.isEmpty()) {
+                Releasables.close(onComplete);
+                return null;
+            }
+
+            var bufferedChecksumStreamOutput = new BufferedChecksumStreamOutput(header);
+            bufferedChecksumStreamOutput.writeMap(checkpoints);
+            header.writeLong(bufferedChecksumStreamOutput.getChecksum());
+
+            return new CompoundTranslog(
+                Strings.format("%019d", fileName.getAndIncrement()),
+                CompositeBytesReference.of(header.bytes(), compoundTranslog.bytes()),
+                onComplete
+            );
+        }
+    }
+
+    private void uploadCompoundTranslog(CompoundTranslog translog) {
+        new RetryableAction<Void>(
+            org.apache.logging.log4j.LogManager.getLogger(TranslogReplicator.class),
+            threadPool,
+            flushRetryInitialDelay,
+            flushRetryTimeout,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    translog.close();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    translog.close();
+                    logger.error(() -> "Failed to upload translog file [" + translog.name() + "]", e);
+                    // TODO all retry attempts exhausted. Fail this indexing shard
+                }
+            }
+        ) {
+            @Override
+            public void tryAction(ActionListener<Void> listener) {
+                objectStoreService.uploadTranslogFile(translog.name(), translog.data(), listener);
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                return e instanceof IOException;
+            }
+        }.run();
+    }
+
+    private record CompoundTranslog(String name, BytesReference data, List<Releasable> onComplete) implements Releasable {
+
+        @Override
+        public void close() {
+            Releasables.close(onComplete);
+        }
+    }
+
     private static class BufferState implements Releasable {
 
-        private final ReleasableBytesStreamOutput streamOutput;
+        private final ReleasableBytesStreamOutput data;
         private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long totalOps = 0;
-        private Translog.Location location;
+        private Translog.Location location = null;
 
-        private BufferState(Translog.Location location, ReleasableBytesStreamOutput streamOutput) {
-            this.streamOutput = streamOutput;
-            this.location = location;
+        private BufferState(ReleasableBytesStreamOutput data) {
+            this.data = data;
         }
 
-        public void markNewOp(long seqNo) {
+        public final void append(BytesReference data, long seqNo, Translog.Location location) throws IOException {
+            data.writeTo(this.data);
             minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
             maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
             totalOps++;
+            this.location = location;
         }
 
         @Override
         public void close() {
-            streamOutput.close();
+            data.close();
         }
     }
 
@@ -357,18 +390,17 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         public void writeToBuffer(BytesReference data, long seqNo, Translog.Location location) throws IOException {
             synchronized (bufferLock) {
                 if (bufferState == null) {
-                    bufferState = new BufferState(location, new ReleasableBytesStreamOutput(bigArrays));
+                    bufferState = new BufferState(new ReleasableBytesStreamOutput(bigArrays));
+                } else {
+                    assert location.compareTo(bufferState.location) >= 0;
                 }
-                assert location.compareTo(bufferState.location) >= 0;
-                bufferState.location = location;
-                data.writeTo(bufferState.streamOutput);
-                bufferState.markNewOp(seqNo);
+                bufferState.append(data, seqNo, location);
             }
         }
 
         public long currentBufferSize() {
             synchronized (bufferLock) {
-                return bufferState != null ? bufferState.streamOutput.size() : 0L;
+                return bufferState != null ? bufferState.data.size() : 0L;
             }
         }
 
@@ -392,6 +424,5 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 return location.compareTo(o.location);
             }
         }
-
     }
 }

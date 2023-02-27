@@ -380,7 +380,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             DiscoveryNode currentMaster,
             CoordinationMetadata.VotingConfiguration currentConfig
         ) {
-            assert currentConfig.hasQuorum(Set.of(currentMaster.getId()));
             return currentConfig;
         }
 

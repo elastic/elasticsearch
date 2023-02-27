@@ -700,7 +700,7 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2023-02-23T12:57:34.567776432Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "value": 8 }}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2023-02-23T13:02:52.3233412122Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "value": 9 }}}'
+          - '{"@timestamp": "2023-02-23T13:02:52.323341212Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "value": 9 }}}'
 
   - do:
       indices.put_settings:
@@ -727,7 +727,7 @@ setup:
         body:
           sort: [ "_tsid", "@timestamp" ]
 
-  - length: { hits.hits: 1 }
+  - length: { hits.hits: 2 }
   - match: { hits.hits.0._source._doc_count: 3 }
   - match: { hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.0._source.metricset: pod }
@@ -735,6 +735,13 @@ setup:
   - match: { hits.hits.0._source.k8s.pod.value.min: 8.0 }
   - match: { hits.hits.0._source.k8s.pod.value.max: 12.0 }
   - match: { hits.hits.0._source.k8s.pod.value.sum: 30.0 }
+  - match: { hits.hits.1._source._doc_count: 1 }
+  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.metricset: pod }
+  - match: { hits.hits.1._source.@timestamp: 2023-02-23T13:00:00.000000000Z }
+  - match: { hits.hits.1._source.k8s.pod.value.min: 9.0 }
+  - match: { hits.hits.1._source.k8s.pod.value.max: 9.0 }
+  - match: { hits.hits.1._source.k8s.pod.value.sum: 9.0 }
 
   - do:
       indices.get_mapping:

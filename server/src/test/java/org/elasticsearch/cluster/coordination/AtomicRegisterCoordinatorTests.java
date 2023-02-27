@@ -461,7 +461,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         @Override
         public boolean isValidStartJoinRequest(StartJoinRequest startJoinRequest, long currentTerm) {
-            return startJoinRequest.getTerm() > -currentTerm;
+            return startJoinRequest.getTerm() > currentTerm;
         }
     }
 

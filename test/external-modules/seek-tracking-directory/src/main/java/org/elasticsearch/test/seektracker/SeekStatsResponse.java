@@ -11,6 +11,7 @@ package org.elasticsearch.test.seektracker;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
@@ -58,10 +59,14 @@ public class SeekStatsResponse extends BaseNodesResponse<NodeSeekStats> implemen
     public Map<String, List<ShardSeekStats>> getSeekStats() {
         Map<String, List<ShardSeekStats>> combined = new HashMap<>();
         for (NodeSeekStats nodeSeekStats : getNodes()) {
-            nodeSeekStats.getSeekStats().forEach((index, shardSeekStats) -> {
-                combined.computeIfAbsent(index, k -> new ArrayList<>()).addAll(shardSeekStats);
-            });
+            nodeSeekStats.getSeekStats()
+                .forEach((index, shardSeekStats) -> combined.computeIfAbsent(index, k -> new ArrayList<>()).addAll(shardSeekStats));
         }
         return combined;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

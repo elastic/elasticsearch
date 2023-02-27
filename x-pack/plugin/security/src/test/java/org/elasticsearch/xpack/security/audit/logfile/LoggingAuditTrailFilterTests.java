@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.AuditEventMetaInfo;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.MockRequest;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.RestContent;
@@ -1139,11 +1140,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authentication Success
+        AuditUtil.generateRequestId(threadContext);
+        unfilteredAuthentication.writeToContext(threadContext);
         auditTrail.authenticationSuccess(getRestRequest());
         assertThat("AuthenticationSuccess rest request: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
+        AuditUtil.generateRequestId(threadContext);
+        filteredAuthentication.writeToContext(threadContext);
         auditTrail.authenticationSuccess(getRestRequest());
         assertThat("AuthenticationSuccess rest request: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
@@ -1634,11 +1639,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authentication Success
+        AuditUtil.generateRequestId(threadContext);
+        createAuthentication(user, authUser, unfilteredRealm).writeToContext(threadContext);
         auditTrail.authenticationSuccess(getRestRequest());
         assertThat("AuthenticationSuccess rest request: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
+        AuditUtil.generateRequestId(threadContext);
+        createAuthentication(user, authUser, filteredRealm).writeToContext(threadContext);
         auditTrail.authenticationSuccess(getRestRequest());
         assertThat("AuthenticationSuccess rest request: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
@@ -1950,6 +1959,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authentication Success
+        AuditUtil.generateRequestId(threadContext);
+        authentication.writeToContext(threadContext);
         auditTrail.authenticationSuccess(getRestRequest());
         if (filterMissingRoles) {
             assertThat("AuthenticationSuccess rest request: is not filtered out by the missing roles filter", logOutput.size(), is(0));
@@ -2426,6 +2437,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authentication Success
+        AuditUtil.generateRequestId(threadContext);
+        authentication.writeToContext(threadContext);
         auditTrail.authenticationSuccess(getRestRequest());
         if (filterMissingIndices) {
             assertThat("AuthenticationSuccess rest request: is not filtered out by the missing indices filter", logOutput.size(), is(0));
@@ -2697,6 +2710,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authentication Success
+        AuditUtil.generateRequestId(threadContext);
+        createAuthentication(user, authUser, "realm").writeToContext(threadContext);
         auditTrail.authenticationSuccess(getRestRequest());
         if (filterMissingAction) {
             assertThat("AuthenticationSuccess rest request: not filtered out by the missing action filter", logOutput.size(), is(0));

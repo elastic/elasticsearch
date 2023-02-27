@@ -384,7 +384,7 @@ public class AuthenticationService {
 
         @Override
         void authenticationSuccess(Authentication authentication) {
-            // REST request are audited in the {@code SecurityRestFilter}
+            // REST requests are audited in the {@code SecurityRestFilter} because they need access to the request body
         }
 
         @Override

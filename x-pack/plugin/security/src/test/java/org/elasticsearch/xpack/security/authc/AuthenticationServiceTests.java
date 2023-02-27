@@ -960,6 +960,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // this call does not actually go async
         final AtomicBoolean completed = new AtomicBoolean(false);
         service.authenticate(restRequest, ActionListener.wrap(authentication -> {
+            service.auditSuccess(restRequest);
             assertThat(authentication, notNullValue());
             assertThat(authentication.getEffectiveSubject().getUser(), sameInstance(user1));
             assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
@@ -2344,6 +2345,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         PlainActionFuture<Authentication> future = new PlainActionFuture<>() {
             @Override
             public void onResponse(Authentication result) {
+                service.auditSuccess(restRequest);
                 reqId.set(expectAuditRequestId(threadContext));
                 assertThat(new AuthenticationContextSerializer().getAuthentication(threadContext), is(result));
                 if (verifier != null) {

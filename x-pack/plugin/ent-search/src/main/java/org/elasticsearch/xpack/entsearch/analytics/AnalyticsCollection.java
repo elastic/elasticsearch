@@ -26,9 +26,9 @@ import java.util.Objects;
 
 public class AnalyticsCollection implements Writeable, ToXContentObject {
 
-    private static final ObjectParser<AnalyticsCollection.Builder, String> PARSER = new ObjectParser<>(
+    private static final ObjectParser<AnalyticsCollection, String> PARSER = ObjectParser.fromBuilder(
         "analytics_collection",
-        AnalyticsCollection.Builder::new
+        name -> new AnalyticsCollection(name)
     );
 
     private final String name;
@@ -107,7 +107,17 @@ public class AnalyticsCollection implements Writeable, ToXContentObject {
      * @return The parsed {@link AnalyticsCollection}.
      */
     public static AnalyticsCollection fromXContent(String resourceName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null).withName(resourceName).build();
+        return PARSER.parse(parser, resourceName);
+    }
+
+    public static AnalyticsCollection fromDataStreamName(String dataStreamName) {
+        if (dataStreamName.startsWith(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX) == false) {
+            throw new IllegalArgumentException(
+                "Data stream name (" + dataStreamName + " must start with " + AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX
+            );
+        }
+
+        return new AnalyticsCollection(dataStreamName.replaceFirst(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX, ""));
     }
 
     @Override
@@ -130,18 +140,5 @@ public class AnalyticsCollection implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    public static class Builder {
-        private String name;
-
-        public AnalyticsCollection build() {
-            return new AnalyticsCollection(name);
-        }
-
-        public Builder withName(String name) {
-            this.name = name;
-            return this;
-        }
     }
 }

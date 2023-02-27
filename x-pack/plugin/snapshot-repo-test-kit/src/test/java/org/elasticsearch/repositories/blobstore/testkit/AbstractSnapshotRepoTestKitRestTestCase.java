@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTestCase {

@@ -817,12 +817,8 @@ public class SearchModule {
                 RRFRankContextBuilder::fromXContent
             )
         );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(RankShardResult.class, RRFRankContextBuilder.NAME, RRFRankShardResult::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(RankDoc.class, RRFRankContextBuilder.NAME, RRFRankDoc::new)
-        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankShardResult.class, RRFRankContextBuilder.NAME, RRFRankShardResult::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RRFRankContextBuilder.NAME, RRFRankDoc::new));
     }
 
     private static <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {

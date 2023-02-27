@@ -23,7 +23,6 @@ import org.elasticsearch.search.rank.RankShardContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,9 +96,8 @@ public class RRFRankShardContext extends RankShardContext {
         Map<Integer, RRFRankDoc> docsToRankResults = new HashMap<>();
         int index = 0;
         for (TopDocs rrfRankResult : rrfRankResults) {
-            int rank = 0;
+            int rank = 1;
             for (ScoreDoc scoreDoc : rrfRankResult.scoreDocs) {
-                ++rank;
                 final int findex = index;
                 final int frank = rank;
                 docsToRankResults.compute(scoreDoc.doc, (key, value) -> {
@@ -113,16 +111,17 @@ public class RRFRankShardContext extends RankShardContext {
 
                     return value;
                 });
+                ++rank;
             }
             ++index;
         }
 
         RRFRankDoc[] allRankResults = docsToRankResults.values().toArray(RRFRankDoc[]::new);
         Arrays.sort(allRankResults, (RRFRankDoc rrf1, RRFRankDoc rrf2) -> {
-                if (rrf1.score == rrf2.score) {
-                    return rrf1.doc < rrf2.doc ? -1 : 1;
-                }
+            if (rrf1.score != rrf2.score) {
                 return rrf1.score < rrf2.score ? 1 : -1;
+            }
+            return rrf1.doc < rrf2.doc ? 1 : -1;
         });
         RRFRankDoc[] topRankResults = new RRFRankDoc[Math.min(windowSize + from, allRankResults.length)];
         for (int rank = 0; rank < topRankResults.length; ++rank) {

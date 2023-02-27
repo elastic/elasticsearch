@@ -9,13 +9,6 @@
 package org.elasticsearch.search.rank;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
-import org.elasticsearch.search.rank.rrf.RRFRankShardResult;
-
-import java.io.IOException;
 
 public interface RankShardResult extends NamedWriteable {
 

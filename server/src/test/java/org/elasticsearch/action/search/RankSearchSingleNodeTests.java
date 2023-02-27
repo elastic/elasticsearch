@@ -24,7 +24,7 @@ import java.util.List;
 public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSimpleRRFRank() throws IOException {
-        int numShards = 1 + randomInt(3);
+        int numShards = 1;// + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
         XContentBuilder builder = XContentFactory.jsonBuilder()

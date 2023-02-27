@@ -400,7 +400,7 @@ public class S3HttpHandler implements HttpHandler {
                         if (childNode.getNodeName().equals("ETag")) {
                             etag = childNode.getTextContent();
                         } else if (childNode.getNodeName().equals("PartNumber")) {
-                            partNumber = Integer.parseInt(childNode.getTextContent());
+                            partNumber = Integer.parseInt(childNode.getTextContent()) - 1;
                         }
                     }
                 }

@@ -96,15 +96,15 @@ public class S3HttpHandlerTests extends ESTestCase {
               <UploadId>%s</UploadId>
             </InitiateMultipartUploadResult>""", uploadId)), createUploadResponse);
 
-        final var part0 = randomAlphaOfLength(50);
-        final var uploadPart0Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=0", part0);
-        final var part0Etag = Objects.requireNonNull(uploadPart0Response.etag());
-        assertEquals(new TestHttpResponse(RestStatus.OK, "", part0Etag), uploadPart0Response);
-
         final var part1 = randomAlphaOfLength(50);
         final var uploadPart1Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=1", part1);
         final var part1Etag = Objects.requireNonNull(uploadPart1Response.etag());
         assertEquals(new TestHttpResponse(RestStatus.OK, "", part1Etag), uploadPart1Response);
+
+        final var part2 = randomAlphaOfLength(50);
+        final var uploadPart2Response = handleRequest(handler, "PUT", "/bucket/path/blob?uploadId=" + uploadId + "&partNumber=2", part2);
+        final var part2Etag = Objects.requireNonNull(uploadPart2Response.etag());
+        assertEquals(new TestHttpResponse(RestStatus.OK, "", part2Etag), uploadPart2Response);
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, Strings.format("""
@@ -129,13 +129,13 @@ public class S3HttpHandlerTests extends ESTestCase {
                 <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                    <Part>
                       <ETag>%s</ETag>
-                      <PartNumber>0</PartNumber>
+                      <PartNumber>1</PartNumber>
                    </Part>
                    <Part>
                       <ETag>%s</ETag>
-                      <PartNumber>1</PartNumber>
+                      <PartNumber>2</PartNumber>
                    </Part>
-                </CompleteMultipartUpload>""", part0Etag, part1Etag))
+                </CompleteMultipartUpload>""", part1Etag, part2Etag))
         );
 
         assertEquals(new TestHttpResponse(RestStatus.OK, """
@@ -143,7 +143,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             <Contents><Key>path/blob</Key><Size>100</Size></Contents>\
             </ListBucketResult>"""), handleRequest(handler, "GET", "/bucket/?prefix="));
 
-        assertEquals(new TestHttpResponse(RestStatus.OK, part0 + part1), handleRequest(handler, "GET", "/bucket/path/blob"));
+        assertEquals(new TestHttpResponse(RestStatus.OK, part1 + part2), handleRequest(handler, "GET", "/bucket/path/blob"));
 
         assertEquals(new TestHttpResponse(RestStatus.OK, """
             <?xml version='1.0' encoding='UTF-8'?>\
@@ -220,23 +220,10 @@ public class S3HttpHandlerTests extends ESTestCase {
             <?xml version="1.0" encoding="UTF-8"?>
             <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                <Part>
-                  <ETag>etag0</ETag>
-                  <PartNumber>0</PartNumber>
-               </Part>
-            </CompleteMultipartUpload>""", "etag0");
-
-        runExtractPartETagsTest("""
-            <?xml version="1.0" encoding="UTF-8"?>
-            <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-               <Part>
-                  <ETag>etag0</ETag>
-                  <PartNumber>0</PartNumber>
-               </Part>
-               <Part>
                   <ETag>etag1</ETag>
                   <PartNumber>1</PartNumber>
                </Part>
-            </CompleteMultipartUpload>""", "etag0", "etag1");
+            </CompleteMultipartUpload>""", "etag1");
 
         runExtractPartETagsTest("""
             <?xml version="1.0" encoding="UTF-8"?>
@@ -246,17 +233,30 @@ public class S3HttpHandlerTests extends ESTestCase {
                   <PartNumber>1</PartNumber>
                </Part>
                <Part>
-                  <ETag>etag0</ETag>
-                  <PartNumber>0</PartNumber>
+                  <ETag>etag2</ETag>
+                  <PartNumber>2</PartNumber>
                </Part>
-            </CompleteMultipartUpload>""", "etag0", "etag1");
+            </CompleteMultipartUpload>""", "etag1", "etag2");
+
+        runExtractPartETagsTest("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+               <Part>
+                  <ETag>etag2</ETag>
+                  <PartNumber>2</PartNumber>
+               </Part>
+               <Part>
+                  <ETag>etag1</ETag>
+                  <PartNumber>1</PartNumber>
+               </Part>
+            </CompleteMultipartUpload>""", "etag1", "etag2");
 
         expectThrows(IllegalStateException.class, () -> runExtractPartETagsTest("""
             <?xml version="1.0" encoding="UTF-8"?>
             <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                <Part>
-                  <ETag>etag1</ETag>
-                  <PartNumber>1</PartNumber>
+                  <ETag>etag2</ETag>
+                  <PartNumber>2</PartNumber>
                </Part>
             </CompleteMultipartUpload>"""));
 

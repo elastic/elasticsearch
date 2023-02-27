@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,11 +24,10 @@ import java.util.stream.Collectors;
  */
 class NodeTermsEnumResponse extends TransportResponse {
 
-    private String error;
-    private boolean complete;
-
-    private List<String> terms;
-    private String nodeId;
+    private final String error;
+    private final boolean complete;
+    private final List<String> terms;
+    private final String nodeId;
 
     NodeTermsEnumResponse(StreamInput in) throws IOException {
         super(in);
@@ -45,7 +45,23 @@ class NodeTermsEnumResponse extends TransportResponse {
         nodeId = in.readString();
     }
 
-    NodeTermsEnumResponse(String nodeId, List<String> terms, String error, boolean complete) {
+    public static NodeTermsEnumResponse empty(String nodeId) {
+        return new NodeTermsEnumResponse(nodeId, List.of(), null, true);
+    }
+
+    public static NodeTermsEnumResponse complete(String nodeId, List<String> terms) {
+        return new NodeTermsEnumResponse(nodeId, terms, null, true);
+    }
+
+    public static NodeTermsEnumResponse partial(String nodeId, List<String> terms) {
+        return new NodeTermsEnumResponse(nodeId, terms, null, false);
+    }
+
+    public static NodeTermsEnumResponse error(String nodeId, List<String> terms, Exception error) {
+        return new NodeTermsEnumResponse(nodeId, terms, ExceptionsHelper.stackTrace(error), false);
+    }
+
+    private NodeTermsEnumResponse(String nodeId, List<String> terms, String error, boolean complete) {
         this.nodeId = nodeId;
         this.terms = terms;
         this.error = error;

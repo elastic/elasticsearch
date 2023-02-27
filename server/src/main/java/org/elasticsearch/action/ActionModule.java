@@ -255,6 +255,7 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -448,6 +449,12 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
+    /**
+     *  This RestHandler is used as a placeholder for any routes that are unreachable (i.e. have no ServerlessScope annotation) when
+     *  running in serverless mode. It does nothing, and its handleRequest method is never called. It just provides a way to register the
+     *  routes so that we know they do exist.
+     */
+    private static final RestHandler placeholderRestHandler = (request, channel, client) -> {};
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -464,6 +471,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
+    private final boolean serverlessEnabled;
 
     public ActionModule(
         Settings settings,
@@ -488,6 +496,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
+        this.serverlessEnabled = DiscoveryNode.isServerless();
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -530,7 +539,15 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
-        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        restController = new RestController(
+            headers,
+            restInterceptor,
+            nodeClient,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            serverlessEnabled
+        );
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 
@@ -730,10 +747,18 @@ public class ActionModule extends AbstractModule {
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (handler instanceof AbstractCatAction) {
-                catActions.add((AbstractCatAction) handler);
+            if (shouldKeepRestHandler(handler)) {
+                if (handler instanceof AbstractCatAction) {
+                    catActions.add((AbstractCatAction) handler);
+                }
+                restController.registerHandler(handler);
+            } else {
+                /*
+                 * There's no way this handler can be reached, so we just register a placeholder so that requests for it are routed to
+                 * RestController for proper error messages.
+                 */
+                handler.routes().forEach(route -> restController.registerHandler(route, placeholderRestHandler));
             }
-            restController.registerHandler(handler);
         };
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
@@ -916,6 +941,16 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+    }
+
+    /**
+     * This method is used to determine whether a RestHandler ought to be kept in memory or not. Returns true if serverless mode is
+     * disabled, or if there is any ServlerlessScope annotation on the RestHandler.
+     * @param handler
+     * @return
+     */
+    private boolean shouldKeepRestHandler(final RestHandler handler) {
+        return serverlessEnabled == false || handler.getServerlessScope() != null;
     }
 
     @Override

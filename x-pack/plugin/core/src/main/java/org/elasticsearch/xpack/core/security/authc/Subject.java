@@ -119,10 +119,7 @@ public class Subject {
     public boolean canAccessResourcesOf(Subject resourceCreatorSubject) {
         if (eitherIsAnApiKey(resourceCreatorSubject)) {
             if (bothAreApiKeys(resourceCreatorSubject)) {
-                final boolean sameKeyId = isTheSameApiKey(resourceCreatorSubject);
-                assert false == sameKeyId || getUser().principal().equals(resourceCreatorSubject.getUser().principal())
-                    : "The same API key ID cannot be attributed to two different usernames";
-                return sameKeyId;
+                return isTheSameApiKey(resourceCreatorSubject);
             } else {
                 // an API Key cannot access resources created by non-API Keys or vice-versa
                 return false;
@@ -170,8 +167,11 @@ public class Subject {
     }
 
     private boolean isTheSameApiKey(Subject resourceCreatorSubject) {
-        return getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+        final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
             .equals(resourceCreatorSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+        assert false == sameKeyId || getUser().principal().equals(resourceCreatorSubject.getUser().principal())
+            : "The same API key ID cannot be attributed to two different usernames";
+        return sameKeyId;
     }
 
     private boolean eitherIsAnApiKey(Subject resourceCreatorSubject) {

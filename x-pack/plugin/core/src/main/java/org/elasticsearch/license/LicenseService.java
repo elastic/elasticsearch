@@ -15,32 +15,30 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -121,11 +119,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private final Clock clock;
 
     /**
-     * File watcher for operation mode changes
-     */
-    private final OperationModeFileWatcher operationModeFileWatcher;
-
-    /**
      * Callbacks to notify relative to license expiry
      */
     private final List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
@@ -136,8 +129,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     private final List<License.LicenseType> allowedLicenseTypes;
 
-    private final StartTrialClusterTask.Executor startTrialExecutor = new StartTrialClusterTask.Executor();
-    private final StartBasicClusterTask.Executor startBasicExecutor = new StartBasicClusterTask.Executor();
+    private final MasterServiceTaskQueue<StartTrialClusterTask> startTrialTaskQueue;
+    private final MasterServiceTaskQueue<StartBasicClusterTask> startBasicTaskQueue;
 
     /**
      * Max number of nodes licensed by generated trial license
@@ -157,22 +150,24 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        Environment env,
-        ResourceWatcherService resourceWatcherService,
         XPackLicenseState licenseState
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
+        this.startTrialTaskQueue = clusterService.createTaskQueue(
+            "license-service-start-trial",
+            Priority.NORMAL,
+            new StartTrialClusterTask.Executor()
+        );
+        this.startBasicTaskQueue = clusterService.createTaskQueue(
+            "license-service-start-basic",
+            Priority.NORMAL,
+            new StartBasicClusterTask.Executor()
+        );
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
         this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
-        this.operationModeFileWatcher = new OperationModeFileWatcher(
-            resourceWatcherService,
-            XPackPlugin.resolveConfigFile(env, "license_mode"),
-            logger,
-            () -> updateLicenseState(getLicensesMetadata())
-        );
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
@@ -403,12 +398,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "delete license",
             listener
         );
-        clusterService.submitStateUpdateTask(
-            task.getDescription(),
-            task,
-            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
-            startBasicExecutor
-        );
+        startBasicTaskQueue.submitTask(task.getDescription(), task, null); // TODO should pass in request.masterNodeTimeout() here
     }
 
     public License getLicense() {
@@ -431,11 +421,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     + "]"
             );
         }
-        clusterService.submitStateUpdateTask(
+        startTrialTaskQueue.submitTask(
             StartTrialClusterTask.TASK_SOURCE,
             new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener),
-            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
-            startTrialExecutor
+            null             // TODO should pass in request.masterNodeTimeout() here
         );
     }
 
@@ -448,12 +437,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "start basic license",
             listener
         );
-        clusterService.submitStateUpdateTask(
-            task.getDescription(),
-            task,
-            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
-            startBasicExecutor
-        );
+        startBasicTaskQueue.submitTask(task.getDescription(), task, null); // TODO should pass in request.masterNodeTimeout() here
     }
 
     /**
@@ -561,12 +545,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    private void updateLicenseState(LicensesMetadata licensesMetadata) {
-        if (licensesMetadata != null) {
-            updateLicenseState(getLicense(licensesMetadata));
-        }
-    }
-
     protected static String getExpiryWarning(long licenseExpiryDate, long currentTime) {
         final long diff = licenseExpiryDate - currentTime;
         if (LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
@@ -622,7 +600,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             final License previousLicense = currentLicenseHolder.get();
             if (license.equals(previousLicense) == false) {
                 currentLicenseHolder.set(license);
-                license.setOperationModeFileWatcher(operationModeFileWatcher);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(
@@ -631,10 +608,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                             (startTime, now) -> expirationCallback.nextScheduledTimeForExpiry(getExpiryDate(license), startTime, now)
                         )
                     );
-                }
-                if (previousLicense != null) {
-                    // remove operationModeFileWatcher to gc the old license object
-                    previousLicense.removeOperationModeFileWatcher();
                 }
                 logger.info("license [{}] mode [{}] - valid", license.uid(), license.operationMode().name().toLowerCase(Locale.ROOT));
             }

@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -428,5 +429,26 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RolloverRequest that = (RolloverRequest) o;
+        return dryRun == that.dryRun
+            && Objects.equals(rolloverTarget, that.rolloverTarget)
+            && Objects.equals(newIndexName, that.newIndexName)
+            && Objects.equals(conditions, that.conditions)
+            && Objects.equals(createIndexRequest, that.createIndexRequest);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest);
     }
 }

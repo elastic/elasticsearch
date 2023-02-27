@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -360,6 +361,11 @@ public class TransportSearchActionTests extends ESTestCase {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.CURRENT;
             }
 
             @Override

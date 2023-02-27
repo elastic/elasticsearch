@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -20,10 +19,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformResetIT extends TransformRestTestCase {
+public class TransformDeleteIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";
     private static final String TEST_ADMIN_USER_NAME_1 = "transform_admin_1";
@@ -70,7 +68,7 @@ public class TransformResetIT extends TransformRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testReset() throws Exception {
+    public void testDeleteDoesNotDeleteDestinationIndexByDefault() throws Exception {
         String transformId = "transform-1";
         String transformDest = transformId + "_idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
@@ -109,29 +107,19 @@ public class TransformResetIT extends TransformRestTestCase {
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        // Verify that reset works on a new transform
-        resetTransform(transformId, false);
+        assertFalse(indexExists(transformDest));
 
-        // Start the transform
         startTransform(transformId);
-
-        // Verify that reset doesn't work when the transform is running
-        ResponseException e = expectThrows(ResponseException.class, () -> resetTransform(transformId, false));
-        assertThat(e.getMessage(), containsString("Cannot reset transform [transform-1] as the task is running. Stop the task first"));
-
-        // Verify that reset with [force=true] works even when the transform is running
-        resetTransform(transformId, true);
-
-        // Start the transform again
-        startTransform(transformId);
-
-        // Verify that reset works on a stopped transform
+        waitForTransformCheckpoint(transformId, 1);
         stopTransform(transformId, false);
-        resetTransform(transformId, false);
+        assertTrue(indexExists(transformDest));
+
+        deleteTransform(transformId);
+        assertTrue(indexExists(transformDest));
     }
 
     @SuppressWarnings("unchecked")
-    public void testResetDeletesDestinationIndex() throws Exception {
+    public void testDeleteDeletesAutoCreatedDestinationIndexWithParam() throws Exception {
         String transformId = "transform-2";
         String transformDest = transformId + "_idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
@@ -177,7 +165,59 @@ public class TransformResetIT extends TransformRestTestCase {
         stopTransform(transformId, false);
         assertTrue(indexExists(transformDest));
 
-        resetTransform(transformId, false);
+        deleteTransform(transformId, true);
         assertFalse(indexExists(transformDest));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDeleteDoesNotDeleteManuallyCreatedDestinationIndex() throws Exception {
+        String transformId = "transform-3";
+        String transformDest = transformId + "_idx";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
+        );
+        String config = Strings.format("""
+            {
+              "dest": {
+                "index": "%s"
+              },
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", transformDest, REVIEWS_INDEX_NAME);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        createIndex(transformDest);
+        assertTrue(indexExists(transformDest));
+
+        startTransform(transformId);
+        waitForTransformCheckpoint(transformId, 1);
+        stopTransform(transformId, false);
+        assertTrue(indexExists(transformDest));
+
+        deleteTransform(transformId, true);
+        assertTrue(indexExists(transformDest));
     }
 }

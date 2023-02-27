@@ -34,9 +34,10 @@ public class RestDeleteTransformAction extends BaseRestHandler {
 
         String id = restRequest.param(TransformField.ID.getPreferredName());
         boolean force = restRequest.paramAsBoolean(TransformField.FORCE.getPreferredName(), false);
+        boolean deleteDestinationIndex = restRequest.paramAsBoolean(TransformField.DELETE_DESTINATION_INDEX.getPreferredName(), false);
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
-        DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force, timeout);
+        DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force, deleteDestinationIndex, timeout);
 
         return channel -> client.execute(DeleteTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

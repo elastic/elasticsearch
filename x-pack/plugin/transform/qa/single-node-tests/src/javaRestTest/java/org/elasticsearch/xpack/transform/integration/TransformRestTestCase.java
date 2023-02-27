@@ -584,8 +584,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static void deleteTransform(String transformId) throws IOException {
+        deleteTransform(transformId, false);
+    }
+
+    protected static void deleteTransform(String transformId, boolean deleteDestinationIndex) throws IOException {
         Request request = new Request("DELETE", getTransformEndpoint() + transformId);
         request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+        if (deleteDestinationIndex) {
+            request.addParameter(TransformField.DELETE_DESTINATION_INDEX.getPreferredName(), String.valueOf(deleteDestinationIndex));
+        }
         adminClient().performRequest(request);
     }
 

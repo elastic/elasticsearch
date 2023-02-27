@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,9 +28,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
@@ -81,8 +85,9 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             return;
         }
 
-        ActionListener<StopTransformAction.Response> stopTransformActionListener = ActionListener.wrap(
-            unusedStopResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
+        // <3> Delete transform config.
+        ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> deleteDestIndexListener = ActionListener.wrap(
+            unused -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
                 logger.debug("[{}] deleted transform", request.getId());
                 auditor.info(request.getId(), "Deleted transform.");
                 listener.onResponse(AcknowledgedResponse.of(r));
@@ -90,6 +95,16 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             listener::onFailure
         );
 
+        // <2> Maybe delete destination index (depending on the request)
+        ActionListener<StopTransformAction.Response> stopTransformActionListener = ActionListener.wrap(unusedStopResponse -> {
+            if (request.isDeleteDestinationIndex()) {
+                TransformIndex.maybeDeleteDestinationIndex(client, transformConfigManager, request.getId(), deleteDestIndexListener);
+            } else {
+                deleteDestIndexListener.onResponse(null);
+            }
+        }, listener::onFailure);
+
+        // <1> Stop transform if it's currently running
         if (transformIsRunning == false) {
             stopTransformActionListener.onResponse(null);
             return;

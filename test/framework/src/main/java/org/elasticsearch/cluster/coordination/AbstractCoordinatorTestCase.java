@@ -1085,7 +1085,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-                var y = getCoordinatorStrategy().getCoordinationServices(threadPool, settings, clusterSettings);
+                final var coordinationServices = getCoordinatorStrategy().getCoordinationServices(threadPool, settings, clusterSettings);
                 coordinator = new Coordinator(
                     "test_node",
                     settings,
@@ -1101,11 +1101,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     onJoinValidators,
                     Randomness.get(),
                     (s, p, r) -> {},
-                    y.getQuorumStrategy(),
+                    coordinationServices.getQuorumStrategy(),
                     nodeHealthService,
                     new NoneCircuitBreakerService(),
-                    y.getReconfigurator(),
-                    y.getLeaderHeartbeatService()
+                    coordinationServices.getReconfigurator(),
+                    coordinationServices.getLeaderHeartbeatService()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,

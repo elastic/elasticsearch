@@ -87,7 +87,6 @@ public class TransportTestsScanner {
                 missingTestClasses.add(c);
             }
         }
-        missingTestClasses.stream().forEach(s -> System.out.println(s));
         return missingTestClasses;
     }
 
@@ -113,7 +112,7 @@ public class TransportTestsScanner {
     }
 
     private Set<String> traverseClassesInRoots(Set<File> roots) {
-        return roots.stream().map(f -> {
+        return roots.stream().filter(File::exists).map(f -> {
             try (var stream = Files.walk(Path.of(f.toString()))) {
                 return stream.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".class"))
@@ -128,7 +127,7 @@ public class TransportTestsScanner {
     }
 
     private Set<URL> getURLs(Set<File> files) {
-        return files.stream().map(f -> {
+        return files.stream().filter(File::exists).map(f -> {
             try {
                 return f.toURI().toURL();
             } catch (MalformedURLException e) {
@@ -138,7 +137,7 @@ public class TransportTestsScanner {
     }
 
     private static String getNameFromFilePath(String file1) {
-        String file = file1.split("(java|out)\\/(main|test)\\/(classes)?")[1].substring(1);
+        String file = file1.split("(java|out)\\/(main|test)\\/(classes)?")[1];
         String withoutDotClass = file.substring(0, file.lastIndexOf("."));
         return withoutDotClass.replace('/', '.');
     }

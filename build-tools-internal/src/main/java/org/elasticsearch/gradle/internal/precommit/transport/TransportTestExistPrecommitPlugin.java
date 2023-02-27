@@ -12,10 +12,14 @@ import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
+
+import java.util.Map;
 
 public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
     @Override
@@ -32,11 +36,28 @@ public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
                 .getOutput()
                 .getClassesDirs();
 
+            Configuration serverDependencyConfig = project.getConfigurations().create("serverDependencyConfig");
+            DependencyHandler dependencyHandler = project.getDependencies();
+            serverDependencyConfig.defaultDependencies(
+                deps -> deps.add(dependencyHandler.create(dependencyHandler.project(Map.of("path", ":server"))))
+            );
+
+            Configuration testFrameworkConfig = project.getConfigurations().create("testFrameworkConfig");
+            testFrameworkConfig.defaultDependencies(
+                deps -> deps.add(dependencyHandler.create(dependencyHandler.project(Map.of("path", ":test:framework"))))
+            );
+
             transportTestExistTask.configure(t -> {
                 t.setMainSources(mainSourceSet);
                 t.setTestSources(testSourceSet);
-                t.setCompileClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
-                t.setTestClasspath(project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CLASSPATH_CONFIGURATION_NAME));
+                FileCollection compileClassPath = serverDependencyConfig.plus(
+                    project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME)
+                );
+                t.setCompileClasspath(compileClassPath);
+                FileCollection byName = testFrameworkConfig.plus(
+                    project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CLASSPATH_CONFIGURATION_NAME)
+                );
+                t.setTestClasspath(byName);
             });
             // somehow this does not help for rest-api-spec project
             // project.getPluginManager().withPlugin("java", p -> {

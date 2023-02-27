@@ -582,7 +582,7 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     public TransportVersion getMinTransportVersion() {
-        return transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.MINIMUM_COMPATIBLE);
+        return transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.CURRENT);
     }
 
     public RecyclerBytesStreamOutput newNetworkBytesStream() {

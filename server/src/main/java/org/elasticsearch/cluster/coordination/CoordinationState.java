@@ -502,7 +502,7 @@ public class CoordinationState {
             applyCommit.getVersion()
         );
 
-        persistedState.markLastAcceptedStateAsCommitted();
+        persistedState.markLastAcceptedStateAsCommitted(applyCommit.getSourceNode(), applyCommit.getTerm(), applyCommit.getVersion());
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
@@ -557,7 +557,7 @@ public class CoordinationState {
          * with the last committed configuration now corresponding to the last accepted configuration, and the cluster uuid, if set,
          * marked as committed.
          */
-        default void markLastAcceptedStateAsCommitted() {
+        default void markLastAcceptedStateAsCommitted(DiscoveryNode sourceNode, long term, long version) {
             final var lastAcceptedState = getLastAcceptedState();
             assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
                 : "received cluster state with empty cluster uuid: " + lastAcceptedState;

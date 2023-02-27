@@ -26,7 +26,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -385,21 +387,21 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         @Override
         public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
-            return ClusterState.builder(clusterState)
-                .metadata(
-                    Metadata.builder(clusterState.metadata())
-                        .coordinationMetadata(
-                            CoordinationMetadata.builder(clusterState.coordinationMetadata())
-                                .lastAcceptedConfiguration(
-                                    new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
-                                )
-                                .lastCommittedConfiguration(
-                                    new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
-                                )
-                                .build()
+            Metadata metadata = Metadata.builder(clusterState.metadata())
+                .coordinationMetadata(
+                    CoordinationMetadata.builder(clusterState.coordinationMetadata())
+                        .lastAcceptedConfiguration(
+                            new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
                         )
+                        .lastCommittedConfiguration(
+                            new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
+                        )
+                        .build()
                 )
                 .build();
+            // Since we're storing the cluster state in the register, mark the state as committed as soon as the node becomes master
+            metadata = metadata.withLastCommittedValues(true, metadata.coordinationMetadata().getLastCommittedConfiguration());
+            return ClusterState.builder(clusterState).metadata(metadata).build();
         }
     }
 
@@ -436,8 +438,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             // Safety is guaranteed by the blob store CAS, elect the current node immediately as
             // master and let the blob store decide whether this node should be the master.
             return lastCommittedConfiguration.isEmpty() == false && lastAcceptedConfiguration.isEmpty() == false
-            // if there's a leader that's not the local node wait, otherwise win the election immediately
-                && currentLeaderSupplier.get().map(f -> f.equals(localNode)).orElse(true)
+            // if there's a leader that's not the local node wait, otherwise win the election immediately (use the leader node id instead of
+            // equals to take into account restarts)
+                && currentLeaderSupplier.get().map(leader -> leader.getId().equals(localNode.getId())).orElse(true)
                 && joinVotes.containsVoteFor(localNode);
         }
 
@@ -519,17 +522,14 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private final String registerKey;
         private long currentTerm;
         private ClusterState latestAcceptedState;
-        private boolean isLatestAcceptedStateFromRegister;
+        private List<ClusterState> acceptedStates = new ArrayList<>();
+        private ClusterState latestCommittedState;
 
         AtomicRegisterPersistedState(DiscoveryNode localNode, String registerKey, KeyedAtomicRegister keyedAtomicRegister) {
             this.localNode = localNode;
             this.keyedAtomicRegister = keyedAtomicRegister;
             this.registerKey = registerKey;
-            loadClusterStateFromRegister();
-        }
-
-        private void loadClusterStateFromRegister() {
-            final var currentState = keyedAtomicRegister.readClusterState(registerKey);
+            final var currentState = this.keyedAtomicRegister.readClusterState(this.registerKey);
             if (currentState == null) {
                 currentTerm = 0;
                 latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
@@ -542,17 +542,17 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                         0L
                     )
                 );
-                isLatestAcceptedStateFromRegister = false;
             } else {
-                currentTerm = Math.max(currentState.term(), currentTerm);
+                currentTerm = currentState.term();
                 latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
                     ClusterState.builder(new ClusterName("elasticsearch"))
                         .metadata(currentState.state())
                         .version(currentState.version())
-                        .nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build())
+                        .nodes(DiscoveryNodes.builder().localNodeId(this.localNode.getId()).add(this.localNode).build())
                         .build()
                 );
-                isLatestAcceptedStateFromRegister = true;
+                acceptedStates.add(latestAcceptedState);
+                latestCommittedState = latestAcceptedState;
             }
         }
 
@@ -577,20 +577,33 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 writeClusterState(clusterState);
             }
             this.latestAcceptedState = clusterState;
+            acceptedStates.add(clusterState);
+        }
+
+        @Override
+        public void markLastAcceptedStateAsCommitted(DiscoveryNode sourceNode, long term, long version) {
+            // TODO: trim states
+            for (ClusterState acceptedState : acceptedStates) {
+                if (acceptedState.term() == term
+                    && acceptedState.version() == version
+                    && acceptedState.nodes().getMasterNode().equals(sourceNode)) {
+                    // Should we move the accepted state to align it with the committed state?
+                    this.latestCommittedState = acceptedState;
+                    break;
+                }
+            }
         }
 
         void writeClusterState(ClusterState state) {
             final var newPersistedState = new PersistentClusterState(state.term(), state.version(), state.metadata());
-            final var expectedPersistedState = isLatestAcceptedStateFromRegister == false
+            final var expectedPersistedState = latestCommittedState == null
                 ? null
-                : new PersistentClusterState(latestAcceptedState.term(), latestAcceptedState.version(), latestAcceptedState.metadata());
+                : new PersistentClusterState(latestCommittedState.term(), latestCommittedState.version(), latestCommittedState.metadata());
             assert expectedPersistedState == null || expectedPersistedState.term() <= newPersistedState.term();
             if (keyedAtomicRegister.compareAndSetClusterState(registerKey, expectedPersistedState, newPersistedState) == false) {
-                // TODO: call updateMaxTermSeen?
-                loadClusterStateFromRegister();
                 throw new RuntimeException("Conflicting cluster state update");
             }
-            this.isLatestAcceptedStateFromRegister = true;
+            this.latestCommittedState = state;
         }
 
         @Override

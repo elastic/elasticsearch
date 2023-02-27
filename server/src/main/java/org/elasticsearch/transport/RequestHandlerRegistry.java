@@ -67,7 +67,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
                 final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
-            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(task.getId(), channel, unregisterTask);
             handler.messageReceived(request, taskTransportChannel, task);
             unregisterTask = null;
         } finally {

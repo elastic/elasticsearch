@@ -325,6 +325,10 @@ public final class Grok {
         return captureConfig;
     }
 
+    public Regex getCompiledExpression() {
+        return compiledExpression;
+    }
+
     /**
      * Load built-in patterns.
      */

@@ -1462,7 +1462,7 @@ public class Node implements Closeable {
                 readiness.addBoundAddressListener(address -> writePortsFile("readiness", address));
             }
 
-            if (RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.get(environment.settings())) {
+            if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(environment.settings())) {
                 writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }

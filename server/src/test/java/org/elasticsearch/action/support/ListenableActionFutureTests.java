@@ -167,7 +167,7 @@ public class ListenableActionFutureTests extends ESTestCase {
         final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
 
         for (int i = between(1, 3); i > 0; i--) {
-            future.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+            future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         }
         reachabilityChecker.checkReachable();
         if (randomBoolean()) {
@@ -177,7 +177,7 @@ public class ListenableActionFutureTests extends ESTestCase {
         }
         reachabilityChecker.ensureUnreachable();
 
-        future.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         reachabilityChecker.ensureUnreachable();
     }
 }

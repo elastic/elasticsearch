@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
@@ -51,7 +51,7 @@ public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCurs
     }
 
     @Override
-    protected ListCursor copyInstance(ListCursor instance, Version version) throws IOException {
+    protected ListCursor copyInstance(ListCursor instance, TransportVersion version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {

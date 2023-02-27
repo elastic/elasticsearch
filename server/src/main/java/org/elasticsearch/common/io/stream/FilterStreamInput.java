@@ -9,7 +9,6 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 import java.io.EOFException;
@@ -87,22 +86,8 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    @Deprecated(forRemoval = true)
-    public Version getVersion() {
-        return delegate.getVersion();
-    }
-
-    @Override
     public TransportVersion getTransportVersion() {
         return delegate.getTransportVersion();
-    }
-
-    @Override
-    @Deprecated(forRemoval = true)
-    public void setVersion(Version version) {
-        delegate.setVersion(version);
-        // also set the version on this stream directly, so that any uses of this.version are still correct
-        super.setVersion(version);
     }
 
     @Override

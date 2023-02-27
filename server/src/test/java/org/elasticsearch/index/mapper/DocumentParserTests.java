@@ -919,7 +919,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("foo").field("bar", "baz").endObject()));
-        assertEquals(2, doc.rootDoc().getFields("foo.bar").length);
+        assertEquals(1, doc.rootDoc().getFields("foo.bar").length);
     }
 
     public void testDynamicFalseObject() throws Exception {
@@ -995,7 +995,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("big-integer", value)));
 
         IndexableField[] fields = doc.rootDoc().getFields("big-integer");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         assertEquals(new BytesRef(value.toString()), fields[0].binaryValue());
     }
 
@@ -1022,7 +1022,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("big-decimal", value)));
 
         IndexableField[] fields = doc.rootDoc().getFields("big-decimal");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         assertEquals(new BytesRef(value.toString()), fields[0].binaryValue());
     }
 

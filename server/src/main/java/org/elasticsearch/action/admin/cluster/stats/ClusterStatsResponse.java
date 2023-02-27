@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +29,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ClusterStatsNodes nodesStats;
     final ClusterStatsIndices indicesStats;
     final ClusterHealthStatus status;
+    final ClusterSnapshotStats clusterSnapshotStats;
     final long timestamp;
     final String clusterUUID;
 
@@ -46,6 +48,12 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         }
         this.clusterUUID = clusterUUID;
 
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            clusterSnapshotStats = ClusterSnapshotStats.readFrom(in);
+        } else {
+            clusterSnapshotStats = ClusterSnapshotStats.EMPTY;
+        }
+
         // built from nodes rather than from the stream directly
         nodesStats = new ClusterStatsNodes(getNodes());
         indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats, versionStats);
@@ -59,7 +67,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         List<FailedNodeException> failures,
         MappingStats mappingStats,
         AnalysisStats analysisStats,
-        VersionStats versionStats
+        VersionStats versionStats,
+        ClusterSnapshotStats clusterSnapshotStats
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
@@ -75,6 +84,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             }
         }
         this.status = status;
+        this.clusterSnapshotStats = clusterSnapshotStats;
     }
 
     public String getClusterUUID() {
@@ -108,6 +118,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             out.writeOptionalWriteable(indicesStats.getVersions());
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            clusterSnapshotStats.writeTo(out);
+        }
     }
 
     @Override
@@ -134,6 +147,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         builder.startObject("nodes");
         nodesStats.toXContent(builder, params);
         builder.endObject();
+
+        builder.field("snapshots");
+        clusterSnapshotStats.toXContent(builder, params);
+
         return builder;
     }
 

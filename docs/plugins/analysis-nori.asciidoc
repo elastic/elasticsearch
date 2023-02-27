@@ -1,5 +1,5 @@
 [[analysis-nori]]
-=== Korean (nori) Analysis Plugin
+=== Korean (nori) analysis plugin
 
 The Korean (nori) Analysis plugin integrates Lucene nori analysis
 module into elasticsearch. It uses the https://bitbucket.org/eunjeon/mecab-ko-dic[mecab-ko-dic dictionary]

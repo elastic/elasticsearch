@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -26,11 +26,11 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransportGetProfilingAction extends HandledTransportAction<GetProfilingRequest, GetProfilingResponse> {
@@ -66,6 +67,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
     private final NodeClient nodeClient;
     private final TransportService transportService;
+    private final Executor responseExecutor;
     private final int desiredSlices;
     private final int desiredDetailSlices;
     private final boolean realtime;
@@ -73,6 +75,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     @Inject
     public TransportGetProfilingAction(
         Settings settings,
+        ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
         NodeClient nodeClient
@@ -80,6 +83,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         super(GetProfilingAction.NAME, transportService, actionFilters, GetProfilingRequest::new);
         this.nodeClient = nodeClient;
         this.transportService = transportService;
+        this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
         this.desiredSlices = PROFILING_MAX_STACKTRACE_QUERY_SLICES.get(settings);
         this.desiredDetailSlices = PROFILING_MAX_DETAIL_QUERY_SLICES.get(settings);
         this.realtime = PROFILING_QUERY_REALTIME.get(settings);
@@ -94,30 +98,24 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             .setSize(0)
             .setQuery(request.getQuery())
             .setTrackTotalHits(true)
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    long sampleCount = searchResponse.getHits().getTotalHits().value;
-                    EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
-                    log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
-                    searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
+            .execute(ActionListener.wrap(searchResponse -> {
+                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
+                log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
+            }, e -> {
+                // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
+                // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
+                // fail instead of prematurely checking for existence in all cases.
+                if (e instanceof IndexNotFoundException) {
+                    String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
+                    EventsIndex fullIndex = EventsIndex.FULL_INDEX;
+                    log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
+                    searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
+                } else {
+                    submitListener.onFailure(e);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
-                    // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
-                    // fail instead of prematurely checking for existence in all cases.
-                    if (e instanceof IndexNotFoundException) {
-                        String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
-                        EventsIndex fullIndex = EventsIndex.FULL_INDEX;
-                        log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
-                        searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
-                    } else {
-                        submitListener.onFailure(e);
-                    }
-                }
-            });
+            }));
     }
 
     private void searchEventGroupByStackTrace(
@@ -142,38 +140,30 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"))
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    Sum totalCountAgg = searchResponse.getAggregations().get("total_count");
-                    long totalCount = Math.round(totalCountAgg.value());
-                    Resampler resampler = new Resampler(request, eventsIndex.getSampleRate(), totalCount);
-                    StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
-                    // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
-                    // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
-                    // needed to load it.
-                    Map<String, Integer> stackTraceEvents = new TreeMap<>();
-                    for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
-                        Sum count = bucket.getAggregations().get("count");
-                        int finalCount = resampler.adjustSampleCount((int) count.value());
-                        if (finalCount > 0) {
-                            stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
-                        }
-                    }
-                    log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
-                    if (stackTraceEvents.isEmpty() == false) {
-                        responseBuilder.setStackTraceEvents(stackTraceEvents);
-                        retrieveStackTraces(client, responseBuilder, submitListener);
-                    } else {
-                        submitListener.onResponse(responseBuilder.build());
+            .execute(ActionListener.wrap(searchResponse -> {
+                Sum totalCountAgg = searchResponse.getAggregations().get("total_count");
+                long totalCount = Math.round(totalCountAgg.value());
+                Resampler resampler = new Resampler(request, eventsIndex.getSampleRate(), totalCount);
+                StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
+                // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
+                // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
+                // needed to load it.
+                Map<String, Integer> stackTraceEvents = new TreeMap<>();
+                for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
+                    Sum count = bucket.getAggregations().get("count");
+                    int finalCount = resampler.adjustSampleCount((int) count.value());
+                    if (finalCount > 0) {
+                        stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
                     }
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
+                log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                if (stackTraceEvents.isEmpty() == false) {
+                    responseBuilder.setStackTraceEvents(stackTraceEvents);
+                    retrieveStackTraces(client, responseBuilder, submitListener);
+                } else {
+                    submitListener.onResponse(responseBuilder.build());
                 }
-            });
+            }, submitListener::onFailure));
     }
 
     private void retrieveStackTraces(
@@ -183,19 +173,14 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     ) {
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
         List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
-        StackTraceHandler handler = new StackTraceHandler(client, responseBuilder, submitListener, slicedEventIds.size());
+        StackTraceHandler handler = new StackTraceHandler(client, responseBuilder, submitListener, eventIds.size(), slicedEventIds.size());
         for (List<String> slice : slicedEventIds) {
-            client.prepareMultiGet().setRealtime(realtime).addIds("profiling-stacktraces", slice).execute(new ActionListener<>() {
-                @Override
-                public void onResponse(MultiGetResponse multiGetItemResponses) {
-                    handler.onResponse(multiGetItemResponses);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
-                }
-            });
+            client.prepareMultiGet()
+                .setRealtime(realtime)
+                .addIds("profiling-stacktraces", slice)
+                .execute(
+                    new ThreadedActionListener<>(responseExecutor, ActionListener.wrap(handler::onResponse, submitListener::onFailure))
+                );
         }
     }
 
@@ -221,7 +206,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final Client client;
         private final GetProfilingResponseBuilder responseBuilder;
         private final ActionListener<GetProfilingResponse> submitListener;
-        private final Map<String, StackTrace> stackTracePerId = new ConcurrentHashMap<>();
+        private final Map<String, StackTrace> stackTracePerId;
         // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
         // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
         // needed to load it.
@@ -234,8 +219,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             Client client,
             GetProfilingResponseBuilder responseBuilder,
             ActionListener<GetProfilingResponse> submitListener,
+            int stackTraceCount,
             int slices
         ) {
+            this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
             this.remainingSlices = new AtomicInteger(slices);
             this.client = client;
             this.responseBuilder = responseBuilder;
@@ -248,16 +235,22 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     String id = trace.getId();
                     StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
                     stackTracePerId.put(id, stacktrace);
-                    totalFrames.addAndGet(stacktrace.frameIds.length);
-                    stackFrameIds.addAll(Arrays.asList(stacktrace.frameIds));
-                    executableIds.addAll(Arrays.asList(stacktrace.fileIds));
+                    totalFrames.addAndGet(stacktrace.frameIds.size());
+                    stackFrameIds.addAll(stacktrace.frameIds);
+                    executableIds.addAll(stacktrace.fileIds);
                 }
             }
             if (this.remainingSlices.decrementAndGet() == 0) {
                 responseBuilder.setStackTraces(stackTracePerId);
                 responseBuilder.setTotalFrames(totalFrames.get());
                 log.debug("retrieveStackTraces took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
-                retrieveStackTraceDetails(client, responseBuilder, stackFrameIds, executableIds, submitListener);
+                retrieveStackTraceDetails(
+                    client,
+                    responseBuilder,
+                    new ArrayList<>(stackFrameIds),
+                    new ArrayList<>(executableIds),
+                    submitListener
+                );
             }
         }
     }
@@ -265,15 +258,17 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     private void retrieveStackTraceDetails(
         Client client,
         GetProfilingResponseBuilder responseBuilder,
-        Set<String> stackFrameIds,
-        Set<String> executableIds,
+        List<String> stackFrameIds,
+        List<String> executableIds,
         ActionListener<GetProfilingResponse> submitListener
     ) {
-        List<List<String>> slicedStackFrameIds = sliced(new ArrayList<>(stackFrameIds), desiredDetailSlices);
-        List<List<String>> slicedExecutableIds = sliced(new ArrayList<>(executableIds), desiredDetailSlices);
+        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, desiredDetailSlices);
+        List<List<String>> slicedExecutableIds = sliced(executableIds, desiredDetailSlices);
         DetailsHandler handler = new DetailsHandler(
             responseBuilder,
             submitListener,
+            executableIds.size(),
+            stackFrameIds.size(),
             slicedExecutableIds.size(),
             slicedStackFrameIds.size()
         );
@@ -282,17 +277,15 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
             for (List<String> slice : slicedStackFrameIds) {
-                client.prepareMultiGet().addIds("profiling-stackframes", slice).setRealtime(realtime).execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(MultiGetResponse multiGetItemResponses) {
-                        handler.onStackFramesResponse(multiGetItemResponses);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        submitListener.onFailure(e);
-                    }
-                });
+                client.prepareMultiGet()
+                    .addIds("profiling-stackframes", slice)
+                    .setRealtime(realtime)
+                    .execute(
+                        new ThreadedActionListener<>(
+                            responseExecutor,
+                            ActionListener.wrap(handler::onStackFramesResponse, submitListener::onFailure)
+                        )
+                    );
             }
         }
         // no data dependency - we can do this concurrently
@@ -300,17 +293,15 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
             for (List<String> slice : slicedExecutableIds) {
-                client.prepareMultiGet().addIds("profiling-executables", slice).setRealtime(realtime).execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(MultiGetResponse multiGetItemResponses) {
-                        handler.onExecutableDetailsResponse(multiGetItemResponses);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        submitListener.onFailure(e);
-                    }
-                });
+                client.prepareMultiGet()
+                    .addIds("profiling-executables", slice)
+                    .setRealtime(realtime)
+                    .execute(
+                        new ThreadedActionListener<>(
+                            responseExecutor,
+                            ActionListener.wrap(handler::onExecutableDetailsResponse, submitListener::onFailure)
+                        )
+                    );
             }
         }
     }
@@ -370,22 +361,24 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private final ActionListener<GetProfilingResponse> submitListener;
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
-        private final AtomicInteger expectedExecutableSlices;
-        private final AtomicInteger expectedStackFrameSlices;
+        private final AtomicInteger expectedSlices;
         private final long start = System.nanoTime();
 
         private DetailsHandler(
             GetProfilingResponseBuilder builder,
             ActionListener<GetProfilingResponse> submitListener,
+            int executableCount,
+            int stackFrameCount,
             int expectedExecutableSlices,
             int expectedStackFrameSlices
         ) {
             this.builder = builder;
             this.submitListener = submitListener;
-            this.executables = new ConcurrentHashMap<>();
-            this.stackFrames = new ConcurrentHashMap<>();
-            this.expectedExecutableSlices = new AtomicInteger(expectedExecutableSlices);
-            this.expectedStackFrameSlices = new AtomicInteger(expectedStackFrameSlices);
+            this.executables = new ConcurrentHashMap<>(executableCount);
+            this.stackFrames = new ConcurrentHashMap<>(stackFrameCount);
+            // for deciding when we're finished it is irrelevant where a slice originated so we can
+            // simplify state handling by treating them equally.
+            this.expectedSlices = new AtomicInteger(expectedExecutableSlices + expectedStackFrameSlices);
         }
 
         public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
@@ -394,7 +387,6 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     stackFrames.put(frame.getId(), StackFrame.fromSource(frame.getResponse().getSource()));
                 }
             }
-            expectedStackFrameSlices.decrementAndGet();
             mayFinish();
         }
 
@@ -404,12 +396,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));
                 }
             }
-            expectedExecutableSlices.decrementAndGet();
             mayFinish();
         }
 
         public void mayFinish() {
-            if (expectedStackFrameSlices.get() == 0 && expectedExecutableSlices.get() == 0) {
+            if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
                 log.debug("retrieveStackTraceDetails took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");

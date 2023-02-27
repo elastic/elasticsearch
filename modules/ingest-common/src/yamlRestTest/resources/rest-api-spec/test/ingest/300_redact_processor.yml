@@ -1,0 +1,98 @@
+---
+"Test put redact pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-redact-processor"
+        body: >
+          {
+            "processors": [
+              {
+                "redact": {
+                  "field": "to_redact",
+                  "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}", "%{CREDIT_CARD:CREDIT_CARD}"],
+                  "pattern_definitions": {
+                    "CREDIT_CARD": "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "pipeline-using-a-redact-processor"
+        body: {to_redact: "0.0.0.1 is my secret IP to redact"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.to_redact: "<IP_ADDRESS> is my secret IP to redact" }
+
+---
+"Test redact":
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "redact": {
+                    "field": "to_redact",
+                    "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+                  }
+                }
+              ]
+            },
+            "docs": [{"_source": {"to_redact": "this-email@address.com will be redacted"}}]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.to_redact: "<EMAIL> will be redacted" }
+
+---
+"Test ignore missing":
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "redact": {
+                    "field": "to_redact",
+                    "ignore_missing": false,
+                    "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+                  }
+                }
+              ]
+            },
+            "docs": [{"_source": {"wrong_field": "will error"}}]
+          }
+  - match: { docs.0.error.reason: "field [to_redact] is null or missing" }
+
+---
+"Test custom start and end tokens":
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "redact": {
+                    "prefix": "==*",
+                    "suffix": "*==",
+                    "field": "to_redact",
+                    "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+                  }
+                }
+              ]
+            },
+            "docs": [{"_source": {"to_redact": "this-email@address.com will be redacted"}}]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.to_redact: "==*EMAIL*== will be redacted" }

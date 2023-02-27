@@ -664,12 +664,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PlainActionFuture<InferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            InferModelAction.Request.forDocs(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 false
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             inferModelSuccess
         );
         InferModelAction.Response response = inferModelSuccess.actionGet();
@@ -685,12 +685,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             client().execute(
                 InferModelAction.INSTANCE,
-                InferModelAction.Request.forDocs(
+                InferModelAction.Request.forIngestDocs(
                     modelId,
                     Collections.singletonList(Collections.emptyMap()),
                     RegressionConfigUpdate.EMPTY_PARAMS,
                     false
-                )
+                ).setInferenceTimeout(TimeValue.timeValueSeconds(5))
             ).actionGet();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -701,12 +701,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            InferModelAction.Request.forDocs(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 true
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             inferModelSuccess
         );
         response = inferModelSuccess.actionGet();
@@ -721,12 +721,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PlainActionFuture<InferModelAction.Response> listener = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            InferModelAction.Request.forDocs(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 false
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             listener
         );
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));

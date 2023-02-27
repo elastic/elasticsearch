@@ -616,7 +616,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             shard.shardId(),
             rollupIndex,
             config,
-            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {}
         );

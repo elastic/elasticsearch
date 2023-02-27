@@ -71,9 +71,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        flushAndRefresh(".watcher-history-*");
-        SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
-        assertHitCount(searchResponse, 1);
+        assertBusy(() -> {
+            flushAndRefresh(".watcher-history-*");
+            SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
+            assertHitCount(searchResponse, 1);
+        });
     }
 
     // See https://github.com/elastic/x-plugins/issues/2913

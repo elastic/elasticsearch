@@ -90,7 +90,14 @@ public class LicenseServiceTests extends ESTestCase {
     public void testLogExpirationWarning() {
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final boolean expired = randomBoolean();
-        final String message = LicenseService.buildExpirationMessage(time, expired).toString();
+        final LicenseService service = new LicenseService(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            mockDefaultClusterService(),
+            mock(Clock.class),
+            mock(XPackLicenseState.class)
+        );
+        final String message = service.buildExpirationMessage(time, expired).toString();
         if (expired) {
             assertThat(message, startsWith("LICENSE [EXPIRED] ON [THURSDAY, NOVEMBER 15, 2018].\n"));
         } else {

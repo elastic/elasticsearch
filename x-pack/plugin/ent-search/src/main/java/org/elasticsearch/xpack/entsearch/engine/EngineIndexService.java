@@ -271,11 +271,6 @@ public class EngineIndexService {
         return aliasesRequestBuilder;
     }
 
-    private static void mapSearchResponse(SearchResponse response, ActionListener<Tuple<Engine[], Integer>> l) {
-        Engine[] engines = Arrays.stream(response.getHits().getHits()).map(EngineIndexService::hitToEngine).toArray(Engine[]::new);
-        l.onResponse(new Tuple<>(engines, (int) response.getHits().getTotalHits().value));
-    }
-
     /**
      * Deletes the provided {@param engineName} in the underlying index, or delegate a failure to the provided
      * listener if the resource does not exist or failed to delete.
@@ -362,8 +357,9 @@ public class EngineIndexService {
      * @param from From index to start the search from.
      * @param size The maximum number of {@link Engine} to return.
      * @param listener The action listener to invoke on response/failure.
+     *  It will receive a tuple containing the Engine results and an Integer with the total number of engines found
      */
-    public void listEngine(String queryString, int from, int size, ActionListener<Tuple<Engine[], Integer>> listener) {
+    public void listEngines(String queryString, int from, int size, ActionListener<Tuple<Engine[], Integer>> listener) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
@@ -374,10 +370,15 @@ public class EngineIndexService {
                 .storedFields(Collections.singletonList("_none_"))
                 .sort(NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(ENGINE_ALIAS_NAME).source(source);
-            clientWithOrigin.search(req, listener.delegateFailure((l, response) -> mapSearchResponse(response, l)));
+            clientWithOrigin.search(req, listener.map(EngineIndexService::mapSearchResponse));
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static Tuple<Engine[], Integer> mapSearchResponse(SearchResponse response) {
+        Engine[] engines = Arrays.stream(response.getHits().getHits()).map(EngineIndexService::hitToEngine).toArray(Engine[]::new);
+        return new Tuple<>(engines, (int) response.getHits().getTotalHits().value);
     }
 
     private Engine parseEngineBinaryFromSource(BytesReference source) {

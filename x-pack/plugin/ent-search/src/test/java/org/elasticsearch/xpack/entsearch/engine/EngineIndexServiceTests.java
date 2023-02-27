@@ -290,7 +290,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<SearchResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        engineService.listEngine(queryString, from, size, new ActionListener<>() {
+        engineService.listEngines(queryString, from, size, new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 resp.set(searchResponse);

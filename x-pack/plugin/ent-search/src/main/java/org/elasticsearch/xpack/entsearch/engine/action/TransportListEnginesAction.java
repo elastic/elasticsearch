@@ -39,7 +39,7 @@ public class TransportListEnginesAction extends HandledTransportAction<ListEngin
     @Override
     protected void doExecute(Task task, ListEnginesAction.Request request, ActionListener<ListEnginesAction.Response> listener) {
         final PageParams pageParams = request.pageParams();
-        engineIndexService.listEngine(
+        engineIndexService.listEngines(
             request.query(),
             pageParams.getFrom(),
             pageParams.getSize(),

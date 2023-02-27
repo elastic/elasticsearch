@@ -10,11 +10,13 @@ package org.elasticsearch.search.rank.rrf;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankContext;
 import org.elasticsearch.search.rank.RankContextBuilder;
 import org.elasticsearch.search.rank.RankShardContext;
@@ -28,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class RRFRankContextBuilder extends RankContextBuilder {
@@ -81,6 +84,24 @@ public class RRFRankContextBuilder extends RankContextBuilder {
         super.writeTo(out);
         out.writeVInt(windowSize);
         out.writeVInt(rankConstant);
+    }
+
+    @Override
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException, SearchSourceBuilder source) {
+        if (source.size() >= windowSize) {
+            validationException = addValidationError(
+                "[window size] must be greater than or equal to [size] for [rrf]",
+                validationException
+            );
+        }
+        if (rankConstant < 1) {
+            validationException = addValidationError("[rank constant] must be greater than [0] for [rrf]", validationException);
+        }
+        if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
+            validationException = addValidationError("[rrf] requires a minimum of [2] queries", validationException);
+        }
+
+        return validationException;
     }
 
     @Override

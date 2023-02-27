@@ -363,6 +363,39 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
             }
+            if (source.rankContextBuilder() != null) {
+                if (scroll) {
+                    validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
+                }
+                if (source.size() < -1 || source.size() == 0) {
+                    validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
+                }
+                if (source.rescores() != null && source.rescores().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
+                }
+                if (source.sorts() != null && source.sorts().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [sort]", validationException);
+                }
+                if (source.collapse() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [collapse]", validationException);
+                }
+                if (source.suggest() != null && source.suggest().getSuggestions().isEmpty() == false) {
+                    validationException = addValidationError("[rank] cannot be used with [suggest]", validationException);
+                }
+                if (source.highlighter() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [highlighter]", validationException);
+                }
+                if (source.pointInTimeBuilder() != null) {
+                    validationException = addValidationError("[rank] cannot be used with [point in time]", validationException);
+                }
+                if (source.profile()) {
+                    validationException = addValidationError("[rank] requires [profile] is [false]", validationException);
+                }
+                if (source.explain() != null && source.explain()) {
+                    validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
+                }
+                validationException = source.rankContextBuilder().validate(validationException, source);
+            }
         }
         if (pointInTimeBuilder() != null) {
             if (scroll) {

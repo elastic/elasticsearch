@@ -8,12 +8,14 @@
 
 package org.elasticsearch.search.rank;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -42,6 +44,8 @@ public abstract class RankContextBuilder implements VersionedNamedWriteable, ToX
         out.writeVInt(size);
         out.writeVInt(from);
     }
+
+    public abstract ActionRequestValidationException validate(ActionRequestValidationException exception, SearchSourceBuilder source);
 
     public List<QueryBuilder> queryBuilders() {
         return queryBuilders;

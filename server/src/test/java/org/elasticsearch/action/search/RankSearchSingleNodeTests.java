@@ -24,7 +24,7 @@ import java.util.List;
 public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSimpleRRFRank() throws IOException {
-        int numShards = 1;// + randomInt(3);
+        int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -56,7 +56,6 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
             .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(2))
-            // .addSort("int", SortOrder.ASC)
             .addFetchField("*")
             .setSize(10)
             .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
@@ -95,13 +94,9 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3);
         SearchResponse response = client().prepareSearch("index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(100).rankConstant(1))
-            // .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.termQuery("text", "term"))
-            // .addSort("int", SortOrder.ASC)
             .addFetchField("*")
-            // .setSize(10)
-            // .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))
             .get();
 
         assertEquals(3, response.getHits().getHits().length);

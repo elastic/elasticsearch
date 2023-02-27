@@ -57,6 +57,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
     ) {
         AsyncTaskIndexService<AsyncSearchResponse> store = new AsyncTaskIndexService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
+            transportService,
             clusterService,
             threadPool.getThreadContext(),
             client,

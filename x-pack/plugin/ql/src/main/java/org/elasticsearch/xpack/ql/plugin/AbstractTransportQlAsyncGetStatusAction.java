@@ -60,6 +60,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<
         Writeable.Reader<StoredAsyncResponse<Response>> reader = in -> new StoredAsyncResponse<>(responseReader(), in);
         this.store = new AsyncTaskIndexService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
+            transportService,
             clusterService,
             threadPool.getThreadContext(),
             client,

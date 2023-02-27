@@ -70,6 +70,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.threadContext = transportService.getThreadPool().getThreadContext();
         this.store = new AsyncTaskIndexService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
+            transportService,
             clusterService,
             threadContext,
             client,

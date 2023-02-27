@@ -137,6 +137,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         taskManager = transportService.getTaskManager();
         indexService = new AsyncTaskIndexService<>(
             "test",
+            transportService,
             clusterService,
             transportService.getThreadPool().getThreadContext(),
             client(),

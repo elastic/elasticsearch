@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
@@ -140,6 +141,7 @@ public class AsyncTaskManagementService<
         String action,
         AsyncOperation<Request, Response, T> operation,
         Class<T> taskClass,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays
@@ -150,6 +152,7 @@ public class AsyncTaskManagementService<
         this.taskClass = taskClass;
         this.asyncTaskIndexService = new AsyncTaskIndexService<>(
             index,
+            transportService,
             clusterService,
             threadPool.getThreadContext(),
             client,

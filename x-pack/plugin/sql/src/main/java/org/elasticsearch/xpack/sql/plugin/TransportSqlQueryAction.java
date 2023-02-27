@@ -103,6 +103,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             SqlQueryAction.INSTANCE.name(),
             this,
             SqlQueryTask.class,
+            transportService,
             clusterService,
             threadPool,
             bigArrays

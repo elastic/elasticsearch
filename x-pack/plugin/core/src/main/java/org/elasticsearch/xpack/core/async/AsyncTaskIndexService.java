@@ -49,6 +49,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -157,11 +158,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
     private volatile long maxResponseSize;
-    private final ClusterService clusterService;
+    private final TransportService transportService;
     private final CircuitBreaker circuitBreaker;
 
     public AsyncTaskIndexService(
         String index,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadContext threadContext,
         Client client,
@@ -180,7 +182,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.maxResponseSize = MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
-        this.clusterService = clusterService;
+        this.transportService = transportService;
         this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
@@ -569,13 +571,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private void writeResponse(R response, OutputStream os) throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        TransportVersion.writeVersion(minNodeVersion.transportVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(Version.V_7_15_0)) {
+        TransportVersion minNodeVersion = transportService.getMinTransportVersion();
+        TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
+        if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setTransportVersion(minNodeVersion.transportVersion);
+            out.setTransportVersion(minNodeVersion);
             response.writeTo(out);
         }
     }

@@ -13,19 +13,23 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterActionProxy;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
@@ -41,7 +45,9 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -98,7 +104,18 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
             ResolveIndexAction.NAME,
             FieldCapabilitiesAction.NAME,
-            FieldCapabilitiesAction.NAME + "[n]"
+            FieldCapabilitiesAction.NAME + "[n]",
+            // CCR actions
+            XPackInfoAction.NAME,
+            HasPrivilegesAction.NAME,
+            RetentionLeaseActions.Add.ACTION_NAME,
+            RetentionLeaseActions.Remove.ACTION_NAME,
+            RetentionLeaseActions.Renew.ACTION_NAME,
+            "indices:data/read/xpack/ccr/shard_changes",
+            IndicesStatsAction.NAME,
+            "internal:admin/ccr/restore/file_chunk/get",
+            "internal:admin/ccr/restore/session/clear",
+            "internal:admin/ccr/restore/session/put"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)
@@ -389,7 +406,21 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             // authentication instance
                             new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY)
                         ).writeToContext(threadContext);
-                        sender.sendRequest(connection, action, request, options, contextRestoreHandler);
+                        final Transport.Connection effectiveConnection;
+                        final String effectiveAction;
+                        final TransportRequest effectiveRequest;
+                        if (false == TransportService.HANDSHAKE_ACTION_NAME.equals(action) && action.startsWith("internal:")) {
+                            effectiveConnection = TransportService.unwrapConnection(connection);
+                            final boolean isProxyConnection = effectiveConnection != connection;
+                            final DiscoveryNode targetNode = isProxyConnection ? connection.getNode() : null;
+                            effectiveAction = RemoteClusterActionProxy.getProxyAction(action);
+                            effectiveRequest = RemoteClusterActionProxy.wrapRequest(targetNode, request);
+                        } else {
+                            effectiveConnection = connection;
+                            effectiveAction = action;
+                            effectiveRequest = request;
+                        }
+                        sender.sendRequest(effectiveConnection, effectiveAction, effectiveRequest, options, contextRestoreHandler);
                     } catch (IOException e) {
                         contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                     }
@@ -397,6 +428,24 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
                     throw new IllegalArgumentException(message);
+                } else if (action.equals(ClusterStateAction.NAME)) {
+                    // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        new RemoteAccessHeaders(
+                            remoteClusterCredentials.authorization(),
+                            new RemoteAccessAuthentication(
+                                Authentication.newInternalAuthentication(
+                                    SystemUser.INSTANCE,
+                                    authentication.getEffectiveSubject().getTransportVersion(),
+                                    authentication.getEffectiveSubject().getRealm().getNodeName()
+                                ),
+                                RoleDescriptorsIntersection.EMPTY
+                            )
+                        ).writeToContext(threadContext);
+                        sender.sendRequest(connection, action, request, options, contextRestoreHandler);
+                    } catch (IOException e) {
+                        contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                    }
                 } else {
                     authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                         remoteClusterAlias,

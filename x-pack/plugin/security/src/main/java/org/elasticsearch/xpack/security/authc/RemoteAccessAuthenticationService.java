@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -42,8 +43,13 @@ public class RemoteAccessAuthenticationService {
 
     public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
         "_cross_cluster_internal",
-        new String[] { ClusterStateAction.NAME },
-        null,
+        new String[] { ClusterStateAction.NAME, XPackInfoAction.NAME, "cluster:internal/remote_cluster/proxy/*" },
+        // Needed for CCR background jobs (with system user)
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("indices:admin/seq_no/add_retention_lease", "indices:monitor/stats")
+                .build() },
         null,
         null,
         null,

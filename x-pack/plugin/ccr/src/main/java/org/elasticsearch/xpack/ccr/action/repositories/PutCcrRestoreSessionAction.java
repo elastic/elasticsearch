@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
@@ -67,6 +68,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
                 PutCcrRestoreSessionRequest::new,
                 ThreadPool.Names.GENERIC
             );
+            RemoteClusterActionProxy.registerProxyAction(transportService, NAME, getResponseReader());
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;
         }

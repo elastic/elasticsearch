@@ -10,4 +10,5 @@ apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   clusterModules(project(":modules:analysis-common"))
+  clusterModules project(':x-pack:plugin:ccr')
 }

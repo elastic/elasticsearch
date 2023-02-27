@@ -103,6 +103,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class RBACEngine implements AuthorizationEngine {
@@ -202,7 +203,13 @@ public class RBACEngine implements AuthorizationEngine {
                     return false;
                 }
                 final String username = usernames[0];
-                final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username);
+                final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username)
+                    || (authentication.isRemoteAccess()
+                        && ((Authentication) authentication.getAuthenticatingSubject().getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY))
+                            .getEffectiveSubject()
+                            .getUser()
+                            .principal()
+                            .equals(username));
                 if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
                     return checkChangePasswordAction(authentication);
                 }

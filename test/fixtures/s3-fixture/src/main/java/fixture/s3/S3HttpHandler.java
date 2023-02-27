@@ -182,6 +182,7 @@ public class S3HttpHandler implements HttpHandler {
                 blobs.put(exchange.getRequestURI().toString(), blob.v2());
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+
             } else if (Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
@@ -291,12 +292,10 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
+
             } else {
                 exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             }
-        } catch (Throwable t) {
-            System.err.println(t.toString());
-            throw t;
         } finally {
             exchange.close();
         }

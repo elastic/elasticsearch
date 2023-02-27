@@ -23,6 +23,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,7 +36,7 @@ import java.util.function.BiConsumer;
  * <p>
  * In order to create a new bulk processor, use the {@link Builder}.
  */
-public class BulkProcessor2 {
+public class BulkProcessor2 implements Closeable {
 
     /**
      * A listener for the execution.
@@ -251,6 +252,17 @@ public class BulkProcessor2 {
                 execute();
             }
             this.retry.awaitClose(timeout, unit);
+        }
+    }
+
+    /**
+     * This method flushes any requests, prevents any future retries, closes this processor, and returns once any pending requests complete.
+     */
+    public void close() {
+        try {
+            awaitClose(Integer.MAX_VALUE, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException exc) {
+            Thread.currentThread().interrupt();
         }
     }
 

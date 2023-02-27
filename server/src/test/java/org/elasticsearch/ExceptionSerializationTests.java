@@ -69,7 +69,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
@@ -80,6 +79,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
@@ -87,7 +87,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -118,7 +117,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -170,10 +168,10 @@ public class ExceptionSerializationTests extends ESTestCase {
                 if (isEsException(clazz) == false) {
                     return;
                 }
-                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT) == false
+                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.CURRENT) == false
                     && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
                     notRegistered.add(clazz);
-                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT)) {
+                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.CURRENT)) {
                     registered.add(clazz);
                     try {
                         if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
@@ -227,16 +225,16 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     private <T extends Exception> T serialize(T exception) throws IOException {
-        return serialize(exception, VersionUtils.randomVersion(random()));
+        return serialize(exception, TransportVersionUtils.randomVersion(random()));
     }
 
-    private <T extends Exception> T serialize(T exception, Version version) throws IOException {
+    private <T extends Exception> T serialize(T exception, TransportVersion version) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
+        out.setTransportVersion(version);
         out.writeException(exception);
 
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
+        in.setTransportVersion(version);
         return in.readException();
     }
 
@@ -350,10 +348,10 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSearchContextMissingException() throws IOException {
         ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
-        Version version = VersionUtils.randomVersion(random());
+        TransportVersion version = TransportVersionUtils.randomVersion(random());
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
-        if (version.onOrAfter(Version.V_7_7_0)) {
+        if (version.onOrAfter(TransportVersion.V_7_7_0)) {
             assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
         } else {
             assertThat(ex.contextId().getSessionId(), equalTo(""));
@@ -363,7 +361,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(
             new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            Version.V_7_0_0
+            TransportVersion.V_7_0_0
         );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
@@ -372,7 +370,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
         MultiBucketConsumerService.TooManyBucketsException ex = serialize(
             new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
             version
@@ -392,13 +390,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("aliases [one, two, three] missing", ex.getMessage());
         assertEquals("aliases", ex.getResourceType());
         assertArrayEquals(new String[] { "one", "two", "three" }, ex.getResourceId().toArray(new String[0]));
-    }
-
-    public void testSearchParseException() throws IOException {
-        SearchParseException ex = serialize(new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(66, 666)));
-        assertEquals("foo", ex.getMessage());
-        assertEquals(66, ex.getLineNumber());
-        assertEquals(666, ex.getColumnNumber());
     }
 
     public void testIllegalIndexShardStateException() throws IOException {
@@ -740,7 +731,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(69, org.elasticsearch.snapshots.SnapshotMissingException.class);
         ids.put(70, org.elasticsearch.action.PrimaryMissingActionException.class);
         ids.put(71, org.elasticsearch.action.FailedNodeException.class);
-        ids.put(72, org.elasticsearch.search.SearchParseException.class);
+        ids.put(72, null); // was SearchParseException, only used in tests since 7.11
         ids.put(73, org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class);
         ids.put(74, org.elasticsearch.common.blobstore.BlobStoreException.class);
         ids.put(75, org.elasticsearch.cluster.IncompatibleClusterStateVersionException.class);
@@ -897,7 +888,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ShardId shardId = new ShardId("foo", "_na_", 1);
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        ShardLockObtainFailedException ex = serialize(orig, version);
+        ShardLockObtainFailedException ex = serialize(orig, version.transportVersion);
         assertEquals(orig.getMessage(), ex.getMessage());
         assertEquals(orig.getShardId(), ex.getShardId());
     }
@@ -905,7 +896,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testSnapshotInProgressException() throws IOException {
         SnapshotInProgressException orig = new SnapshotInProgressException("boom");
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        SnapshotInProgressException ex = serialize(orig, version);
+        SnapshotInProgressException ex = serialize(orig, version.transportVersion);
         assertEquals(orig.getMessage(), ex.getMessage());
     }
 

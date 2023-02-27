@@ -22,11 +22,16 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
     private static StringFieldScript.Factory factory(Consumer<StringFieldScript> executor) {
         return new StringFieldScript.Factory() {
             @Override
-            public StringFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public StringFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new StringFieldScript.LeafFactory() {
                     @Override
                     public StringFieldScript newInstance(LeafReaderContext ctx) {
-                        return new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new StringFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);
@@ -68,11 +73,9 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
 
     @Override
     protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[76 61 6c 75 65 31]>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65 31]>", fields[1].toString());
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[76 61 6c 75 65 32]>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65 32]>", fields[3].toString());
+        assertEquals(2, fields.length);
+        assertEquals("indexed,omitNorms,indexOptions=DOCS,docValuesType=SORTED_SET<field:[76 61 6c 75 65 31]>", fields[0].toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS,docValuesType=SORTED_SET<field:[76 61 6c 75 65 32]>", fields[1].toString());
     }
 
     @Override
@@ -113,6 +116,6 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
 
         ParsedDocument doc = mapper.parse(source(b -> {}));
         IndexableField[] letterFields = doc.rootDoc().getFields("letters");
-        assertEquals(16, letterFields.length);
+        assertEquals(8, letterFields.length);
     }
 }

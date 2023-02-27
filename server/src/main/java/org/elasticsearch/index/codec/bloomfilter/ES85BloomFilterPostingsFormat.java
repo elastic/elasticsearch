@@ -22,11 +22,9 @@ package org.elasticsearch.index.codec.bloomfilter;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
-import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexFileNames;
@@ -45,10 +43,6 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
@@ -60,9 +54,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * This implementation is forked from Lucene's BloomFilterPosting to support on-disk bloom filters.
@@ -77,26 +69,13 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
     static final String BLOOM_FILTER_META_FILE = "bfm";
     static final String BLOOM_FILTER_INDEX_FILE = "bfi";
 
-    private Function<String, PostingsFormat> postingsFormats;
-    private BigArrays bigArrays;
-
-    public ES85BloomFilterPostingsFormat(BigArrays bigArrays, Function<String, PostingsFormat> postingsFormats) {
-        this();
-        this.bigArrays = Objects.requireNonNull(bigArrays);
-        this.postingsFormats = Objects.requireNonNull(postingsFormats);
-    }
-
     public ES85BloomFilterPostingsFormat() {
         super(BLOOM_CODEC_NAME);
     }
 
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        if (postingsFormats == null || bigArrays == null) {
-            assert false : BLOOM_CODEC_NAME + " was initialized with a wrong constructor";
-            throw new UnsupportedOperationException(BLOOM_CODEC_NAME + " was initialized with a wrong constructor");
-        }
-        return new FieldsWriter(state);
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -109,128 +88,15 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
         return BLOOM_CODEC_NAME;
     }
 
-    private static String metaFile(SegmentInfo si, String segmentSuffix) {
+    static String metaFile(SegmentInfo si, String segmentSuffix) {
         return IndexFileNames.segmentFileName(si.name, segmentSuffix, BLOOM_FILTER_META_FILE);
     }
 
-    private static String indexFile(SegmentInfo si, String segmentSuffix) {
+    static String indexFile(SegmentInfo si, String segmentSuffix) {
         return IndexFileNames.segmentFileName(si.name, segmentSuffix, BLOOM_FILTER_INDEX_FILE);
     }
 
-    final class FieldsWriter extends FieldsConsumer {
-        private final SegmentWriteState state;
-        private final IndexOutput indexOut;
-        private final List<BloomFilter> bloomFilters = new ArrayList<>();
-        private final List<FieldsGroup> fieldsGroups = new ArrayList<>();
-        private final List<Closeable> toCloses = new ArrayList<>();
-        private boolean closed;
-
-        FieldsWriter(SegmentWriteState state) throws IOException {
-            this.state = state;
-            boolean success = false;
-            try {
-                indexOut = state.directory.createOutput(indexFile(state.segmentInfo, state.segmentSuffix), state.context);
-                toCloses.add(indexOut);
-                CodecUtil.writeIndexHeader(indexOut, BLOOM_CODEC_NAME, VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(toCloses);
-                }
-            }
-        }
-
-        @Override
-        public void write(Fields fields, NormsProducer norms) throws IOException {
-            writePostings(fields, norms);
-            writeBloomFilters(fields);
-        }
-
-        private void writePostings(Fields fields, NormsProducer norms) throws IOException {
-            final Map<PostingsFormat, FieldsGroup> currentGroups = new HashMap<>();
-            for (String field : fields) {
-                final PostingsFormat postingsFormat = postingsFormats.apply(field);
-                if (postingsFormat == null) {
-                    throw new IllegalStateException("PostingsFormat for field [" + field + "] wasn't specified");
-                }
-                FieldsGroup group = currentGroups.get(postingsFormat);
-                if (group == null) {
-                    group = new FieldsGroup(postingsFormat, Integer.toString(fieldsGroups.size()), new ArrayList<>());
-                    currentGroups.put(postingsFormat, group);
-                    fieldsGroups.add(group);
-                }
-                group.fields.add(field);
-            }
-            for (FieldsGroup group : currentGroups.values()) {
-                final FieldsConsumer writer = group.postingsFormat.fieldsConsumer(new SegmentWriteState(state, group.suffix));
-                toCloses.add(writer);
-                final Fields maskedFields = new FilterLeafReader.FilterFields(fields) {
-                    @Override
-                    public Iterator<String> iterator() {
-                        return group.fields.iterator();
-                    }
-                };
-                writer.write(maskedFields, norms);
-            }
-        }
-
-        private void writeBloomFilters(Fields fields) throws IOException {
-            for (String field : fields) {
-                final Terms terms = fields.terms(field);
-                if (terms == null) {
-                    continue;
-                }
-                final int bloomFilterSize = bloomFilterSize(state.segmentInfo.maxDoc());
-                final int numBytes = numBytesForBloomFilter(bloomFilterSize);
-                try (ByteArray buffer = bigArrays.newByteArray(numBytes)) {
-                    final TermsEnum termsEnum = terms.iterator();
-                    while (true) {
-                        final BytesRef term = termsEnum.next();
-                        if (term == null) {
-                            break;
-                        }
-                        final int hash = hashTerm(term) % bloomFilterSize;
-                        final int pos = hash >> 3;
-                        final int mask = 1 << (hash & 0x7);
-                        final byte val = (byte) (buffer.get(pos) | mask);
-                        buffer.set(pos, val);
-                    }
-                    bloomFilters.add(new BloomFilter(field, indexOut.getFilePointer(), bloomFilterSize));
-                    final BytesReference bytes = BytesReference.fromByteArray(buffer, numBytes);
-                    bytes.writeTo(new IndexOutputOutputStream(indexOut));
-                }
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed) {
-                return;
-            }
-            closed = true;
-            try {
-                CodecUtil.writeFooter(indexOut);
-            } finally {
-                IOUtils.close(toCloses);
-            }
-            try (IndexOutput metaOut = state.directory.createOutput(metaFile(state.segmentInfo, state.segmentSuffix), state.context)) {
-                CodecUtil.writeIndexHeader(metaOut, BLOOM_CODEC_NAME, VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
-                // write postings formats
-                metaOut.writeVInt(fieldsGroups.size());
-                for (FieldsGroup group : fieldsGroups) {
-                    group.writeTo(metaOut, state.fieldInfos);
-                }
-                // Write bloom filters
-                metaOut.writeVInt(bloomFilters.size());
-                for (BloomFilter bloomFilter : bloomFilters) {
-                    bloomFilter.writeTo(metaOut, state.fieldInfos);
-                }
-                CodecUtil.writeFooter(metaOut);
-            }
-        }
-    }
-
-    private record BloomFilter(String field, long startFilePointer, int bloomFilterSize) {
+    record BloomFilter(String field, long startFilePointer, int bloomFilterSize) {
         void writeTo(IndexOutput out, FieldInfos fieldInfos) throws IOException {
             out.writeVInt(fieldInfos.fieldInfo(field).number);
             out.writeVLong(startFilePointer);
@@ -245,7 +111,7 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
         }
     }
 
-    private record FieldsGroup(PostingsFormat postingsFormat, String suffix, List<String> fields) {
+    record FieldsGroup(PostingsFormat postingsFormat, String suffix, List<String> fields) {
         void writeTo(IndexOutput out, FieldInfos fieldInfos) throws IOException {
             out.writeString(postingsFormat.getName());
             out.writeString(suffix);

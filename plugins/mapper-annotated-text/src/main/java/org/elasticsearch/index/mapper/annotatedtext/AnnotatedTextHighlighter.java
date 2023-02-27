@@ -34,10 +34,9 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
         CustomUnifiedHighlighter highlighter,
         SearchExecutionContext searchContext,
         MappedFieldType fieldType,
-        HitContext hitContext,
-        boolean forceSource
+        HitContext hitContext
     ) throws IOException {
-        List<Object> fieldValues = super.loadFieldValues(highlighter, searchContext, fieldType, hitContext, forceSource);
+        List<Object> fieldValues = super.loadFieldValues(highlighter, searchContext, fieldType, hitContext);
 
         List<Object> strings = new ArrayList<>(fieldValues.size());
         AnnotatedText[] annotations = new AnnotatedText[fieldValues.size()];

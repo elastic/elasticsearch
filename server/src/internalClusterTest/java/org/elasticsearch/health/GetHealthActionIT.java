@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.metrics.Counters;
@@ -35,11 +35,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -109,7 +107,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationDeciders allocationDeciders
+            AllocationService allocationService
         ) {
             healthIndicatorServices.add(new IlmHealthIndicatorService(clusterService));
             healthIndicatorServices.add(new SlmHealthIndicatorService(clusterService));
@@ -233,13 +231,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     assertThat(stats.get(label), greaterThanOrEqualTo(4L));
                 } else {
                     expectThrows(IllegalArgumentException.class, () -> stats.get(label));
-                }
-                Set<HealthStatus> expectedStatuses = new HashSet<>();
-                expectedStatuses.add(ilmIndicatorStatus);
-                expectedStatuses.add(mostSevereHealthStatus);
-                assertThat(response.getStatuses(), equalTo(expectedStatuses));
-                if (mostSevereHealthStatus != HealthStatus.GREEN || ilmIndicatorStatus != HealthStatus.GREEN) {
-                    assertThat(response.getIndicators().isEmpty(), equalTo(mostSevereHealthStatus == HealthStatus.GREEN));
                 }
             }
 

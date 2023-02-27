@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
@@ -76,7 +78,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readBoolean());
-        final String message = formatted("unexpected byte [0x%02x]", corruptBytes[0]);
+        final String message = Strings.format("unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -111,7 +113,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readOptionalBoolean());
-        final String message = formatted("unexpected byte [0x%02x]", corruptBytes[0]);
+        final String message = Strings.format("unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -273,11 +275,11 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testSmallBigLongArray() throws IOException {
-        assertBigLongArray(between(0, PageCacheRecycler.DOUBLE_PAGE_SIZE));
+        assertBigLongArray(between(0, PageCacheRecycler.LONG_PAGE_SIZE));
     }
 
     public void testLargeBigLongArray() throws IOException {
-        assertBigLongArray(between(PageCacheRecycler.DOUBLE_PAGE_SIZE, 10000));
+        assertBigLongArray(between(PageCacheRecycler.LONG_PAGE_SIZE, 10000));
     }
 
     private void assertBigLongArray(int size) throws IOException {
@@ -290,6 +292,31 @@ public abstract class AbstractStreamTests extends ESTestCase {
         testData.writeTo(out);
 
         try (LongArray in = LongArray.readFrom(getStreamInput(out.bytes()))) {
+            assertThat(in.size(), equalTo(testData.size()));
+            for (int i = 0; i < size; i++) {
+                assertThat(in.get(i), equalTo(testData.get(i)));
+            }
+        }
+    }
+
+    public void testSmallBigByteArray() throws IOException {
+        assertBigByteArray(between(0, PageCacheRecycler.BYTE_PAGE_SIZE / 10));
+    }
+
+    public void testLargeBigByteArray() throws IOException {
+        assertBigByteArray(between(PageCacheRecycler.BYTE_PAGE_SIZE / 10, PageCacheRecycler.BYTE_PAGE_SIZE * 10));
+    }
+
+    private void assertBigByteArray(int size) throws IOException {
+        ByteArray testData = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(size, false);
+        for (int i = 0; i < size; i++) {
+            testData.set(i, randomByte());
+        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        try (ByteArray in = ByteArray.readFrom(getStreamInput(out.bytes()))) {
             assertThat(in.size(), equalTo(testData.size()));
             for (int i = 0; i < size; i++) {
                 assertThat(in.get(i), equalTo(testData.get(i)));

@@ -912,7 +912,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + leaderDataStreamName);
                 assertOK(leaderClient.performRequest(createDataStreamRequest));
                 Request updateAliasesRequest = new Request("POST", "/_aliases");
-                updateAliasesRequest.setJsonEntity(formatted("""
+                updateAliasesRequest.setJsonEntity(format("""
                     {
                       "actions": [ { "add": { "index": "%s", "alias": "logs-http", "is_write_index": true } } ]
                     }""", leaderDataStreamName));
@@ -937,7 +937,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + followerDataStreamName);
             assertOK(client().performRequest(createDataStreamRequest));
             Request updateAliasesRequest = new Request("POST", "/_aliases");
-            updateAliasesRequest.setJsonEntity(formatted("""
+            updateAliasesRequest.setJsonEntity(format("""
                 {
                   "actions": [ { "add": { "index": "%s", "alias": "logs-http", "is_write_index": true } } ]
                 }""", followerDataStreamName));
@@ -956,7 +956,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             // (only set the write flag to logs-http-na)
             // Create alias in follower cluster that point to leader and follower data streams:
             updateAliasesRequest = new Request("POST", "/_aliases");
-            updateAliasesRequest.setJsonEntity(formatted("""
+            updateAliasesRequest.setJsonEntity(format("""
                 {
                   "actions": [ { "add": { "index": "%s", "alias": "logs-http" } } ]
                 }""", leaderDataStreamName));
@@ -973,7 +973,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     verifyDocuments(leaderClient, followerDataStreamName, numDocs);
                 });
                 updateAliasesRequest = new Request("POST", "/_aliases");
-                updateAliasesRequest.setJsonEntity(formatted("""
+                updateAliasesRequest.setJsonEntity(format("""
                     {
                       "actions": [ { "add": { "index": "%s", "alias": "logs-http" } } ]
                     }""", followerDataStreamName));

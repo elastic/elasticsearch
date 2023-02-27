@@ -13,6 +13,7 @@ import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
@@ -140,6 +141,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     retrySettingsBuilder.setMaxAttempts(maxRetries + 1);
                 }
                 return options.toBuilder()
+                    .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
                     .setHost(options.getHost())
                     .setCredentials(options.getCredentials())
                     .setRetrySettings(retrySettingsBuilder.build())
@@ -203,7 +205,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 assertThat(content.isPresent(), is(true));
                 assertThat(content.get().v1(), equalTo(blobContainer.path().buildAsString() + "write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
-                    byte[] response = formatted("""
+                    byte[] response = Strings.format("""
                         {"bucket":"bucket","name":"%s"}
                         """, content.get().v1()).getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -216,7 +218,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
+                    org.elasticsearch.core.Streams.readFully(
+                        exchange.getRequestBody(),
+                        new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                    );
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
@@ -239,7 +244,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
+                    org.elasticsearch.core.Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                 }
@@ -349,7 +354,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 if (range.equals("bytes */*")) {
                     final int receivedSoFar = bytesReceived.get();
                     if (receivedSoFar > 0) {
-                        exchange.getResponseHeaders().add("Range", formatted("bytes=0-%d", receivedSoFar));
+                        exchange.getResponseHeaders().add("Range", Strings.format("bytes=0-%d", receivedSoFar));
                     }
                     exchange.getResponseHeaders().add("Content-Length", "0");
                     exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
@@ -371,7 +376,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         return;
                     } else {
-                        exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", rangeStart, rangeEnd));
+                        exchange.getResponseHeaders().add("Range", Strings.format("bytes=%d/%d", rangeStart, rangeEnd));
                         exchange.getResponseHeaders().add("Content-Length", "0");
                         exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
                         return;

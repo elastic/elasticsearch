@@ -62,21 +62,21 @@ public class PhaseCacheManagementTests extends ESTestCase {
             .setStep("check-rollover-ready")
             .setPhaseDefinition("""
                 {
-                        "policy" : "my-policy",
-                        "phase_definition" : {
-                          "min_age" : "20m",
-                          "actions" : {
-                            "rollover" : {
-                              "max_age" : "5s"
-                            },
-                            "set_priority" : {
-                              "priority" : 150
-                            }
-                          }
-                        },
-                        "version" : 1,
-                        "modified_date_in_millis" : 1578521007076
-                      }""");
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", exState);
         String indexName = meta.getIndex().getName();
@@ -216,17 +216,17 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(
             readStepKeys(REGISTRY, client, """
                 {
-                        "policy": "my_lifecycle3",
-                        "phase_definition": {
-                          "min_age": "0ms",
-                          "actions": {
-                            "rollover": {
-                              "max_age": "30s"
-                            }
-                          }
-                        },
-                        "version": 3,
-                        "modified_date_in_millis": 1539609701576
+                  "policy": "my_lifecycle3",
+                  "phase_definition": {
+                    "min_age": "0ms",
+                    "actions": {
+                      "rollover": {
+                        "max_age": "30s"
+                      }
+                    }
+                  },
+                  "version": 3,
+                  "modified_date_in_millis": 1539609701576
                 }""", "phase", null),
             contains(
                 new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
@@ -240,20 +240,20 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(
             readStepKeys(REGISTRY, client, """
                 {
-                        "policy" : "my_lifecycle3",
-                        "phase_definition" : {
-                          "min_age" : "20m",
-                          "actions" : {
-                            "rollover" : {
-                              "max_age" : "5s"
-                            },
-                            "set_priority" : {
-                              "priority" : 150
-                            }
-                          }
-                        },
-                        "version" : 1,
-                        "modified_date_in_millis" : 1578521007076
+                  "policy" : "my_lifecycle3",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
                 }""", "phase", null),
             containsInAnyOrder(
                 new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
@@ -298,21 +298,21 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 .setStep("check-rollover-ready")
                 .setPhaseDefinition("""
                     {
-                            "policy" : "my-policy",
-                            "phase_definition" : {
-                              "min_age" : "20m",
-                              "actions" : {
-                                "rollover" : {
-                                  "max_age" : "5s"
-                                },
-                                "set_priority" : {
-                                  "priority" : 150
-                                }
-                              }
-                            },
-                            "version" : 1,
-                            "modified_date_in_millis" : 1578521007076
-                          }""")
+                      "policy" : "my-policy",
+                      "phase_definition" : {
+                        "min_age" : "20m",
+                        "actions" : {
+                          "rollover" : {
+                            "max_age" : "5s"
+                          },
+                          "set_priority" : {
+                            "priority" : 150
+                          }
+                        }
+                      },
+                      "version" : 1,
+                      "modified_date_in_millis" : 1578521007076
+                    }""")
                 .build();
 
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
@@ -335,21 +335,21 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 .setStep("check-rollover-ready")
                 .setPhaseDefinition("""
                     {
-                            "policy" : "my-policy",
-                            "phase_definition" : {
-                              "min_age" : "20m",
-                              "actions" : {
-                                "rollover" : {
-                                  "max_age" : "5s"
-                                },
-                                "set_priority" : {
-                                  "priority" : 150
-                                }
-                              }
-                            },
-                            "version" : 1,
-                            "modified_date_in_millis" : 1578521007076
-                          }""")
+                      "policy" : "my-policy",
+                      "phase_definition" : {
+                        "min_age" : "20m",
+                        "actions" : {
+                          "rollover" : {
+                            "max_age" : "5s"
+                          },
+                          "set_priority" : {
+                            "priority" : 150
+                          }
+                        }
+                      },
+                      "version" : 1,
+                      "modified_date_in_millis" : 1578521007076
+                    }""")
                 .build();
 
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
@@ -371,21 +371,21 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 .setStep("check-rollover-ready")
                 .setPhaseDefinition("""
                     {
-                            "policy" : "my-policy",
-                            "phase_definition" : {
-                              "min_age" : "20m",
-                              "actions" : {
-                                "rollover" : {
-                                  "max_age" : "5s"
-                                },
-                                "set_priority" : {
-                                  "priority" : 150
-                                }
-                              }
-                            },
-                            "version" : 1,
-                            "modified_date_in_millis" : 1578521007076
-                          }""")
+                      "policy" : "my-policy",
+                      "phase_definition" : {
+                        "min_age" : "20m",
+                        "actions" : {
+                          "rollover" : {
+                            "max_age" : "5s"
+                          },
+                          "set_priority" : {
+                            "priority" : 150
+                          }
+                        }
+                      },
+                      "version" : 1,
+                      "modified_date_in_millis" : 1578521007076
+                    }""")
                 .build();
 
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
@@ -406,21 +406,21 @@ public class PhaseCacheManagementTests extends ESTestCase {
         {
             LifecycleExecutionState exState = LifecycleExecutionState.builder().setPhaseDefinition("""
                 {
-                        "policy" : "my-policy",
-                        "phase_definition" : {
-                          "min_age" : "20m",
-                          "actions" : {
-                            "rollover" : {
-                              "max_age" : "5s"
-                            },
-                            "set_priority" : {
-                              "priority" : 150
-                            }
-                          }
-                        },
-                        "version" : 1,
-                        "modified_date_in_millis" : 1578521007076
-                      }""").build();
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""").build();
 
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 

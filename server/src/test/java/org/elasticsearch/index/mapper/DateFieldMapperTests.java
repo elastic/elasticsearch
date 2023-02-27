@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.script.DateFieldScript;
@@ -88,16 +89,14 @@ public class DateFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(8, pointField.fieldType().pointNumBytes());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(1457654400000L, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(1457654400000L, dvField.numericValue().longValue());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        IndexableField field = fields[0];
+        assertEquals(1, field.fieldType().pointIndexDimensionCount());
+        assertEquals(8, field.fieldType().pointNumBytes());
+        assertFalse(field.fieldType().stored());
+        assertEquals("LongField <field:1457654400000>", field.toString());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
+        assertFalse(field.fieldType().stored());
     }
 
     public void testNotIndexed() throws Exception {
@@ -131,12 +130,11 @@ public class DateFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        IndexableField storedField = fields[2];
+        assertEquals(2, fields.length);
+        IndexableField field = fields[0];
+        assertEquals(1, field.fieldType().pointIndexDimensionCount());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
+        IndexableField storedField = fields[1];
         assertTrue(storedField.fieldType().stored());
         assertEquals(1457654400000L, storedField.numericValue().longValue());
     }
@@ -169,9 +167,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 1457654400)));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1457654400000L, pointField.numericValue().longValue());
+        assertEquals(1, fields.length);
+        IndexableField field = fields[0];
+        assertEquals(1457654400000L, field.numericValue().longValue());
     }
 
     public void testChangeLocale() throws IOException {
@@ -193,16 +191,14 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         doc = mapper.parse(source(b -> b.nullField("field")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(8, pointField.fieldType().pointNumBytes());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(1457654400000L, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(1457654400000L, dvField.numericValue().longValue());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        IndexableField field = fields[0];
+        assertEquals(1, field.fieldType().pointIndexDimensionCount());
+        assertEquals(8, field.fieldType().pointNumBytes());
+        assertEquals("LongField <field:1457654400000>", field.toString());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
+        assertEquals(1457654400000L, field.numericValue().longValue());
+        assertFalse(field.fieldType().stored());
     }
 
     public void testNanosNullValue() throws IOException {
@@ -220,16 +216,13 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         doc = mapperService.documentMapper().parse(source(b -> b.nullField("field")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(8, pointField.fieldType().pointNumBytes());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(expectedNullValue, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(expectedNullValue, dvField.numericValue().longValue());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        IndexableField field = fields[0];
+        assertEquals(1, field.fieldType().pointIndexDimensionCount());
+        assertEquals(8, field.fieldType().pointNumBytes());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
+        assertEquals(expectedNullValue, field.numericValue().longValue());
+        assertFalse(field.fieldType().stored());
     }
 
     public void testBadNullValue() throws IOException {
@@ -272,7 +265,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", formatter.format(randomDate))));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
 
         long millis = randomDate.withZoneSameInstant(ZoneOffset.UTC).toInstant().toEpochMilli();
         assertEquals(millis, fields[0].numericValue().longValue());
@@ -531,7 +524,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     private String randomIs8601Nanos(long maxMillis) {
         String date = DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.formatMillis(randomLongBetween(0, maxMillis));
         date = date.substring(0, date.length() - 1);  // Strip off trailing "Z"
-        return date + formatted("%06d", between(0, 999999)) + "Z";  // Add nanos and the "Z"
+        return date + Strings.format("%06d", between(0, 999999)) + "Z";  // Add nanos and the "Z"
     }
 
     private String randomDecimalNanos(long maxMillis) {
@@ -669,11 +662,12 @@ public class DateFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected DateFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup, formatter) -> ctx -> new DateFieldScript(
+                return (fieldName, params, searchLookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
                     fieldName,
                     params,
                     searchLookup,
                     formatter,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override
@@ -683,11 +677,12 @@ public class DateFieldMapperTests extends MapperTestCase {
 
             @Override
             protected DateFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup, formatter) -> ctx -> new DateFieldScript(
+                return (fieldName, params, searchLookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
                     fieldName,
                     params,
                     searchLookup,
                     formatter,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override

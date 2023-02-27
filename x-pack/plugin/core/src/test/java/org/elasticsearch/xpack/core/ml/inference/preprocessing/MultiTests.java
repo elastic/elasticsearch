@@ -41,6 +41,11 @@ public class MultiTests extends PreProcessingTests<Multi> {
         return createRandom();
     }
 
+    @Override
+    protected Multi mutateInstance(Multi instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Multi createRandom() {
         return createRandom(randomBoolean() ? null : randomBoolean());
     }

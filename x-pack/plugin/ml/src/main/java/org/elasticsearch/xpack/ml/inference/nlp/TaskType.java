@@ -64,6 +64,12 @@ public enum TaskType {
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
             return new TextSimilarityProcessor(tokenizer);
         }
+    },
+    SLIM {
+        @Override
+        public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
+            return new SlimProcessor(tokenizer);
+        }
     };
 
     public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {

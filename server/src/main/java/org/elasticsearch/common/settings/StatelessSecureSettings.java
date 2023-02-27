@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -81,4 +82,9 @@ public class StatelessSecureSettings implements SecureSettings {
 
     @Override
     public void close() throws IOException {}
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new IllegalStateException("Unsupported operation");
+    }
 }

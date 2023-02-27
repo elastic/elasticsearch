@@ -10,7 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -127,7 +127,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             REQUEST_PARSER.declareString(constructorArg(), new ParseField("param"));
         }
 
-        private final Version minVersion;
+        private final TransportVersion minVersion;
         private final Optional<String> feature;
 
         private String executorNodeAttr = null;
@@ -141,10 +141,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         public TestParams(String testParam) {
-            this(testParam, Version.CURRENT, Optional.empty());
+            this(testParam, TransportVersion.CURRENT, Optional.empty());
         }
 
-        public TestParams(String testParam, Version minVersion, Optional<String> feature) {
+        public TestParams(String testParam, TransportVersion minVersion, Optional<String> feature) {
             this.testParam = testParam;
             this.minVersion = minVersion;
             this.feature = feature;
@@ -154,7 +154,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             executorNodeAttr = in.readOptionalString();
             responseNode = in.readOptionalString();
             testParam = in.readOptionalString();
-            minVersion = Version.readVersion(in);
+            minVersion = TransportVersion.readVersion(in);
             feature = Optional.ofNullable(in.readOptionalString());
         }
 
@@ -184,7 +184,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             out.writeOptionalString(executorNodeAttr);
             out.writeOptionalString(responseNode);
             out.writeOptionalString(testParam);
-            Version.writeVersion(minVersion, out);
+            TransportVersion.writeVersion(minVersion, out);
             out.writeOptionalString(feature.orElse(null));
         }
 
@@ -216,7 +216,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return minVersion;
         }
 

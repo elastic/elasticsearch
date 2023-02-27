@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -24,7 +25,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -81,7 +81,7 @@ public abstract class DocumentParserContext {
     private final IndexSettings indexSettings;
     private final IndexAnalyzers indexAnalyzers;
     private final MappingLookup mappingLookup;
-    private final Function<DateFormatter, MappingParserContext> parserContextFunction;
+    private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
     private final List<Mapper> dynamicMappers;
@@ -97,7 +97,7 @@ public abstract class DocumentParserContext {
         this.mappingLookup = in.mappingLookup;
         this.indexSettings = in.indexSettings;
         this.indexAnalyzers = in.indexAnalyzers;
-        this.parserContextFunction = in.parserContextFunction;
+        this.mappingParserContext = in.mappingParserContext;
         this.sourceToParse = in.sourceToParse;
         this.ignoredFields = in.ignoredFields;
         this.dynamicMappers = in.dynamicMappers;
@@ -110,24 +110,18 @@ public abstract class DocumentParserContext {
         this.dimensions = in.dimensions;
     }
 
-    protected DocumentParserContext(
-        MappingLookup mappingLookup,
-        IndexSettings indexSettings,
-        IndexAnalyzers indexAnalyzers,
-        Function<DateFormatter, MappingParserContext> parserContextFunction,
-        SourceToParse source
-    ) {
+    protected DocumentParserContext(MappingLookup mappingLookup, MappingParserContext mappingParserContext, SourceToParse source) {
         this.mappingLookup = mappingLookup;
-        this.indexSettings = indexSettings;
-        this.indexAnalyzers = indexAnalyzers;
-        this.parserContextFunction = parserContextFunction;
+        this.indexSettings = mappingParserContext.getIndexSettings();
+        this.indexAnalyzers = mappingParserContext.getIndexAnalyzers();
+        this.mappingParserContext = mappingParserContext;
         this.sourceToParse = source;
         this.ignoredFields = new HashSet<>();
         this.dynamicMappers = new ArrayList<>();
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
-        this.dimensions = indexSettings.getMode().buildDocumentDimensions(indexSettings);
+        this.dimensions = this.indexSettings.getMode().buildDocumentDimensions(this.indexSettings);
     }
 
     public final IndexSettings indexSettings() {
@@ -151,7 +145,7 @@ public abstract class DocumentParserContext {
     }
 
     public final MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
-        return parserContextFunction.apply(dateFormatter);
+        return mappingParserContext.createDynamicTemplateContext(dateFormatter);
     }
 
     public final SourceToParse sourceToParse() {
@@ -321,12 +315,28 @@ public abstract class DocumentParserContext {
     /**
      * Return a new context that will be used within a nested document.
      */
-    public final DocumentParserContext createNestedContext(String fullPath) {
+    public final DocumentParserContext createNestedContext(NestedObjectMapper nestedMapper) {
         if (isWithinCopyTo()) {
             // nested context will already have been set up for copy_to fields
             return this;
         }
-        final LuceneDocument doc = new LuceneDocument(fullPath, doc());
+        final LuceneDocument doc = new LuceneDocument(nestedMapper.fullPath(), doc());
+        // We need to add the uid or id to this nested Lucene document too,
+        // If we do not do this then when a document gets deleted only the root Lucene document gets deleted and
+        // not the nested Lucene documents! Besides the fact that we would have zombie Lucene documents, the ordering of
+        // documents inside the Lucene index (document blocks) will be incorrect, as nested documents of different root
+        // documents are then aligned with other root documents. This will lead to the nested query, sorting, aggregations
+        // and inner hits to fail or yield incorrect results.
+        IndexableField idField = doc.getParent().getField(IdFieldMapper.NAME);
+        if (idField != null) {
+            // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
+            // delete it when the root document is deleted too.
+            // NOTE: we don't support nested fields in tsdb so it's safe to assume the standard id mapper.
+            doc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        } else {
+            throw new IllegalStateException("The root document of a nested document should have an _id field");
+        }
+        doc.add(NestedPathFieldMapper.field(indexSettings().getIndexVersionCreated(), nestedMapper.nestedTypePath()));
         addDoc(doc);
         return switchDoc(doc);
     }

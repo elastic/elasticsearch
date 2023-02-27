@@ -112,11 +112,15 @@ public class BuildParams {
     }
 
     public static Random getRandom() {
-        return new Random(Long.parseUnsignedLong(testSeed.split(":", 1)[0], 16));
+        return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));
     }
 
     public static Boolean isCi() {
         return value(isCi);
+    }
+
+    public static Boolean isGraalVmRuntime() {
+        return value(runtimeJavaDetails.toLowerCase().contains("graalvm"));
     }
 
     public static Integer getDefaultParallel() {

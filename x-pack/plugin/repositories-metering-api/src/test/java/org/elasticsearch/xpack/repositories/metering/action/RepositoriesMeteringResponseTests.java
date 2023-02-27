@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.repositories.metering.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
@@ -30,7 +31,7 @@ public class RepositoriesMeteringResponseTests extends ESTestCase {
             repositoriesMeteringResponse,
             writableRegistry(),
             RepositoriesMeteringResponse::new,
-            Version.CURRENT
+            TransportVersion.CURRENT
         );
         assertResponsesAreEqual(repositoriesMeteringResponse, deserializedResponse);
     }

@@ -520,6 +520,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Returns whether to preserve the security indices created during this test on completion of this test.
+     * Defaults to {@code false}. Override this method if security indices should be preserved after the test,
+     * with the assumption that some other process or test will clean up the indices afterward.
+     * This is useful if the security entities need to be preserved between test runs
+     */
+    protected boolean preserveSecurityIndicesUponCompletion() {
+        return false;
+    }
+
+    /**
      * Controls whether or not to preserve templates upon completion of this test. The default implementation is to delete not preserve
      * templates.
      *
@@ -665,7 +675,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
-            wipeAllIndices();
+            wipeAllIndices(preserveSecurityIndicesUponCompletion());
         }
 
         // wipe index templates
@@ -900,10 +910,18 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
+        wipeAllIndices(false);
+    }
+
+    protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
             // remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
-            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
+            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*"));
+            if (preserveSecurityIndices) {
+                indexPatterns.add("-.security-*");
+            }
+            final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
             RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
                 if (warnings.size() == 0) {

@@ -36,6 +36,11 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     }
 
     @Override
+    protected DownsampleAction mutateInstance(DownsampleAction instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<DownsampleAction> instanceReader() {
         return DownsampleAction::new;
     }
@@ -76,10 +81,10 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
         assertTrue(steps.get(4) instanceof GenerateUniqueIndexNameStep);
         assertThat(steps.get(4).getKey().name(), equalTo(GENERATE_DOWNSAMPLE_STEP_NAME));
-        assertThat(steps.get(4).getNextStepKey().name(), equalTo(RollupStep.NAME));
+        assertThat(steps.get(4).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
 
-        assertTrue(steps.get(5) instanceof RollupStep);
-        assertThat(steps.get(5).getKey().name(), equalTo(RollupStep.NAME));
+        assertTrue(steps.get(5) instanceof DownsampleStep);
+        assertThat(steps.get(5).getKey().name(), equalTo(DownsampleStep.NAME));
         assertThat(steps.get(5).getNextStepKey().name(), equalTo(WaitForIndexColorStep.NAME));
 
         assertTrue(steps.get(6) instanceof ClusterStateWaitUntilThresholdStep);

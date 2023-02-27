@@ -10,7 +10,7 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-public abstract class ChunkedBroadcastResponse extends BaseBroadcastResponse implements ChunkedToXContent {
+public abstract class ChunkedBroadcastResponse extends BaseBroadcastResponse implements ChunkedToXContentObject {
     public ChunkedBroadcastResponse(StreamInput in) throws IOException {
         super(in);
     }

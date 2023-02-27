@@ -11,7 +11,6 @@ esplugin {
 }
 
 ext {
-  antlrVersion = "4.9.2"
   // SQL dependency versions
   jlineVersion = "3.21.0"
 
@@ -33,7 +32,6 @@ dependencies {
   compileOnly(project(':modules:lang-painless:spi'))
   api project('sql-action')
   api project(':modules:aggregations')
-  api project(':modules:aggs-matrix-stats')
   compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -64,7 +62,7 @@ configurations {
 }
 
 dependencies {
-  regenerate "org.antlr:antlr4:${antlrVersion}"
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String grammarPath = 'src/main/antlr'

@@ -8,10 +8,14 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.IOException;
@@ -28,11 +32,12 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * and zero or more {@link FileSnapshotTask}s.
  */
 public class ShardSnapshotTaskRunner {
+    private static final Logger logger = LogManager.getLogger(ShardSnapshotTaskRunner.class);
     private final PrioritizedThrottledTaskRunner<SnapshotTask> taskRunner;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
 
-    abstract static class SnapshotTask implements Comparable<SnapshotTask>, Runnable {
+    abstract static class SnapshotTask extends AbstractRunnable implements Comparable<SnapshotTask> {
 
         private static final Comparator<SnapshotTask> COMPARATOR = Comparator.comparingLong(
             (SnapshotTask t) -> t.context().snapshotStartTime()
@@ -54,6 +59,12 @@ public class ShardSnapshotTaskRunner {
         public final int compareTo(SnapshotTask other) {
             return COMPARATOR.compare(this, other);
         }
+
+        @Override
+        public void onFailure(Exception e) {
+            assert false : e;
+            logger.error(Strings.format("snapshot task [%s] unexpectedly failed", this), e);
+        }
     }
 
     class ShardSnapshotTask extends SnapshotTask {
@@ -62,7 +73,7 @@ public class ShardSnapshotTaskRunner {
         }
 
         @Override
-        public void run() {
+        public void doRun() {
             shardSnapshotter.accept(context);
         }
 
@@ -88,7 +99,7 @@ public class ShardSnapshotTaskRunner {
         }
 
         @Override
-        public void run() {
+        public void doRun() {
             ActionRunnable.run(fileSnapshotListener, () -> {
                 FileInfo fileInfo = fileInfos.get();
                 if (fileInfo != null) {

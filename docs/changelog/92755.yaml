@@ -1,0 +1,6 @@
+pr: 92755
+summary: Add links to troubleshooting docs
+area: Cluster Coordination
+type: enhancement
+issues:
+ - 92741

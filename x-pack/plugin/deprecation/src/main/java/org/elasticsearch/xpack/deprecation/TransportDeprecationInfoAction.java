@@ -126,9 +126,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     PLUGIN_CHECKERS,
                     components,
                     new ThreadedActionListener<>(
-                        logger,
-                        client.threadPool(),
-                        ThreadPool.Names.GENERIC,
+                        client.threadPool().generic(),
                         listener.map(
                             deprecationIssues -> DeprecationInfoAction.Response.from(
                                 state,
@@ -140,8 +138,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                 deprecationIssues,
                                 skipTheseDeprecations
                             )
-                        ),
-                        false
+                        )
                     )
                 );
 

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -362,7 +362,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
             public FeatureSet(StreamInput in) throws IOException {
                 this(in.readString(), readAvailable(in), in.readBoolean());
-                if (in.getVersion().before(Version.V_8_0_0)) {
+                if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                     in.readMap(); // backcompat reading native code info, but no longer used here
                 }
             }
@@ -370,7 +370,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             // this is separated out so that the removed description can be read from the stream on construction
             // TODO: remove this for 8.0
             private static boolean readAvailable(StreamInput in) throws IOException {
-                if (in.getVersion().before(Version.V_7_3_0)) {
+                if (in.getTransportVersion().before(TransportVersion.V_7_3_0)) {
                     in.readOptionalString();
                 }
                 return in.readBoolean();
@@ -379,12 +379,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
-                if (out.getVersion().before(Version.V_7_3_0)) {
+                if (out.getTransportVersion().before(TransportVersion.V_7_3_0)) {
                     out.writeOptionalString(null);
                 }
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
-                if (out.getVersion().before(Version.V_8_0_0)) {
+                if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                     out.writeGenericMap(Collections.emptyMap());
                 }
             }

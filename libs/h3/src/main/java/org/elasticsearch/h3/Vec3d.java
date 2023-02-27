@@ -81,10 +81,10 @@ final class Vec3d {
      * @return The H3 index.
      */
     static long geoToH3(int res, double lat, double lon) {
-        final double cosLat = Math.cos(lat);
-        final double z = Math.sin(lat);
-        final double x = Math.cos(lon) * cosLat;
-        final double y = Math.sin(lon) * cosLat;
+        final double cosLat = FastMath.cos(lat);
+        final double z = FastMath.sin(lat);
+        final double x = FastMath.cos(lon) * cosLat;
+        final double y = FastMath.sin(lon) * cosLat;
         // determine the icosahedron face
         int face = 0;
         double sqd = Vec3d.faceCenterPoint[0].pointSquareDist(x, y, z);
@@ -96,7 +96,7 @@ final class Vec3d {
             }
         }
         // cos(r) = 1 - 2 * sin^2(r/2) = 1 - 2 * (sqd / 4) = 1 - sqd/2
-        double r = Math.acos(1 - sqd / 2);
+        double r = FastMath.acos(1 - sqd / 2);
 
         if (r < Constants.EPSILON) {
             return FaceIJK.faceIjkToH3(res, face, new CoordIJK(0, 0, 0));
@@ -113,7 +113,7 @@ final class Vec3d {
         }
 
         // perform gnomonic scaling of r
-        r = Math.tan(r);
+        r = FastMath.tan(r);
 
         // scale for current resolution length u
         r /= Constants.RES0_U_GNOMONIC;
@@ -122,7 +122,7 @@ final class Vec3d {
         }
         // we now have (r, theta) in hex2d with theta ccw from x-axes
         // convert to face and centered IJK coordinates
-        return FaceIJK.faceIjkToH3(res, face, Vec2d.hex2dToCoordIJK(r * Math.cos(theta), r * Math.sin(theta)));
+        return FaceIJK.faceIjkToH3(res, face, Vec2d.hex2dToCoordIJK(r * FastMath.cos(theta), r * FastMath.sin(theta)));
     }
 
     /**
@@ -164,7 +164,52 @@ final class Vec3d {
         final double c1c2Z = c1X * c2Y - c1Y * c2X;
 
         final double sign = Math.signum(dotProduct(this.x, this.y, this.z, c1c2X, c1c2Y, c1c2Z));
-        return Math.atan2(sign * magnitude(c1c2X, c1c2Y, c1c2Z), dotProduct(c1X, c1Y, c1Z, c2X, c2Y, c2Z));
+        return FastMath.atan2(sign * magnitude(c1c2X, c1c2Y, c1c2Z), dotProduct(c1X, c1Y, c1Z, c2X, c2Y, c2Z));
+    }
+
+    /**
+     * Computes the point on the sphere with a specified azimuth and distance from
+     * this point.
+     *
+     * @param az       The desired azimuth.
+     * @param distance The desired distance.
+     * @return The LatLng point.
+     */
+    LatLng geoAzDistanceRads(double az, double distance) {
+        az = Vec2d.posAngleRads(az);
+        // from https://www.movable-type.co.uk/scripts/latlong-vectors.html
+        // N = {0,0,1} – vector representing north pole
+        // d̂e = N×a – east vector at a
+        // dn = a×de – north vector at a
+        // d = dn·cosθ + de·sinθ – direction vector in dir’n of θ
+        // b = a·cosδ + d·sinδ
+
+        // east direction vector @ n1 (Gade's k_e_E)
+        final double magnitude = magnitude(this.x, this.y, 0);
+        final double deX = -this.y / magnitude;
+        final double deY = this.x / magnitude;
+
+        // north direction vector @ n1 (Gade's (k_n_E)
+        final double dnX = -this.z * deY;
+        final double dnY = this.z * deX;
+        final double dnZ = this.x * deY - this.y * deX;
+
+        final double sinAz = FastMath.sin(az);
+        final double cosAz = FastMath.cos(az);
+        final double sinDistance = FastMath.sin(distance);
+        final double cosDistance = FastMath.cos(distance);
+
+        // direction vector @ n1 (≡ C×n1; C = great circle)
+        final double dX = dnX * cosAz + deX * sinAz;
+        final double dY = dnY * cosAz + deY * sinAz;
+        final double dZ = dnZ * cosAz;
+
+        // Gade's n_EB_E = component of n2 parallel to n1 + component of n2 perpendicular to n1
+        final double n2X = this.x * cosDistance + dX * sinDistance;
+        final double n2Y = this.y * cosDistance + dY * sinDistance;
+        final double n2Z = this.z * cosDistance + dZ * sinDistance;
+
+        return new LatLng(FastMath.asin(n2Z), FastMath.atan2(n2Y, n2X));
     }
 
     /**

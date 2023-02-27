@@ -8,25 +8,37 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<KnnSearchBuilder> {
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -85,7 +97,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     }
 
     @Override
-    protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) throws IOException {
+    protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) {
         switch (random().nextInt(6)) {
 
             case 0:
@@ -161,11 +173,80 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         assertThat(e.getMessage(), containsString("[k] must be greater than 0"));
     }
 
-    private static float[] randomVector(int dim) {
+    public void testRewrite() throws Exception {
+        float[] expectedArray = randomVector(randomIntBetween(10, 1024));
+        KnnSearchBuilder searchBuilder = new KnnSearchBuilder(
+            "field",
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray),
+            5,
+            10
+        );
+        searchBuilder.boost(randomFloat());
+        searchBuilder.addFilterQueries(List.of(new RewriteableQuery()));
+
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(searchBuilder, context, future);
+        KnnSearchBuilder rewritten = future.get();
+
+        assertThat(rewritten.field, equalTo(searchBuilder.field));
+        assertThat(rewritten.boost, equalTo(searchBuilder.boost));
+        assertThat(rewritten.queryVector, equalTo(expectedArray));
+        assertThat(rewritten.queryVectorBuilder, nullValue());
+        assertThat(rewritten.filterQueries, hasSize(1));
+        assertThat(((RewriteableQuery) rewritten.filterQueries.get(0)).rewrites, equalTo(1));
+    }
+
+    static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();
         }
         return vector;
+    }
+
+    private static class RewriteableQuery extends AbstractQueryBuilder<RewriteableQuery> {
+        private int rewrites;
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected boolean doEquals(RewriteableQuery other) {
+            return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hashCode(RewriteableQuery.class);
+        }
+
+        @Override
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+            rewrites++;
+            return this;
+        }
     }
 }

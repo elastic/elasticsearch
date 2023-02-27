@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -105,7 +105,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     public ApiKey(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             this.name = in.readOptionalString();
         } else {
             this.name = in.readString();
@@ -116,12 +116,12 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidated = in.readBoolean();
         this.username = in.readString();
         this.realm = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.metadata = in.readMap();
         } else {
             this.metadata = Map.of();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
             this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
             this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
@@ -202,7 +202,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             out.writeOptionalString(name);
         } else {
             out.writeString(name);
@@ -213,10 +213,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         out.writeBoolean(invalidated);
         out.writeString(username);
         out.writeString(realm);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeGenericMap(metadata);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeOptionalCollection(roleDescriptors);
             out.writeOptionalWriteable(limitedBy);
         }

@@ -18,19 +18,22 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -108,21 +111,10 @@ public class RestClusterStateAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             ClusterStateAction.INSTANCE,
             clusterStateRequest,
-            new DispatchingRestToXContentListener<RestClusterStateResponse>(
-                // Process serialization on MANAGEMENT pool since the serialization of the cluster state to XContent
-                // can be too slow to execute on an IO thread
-                threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            new RestChunkedToXContentListener<RestClusterStateResponse>(
                 channel,
-                request
-            ) {
-                @Override
-                protected ToXContent.Params getParams() {
-                    return new ToXContent.DelegatingMapParams(
-                        singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
-                        request
-                    );
-                }
-            }.map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool::relativeTimeInMillis))
+                new ToXContent.DelegatingMapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request)
+            ).map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool::relativeTimeInMillis))
         );
     }
 
@@ -141,7 +133,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         static final String CLUSTER_NAME = "cluster_name";
     }
 
-    private static class RestClusterStateResponse implements ToXContentObject {
+    private static class RestClusterStateResponse implements ChunkedToXContent {
 
         private final ClusterStateRequest request;
         private final ClusterStateResponse response;
@@ -156,22 +148,25 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             if (request.local() == false
                 && currentTimeMillisSupplier.getAsLong() - startTimeMillis > request.masterNodeTimeout().millis()) {
                 throw new ElasticsearchTimeoutException("Timed out getting cluster state");
             }
-            builder.startObject();
-            if (request.waitForMetadataVersion() != null) {
-                builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
-            }
-            builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+
             final ClusterState responseState = response.getState();
-            if (responseState != null) {
-                responseState.toXContent(builder, params);
-            }
-            builder.endObject();
-            return builder;
+
+            return Iterators.concat(Iterators.single((builder, params) -> {
+                builder.startObject();
+                if (request.waitForMetadataVersion() != null) {
+                    builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
+                }
+                builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+                return builder;
+            }),
+                responseState == null ? Collections.emptyIterator() : responseState.toXContentChunked(outerParams),
+                ChunkedToXContentHelper.endObject()
+            );
         }
     }
 

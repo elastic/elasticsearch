@@ -14,7 +14,8 @@ public class TimeSeriesAggregationBuilderTests extends AggregationBuilderTestCas
 
     @Override
     protected TimeSeriesAggregationBuilder createTestAggregatorBuilder() {
-        return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean());
+        // Size set large enough tests not intending to hit the size limit shouldn't see it.
+        return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean(), randomIntBetween(1000, 100_000));
     }
 
 }

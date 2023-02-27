@@ -70,6 +70,11 @@ public class TermsGroupSourceTests extends AbstractXContentSerializingTestCase<T
     }
 
     @Override
+    protected TermsGroupSource mutateInstance(TermsGroupSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TermsGroupSource> instanceReader() {
         return TermsGroupSource::new;
     }

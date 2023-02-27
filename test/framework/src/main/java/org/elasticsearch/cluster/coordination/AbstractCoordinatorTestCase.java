@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
@@ -954,7 +956,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     } else {
                         nodeEnvironment = null;
                         BytesStreamOutput outStream = new BytesStreamOutput();
-                        outStream.setVersion(Version.CURRENT);
+                        outStream.setTransportVersion(TransportVersion.CURRENT);
 
                         final long persistedCurrentTerm;
 
@@ -1294,6 +1296,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     settings,
                     new BatchedRerouteService(clusterService, allocationService::reroute),
                     clusterService,
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
                     threadPool
                 );
 
@@ -1604,7 +1607,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             int getPendingTaskCount() {
-                return masterService.getFakeMasterServicePendingTaskCount();
+                return masterService.numberOfPendingTasks();
             }
         }
 

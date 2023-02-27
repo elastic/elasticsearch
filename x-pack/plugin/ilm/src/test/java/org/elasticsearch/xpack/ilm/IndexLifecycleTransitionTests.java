@@ -572,21 +572,21 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setStep("check-rollover-ready")
             .setPhaseDefinition("""
                 {
-                        "policy" : "my-policy",
-                        "phase_definition" : {
-                          "min_age" : "20m",
-                          "actions" : {
-                            "rollover" : {
-                              "max_age" : "5s"
-                            },
-                            "set_priority" : {
-                              "priority" : 150
-                            }
-                          }
-                        },
-                        "version" : 1,
-                        "modified_date_in_millis" : 1578521007076
-                      }""");
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
@@ -829,21 +829,21 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public void testMoveToFailedStepDoesntRefreshCachedPhaseWhenUnsafe() {
         String initialPhaseDefinition = """
             {
-                    "policy" : "my-policy",
-                    "phase_definition" : {
-                      "min_age" : "20m",
-                      "actions" : {
-                        "rollover" : {
-                          "max_age" : "5s"
-                        },
-                        "set_priority" : {
-                          "priority" : 150
-                        }
-                      }
-                    },
-                    "version" : 1,
-                    "modified_date_in_millis" : 1578521007076
-                  }""";
+              "policy" : "my-policy",
+              "phase_definition" : {
+                "min_age" : "20m",
+                "actions" : {
+                  "rollover" : {
+                    "max_age" : "5s"
+                  },
+                  "set_priority" : {
+                    "priority" : 150
+                  }
+                }
+              },
+              "version" : 1,
+              "modified_date_in_millis" : 1578521007076
+            }""";
         String failedStep = "check-rollover-ready";
         LifecycleExecutionState.Builder currentExecutionState = LifecycleExecutionState.builder()
             .setPhase("hot")
@@ -900,21 +900,21 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setStep("check-rollover-ready")
             .setPhaseDefinition("""
                 {
-                        "policy" : "my-policy",
-                        "phase_definition" : {
-                          "min_age" : "20m",
-                          "actions" : {
-                            "rollover" : {
-                              "max_age" : "5s"
-                            },
-                            "set_priority" : {
-                              "priority" : 150
-                            }
-                          }
-                        },
-                        "version" : 1,
-                        "modified_date_in_millis" : 1578521007076
-                      }""");
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", exState);
         String index = meta.getIndex().getName();
@@ -1052,21 +1052,21 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setStep("check-rollover-ready")
             .setPhaseDefinition("""
                 {
-                        "policy" : "my-policy",
-                        "phase_definition" : {
-                          "min_age" : "20m",
-                          "actions" : {
-                            "rollover" : {
-                              "max_age" : "5s"
-                            },
-                            "set_priority" : {
-                              "priority" : 150
-                            }
-                          }
-                        },
-                        "version" : 1,
-                        "modified_date_in_millis" : 1578521007076
-                      }""");
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
 

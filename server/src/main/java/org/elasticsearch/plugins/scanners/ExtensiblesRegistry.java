@@ -10,6 +10,7 @@ package org.elasticsearch.plugins.scanners;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.plugin.Extensible;
 
 import java.util.Map;
 
@@ -58,7 +59,7 @@ import static org.elasticsearch.core.Strings.format;
  *     "E2" : "E2"
  * }
  *
- * @see org.elasticsearch.plugin.api.Extensible
+ * @see Extensible
  */
 public class ExtensiblesRegistry {
 

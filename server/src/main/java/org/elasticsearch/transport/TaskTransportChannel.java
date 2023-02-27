@@ -8,17 +8,20 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 
 public class TaskTransportChannel implements TransportChannel {
 
+    private final long taskId;
     private final TransportChannel channel;
     private final Releasable onTaskFinished;
 
-    TaskTransportChannel(TransportChannel channel, Releasable onTaskFinished) {
+    TaskTransportChannel(long taskId, TransportChannel channel, Releasable onTaskFinished) {
+        this.taskId = taskId;
         this.channel = channel;
         this.onTaskFinished = onTaskFinished;
     }
@@ -52,11 +55,16 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public Version getVersion() {
+    public TransportVersion getVersion() {
         return channel.getVersion();
     }
 
     public TransportChannel getChannel() {
         return channel;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.format("TaskTransportChannel{task=%d}{%s}", taskId, channel);
     }
 }

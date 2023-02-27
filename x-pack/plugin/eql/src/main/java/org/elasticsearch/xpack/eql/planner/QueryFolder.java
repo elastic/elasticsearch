@@ -40,9 +40,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch fold = new Batch("Fold queries", new FoldProject(), new FoldFilter(), new FoldOrderBy(), new FoldLimit());
-        Batch finish = new Batch("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        var fold = new Batch<>("Fold queries", new FoldProject(), new FoldFilter(), new FoldOrderBy(), new FoldLimit());
+        var finish = new Batch<>("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
 
         return Arrays.asList(fold, finish);
     }
@@ -139,7 +139,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return plan.transformUp(typeToken(), this::rule);
         }
 
-        @Override
         protected abstract PhysicalPlan rule(SubPlan plan);
     }
 

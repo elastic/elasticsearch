@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.regression;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
@@ -51,12 +51,17 @@ public class ValidationLossTests extends AbstractBWCSerializationTestCase<Valida
         return createRandom();
     }
 
+    @Override
+    protected ValidationLoss mutateInstance(ValidationLoss instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static ValidationLoss createRandom() {
         return new ValidationLoss(randomAlphaOfLength(10), randomList(5, FoldValuesTests::createRandom));
     }
 
     @Override
-    protected ValidationLoss mutateInstanceForVersion(ValidationLoss instance, Version version) {
+    protected ValidationLoss mutateInstanceForVersion(ValidationLoss instance, TransportVersion version) {
         return instance;
     }
 

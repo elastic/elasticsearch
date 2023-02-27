@@ -829,6 +829,12 @@ public final class IngestDocument {
      * @param handler handles the result or failure
      */
     public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
+        // shortcut if the pipeline is empty
+        if (pipeline.getProcessors().isEmpty()) {
+            handler.accept(this, null);
+            return;
+        }
+
         if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {

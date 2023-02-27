@@ -11,8 +11,8 @@ package org.elasticsearch.gradle.internal.test;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.DynamicType;
 
-import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.Extensible;
+import org.elasticsearch.plugin.NamedComponent;
 import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass;
 import org.elasticsearch.plugin.scanner.test_classes.ExtensibleInterface;
 

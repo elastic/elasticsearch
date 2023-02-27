@@ -30,11 +30,14 @@ public class HealthMetadataTests extends ESTestCase {
     public void testFreeBytesCalculationMaxHeadroom() {
         HealthMetadata.Disk metadata = HealthMetadata.Disk.newBuilder()
             .highWatermark("90%", "ratio-high")
+            .highMaxHeadroom(ByteSizeValue.ofBytes(10))
             .floodStageWatermark("95%", "ratio-flood")
+            .floodStageMaxHeadroom(ByteSizeValue.ofBytes(5))
             .frozenFloodStageWatermark("95%", "ratio-frozen-flood")
             .frozenFloodStageMaxHeadroom("20B", "headroom")
             .build();
-        // For now only the frozen tier is using the max headroom setting
+        assertThat(metadata.getFreeBytesHighWatermark(ByteSizeValue.ofBytes(1000)), equalTo(ByteSizeValue.ofBytes(10)));
+        assertThat(metadata.getFreeBytesFloodStageWatermark(ByteSizeValue.ofBytes(1000)), equalTo(ByteSizeValue.ofBytes(5)));
         assertThat(metadata.getFreeBytesFrozenFloodStageWatermark(ByteSizeValue.ofBytes(1000)), equalTo(ByteSizeValue.ofBytes(20)));
     }
 

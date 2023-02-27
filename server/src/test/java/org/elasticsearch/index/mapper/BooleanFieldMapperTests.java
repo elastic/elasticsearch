@@ -203,13 +203,17 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(exampleMalformedValue("a").errorMatches("Failed to parse value [a] as only [true] or [false] are allowed."));
+    }
+
+    @Override
     protected boolean supportsIgnoreMalformed() {
-        return false;
+        return true;
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assertFalse("boolean doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();
 
@@ -239,6 +243,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 if (nullValue != null) {
                     b.field("null_value", nullValue);
                 }
+                b.field("ignore_malformed", ignoreMalformed);
             }
 
             @Override
@@ -248,7 +253,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                         equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
                         b -> b.field("type", "boolean").field("doc_values", false)
                     )
-                // If boolean had ignore_malformed we'd fail to index here
                 );
             }
         };
@@ -258,7 +262,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected BooleanFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {}
                 };
@@ -266,7 +276,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
             @Override
             protected BooleanFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {
                         emit(true);

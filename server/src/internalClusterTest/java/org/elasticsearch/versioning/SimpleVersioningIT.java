@@ -19,13 +19,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -471,7 +471,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 // zero-pad sequential
                 logger.info("--> use zero-padded sequential ids");
                 yield new IDSource() {
-                    final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
+                    final String zeroPad = Strings.format("%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
                     int upto;
 
                     @Override

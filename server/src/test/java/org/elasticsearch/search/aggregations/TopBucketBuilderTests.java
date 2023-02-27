@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation.InternalBucket;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -135,7 +136,7 @@ public class TopBucketBuilderTests extends ESTestCase {
     }
 
     private String bucketKey(int index) {
-        return formatted("%06d", index);
+        return Strings.format("%06d", index);
     }
 
     private InternalBucket bucket(int index) {

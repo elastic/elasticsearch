@@ -116,8 +116,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch rollup = new Batch(
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        var rollup = new Batch<>(
             "Fold queries",
             new FoldPivot(),
             new FoldAggregate(),
@@ -127,9 +127,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             new FoldLimit()
         );
 
-        Batch local = new Batch("Local queries", new LocalLimit(), new PropagateEmptyLocal());
-
-        Batch finish = new Batch("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
+        var local = new Batch<>("Local queries", new LocalLimit(), new PropagateEmptyLocal());
+        var finish = new Batch<>("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
 
         return Arrays.asList(rollup, local, finish);
     }
@@ -943,7 +942,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return plan.transformUp(typeToken(), this::rule);
         }
 
-        @Override
         protected abstract PhysicalPlan rule(SubPlan plan);
     }
 }

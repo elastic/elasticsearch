@@ -18,6 +18,11 @@ public class StopILMRequestTests extends AbstractWireSerializingTestCase<StopILM
     }
 
     @Override
+    protected StopILMRequest mutateInstance(StopILMRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<StopILMRequest> instanceReader() {
         return StopILMRequest::new;
     }

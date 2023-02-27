@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -224,7 +225,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResults() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig(formatted("""
+        GroupConfig groupBy = parseGroupConfig(Strings.format("""
             { "%s" : {"terms" : {   "field" : "doesn't_matter_for_this_test"} } }
             """, targetField));
 
@@ -254,7 +255,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(formatted("""
+        GroupConfig groupBy = parseGroupConfig(Strings.format("""
             {
               "%s": {
                 "terms": {
@@ -295,7 +296,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig(formatted("""
+        GroupConfig groupBy = parseGroupConfig(Strings.format("""
             {
               "%s": {
                 "terms": {
@@ -361,7 +362,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(formatted("""
+        GroupConfig groupBy = parseGroupConfig(Strings.format("""
             {
               "%s": {
                 "terms": {
@@ -452,7 +453,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(formatted("""
+        GroupConfig groupBy = parseGroupConfig(Strings.format("""
             {
               "%s": {
                 "terms": {
@@ -516,7 +517,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(formatted("""
+        GroupConfig groupBy = parseGroupConfig(Strings.format("""
             {
               "%s": {
                 "terms": {
@@ -604,7 +605,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(formatted("""
+        GroupConfig groupBy = parseGroupConfig(Strings.format("""
             {
               "%s": {
                 "terms": {

@@ -8,10 +8,11 @@
 
 package org.elasticsearch.health.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,8 +53,8 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_5_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_5_0;
     }
 
     @Override
@@ -96,6 +97,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         return Objects.hash(diskMetadata);
     }
 
+    @Override
+    public String toString() {
+        return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + '}';
+    }
+
     /**
      * Contains the thresholds necessary to determine the health of the disk space of a node. The thresholds are determined by the elected
      * master.
@@ -110,7 +116,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     ) implements ToXContentFragment, Writeable {
 
         public static final String TYPE = "disk";
-        public static Version VERSION_SUPPORTING_HEADROOM_FIELDS = Version.V_8_5_0;
+        public static final TransportVersion VERSION_SUPPORTING_HEADROOM_FIELDS = TransportVersion.V_8_5_0;
 
         private static final ParseField HIGH_WATERMARK_FIELD = new ParseField("high_watermark");
         private static final ParseField HIGH_MAX_HEADROOM_FIELD = new ParseField("high_max_headroom");
@@ -133,10 +139,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
                 FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()
             );
             ByteSizeValue frozenFloodStageMaxHeadroom = ByteSizeValue.readFrom(in);
-            ByteSizeValue highMaxHeadroom = in.getVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
+            ByteSizeValue highMaxHeadroom = in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
                 ? ByteSizeValue.readFrom(in)
                 : ByteSizeValue.MINUS_ONE;
-            ByteSizeValue floodStageMaxHeadroom = in.getVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
+            ByteSizeValue floodStageMaxHeadroom = in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
                 ? ByteSizeValue.readFrom(in)
                 : ByteSizeValue.MINUS_ONE;
             return new Disk(
@@ -155,7 +161,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             out.writeString(describeFloodStageWatermark());
             out.writeString(describeFrozenFloodStageWatermark());
             frozenFloodStageMaxHeadroom.writeTo(out);
-            if (out.getVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)) {
+            if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)) {
                 highMaxHeadroom.writeTo(out);
                 floodStageMaxHeadroom.writeTo(out);
             }
@@ -185,11 +191,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         }
 
         public ByteSizeValue getFreeBytesHighWatermark(ByteSizeValue total) {
-            return getFreeBytes(total, highWatermark, ByteSizeValue.MINUS_ONE);
+            return getFreeBytes(total, highWatermark, highMaxHeadroom);
         }
 
         public ByteSizeValue getFreeBytesFloodStageWatermark(ByteSizeValue total) {
-            return getFreeBytes(total, floodStageWatermark, ByteSizeValue.MINUS_ONE);
+            return getFreeBytes(total, floodStageWatermark, floodStageMaxHeadroom);
         }
 
         public ByteSizeValue getFreeBytesFrozenFloodStageWatermark(ByteSizeValue total) {

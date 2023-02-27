@@ -344,9 +344,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final IndexShardSnapshotStatus snapshotStatus,
         Version version,
         final long entryStartTime,
-        ActionListener<ShardSnapshotResult> listener
+        ActionListener<ShardSnapshotResult> resultListener
     ) {
-        try {
+        ActionListener.run(resultListener, listener -> {
             if (snapshotStatus.isAborted()) {
                 throw new AbortedSnapshotException();
             }
@@ -387,9 +387,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 IOUtils.close(snapshotRef);
                 throw e;
             }
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        });
     }
 
     /**

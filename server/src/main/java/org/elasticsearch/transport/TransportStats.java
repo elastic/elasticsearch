@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +60,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_1_0) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) && in.readBoolean()) {
             inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
             for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
                 inboundHandlingTimeBucketFrequencies[i] = in.readVLong();
@@ -83,7 +84,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             assert (inboundHandlingTimeBucketFrequencies.length > 0) == (outboundHandlingTimeBucketFrequencies.length > 0);
             out.writeBoolean(inboundHandlingTimeBucketFrequencies.length > 0);
             for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {

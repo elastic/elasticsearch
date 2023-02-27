@@ -26,6 +26,10 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
 
     public static RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Collections.emptyList());
 
+    public RoleDescriptorsIntersection(RoleDescriptor roleDescriptor) {
+        this(List.of(Set.of(roleDescriptor)));
+    }
+
     public RoleDescriptorsIntersection(StreamInput in) throws IOException {
         this(in.readImmutableList(inner -> inner.readSet(RoleDescriptor::new)));
     }
@@ -33,6 +37,10 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(roleDescriptorsList, StreamOutput::writeCollection);
+    }
+
+    public boolean isEmpty() {
+        return roleDescriptorsList().isEmpty();
     }
 
     @Override

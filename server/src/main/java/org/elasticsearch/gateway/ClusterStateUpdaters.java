@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.Map;
@@ -82,9 +83,9 @@ public class ClusterStateUpdaters {
         return ClusterState.builder(state).blocks(blocks).build();
     }
 
-    static ClusterState updateRoutingTable(final ClusterState state) {
+    static ClusterState updateRoutingTable(final ClusterState state, ShardRoutingRoleStrategy shardRoutingRoleStrategy) {
         // initialize all index routing tables as empty
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, state.routingTable());
         for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
             routingTableBuilder.addAsRecovery(indexMetadata);
         }

@@ -30,6 +30,11 @@ public class UpdateDataFrameAnalyticsActionRequestTests extends AbstractXContent
     }
 
     @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
     }

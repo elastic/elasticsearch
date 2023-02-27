@@ -468,10 +468,10 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("is outside of ranges of currently writable indices"));
     }
 
-    public void testChangeTemplateIndexMode() throws Exception {
+    public void testDowngradeTsdbDataStreamToRegularDataStream() throws Exception {
+        var time = Instant.now();
         {
             var indexRequest = new Request("POST", "/k8s/_doc");
-            var time = Instant.now();
             indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
             var response = client().performRequest(indexRequest);
             assertOK(response);
@@ -479,15 +479,74 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         {
             var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
             putComposableIndexTemplateRequest.setJsonEntity(NON_TSDB_TEMPLATE);
-            var e = expectThrows(ResponseException.class, () -> client().performRequest(putComposableIndexTemplateRequest));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "composable template [1] with index patterns [k8s*], priority [null],"
-                        + " index.routing_path [] would cause tsdb data streams [k8s] to no longer match a data stream template"
-                        + " with a time_series index_mode"
-                )
-            );
+            client().performRequest(putComposableIndexTemplateRequest);
+        }
+        {
+            {
+                // check prior to rollover
+                var getDataStreamsRequest = new Request("GET", "/_data_stream");
+                var getDataStreamResponse = client().performRequest(getDataStreamsRequest);
+                assertOK(getDataStreamResponse);
+                var dataStreams = entityAsMap(getDataStreamResponse);
+                assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
+                assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
+                assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.time_series"), notNullValue());
+            }
+            var rolloverRequest = new Request("POST", "/k8s/_rollover");
+            var rolloverResponse = client().performRequest(rolloverRequest);
+            assertOK(rolloverResponse);
+            var rolloverResponseBody = entityAsMap(rolloverResponse);
+            assertThat(rolloverResponseBody.get("rolled_over"), is(true));
+            {
+                // Data stream is no longer a tsdb data stream
+                var getDataStreamsRequest = new Request("GET", "/_data_stream");
+                var getDataStreamResponse = client().performRequest(getDataStreamsRequest);
+                assertOK(getDataStreamResponse);
+                var dataStreams = entityAsMap(getDataStreamResponse);
+                assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
+                assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(2));
+                assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.time_series"), nullValue());
+            }
+            {
+                // old index remains a tsdb index
+                var oldIndex = (String) rolloverResponseBody.get("old_index");
+                assertThat(oldIndex, backingIndexEqualTo("k8s", 1));
+                var indices = getIndex(oldIndex);
+                var escapedBackingIndex = oldIndex.replace(".", "\\.");
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time"), notNullValue());
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time"), notNullValue());
+            }
+            {
+                // new index is a regular index
+                var newIndex = (String) rolloverResponseBody.get("new_index");
+                assertThat(newIndex, backingIndexEqualTo("k8s", 2));
+                var indices = getIndex(newIndex);
+                var escapedBackingIndex = newIndex.replace(".", "\\.");
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), nullValue());
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time"), nullValue());
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time"), nullValue());
+            }
+        }
+        {
+            // All documents should be ingested into the most recent backing index:
+            // (since the data stream is no longer a tsdb data stream)
+            Instant[] timestamps = new Instant[] {
+                time,
+                time.plusSeconds(1),
+                time.plusSeconds(5),
+                time.minus(30, ChronoUnit.DAYS),
+                time.plus(30, ChronoUnit.DAYS) };
+            for (Instant timestamp : timestamps) {
+                var indexRequest = new Request("POST", "/k8s/_doc");
+                indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(timestamp)));
+                var response = client().performRequest(indexRequest);
+                assertOK(response);
+                var responseBody = entityAsMap(response);
+                assertThat((String) responseBody.get("_index"), backingIndexEqualTo("k8s", 2));
+            }
         }
     }
 

@@ -24,19 +24,11 @@ The following {transform} rules are available:
 You can create {transform} rules under **{stack-manage-app} > {rules-ui}**.
 
 On the *Create rule* window, give a name to the rule and optionally provide 
-tags. Specify the time interval for the rule to check {transform} health 
-changes. You can also select a notification option with the _Notify_ selector. 
-An alert remains active as long as the configured conditions are met during the 
-check interval. When there is no matching condition in the next interval, the 
-`Recovered` action group is invoked and the status of the alert changes to `OK`. 
-For more details, refer to the documentation of 
-{kibana-ref}/create-and-manage-rules.html#defining-rules-general-details[general rule details].
-
-Select the {transform-cap} health rule type under the Stack Monitoring section.
+tags. Select the {transform} health rule type:
 
 [role="screenshot"]
-image::images/transform-rule.png["Creating a transform health rule"]
-
+image::images/transform-rule.png["Creating a transform health rule",500]
+// NOTE: This is screenshot is automatically generated. Do not edit it directly.
 
 [[creating-transform-health-rules]]
 === {transform-cap} health
@@ -52,31 +44,28 @@ _{transform-cap} is not started_::
   any data. The notification message recommends the necessary actions to solve 
   the error.
 
-[role="screenshot"]
-image::images/transform-check-config.png["Selecting health check"]
+_Errors in {transform} messages_:: 
+  Notifies if {transform} messages contain errors.
 
-As the last step in the rule creation process, 
-<<defining-actions, define the actions>> that occur when the conditions
-are met.
+[role="screenshot"]
+image::images/transform-check-config.png["Selecting health check",500]
+// NOTE: This is screenshot is automatically generated. Do not edit it directly.
+
+As the last step in the rule creation process, define its actions.
   
 
 [[defining-actions]]
 == Defining actions
 
-Connect your rule to actions that use supported built-in integrations by 
-selecting a connector type. Connectors are {kib} services or third-party 
-integrations that perform an action when the rule conditions are met or the 
-alert is recovered. You can select in which case the action will run.
+include::{es-repo-dir}/ml/anomaly-detection/ml-configuring-alerts.asciidoc[tag=define-actions]
+
+It's also possible to customize the notification messages for each action. A
+list of variables is available to include in the message, like {transform} ID,
+description, {transform} state, and so on.
 
 [role="screenshot"]
-image::images/transform-alert-actions.png["Selecting connector type"]
-
-
-For example, you can choose _Slack_ as a connector type and configure it to send 
-a message to a channel you selected. You can also create an index connector that 
-writes the JSON object you configure to a specific index. It's also possible to 
-customize the notification messages. A list of variables is available to include 
-in the message, like {transform} ID, description, {transform} state, and so on.
+image::images/transform-alert-actions.png["Selecting connector type",500]
+// NOTE: This is screenshot is automatically generated. Do not edit it directly.
 
 After you save the configurations, the rule appears in the *{rules-ui}* list 
 where you can check its status and see the overview of its configuration 

@@ -265,7 +265,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
-            "desription",
+            "description",
             new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
             scriptService,
             new FakeProcessor(null, null, null, null)

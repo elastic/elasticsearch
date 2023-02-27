@@ -273,7 +273,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getBulkShardRequest(),
                         context.buildShardResponse(),
                         context.getLocationToSync(),
-                        null,
                         context.getPrimary(),
                         logger,
                         postWriteAction

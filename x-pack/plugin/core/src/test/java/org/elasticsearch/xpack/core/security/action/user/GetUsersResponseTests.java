@@ -66,7 +66,7 @@ public class GetUsersResponseTests extends ESTestCase {
             Strings.toString(builder),
             equalTo(
                 XContentHelper.stripWhitespace(
-                    formatted(
+                    Strings.format(
                         """
                             {
                               "%s": {

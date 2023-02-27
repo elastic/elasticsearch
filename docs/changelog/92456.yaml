@@ -1,0 +1,5 @@
+pr: 92456
+summary: Skip duplicate checks on segments that don't contain the document's timestamp
+area: TSDB
+type: enhancement
+issues: []

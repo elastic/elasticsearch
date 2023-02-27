@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -88,7 +89,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         // origin as string
         String origin = "2018-01-01T13:10:30Z";
         String pivot = "7d";
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -105,7 +106,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
 
         // origin as long
         long originLong = 1514812230999L;
-        json = formatted("""
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -122,7 +123,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         // origin as string
         String origin = "2018-01-01T13:10:30.323456789Z";
         String pivot = "100000000nanos";
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -139,7 +140,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
 
         // origin as long
         long originLong = 1514812230999L;
-        json = formatted("""
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -157,7 +158,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         final String pivot = "1km";
 
         // origin as string
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -173,7 +174,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
 
         // origin as array
-        json = formatted("""
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -186,7 +187,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         assertEquals(json, origin, parsed.origin().origin());
 
         // origin as object
-        json = formatted("""
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -217,7 +218,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
     }
 
     public void testQueryFailsWithWrongFieldType() {
-        String query = formatted("""
+        String query = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",

@@ -105,7 +105,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         assert false : "Unexpected call";
                     }
                 },
-                false
+                false,
+                randomBoolean()
             );
             assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
             assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, sourceMetadata);
@@ -143,7 +144,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         }
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
@@ -183,7 +185,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         listener.onResponse(Optional.of(shardSnapshotData));
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
@@ -245,7 +248,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         listener.onResponse(Optional.of(latestSnapshot));
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             if (shareFilesWithSource || compatibleVersion == false) {
@@ -313,7 +317,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         }
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, latestSourceMetadata);
@@ -365,7 +370,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, latestSourceMetadata);
@@ -403,7 +409,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                     }
                 },
                 true,
-                Version.V_7_14_0 // Unsupported version
+                Version.V_7_14_0, // Unsupported version,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
@@ -424,7 +431,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         long startingSeqNo,
         int translogOps,
         ShardSnapshotsService shardSnapshotsService,
-        boolean snapshotRecoveriesEnabled
+        boolean snapshotRecoveriesEnabled,
+        boolean primaryRelocation
     ) throws Exception {
         return computeShardRecoveryPlan(
             shardIdentifier,
@@ -434,7 +442,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             translogOps,
             shardSnapshotsService,
             snapshotRecoveriesEnabled,
-            Version.CURRENT
+            Version.CURRENT,
+            primaryRelocation
         );
     }
 
@@ -446,7 +455,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         int translogOps,
         ShardSnapshotsService shardSnapshotsService,
         boolean snapshotRecoveriesEnabled,
-        Version version
+        Version version,
+        boolean primaryRelocation
     ) throws Exception {
         SnapshotsRecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService, () -> true);
 
@@ -460,6 +470,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             translogOps,
             version,
             snapshotRecoveriesEnabled,
+            primaryRelocation,
             planFuture
         );
         final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.sandbox.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -35,8 +34,8 @@ import java.util.Set;
  * such as highlighting, not security. For example terms in a Boolean {@code MUST_NOT} clause
  * are not included, TermsQuery doesn't implement the method as it could be terribly slow, etc.
  *
- * TODO reimplement this using QueryVisitors
  */
+// TODO this should be rewritten using the Lucene QueryVisitor API
 class FieldExtractor {
 
     /**
@@ -76,8 +75,6 @@ class FieldExtractor {
             fields.add(pointInSetQuery.getField());
         } else if (query instanceof FieldExistsQuery fieldExistsQuery) {
             fields.add(fieldExistsQuery.getField());
-        } else if (query instanceof DocValuesNumbersQuery docValuesNumbersQuery) {
-            fields.add(docValuesNumbersQuery.getField());
         } else if (query instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
             // Both queries are supposed to be equivalent, so if any of them can be extracted, we are good
             try {

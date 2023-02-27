@@ -290,6 +290,7 @@ public class CircuitBreakerTests extends ESTestCase {
             TimeValue.timeValueSeconds(30),
             null,
             123,
+            1,
             "",
             new TaskId("test", 123),
             new EqlSearchTask(

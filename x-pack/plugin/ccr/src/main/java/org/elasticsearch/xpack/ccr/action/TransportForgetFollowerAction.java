@@ -71,7 +71,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
 
     @Override
     protected EmptyResult readShardResult(final StreamInput in) {
-        return EmptyResult.readEmptyResultFrom(in);
+        return EmptyResult.INSTANCE;
     }
 
     @Override

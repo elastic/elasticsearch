@@ -29,6 +29,11 @@ public class RegressionFeatureImportanceTests extends AbstractXContentSerializin
         return createRandomInstance();
     }
 
+    @Override
+    protected RegressionFeatureImportance mutateInstance(RegressionFeatureImportance instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static RegressionFeatureImportance createRandomInstance() {
         return new RegressionFeatureImportance(randomAlphaOfLength(10), randomDoubleBetween(-10.0, 10.0, false));
     }

@@ -101,7 +101,8 @@ public class DiskUsageTests extends ESTestCase {
             new ShardId(index, 0),
             false,
             PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
+            ShardRouting.Role.DEFAULT
         );
         test_0 = ShardRoutingHelper.initialize(test_0, "node1");
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
@@ -112,7 +113,8 @@ public class DiskUsageTests extends ESTestCase {
             new ShardId(index, 1),
             false,
             PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
+            ShardRouting.Role.DEFAULT
         );
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);

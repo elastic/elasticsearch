@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -185,11 +185,11 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             remoteCluster = in.readString();
             leaderIndexPatterns = in.readStringList();
             followIndexNamePattern = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
                 settings = Settings.readSettingsFromStream(in);
             }
             parameters = new FollowParameters(in);
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 leaderIndexExclusionPatterns = in.readStringList();
             }
         }
@@ -201,11 +201,11 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
                 settings.writeTo(out);
             }
             parameters.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }
         }

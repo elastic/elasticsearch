@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.SqlConverter;
 
-import java.io.IOException;
-
 public class CastProcessorTests extends AbstractWireSerializingTestCase<CastProcessor> {
     public static CastProcessor randomCastProcessor() {
         return new CastProcessor(randomFrom(SqlConverter.values()));
@@ -31,7 +29,7 @@ public class CastProcessorTests extends AbstractWireSerializingTestCase<CastProc
     }
 
     @Override
-    protected CastProcessor mutateInstance(CastProcessor instance) throws IOException {
+    protected CastProcessor mutateInstance(CastProcessor instance) {
         return new CastProcessor(randomValueOtherThan(instance.converter(), () -> randomFrom(SqlConverter.values())));
     }
 

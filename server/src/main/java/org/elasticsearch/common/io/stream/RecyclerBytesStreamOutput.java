@@ -127,7 +127,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
         // that make assumptions about the page size
         try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
-            tmp.setVersion(getVersion());
+            tmp.setTransportVersion(getTransportVersion());
             writeable.writeTo(tmp);
             int size = tmp.size();
             writeVInt(size);

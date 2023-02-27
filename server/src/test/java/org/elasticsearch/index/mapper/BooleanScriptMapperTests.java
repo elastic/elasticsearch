@@ -21,11 +21,16 @@ public class BooleanScriptMapperTests extends MapperScriptTestCase<BooleanFieldS
     private static BooleanFieldScript.Factory factory(Consumer<BooleanFieldScript> executor) {
         return new BooleanFieldScript.Factory() {
             @Override
-            public BooleanFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public BooleanFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new BooleanFieldScript.LeafFactory() {
                     @Override
                     public BooleanFieldScript newInstance(LeafReaderContext ctx) {
-                        return new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new BooleanFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +44,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -304,6 +307,49 @@ public class LocalHealthMonitorTests extends ESTestCase {
         LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
         DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateFrozenLocalNode);
         assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD)));
+    }
+
+    public void testYellowStatusForNonDataNode() {
+        DiscoveryNode dedicatedMasterNode = new DiscoveryNode(
+            "master-node",
+            "master-node-1",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        clusterState = ClusterStateCreationUtils.state(
+            dedicatedMasterNode,
+            dedicatedMasterNode,
+            node,
+            new DiscoveryNode[] { node, dedicatedMasterNode }
+        ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+
+        initializeIncreasedDiskSpaceUsage();
+        LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
+        DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterState);
+        assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD)));
+    }
+
+    public void testHasRelocatingShards() {
+        String indexName = "my-index";
+        final ClusterState state = state(indexName, true, ShardRoutingState.RELOCATING);
+        // local node coincides with the node hosting the (relocating) primary shard
+        DiscoveryNode localNode = state.nodes().getLocalNode();
+        assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(state, localNode), is(true));
+
+        DiscoveryNode dedicatedMasterNode = new DiscoveryNode(
+            "master-node",
+            "master-node-1",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        ClusterState newState = ClusterState.builder(state)
+            .nodes(new DiscoveryNodes.Builder(state.nodes()).add(dedicatedMasterNode))
+            .build();
+        assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(newState, dedicatedMasterNode), is(false));
     }
 
     private void simulateDiskOutOfSpace() {

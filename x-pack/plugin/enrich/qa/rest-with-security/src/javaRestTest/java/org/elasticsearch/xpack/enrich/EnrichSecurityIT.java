@@ -11,6 +11,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -33,7 +34,7 @@ public class EnrichSecurityIT extends CommonEnrichRestTestCase {
         // This test is here because it requires a valid user that has permission to execute policy PUTs but should fail if the user
         // does not have access to read the backing indices used to enrich the data.
         Request request = new Request("PUT", "/some-other-index");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
              "mappings" : {%s}
             }""", createSourceIndexMapping()));

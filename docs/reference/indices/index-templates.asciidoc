@@ -161,3 +161,5 @@ DELETE _component_template/component_template1
 ////
 
 include::simulate-multi-component-templates.asciidoc[]
+
+include::ignore-missing-component-templates.asciidoc[]

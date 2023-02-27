@@ -159,6 +159,14 @@ public final class Sets {
         return union;
     }
 
+    /**
+     * The intersection of two sets. Namely, the resulting set contains all the elements that are in both sets.
+     * Neither input is mutated by this operation, an entirely new set is returned.
+     *
+     * @param set1 the first set
+     * @param set2 the second set
+     * @return the unmodifiable intersection of the two sets
+     */
     public static <T> Set<T> intersection(Set<T> set1, Set<T> set2) {
         Objects.requireNonNull(set1);
         Objects.requireNonNull(set2);
@@ -171,7 +179,21 @@ public final class Sets {
             left = set2;
             right = set1;
         }
-        return left.stream().filter(right::contains).collect(Collectors.toSet());
+
+        final Set<T> empty = Set.of();
+        Set<T> result = empty;
+        for (T t : left) {
+            if (right.contains(t)) {
+                if (result == empty) {
+                    // delay allocation of a non-empty result set
+                    result = new HashSet<>();
+                }
+                result.add(t);
+            }
+        }
+
+        // the empty set is already unmodifiable
+        return result == empty ? result : Collections.unmodifiableSet(result);
     }
 
     /**

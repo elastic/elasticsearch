@@ -117,7 +117,7 @@ public class SystemIndexManager implements ClusterStateListener {
                 // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
                 ActionListener<AcknowledgedResponse> listener = new GroupedActionListener<>(
                     descriptors.size(),
-                    ActionListener.wrap(() -> isUpgradeInProgress.set(false))
+                    ActionListener.running(() -> isUpgradeInProgress.set(false))
                 );
 
                 descriptors.forEach(descriptor -> upgradeIndexMetadata(descriptor, listener));

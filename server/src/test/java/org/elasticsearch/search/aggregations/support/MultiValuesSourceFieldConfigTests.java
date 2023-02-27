@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,7 +31,7 @@ public class MultiValuesSourceFieldConfigTests extends AbstractXContentSerializi
 
     @Override
     protected MultiValuesSourceFieldConfig doParseInstance(XContentParser parser) throws IOException {
-        return MultiValuesSourceFieldConfig.parserBuilder(true, true, true, true).apply(parser, null).build();
+        return MultiValuesSourceFieldConfig.parserBuilder(true, true, true, true, true).apply(parser, null).build();
     }
 
     @Override
@@ -43,6 +44,7 @@ public class MultiValuesSourceFieldConfigTests extends AbstractXContentSerializi
         ValueType userValueTypeHint = randomBoolean()
             ? randomFrom(ValueType.STRING, ValueType.DOUBLE, ValueType.LONG, ValueType.DATE, ValueType.IP, ValueType.BOOLEAN)
             : null;
+        IncludeExclude includeExclude = randomBoolean() ? IncludeExcludeTests.randomIncludeExclude() : null;
         return new MultiValuesSourceFieldConfig.Builder().setFieldName(field)
             .setMissing(missing)
             .setScript(null)
@@ -50,7 +52,13 @@ public class MultiValuesSourceFieldConfigTests extends AbstractXContentSerializi
             .setFilter(filter)
             .setFormat(format)
             .setUserValueTypeHint(userValueTypeHint)
+            .setIncludeExclude(includeExclude)
             .build();
+    }
+
+    @Override
+    protected MultiValuesSourceFieldConfig mutateInstance(MultiValuesSourceFieldConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

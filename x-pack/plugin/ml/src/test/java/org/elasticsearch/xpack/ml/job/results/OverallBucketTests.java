@@ -37,6 +37,11 @@ public class OverallBucketTests extends AbstractWireSerializingTestCase<OverallB
     }
 
     @Override
+    protected OverallBucket mutateInstance(OverallBucket instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<OverallBucket> instanceReader() {
         return OverallBucket::new;
     }

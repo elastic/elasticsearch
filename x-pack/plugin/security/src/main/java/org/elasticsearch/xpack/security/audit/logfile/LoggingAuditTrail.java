@@ -1635,12 +1635,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
                         .getMetadata()
                         .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                    final StringMapMessage innerLogEntry = logEntry.newInstance(Collections.emptyMap());
+                    withAuthenticationFields(innerLogEntry, innerAuthentication, logger);
                     try {
-                        final StringMapMessage innerLogEntry = logEntry.newInstance(Collections.emptyMap());
-                        withAuthenticationFields(innerLogEntry, innerAuthentication, logger);
-                        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        builder.map(innerLogEntry.getData());
-                        logEntry.with(REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME, Strings.toString(builder));
+                        logEntry.with(REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME, toJsonString(innerLogEntry));
                     } catch (IOException e) {
                         logger.error("Failed to write remote access authentication [{}] as audit log entry", innerAuthentication);
                     }
@@ -1733,6 +1731,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
+    }
+
+    private static String toJsonString(final StringMapMessage innerLogEntry) throws IOException {
+        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+        builder.map(innerLogEntry.getData());
+        return Strings.toString(builder);
     }
 
     public static void registerSettings(List<Setting<?>> settings) {

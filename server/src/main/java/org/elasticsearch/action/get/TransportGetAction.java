@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -120,6 +121,9 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
         var shardRouting = clusterService.state().getRoutingNodes().node(clusterService.localNode().getId()).getByShardId(shardId);
+        if (shardRouting == null) {
+            throw new ShardNotFoundException(shardId, "shard is no longer assigned to current node");
+        }
 
         if (request.realtime() && shardRouting.isPromotableToPrimary() == false) {
             // TODO: this shouldn't be blocking like this

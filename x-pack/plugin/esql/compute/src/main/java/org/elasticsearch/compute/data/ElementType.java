@@ -25,7 +25,10 @@ public enum ElementType {
 
     BYTES_REF(BytesRefBlock::newBlockBuilder),
 
-    DOC(estimatedSize -> { throw new UnsupportedOperationException("can't build doc blocks"); }),
+    /**
+     * Blocks that reference individual lucene documents.
+     */
+    DOC(DocBlock::newBlockBuilder),
 
     /**
      * Intermediate blocks which don't support retrieving elements.

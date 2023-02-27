@@ -16,7 +16,6 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -106,41 +105,58 @@ public class ValuesSourceReaderOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        if (page.getPositionCount() == 0) {
+            return;
+        }
+
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        IntVector shardOrd = docVector.shards();
-        IntVector leafOrd = docVector.segments();
-        IntVector docs = docVector.docs();
-        if (leafOrd.isConstant() == false) {
-            throw new IllegalArgumentException("Expected constant block, got: " + leafOrd);
-        }
-        if (shardOrd.isConstant() == false) {
-            throw new IllegalArgumentException("Expected constant block, got: " + shardOrd);
-        }
-        if (docs.isNonDecreasing() == false) {
-            throw new IllegalArgumentException("Expected non decreasing block, got: " + docs);
-        }
 
-        if (docs.getPositionCount() > 0) {
-            int segment = leafOrd.getInt(0);
-            int shard = shardOrd.getInt(0);
-            int firstDoc = docs.getInt(0);
-            try {
-                if (lastShard != shard || lastSegment != segment || BlockDocValuesReader.canReuse(lastReader, firstDoc) == false) {
-                    var info = sources.get(shard);
-                    LeafReaderContext leafReaderContext = info.reader().leaves().get(segment);
-
-                    lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), info.elementType(), leafReaderContext);
-                    lastShard = shard;
-                    lastSegment = segment;
-                    readersBuilt.compute(lastReader.toString(), (k, v) -> v == null ? 1 : v + 1);
-                }
-                Block block = lastReader.readValues(docs);
-                pagesProcessed++;
-                lastPage = page.appendBlock(block);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+        try {
+            if (docVector.shards().isConstant() && docVector.docs().isConstant() && docVector.docs().isNonDecreasing()) {
+                lastPage = page.appendBlock(loadFromSingleLeaf(docVector));
+            } else {
+                lastPage = page.appendBlock(loadFromManyLeaves(docVector));
             }
+            pagesProcessed++;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
+    }
+
+    private Block loadFromSingleLeaf(DocVector docVector) throws IOException {
+        setupReader(docVector.shards().getInt(0), docVector.segments().getInt(0), docVector.docs().getInt(0));
+        return lastReader.readValues(docVector.docs());
+    }
+
+    private Block loadFromManyLeaves(DocVector docVector) throws IOException {
+        int[] forwards = docVector.shardSegmentDocMapForwards();
+        int doc = docVector.docs().getInt(forwards[0]);
+        setupReader(docVector.shards().getInt(forwards[0]), docVector.segments().getInt(forwards[0]), doc);
+        Block.Builder builder = lastReader.builder(forwards.length);
+        lastReader.readValuesFromSingleDoc(doc, builder);
+        for (int i = 1; i < forwards.length; i++) {
+            int shard = docVector.shards().getInt(forwards[i]);
+            int segment = docVector.segments().getInt(forwards[i]);
+            doc = docVector.docs().getInt(forwards[i]);
+            if (segment != lastSegment || shard != lastShard) {
+                setupReader(shard, segment, doc);
+            }
+            lastReader.readValuesFromSingleDoc(doc, builder);
+        }
+        // TODO maybe it's better for downstream consumers if we perform a copy here.
+        return builder.build().filter(docVector.shardSegmentDocMapBackwards());
+    }
+
+    private void setupReader(int shard, int segment, int doc) throws IOException {
+        if (lastSegment == segment && lastShard == shard && BlockDocValuesReader.canReuse(lastReader, doc)) {
+            return;
+        }
+        var info = sources.get(shard);
+        LeafReaderContext leafReaderContext = info.reader().leaves().get(segment);
+        lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), info.elementType(), leafReaderContext);
+        lastShard = shard;
+        lastSegment = segment;
+        readersBuilt.compute(lastReader.toString(), (k, v) -> v == null ? 1 : v + 1);
     }
 
     @Override

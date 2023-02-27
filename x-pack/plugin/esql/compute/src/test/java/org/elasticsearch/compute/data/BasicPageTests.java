@@ -143,15 +143,6 @@ public class BasicPageTests extends SerializationTestCase {
         IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block2.getLong(i))));
     }
 
-    public void testReplace() {
-        Page page1 = new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10, null).asBlock());
-        Page page2 = page1.replaceBlock(0, new LongArrayVector(LongStream.range(0, 10).toArray(), 10).asBlock());
-        assertThat(1, is(page1.getBlockCount()));
-        assertThat(1, is(page2.getBlockCount()));
-        LongBlock block = page2.getBlock(0);
-        IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block.getLong(i))));
-    }
-
     public void testPageSerializationSimple() throws IOException {
         try (var bytesRefArray = bytesRefArrayOf("0a", "1b", "2c", "3d", "4e", "5f", "6g", "7h", "8i", "9j")) {
             final BytesStreamOutput out = new BytesStreamOutput();

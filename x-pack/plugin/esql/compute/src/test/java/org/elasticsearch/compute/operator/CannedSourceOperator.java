@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.ArrayList;
@@ -31,6 +32,25 @@ public class CannedSourceOperator extends SourceOperator {
         } finally {
             source.close();
         }
+    }
+
+    public static Page mergePages(List<Page> pages) {
+        int totalPositions = pages.stream().mapToInt(Page::getPositionCount).sum();
+        Page first = pages.get(0);
+        Block.Builder[] builders = new Block.Builder[first.getBlockCount()];
+        for (int b = 0; b < builders.length; b++) {
+            builders[b] = first.getBlock(b).elementType().newBlockBuilder(totalPositions);
+        }
+        for (Page p : pages) {
+            for (int b = 0; b < builders.length; b++) {
+                builders[b].copyFrom(p.getBlock(b), 0, p.getPositionCount());
+            }
+        }
+        Block[] blocks = new Block[builders.length];
+        for (int b = 0; b < blocks.length; b++) {
+            blocks[b] = builders[b].build();
+        }
+        return new Page(blocks);
     }
 
     private final Iterator<Page> page;

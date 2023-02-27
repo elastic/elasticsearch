@@ -48,9 +48,19 @@ public abstract class BlockDocValuesReader {
     public abstract int docID();
 
     /**
+     * The {@link Block.Builder} for data of this type.
+     */
+    public abstract Block.Builder builder(int positionCount);
+
+    /**
      * Reads the values of the given documents specified in the input block
      */
     public abstract Block readValues(IntVector docs) throws IOException;
+
+    /**
+     * Reads the values of the given document into the builder
+     */
+    public abstract void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException;
 
     /**
      * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
@@ -125,9 +135,14 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public LongBlock.Builder builder(int positionCount) {
+            return LongBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public LongBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = LongBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -143,6 +158,16 @@ public abstract class BlockDocValuesReader {
                 lastDoc = doc;
             }
             return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            LongBlock.Builder blockBuilder = (LongBlock.Builder) builder;
+            if (numericDocValues.advanceExact(docId)) {
+                blockBuilder.appendLong(numericDocValues.longValue());
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -165,7 +190,12 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public LongBlock.Builder builder(int positionCount) {
+            return LongBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public LongBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             var blockBuilder = LongBlock.newBlockBuilder(positionCount);
             int lastDoc = -1;
@@ -188,6 +218,18 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            this.docID = docId;
+            LongBlock.Builder blockBuilder = (LongBlock.Builder) builder;
+            if (numericDocValues.advanceExact(docId)) {
+                checkMultiValue(docId, numericDocValues.docValueCount());
+                blockBuilder.appendLong(numericDocValues.nextValue());
+            } else {
+                blockBuilder.appendNull();
+            }
+        }
+
+        @Override
         public int docID() {
             // There is a .docID on the numericDocValues but it is often not implemented.
             return docID;
@@ -207,9 +249,14 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public IntBlock.Builder builder(int positionCount) {
+            return IntBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public IntBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = IntBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -225,6 +272,16 @@ public abstract class BlockDocValuesReader {
                 lastDoc = doc;
             }
             return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            IntBlock.Builder blockBuilder = (IntBlock.Builder) builder;
+            if (numericDocValues.advanceExact(docId)) {
+                blockBuilder.appendInt(Math.toIntExact(numericDocValues.longValue()));
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -247,14 +304,20 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public IntBlock.Builder builder(int positionCount) {
+            return IntBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public IntBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = IntBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
                 if (lastDoc >= doc) {
+                    // TODO this may not be true after sorting many docs in a single segment.
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
@@ -267,6 +330,18 @@ public abstract class BlockDocValuesReader {
                 this.docID = doc;
             }
             return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            this.docID = docId;
+            IntBlock.Builder blockBuilder = (IntBlock.Builder) builder;
+            if (numericDocValues.advanceExact(docId)) {
+                checkMultiValue(docId, numericDocValues.docValueCount());
+                blockBuilder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -290,9 +365,14 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public DoubleBlock.Builder builder(int positionCount) {
+            return DoubleBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public DoubleBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = DoubleBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -309,6 +389,17 @@ public abstract class BlockDocValuesReader {
                 this.docID = doc;
             }
             return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            this.docID = docId;
+            DoubleBlock.Builder blockBuilder = (DoubleBlock.Builder) builder;
+            if (numericDocValues.advanceExact(this.docID)) {
+                blockBuilder.appendDouble(numericDocValues.doubleValue());
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -331,7 +422,12 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public DoubleBlock.Builder builder(int positionCount) {
+            return DoubleBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public DoubleBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             var blockBuilder = DoubleBlock.newBlockBuilder(positionCount);
             int lastDoc = -1;
@@ -354,6 +450,18 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            this.docID = docId;
+            DoubleBlock.Builder blockBuilder = (DoubleBlock.Builder) builder;
+            if (numericDocValues.advanceExact(this.docID)) {
+                checkMultiValue(this.docID, numericDocValues.docValueCount());
+                blockBuilder.appendDouble(numericDocValues.nextValue());
+            } else {
+                blockBuilder.appendNull();
+            }
+        }
+
+        @Override
         public int docID() {
             return docID;
         }
@@ -373,9 +481,14 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public BytesRefBlock.Builder builder(int positionCount) {
+            return BytesRefBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public BytesRefBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = BytesRefBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int doc = docs.getInt(i);
@@ -393,6 +506,18 @@ public abstract class BlockDocValuesReader {
                 this.docID = doc;
             }
             return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            this.docID = docId;
+            BytesRefBlock.Builder blockBuilder = (BytesRefBlock.Builder) builder;
+            if (binaryDV.advanceExact(this.docID)) {
+                checkMultiValue(this.docID, binaryDV.docValueCount());
+                blockBuilder.appendBytesRef(binaryDV.nextValue());
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -414,9 +539,14 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public BooleanBlock.Builder builder(int positionCount) {
+            return BooleanBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public BooleanBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = BooleanBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -432,6 +562,16 @@ public abstract class BlockDocValuesReader {
                 lastDoc = doc;
             }
             return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            BooleanBlock.Builder blockBuilder = (BooleanBlock.Builder) builder;
+            if (numericDocValues.advanceExact(docId)) {
+                blockBuilder.appendBoolean(numericDocValues.longValue() != 0);
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -454,9 +594,14 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(IntVector docs) throws IOException {
+        public BooleanBlock.Builder builder(int positionCount) {
+            return BooleanBlock.newBlockBuilder(positionCount);
+        }
+
+        @Override
+        public BooleanBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = BooleanBlock.newBlockBuilder(positionCount);
+            var blockBuilder = builder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -474,6 +619,17 @@ public abstract class BlockDocValuesReader {
                 this.docID = doc;
             }
             return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            this.docID = docId;
+            BooleanBlock.Builder blockBuilder = (BooleanBlock.Builder) builder;
+            if (numericDocValues.advanceExact(this.docID)) {
+                blockBuilder.appendBoolean(numericDocValues.nextValue() != 0);
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override

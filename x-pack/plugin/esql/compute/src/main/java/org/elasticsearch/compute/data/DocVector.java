@@ -7,10 +7,25 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.IntroSorter;
+
+/**
+ * {@link Vector} where each entry references a lucene document.
+ */
 public class DocVector extends AbstractVector implements Vector {
     private final IntVector shards;
     private final IntVector segments;
     private final IntVector docs;
+
+    /**
+     * Maps the vector positions to ascending docs per-shard and per-segment.
+     */
+    private int[] shardSegmentDocMapForwards;
+
+    /**
+     * Reverse of {@link #shardSegmentDocMapForwards}.
+     */
+    private int[] shardSegmentDocMapBackwards;
 
     public DocVector(IntVector shards, IntVector segments, IntVector docs) {
         super(shards.getPositionCount());
@@ -39,6 +54,69 @@ public class DocVector extends AbstractVector implements Vector {
 
     public IntVector docs() {
         return docs;
+    }
+
+    /**
+     * Map from the positions in this page to the positions in lucene's native order for
+     * loading doc values.
+     */
+    public int[] shardSegmentDocMapForwards() {
+        buildShardSegmentDocMapIfMissing();
+        return shardSegmentDocMapForwards;
+    }
+
+    /**
+     * Reverse of {@link #shardSegmentDocMapForwards}. If you load doc values in the "forward"
+     * order then you can call {@link Block#filter} on the loaded values with this array to
+     * put them in the same order as this {@link Page}.
+     */
+    public int[] shardSegmentDocMapBackwards() {
+        buildShardSegmentDocMapIfMissing();
+        return shardSegmentDocMapBackwards;
+    }
+
+    private void buildShardSegmentDocMapIfMissing() {
+        if (shardSegmentDocMapForwards != null) {
+            return;
+        }
+
+        int[] forwards = shardSegmentDocMapForwards = new int[shards.getPositionCount()];
+        for (int p = 0; p < forwards.length; p++) {
+            forwards[p] = p;
+        }
+        new IntroSorter() {
+            int pivot;
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = forwards[i];
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(forwards[j]));
+                if (cmp != 0) {
+                    return cmp;
+                }
+                cmp = Integer.compare(segments.getInt(pivot), segments.getInt(forwards[j]));
+                if (cmp != 0) {
+                    return cmp;
+                }
+                return Integer.compare(docs.getInt(pivot), docs.getInt(forwards[j]));
+            }
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = forwards[i];
+                forwards[i] = forwards[j];
+                forwards[j] = tmp;
+            }
+        }.sort(0, forwards.length);
+
+        int[] backwards = shardSegmentDocMapBackwards = new int[forwards.length];
+        for (int p = 0; p < forwards.length; p++) {
+            backwards[forwards[p]] = p;
+        }
     }
 
     @Override

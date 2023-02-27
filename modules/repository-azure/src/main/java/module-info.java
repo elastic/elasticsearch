@@ -6,12 +6,28 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.dlm {
+module org.elasticsearch.repository.azure {
     requires org.elasticsearch.base;
+    requires org.elasticsearch.transport.netty4;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
-    requires org.apache.lucene.core;
-    requires org.apache.logging.log4j;
 
-    exports org.elasticsearch.dlm;
+    requires org.apache.lucene.core;
+
+    requires org.apache.logging.log4j;
+    requires org.apache.logging.log4j.core;
+
+    requires com.azure.core;
+    requires com.azure.http.netty;
+    requires com.azure.storage.blob;
+    requires com.azure.storage.common;
+
+    requires io.netty.buffer;
+    requires io.netty.transport;
+    requires io.netty.resolver;
+    requires io.netty.common;
+
+    requires reactor.core;
+    requires reactor.netty.core;
+    requires reactor.netty.http;
 }

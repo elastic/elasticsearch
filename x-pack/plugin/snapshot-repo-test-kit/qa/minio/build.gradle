@@ -42,6 +42,7 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   keystore 's3.client.repository_test_kit.secret_key', 's3_test_secret_key'
   setting 's3.client.repository_test_kit.protocol', 'http'
   setting 's3.client.repository_test_kit.endpoint', { "${-> fixtureAddress()}" }, IGNORE_VALUE
+  setting 'logger.org.apache.http.wire', 'DEBUG'
 
   setting 'xpack.security.enabled', 'false'
 }

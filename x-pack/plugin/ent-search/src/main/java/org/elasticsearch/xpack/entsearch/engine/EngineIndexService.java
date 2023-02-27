@@ -294,6 +294,7 @@ public class EngineIndexService {
     public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
 
         try {
+            // TODO Delete alias when Engine is deleted
             final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 

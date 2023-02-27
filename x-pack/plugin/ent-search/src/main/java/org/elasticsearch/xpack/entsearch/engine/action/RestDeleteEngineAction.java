@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.entsearch.EnterpriseSearch;
 
@@ -33,11 +32,6 @@ public class RestDeleteEngineAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         DeleteEngineAction.Request request = new DeleteEngineAction.Request(restRequest.param("engine_id"));
-        return channel -> client.execute(PutEngineAction.INSTANCE, request, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(PutEngineAction.Response response) {
-                return response.status();
-            }
-        });
+        return channel -> client.execute(DeleteEngineAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

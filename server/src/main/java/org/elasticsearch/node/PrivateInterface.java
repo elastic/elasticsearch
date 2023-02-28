@@ -8,6 +8,8 @@
 
 package org.elasticsearch.node;
 
-public record PrivateInterface<C, I extends C> (Class<? extends C> clazz, I instance) {
+import org.elasticsearch.common.inject.Provider;
+
+public record PrivateInterface<C, I extends C> (Class<? extends C> clazz, Provider<I> provider) {
 
 }

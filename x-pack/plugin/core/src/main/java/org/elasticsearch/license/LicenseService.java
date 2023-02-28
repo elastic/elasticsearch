@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -23,7 +24,6 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Setting;
@@ -118,7 +118,7 @@ public class LicenseService extends AbstractLifecycleComponent
      */
     private final AtomicReference<License> currentLicenseHolder = new AtomicReference<>();
     private final SchedulerEngine scheduler;
-    private Clock clock = Clock.systemUTC(); // overridable by tests
+    private final Clock clock;
 
     /**
      * Callbacks to notify relative to license expiry
@@ -147,8 +147,13 @@ public class LicenseService extends AbstractLifecycleComponent
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    @Inject
-    public LicenseService(Settings settings, ThreadPool threadPool, ClusterService clusterService, XPackLicenseState licenseState) {
+    public LicenseService(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        Clock clock,
+        XPackLicenseState licenseState
+    ) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.startTrialTaskQueue = clusterService.createTaskQueue(
@@ -162,6 +167,7 @@ public class LicenseService extends AbstractLifecycleComponent
             new StartBasicClusterTask.Executor()
         );
 
+        this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
         this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
@@ -169,11 +175,6 @@ public class LicenseService extends AbstractLifecycleComponent
         populateExpirationCallbacks();
 
         threadPool.scheduleWithFixedDelay(licenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
-    }
-
-    // testing only
-    void setClock(Clock clock) {
-        this.clock = clock;
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {
@@ -373,7 +374,14 @@ public class LicenseService extends AbstractLifecycleComponent
         return this.clusterService.state().metadata().custom(LicensesMetadata.TYPE);
     }
 
-    void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
+    @Override
+    @SuppressWarnings("unchecked")
+    public void startTrialLicense(ActionRequest request, ActionListener<?> listener) {
+        assert request instanceof PostStartTrialRequest;
+        innerStartTrialLicense((PostStartTrialRequest) request, (ActionListener<PostStartTrialResponse>) listener);
+    }
+
+    void innerStartTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
         License.LicenseType requestedType = License.LicenseType.parse(request.getType());
         if (VALID_TRIAL_TYPES.contains(requestedType) == false) {
             throw new IllegalArgumentException(
@@ -391,7 +399,13 @@ public class LicenseService extends AbstractLifecycleComponent
         );
     }
 
-    void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
+    @Override
+    @SuppressWarnings("unchecked")
+    public void startBasicLicense(ActionRequest request, ActionListener<?> listener) {
+        innerStartBasicLicense((PostStartBasicRequest) request, (ActionListener<PostStartBasicResponse>) listener);
+    }
+
+    void innerStartBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
         StartBasicClusterTask task = new StartBasicClusterTask(
             logger,
             clusterService.getClusterName().value(),

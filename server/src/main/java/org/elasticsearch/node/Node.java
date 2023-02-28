@@ -1075,7 +1075,7 @@ public class Node implements Closeable {
                         PrivateInterface<?, ?> pi = (PrivateInterface<?, ?>) p;
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) pi.clazz();
-                        b.bind(clazz).toInstance(pi.instance());
+                        b.bind(clazz).toProvider(pi.provider());
                     } else {
                         // instance bind components
                         @SuppressWarnings("unchecked")

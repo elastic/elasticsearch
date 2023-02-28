@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -33,6 +34,7 @@ public class LicenseScheduleTests extends ESTestCase {
             Settings.EMPTY,
             mock(ThreadPool.class),
             mock(ClusterService.class),
+            mock(Clock.class),
             mock(XPackLicenseState.class)
         );
         schedule = service.nextLicenseCheck(license);

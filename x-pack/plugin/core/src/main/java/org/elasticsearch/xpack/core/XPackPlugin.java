@@ -314,7 +314,7 @@ public class XPackPlugin extends XPackClientPlugin
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        LicenseService licenseService = new LicenseService(settings, threadPool, clusterService, getLicenseState());
+        LicenseService licenseService = new LicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
 
         setLicenseService(licenseService);
 
@@ -322,7 +322,7 @@ public class XPackPlugin extends XPackClientPlugin
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PrivateInterface<>(LicenseServiceInterface.class, licenseService));
+        components.add(new PrivateInterface<>(LicenseServiceInterface.class, () -> licenseService));
         components.add(getLicenseState());
 
         return components;

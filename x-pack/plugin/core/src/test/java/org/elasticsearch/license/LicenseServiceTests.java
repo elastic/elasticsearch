@@ -94,6 +94,7 @@ public class LicenseServiceTests extends ESTestCase {
             Settings.EMPTY,
             mock(ThreadPool.class),
             mockDefaultClusterService(),
+            mock(Clock.class),
             mock(XPackLicenseState.class)
         );
         final String message = service.buildExpirationMessage(time, expired).toString();
@@ -184,8 +185,13 @@ public class LicenseServiceTests extends ESTestCase {
 
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final var taskExecutorCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
-        final LicenseService service = new LicenseService(settings, mock(ThreadPool.class), clusterService, mock(XPackLicenseState.class));
-        service.setClock(clock);
+        final LicenseService service = new LicenseService(
+            settings,
+            mock(ThreadPool.class),
+            clusterService,
+            clock,
+            mock(XPackLicenseState.class)
+        );
         verify(clusterService).createTaskQueue(eq("license-service-start-basic"), any(), taskExecutorCaptor.capture());
 
         final Consumer<PlainActionFuture<PostStartBasicResponse>> assertion = future -> {
@@ -275,8 +281,7 @@ public class LicenseServiceTests extends ESTestCase {
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final LicenseService service = new LicenseService(settings, threadPool, clusterService, licenseState);
-        service.setClock(clock);
+        final LicenseService service = new LicenseService(settings, threadPool, clusterService, clock, licenseState);
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.license(toSpec(license), XContentType.JSON);
@@ -352,6 +357,7 @@ public class LicenseServiceTests extends ESTestCase {
             Settings.EMPTY,
             mock(ThreadPool.class),
             mockDefaultClusterService(),
+            mock(Clock.class),
             mock(XPackLicenseState.class)
         );
         String warning = service.getExpiryWarning(expiration, now);

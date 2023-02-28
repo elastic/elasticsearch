@@ -8,6 +8,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -27,4 +28,10 @@ public interface LicenseServiceInterface extends LifecycleComponent {
     boolean maybeExpireLicense(License license);
 
     License getLicense();
+
+    // TODO: generify this interface to avoid down casting in implementation
+    void startTrialLicense(ActionRequest request, ActionListener<?> listener);
+
+    void startBasicLicense(ActionRequest request, ActionListener<?> listener);
+
 }

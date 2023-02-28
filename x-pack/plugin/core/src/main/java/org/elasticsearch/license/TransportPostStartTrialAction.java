@@ -21,13 +21,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPostStartTrialAction extends TransportMasterNodeAction<PostStartTrialRequest, PostStartTrialResponse> {
 
-    private final LicenseService licenseService;
+    private final LicenseServiceInterface licenseService;
 
     @Inject
     public TransportPostStartTrialAction(
         TransportService transportService,
         ClusterService clusterService,
-        LicenseService licenseService,
+        LicenseServiceInterface licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver

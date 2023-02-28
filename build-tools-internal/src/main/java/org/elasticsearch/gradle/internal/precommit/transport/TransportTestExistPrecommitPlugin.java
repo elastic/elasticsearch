@@ -62,21 +62,9 @@ public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
                     t.setTestClasspath(byName);
                 });
             });
-            // somehow this does not help for rest-api-spec project
-            // project.getPluginManager().withPlugin("java", p -> {
-            // // We want to get any compilation error before running the pre-commit checks.
-            // project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(sourceSet ->
-            // transportTestExistTask.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()))
-            // );
-            // });
             return transportTestExistTask;
 
         } catch (Exception e) {
-            // System.out.println(project +" failing");
-            // not all projects have main source set.
-            // :docs, docker etc
-            // TODO how to handle this
-            e.printStackTrace();
             throw new RuntimeException(e);
         }
 

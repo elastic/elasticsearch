@@ -17,11 +17,13 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.apache.logging.log4j.LogManager;
@@ -73,6 +75,9 @@ class WebProxyServer extends MockHttpProxyServer {
                                     @Override
                                     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
                                         logger.error("Proxy client error", cause);
+                                        ctx.writeAndFlush(
+                                            new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR)
+                                        );
                                         ctx.close();
                                     }
                                 });
@@ -107,6 +112,7 @@ class WebProxyServer extends MockHttpProxyServer {
             @Override
             public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
                 logger.error("Proxy server error", cause);
+                ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR));
                 ctx.close();
             }
         });

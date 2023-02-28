@@ -199,7 +199,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
 
         // the tier preference will have defaulted to data_content, set it back to null
-        updateIndexSettings(indexName, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+        updateIndexSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE), indexName);
 
         refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), equalTo(0L));

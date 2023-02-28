@@ -1255,9 +1255,21 @@ public class TransportService extends AbstractLifecycleComponent
 
     @Override
     public void onConnectionOpened(Transport.Connection connection) {
+        ensureTransportVersionBarrier(connection.getTransportVersion(), getMinTransportVersion());
         transportVersions.put(connection.getNode(), connection.getTransportVersion());
     }
 
+    private static void ensureTransportVersionBarrier(TransportVersion connectingVersion, TransportVersion minClusterVersion) {
+        if (connectingVersion.before(minClusterVersion)) {
+            throw new IllegalStateException(
+                "node with transport version ["
+                    + connectingVersion
+                    + "] may not join a cluster comprising only nodes with transport version ["
+                    + minClusterVersion
+                    + "] or greater"
+            );
+        }
+    }
     @Override
     public void onConnectionClosed(Transport.Connection connection) {
         transportVersions.remove(connection.getNode());

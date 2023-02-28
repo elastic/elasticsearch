@@ -12,7 +12,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -63,8 +65,12 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
         @Override
         public ActionRequestValidationException validate() {
-            // Validation is done as part of PageParams constructor
-            return null;
+            // Pagination validation is done as part of PageParams constructor
+            ActionRequestValidationException validationException = null;
+            if (Strings.isEmpty(query())) {
+                validationException = ValidateActions.addValidationError("Engine query is missing", validationException);
+            }
+            return validationException;
         }
 
         @Override

@@ -162,7 +162,7 @@ The API returns the following result:
             "rewrite_time": 451233,
             "collector": [
               {
-                "name": "SimpleTopScoreDocCollector",
+                "name": "MultiCollector",
                 "reason": "search_top_hits",
                 "time_in_nanos": 775274
               }
@@ -492,7 +492,7 @@ Looking at the previous example:
 --------------------------------------------------
 "collector": [
   {
-    "name": "SimpleTopScoreDocCollector",
+    "name": "MultiCollector",
     "reason": "search_top_hits",
     "time_in_nanos": 775274
   }
@@ -503,14 +503,11 @@ Looking at the previous example:
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 
-We see a single collector named `SimpleTopScoreDocCollector` wrapped into
-`CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and
-sorting" `Collector` used by {es}. The `reason` field attempts to give a plain
-English description of the class name. The `time_in_nanos` is similar to the
-time in the Query tree: a wall-clock time inclusive of all children. Similarly,
-`children` lists all sub-collectors. The `CancellableCollector` that wraps
-`SimpleTopScoreDocCollector` is used by {es} to detect if the current search was
-cancelled and stop collecting documents as soon as it occurs.
+We see a single collector named `MultiCollector`. The `reason` field attempts
+to give a plain English description of the class name: `search_top_hits` indicates
+that the collector is responsible for collecting top hits. The `time_in_nanos`
+is similar to the time in the Query tree: a wall-clock time inclusive of all
+children. Similarly, `children` lists all sub-collectors.
 
 It should be noted that Collector times are **independent** from the Query
 times. They are calculated, combined, and normalized independently! Due to the
@@ -712,7 +709,7 @@ The API returns the following result:
                     "time_in_nanos": 500850,
                     "children": [
                       {
-                        "name": "SimpleTopScoreDocCollector",
+                        "name": "MultiCollector",
                         "reason": "search_top_hits",
                         "time_in_nanos": 22577
                       }
@@ -750,9 +747,9 @@ major portions of the query are represented:
 2. The second `TermQuery` (message:search) represents the `post_filter` query.
 
 The Collector tree is fairly straightforward, showing how a single
-CancellableCollector wraps a MultiCollector which also wraps a FilteredCollector
-to execute the post_filter (and in turn wraps the normal scoring
-SimpleCollector), a BucketCollector to run all scoped aggregations.
+MultiCollector wraps a FilteredCollector to execute the post_filter
+(and in turn wraps an additional MultiCollector that collects the
+top hits), a BucketCollector to run all scoped aggregations.
 
 ===== Understanding MultiTermQuery output
 

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -57,7 +58,11 @@ import java.util.stream.Stream;
  * It also listens on all nodes for cluster state updates, and updates {@link XPackLicenseState} when
  * the license changes are detected in the cluster state.
  */
-public class LicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
+public class LicenseService extends AbstractLifecycleComponent
+    implements
+        LicenseServerInterface,
+        ClusterStateListener,
+        SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(LicenseService.class);
 
     public static final Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
@@ -225,7 +230,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      * Registers new license in the cluster
      * Master only operation. Installs a new license on the master provided it is VALID
      */
-    public void registerLicense(final PutLicenseRequest request, final ActionListener<PutLicenseResponse> listener) {
+    @Override
+    public void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener) {
         final License newLicense = request.license();
         final long now = clock.millis();
         if (LicenseVerifier.verifyLicense(newLicense) == false || newLicense.issueDate() > now || newLicense.startDate() > now) {
@@ -341,19 +347,22 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Remove license from the cluster state metadata
      */
-    public void removeLicense(final ActionListener<PostStartBasicResponse> listener) {
+    @Override
+    public void removeLicense(final ActionListener<? extends AcknowledgedResponse> listener) {
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
+        @SuppressWarnings("unchecked")
         final StartBasicClusterTask task = new StartBasicClusterTask(
             logger,
             clusterService.getClusterName().value(),
             clock,
             startBasicRequest,
             "delete license",
-            listener
+            (ActionListener<PostStartBasicResponse>) listener
         );
         startBasicTaskQueue.submitTask(task.getDescription(), task, null); // TODO should pass in request.masterNodeTimeout() here
     }
 
+    @Override
     public License getLicense() {
         final License license = getLicense(clusterService.state().metadata());
         return license == LicensesMetadata.LICENSE_TOMBSTONE ? null : license;
@@ -522,6 +531,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             licenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
             return;
         }
+        maybeExpireLicense(license);
+    }
+
+    @Override
+    public boolean maybeExpireLicense(License license) {
+        long time = clock.millis();
         if (license != null) {
             final boolean active;
             if (LicenseUtils.getExpiryDate(license) == BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
@@ -533,10 +548,13 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
             if (active) {
                 logger.debug("license [{}] - valid", license.uid());
+                return false;
             } else {
                 logger.warn("license [{}] - expired", license.uid());
+                return true;
             }
         }
+        return false;
     }
 
     /**

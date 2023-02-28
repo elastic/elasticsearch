@@ -41,11 +41,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.license.BasicLicenseService;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.PostStartBasicResponse;
+import org.elasticsearch.license.ReadOnlyLicenseService;
 import org.elasticsearch.license.TrialLicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PrivateInterface;
@@ -160,7 +162,7 @@ public class XPackPlugin extends XPackClientPlugin
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<LicenseService<? extends ActionResponse>> licenseService = new SetOnce<>();
+    private static final SetOnce<ReadOnlyLicenseService> readOnlyLicenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
@@ -183,8 +185,8 @@ public class XPackPlugin extends XPackClientPlugin
         return getSharedSslService();
     }
 
-    protected LicenseService<? extends ActionResponse> getLicenseService() {
-        return getSharedLicenseService();
+    protected ReadOnlyLicenseService getLicenseService() {
+        return getReadOnlyLicenseService();
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -199,8 +201,8 @@ public class XPackPlugin extends XPackClientPlugin
         XPackPlugin.sslService.set(sslService);
     }
 
-    protected void setLicenseService(LicenseService<? extends ActionResponse> licenseService) {
-        XPackPlugin.licenseService.set(licenseService);
+    protected void setReadOnlyLicenseService(ReadOnlyLicenseService licenseService) {
+        XPackPlugin.readOnlyLicenseService.set(licenseService);
     }
 
     protected void setLicenseState(XPackLicenseState licenseState) {
@@ -219,8 +221,8 @@ public class XPackPlugin extends XPackClientPlugin
         return ssl;
     }
 
-    public static LicenseService<? extends ActionResponse> getSharedLicenseService() {
-        return licenseService.get();
+    public static ReadOnlyLicenseService getReadOnlyLicenseService() {
+        return readOnlyLicenseService.get();
     }
 
     public static XPackLicenseState getSharedLicenseState() {
@@ -324,13 +326,15 @@ public class XPackPlugin extends XPackClientPlugin
             getClock(),
             getLicenseState()
         );
-        setLicenseService(licenseService);
+        setReadOnlyLicenseService((ReadOnlyLicenseService) licenseService);
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
         components.add(new PrivateInterface<>(TrialLicenseService.class, () -> licenseService));
+        components.add(new PrivateInterface<>(ReadOnlyLicenseService.class, () -> licenseService));
+        components.add(new PrivateInterface<>(BasicLicenseService.class, () -> licenseService));
         components.add(new PrivateInterface<>(LicenseService.class, () -> licenseService));
         components.add(getLicenseState());
 

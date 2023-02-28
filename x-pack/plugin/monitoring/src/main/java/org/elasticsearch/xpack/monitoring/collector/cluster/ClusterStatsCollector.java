@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
@@ -23,8 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.ReadOnlyLicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
@@ -60,7 +59,7 @@ public class ClusterStatsCollector extends Collector {
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final LicenseService<? extends ActionResponse> licenseService;
+    private final ReadOnlyLicenseService licenseService;
     private final Client client;
 
     public ClusterStatsCollector(
@@ -68,7 +67,7 @@ public class ClusterStatsCollector extends Collector {
         final ClusterService clusterService,
         final XPackLicenseState licenseState,
         final Client client,
-        final LicenseService<? extends ActionResponse> licenseService,
+        final ReadOnlyLicenseService licenseService,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);

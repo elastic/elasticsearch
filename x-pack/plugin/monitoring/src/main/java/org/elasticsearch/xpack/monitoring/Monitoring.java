@@ -23,8 +23,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.ReadOnlyLicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -112,8 +112,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         return XPackPlugin.getSharedLicenseState();
     }
 
-    protected LicenseService<? extends ActionResponse> getLicenseService() {
-        return XPackPlugin.getSharedLicenseService();
+    protected ReadOnlyLicenseService getLicenseService() {
+        return XPackPlugin.getReadOnlyLicenseService();
     }
 
     @Override

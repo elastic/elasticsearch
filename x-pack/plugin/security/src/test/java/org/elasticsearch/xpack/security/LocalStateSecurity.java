@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.ReadOnlyLicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -91,7 +92,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected LicenseService<? extends ActionResponse> getLicenseService() {
+            protected ReadOnlyLicenseService getLicenseService() {
                 return thisVar.getLicenseService();
             }
 

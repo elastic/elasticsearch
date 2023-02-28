@@ -14,4 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 public interface BasicLicenseService<Request extends ActionRequest, Response extends ActionResponse> {
 
     void startBasicLicense(Request request, ActionListener<Response> listener);
+
+    // TODO: add read basic license
 }

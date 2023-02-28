@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 public interface LicenseService<
 
     RemoveResponse extends ActionResponse // remove license response
-> extends LifecycleComponent {
+> extends ReadOnlyLicenseService, LifecycleComponent {
 
     Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
         "xpack.license.self_generated.type",
@@ -88,7 +88,5 @@ public interface LicenseService<
      * @return true if the license was found to be expired, false otherwise. If license is null - return false.
      */
     boolean maybeExpireLicense(License license);
-
-    License getLicense();
 
 }

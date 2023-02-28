@@ -14,4 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 public interface TrialLicenseService<Request extends ActionRequest, Response extends ActionResponse> {
 
     void startTrialLicense(Request request, ActionListener<Response> listener);
+
+    // TODO add read trial license
 }

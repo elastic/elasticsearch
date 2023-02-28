@@ -41,6 +41,9 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTemplateRegistry;
+import org.elasticsearch.xpack.entsearch.analytics.action.PostAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.RestPostAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.TransportPostAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 import org.elasticsearch.xpack.entsearch.engine.action.PutEngineAction;
 import org.elasticsearch.xpack.entsearch.engine.action.RestPutEngineAction;
@@ -54,6 +57,7 @@ import java.util.function.Supplier;
 
 public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin {
     public static final String ENGINE_API_ENDPOINT = "_engine";
+    public static final String BEHAVORIAL_ANALYTICS_API_ENDPOINT = "_analytics";
 
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
@@ -74,7 +78,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return List.of(new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class));
+        return List.of(
+            new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class),
+            new ActionHandler<>(PostAnalyticsCollectionAction.INSTANCE, TransportPostAnalyticsCollectionAction.class)
+        );
     }
 
     @Override
@@ -91,7 +98,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return List.of(new RestPutEngineAction());
+        return List.of(new RestPutEngineAction(), new RestPostAnalyticsCollectionAction());
     }
 
     @Override

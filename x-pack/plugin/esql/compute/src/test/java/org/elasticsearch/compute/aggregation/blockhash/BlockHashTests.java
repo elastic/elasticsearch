@@ -230,6 +230,60 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
+    public void testIntLongHash() {
+        int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
+        IntBlock block1 = new IntArrayVector(values1, values1.length, null).asBlock();
+        long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
+        LongBlock block2 = new LongArrayVector(values2, values2.length).asBlock();
+        Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { 1, 1L }, new Object[] { 0, 1L } };
+
+        OrdsAndKeys ordsAndKeys = hash(true, block1, block2);
+        assertThat(
+            ordsAndKeys.description,
+            startsWith("PackedValuesBlockHash{keys=[IntKey[channel=0], LongKey[channel=1]], entries=4, size=")
+        );
+        assertThat(ordsAndKeys.description, endsWith("b}"));
+        assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
+        assertKeys(ordsAndKeys.keys, expectedKeys);
+    }
+
+    public void testLongDoubleHash() {
+        long[] values1 = new long[] { 0, 1, 0, 1, 0, 1 };
+        LongBlock block1 = new LongArrayVector(values1, values1.length).asBlock();
+        double[] values2 = new double[] { 0, 0, 0, 1, 1, 1 };
+        DoubleBlock block2 = new DoubleArrayVector(values2, values2.length).asBlock();
+        Object[][] expectedKeys = { new Object[] { 0L, 0d }, new Object[] { 1L, 0d }, new Object[] { 1L, 1d }, new Object[] { 0L, 1d } };
+        OrdsAndKeys ordsAndKeys = hash(true, block1, block2);
+        assertThat(
+            ordsAndKeys.description,
+            startsWith("PackedValuesBlockHash{keys=[LongKey[channel=0], DoubleKey[channel=1]], entries=4, size=")
+        );
+        assertThat(ordsAndKeys.description, endsWith("b}"));
+        assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
+        assertKeys(ordsAndKeys.keys, expectedKeys);
+    }
+
+    public void testIntBooleanHash() {
+        int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
+        IntBlock block1 = new IntArrayVector(values1, values1.length, null).asBlock();
+        boolean[] values2 = new boolean[] { false, false, false, true, true, true };
+        BooleanBlock block2 = new BooleanArrayVector(values2, values2.length).asBlock();
+        Object[][] expectedKeys = {
+            new Object[] { 0, false },
+            new Object[] { 1, false },
+            new Object[] { 1, true },
+            new Object[] { 0, true } };
+
+        OrdsAndKeys ordsAndKeys = hash(true, block1, block2);
+        assertThat(
+            ordsAndKeys.description,
+            startsWith("PackedValuesBlockHash{keys=[IntKey[channel=0], BooleanKey[channel=1]], entries=4, size=")
+        );
+        assertThat(ordsAndKeys.description, endsWith("b}"));
+        assertOrds(ordsAndKeys.ords, 0L, 1L, 0L, 2L, 3L, 2L);
+        assertKeys(ordsAndKeys.keys, expectedKeys);
+    }
+
     public void testLongLongHashWithNull() {
         LongBlock.Builder b1 = LongBlock.newBlockBuilder(2);
         LongBlock.Builder b2 = LongBlock.newBlockBuilder(2);

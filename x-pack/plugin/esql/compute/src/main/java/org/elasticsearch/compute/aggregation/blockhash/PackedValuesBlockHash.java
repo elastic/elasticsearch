@@ -14,8 +14,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanArrayVector;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleArrayVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -40,7 +46,10 @@ final class PackedValuesBlockHash extends BlockHash {
     PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays) {
         this.keys = groups.stream().map(s -> switch (s.elementType()) {
             case BYTES_REF -> new BytesRefKey(s.channel());
+            case BOOLEAN -> new BooleanKey(s.channel());
+            case INT -> new IntKey(s.channel());
             case LONG -> new LongKey(s.channel());
+            case DOUBLE -> new DoubleKey(s.channel());
             default -> throw new IllegalArgumentException("unsupported type [" + s.elementType() + "]");
         }).toArray(PackedValuesBlockHash.Key[]::new);
         this.bytesRefHash = new BytesRefHash(1, bigArrays);
@@ -157,6 +166,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     private record LongKey(int channel) implements Key {
         private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+        private static final int KEY_BYTES = Long.BYTES;
 
         @Override
         public void buildKeys(Page page, KeyWork[] work) {
@@ -171,7 +181,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     continue;
                 }
                 long value = block.getLong(i);
-                int newLen = w.builder.length() + Long.BYTES;
+                int newLen = w.builder.length() + KEY_BYTES;
                 w.builder.grow(newLen);
                 longHandle.set(w.builder.bytes(), w.builder.length(), value);
                 w.builder.setLength(newLen);
@@ -183,13 +193,132 @@ final class PackedValuesBlockHash extends BlockHash {
             final long[] keys = new long[positions.length];
             for (int i = 0; i < keys.length; i++) {
                 bytes.get(i, scratch);
-                if (scratch.length - positions[i] < Long.BYTES) {
+                if (scratch.length - positions[i] < KEY_BYTES) {
                     throw new IllegalStateException();
                 }
                 keys[i] = (long) longHandle.get(scratch.bytes, scratch.offset + positions[i]);
-                positions[i] += Long.BYTES;
+                positions[i] += KEY_BYTES;
             }
             return new LongArrayVector(keys, keys.length).asBlock();
+        }
+    }
+
+    private record DoubleKey(int channel) implements Key {
+        private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
+        private static final int KEY_BYTES = Double.BYTES;
+
+        @Override
+        public void buildKeys(Page page, KeyWork[] work) {
+            DoubleBlock block = page.getBlock(channel);
+            for (int i = 0; i < work.length; i++) {
+                KeyWork w = work[i];
+                if (w.isNull) {
+                    continue;
+                }
+                if (block.isNull(i)) {
+                    w.isNull = true;
+                    continue;
+                }
+                int newLen = w.builder.length() + KEY_BYTES;
+                w.builder.grow(newLen);
+                double value = block.getDouble(i);
+                doubleHandle.set(w.builder.bytes(), w.builder.length(), value);
+                w.builder.setLength(newLen);
+            }
+        }
+
+        @Override
+        public Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch) {
+            final double[] keys = new double[positions.length];
+            for (int i = 0; i < keys.length; i++) {
+                bytes.get(i, scratch);
+                if (scratch.length - positions[i] < KEY_BYTES) {
+                    throw new IllegalStateException();
+                }
+                keys[i] = (double) doubleHandle.get(scratch.bytes, scratch.offset + positions[i]);
+                positions[i] += KEY_BYTES;
+            }
+            return new DoubleArrayVector(keys, keys.length).asBlock();
+        }
+    }
+
+    private record IntKey(int channel) implements Key {
+        private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+        private static final int KEY_BYTES = Integer.BYTES;
+
+        @Override
+        public void buildKeys(Page page, KeyWork[] work) {
+            IntBlock block = page.getBlock(channel);
+            for (int i = 0; i < work.length; i++) {
+                KeyWork w = work[i];
+                if (w.isNull) {
+                    continue;
+                }
+                if (block.isNull(i)) {
+                    w.isNull = true;
+                    continue;
+                }
+                int value = block.getInt(i);
+                int newLen = w.builder.length() + KEY_BYTES;
+                w.builder.grow(newLen);
+                intHandle.set(w.builder.bytes(), w.builder.length(), value);
+                w.builder.setLength(newLen);
+            }
+        }
+
+        @Override
+        public Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch) {
+            final int[] keys = new int[positions.length];
+            for (int i = 0; i < keys.length; i++) {
+                bytes.get(i, scratch);
+                if (scratch.length - positions[i] < KEY_BYTES) {
+                    throw new IllegalStateException();
+                }
+                keys[i] = (int) intHandle.get(scratch.bytes, scratch.offset + positions[i]);
+                positions[i] += KEY_BYTES;
+            }
+            return new IntArrayVector(keys, keys.length, null).asBlock();
+        }
+    }
+
+    private record BooleanKey(int channel) implements Key {
+        private static final VarHandle byteHandle = MethodHandles.arrayElementVarHandle(byte[].class);
+        private static final int KEY_BYTES = Byte.BYTES;
+
+        @Override
+        public void buildKeys(Page page, KeyWork[] work) {
+            BooleanBlock block = page.getBlock(channel);
+            for (int i = 0; i < work.length; i++) {
+                KeyWork w = work[i];
+                if (w.isNull) {
+                    continue;
+                }
+                if (block.isNull(i)) {
+                    w.isNull = true;
+                    continue;
+                }
+                boolean value = block.getBoolean(i);
+                int newLen = w.builder.length() + KEY_BYTES;
+                w.builder.grow(newLen);
+                // Serialize boolean as a byte (true: 1, false: 0)
+                byteHandle.set(w.builder.bytes(), w.builder.length(), value ? (byte) 1 : 0);
+                w.builder.setLength(newLen);
+            }
+        }
+
+        @Override
+        public Block getKeys(int[] positions, BytesRefArray bytes, BytesRef scratch) {
+            final boolean[] keys = new boolean[positions.length];
+            for (int i = 0; i < keys.length; i++) {
+                bytes.get(i, scratch);
+                if (scratch.length - positions[i] < KEY_BYTES) {
+                    throw new IllegalStateException();
+                }
+                // Deserialize byte to boolean (true: 1, false: 0)
+                keys[i] = (byte) byteHandle.get(scratch.bytes, scratch.offset + positions[i]) != 0;
+                positions[i] += KEY_BYTES;
+            }
+            return new BooleanArrayVector(keys, keys.length).asBlock();
         }
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.license;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -375,7 +376,7 @@ public class TestUtils {
     }
 
     public static void registerAndAckSignedLicenses(
-        final LicenseServiceInterface<PostStartBasicResponse> licenseService,
+        final LicenseServiceInterface<? extends ActionResponse> licenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {

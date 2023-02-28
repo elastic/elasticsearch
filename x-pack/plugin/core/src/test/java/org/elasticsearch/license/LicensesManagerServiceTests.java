@@ -7,6 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -88,7 +89,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInvalidLicenseStorage() throws Exception {
-        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
+        LicenseServiceInterface<? extends ActionResponse> licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueMinutes(2));
 

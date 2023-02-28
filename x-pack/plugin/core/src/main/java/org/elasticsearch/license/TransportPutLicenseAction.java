@@ -25,13 +25,15 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLicenseRequest, PutLicenseResponse> {
 
-    private final LicenseService<ActionResponse, ActionRequest, ActionResponse, ActionRequest, ActionResponse> licenseService;
+    @SuppressWarnings("rawtypes")
+    private final LicenseService licenseService;
 
     @Inject
+    @SuppressWarnings("rawtypes")
     public TransportPutLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
-        LicenseService<ActionResponse, ActionRequest, ActionResponse, ActionRequest, ActionResponse> licenseService,
+        LicenseService licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -56,6 +58,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void masterOperation(
         Task task,
         final PutLicenseRequest request,

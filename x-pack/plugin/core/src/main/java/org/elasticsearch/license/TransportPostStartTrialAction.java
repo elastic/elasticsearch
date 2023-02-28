@@ -23,13 +23,15 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPostStartTrialAction extends TransportMasterNodeAction<PostStartTrialRequest, PostStartTrialResponse> {
 
-    private final SelfGeneratedLicenseService<PostStartTrialRequest, PostStartTrialResponse, ActionRequest, ActionResponse> licenseService;
+    @SuppressWarnings("rawtypes")
+    private final SelfGeneratedLicenseService licenseService;
 
     @Inject
+    @SuppressWarnings("rawtypes")
     public TransportPostStartTrialAction(
         TransportService transportService,
         ClusterService clusterService,
-        SelfGeneratedLicenseService<PostStartTrialRequest, PostStartTrialResponse, ActionRequest, ActionResponse> licenseService,
+        SelfGeneratedLicenseService licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -49,6 +51,7 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void masterOperation(
         Task task,
         PostStartTrialRequest request,

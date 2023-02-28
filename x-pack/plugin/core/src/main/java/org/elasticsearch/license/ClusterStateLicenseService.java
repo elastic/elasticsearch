@@ -69,6 +69,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
 
     private final ClusterService clusterService;
 
+    //TODO: add XPackLicenseState to the contract
     /**
      * The xpack feature state to update when license changes are made.
      */

@@ -4,6 +4,8 @@ include::painless-runtime-fields.asciidoc[]
 
 include::painless-datetime.asciidoc[]
 
+include::painless-fields.asciidoc[]
+
 include::painless-method-dispatch.asciidoc[]
 
 include::painless-debugging.asciidoc[]

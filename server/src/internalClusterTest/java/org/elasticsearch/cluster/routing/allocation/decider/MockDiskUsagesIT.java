@@ -403,14 +403,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node2 has 0 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(0));
         });
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder()
-                        .putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey())
-                )
+        updateIndexSettings(
+            Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey()),
+            "test"
         );
 
         logger.info("--> waiting for shards to relocate onto node [{}]", nodeIds.get(2));

@@ -260,4 +260,5 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         (builder) -> builder.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
         (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
     );
+
 }

@@ -29,6 +29,14 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
+/**
+ * A service that allows the manipulation of persistent {@link AnalyticsCollection} model.
+ *
+ * Until we have more specific need the {@link AnalyticsCollection} is just another representation
+ * of a {@link org.elasticsearch.cluster.metadata.IndexAbstraction.DataStream}.
+ *
+ * As a consequence, this service is mostly a facade for the data stream API.
+ */
 public class AnalyticsCollectionService implements ClusterStateListener {
 
     private final Client clientWithOrigin;

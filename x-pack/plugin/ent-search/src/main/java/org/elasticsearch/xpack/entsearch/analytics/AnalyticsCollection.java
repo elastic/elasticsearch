@@ -24,6 +24,9 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * The {@link AnalyticsCollection} model.
+ */
 public class AnalyticsCollection implements Writeable, ToXContentObject {
 
     private static final ObjectParser<AnalyticsCollection, String> PARSER = ObjectParser.fromBuilder(

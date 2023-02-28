@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,13 +24,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLicenseRequest, PutLicenseResponse> {
 
-    private final LicenseServiceInterface licenseService;
+    private final LicenseServiceInterface<ActionResponse> licenseService;
 
     @Inject
     public TransportPutLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
-        LicenseServiceInterface licenseService,
+        LicenseServiceInterface<ActionResponse> licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver

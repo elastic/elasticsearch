@@ -54,7 +54,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testStoreAndGetLicenses() throws Exception {
-        LicenseServiceInterface licenseService = getInstanceFromNode(LicenseServiceInterface.class);
+        @SuppressWarnings("unchecked")
+        LicenseServiceInterface<PostStartBasicResponse> licenseService = getInstanceFromNode(LicenseServiceInterface.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
@@ -106,7 +107,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveLicenses() throws Exception {
-        LicenseServiceInterface licenseService = getInstanceFromNode(LicenseServiceInterface.class);
+        @SuppressWarnings("unchecked")
+        LicenseServiceInterface<PostStartBasicResponse> licenseService = getInstanceFromNode(LicenseServiceInterface.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         // generate signed licenses
@@ -121,7 +123,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         assertTrue(License.LicenseType.isBasic(licensesMetadata.getLicense().type()));
     }
 
-    private void removeAndAckSignedLicenses(final LicenseServiceInterface licenseService) {
+    private void removeAndAckSignedLicenses(final LicenseServiceInterface<PostStartBasicResponse> licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
         licenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {

@@ -8,30 +8,25 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
-public interface LicenseServiceInterface extends LifecycleComponent {
+public interface LicenseServiceInterface<
 
+    RemoveResponse extends ActionResponse // remove license response
+> extends LifecycleComponent {
+
+    // TODO: split this into a read an write interface
     void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener);
 
-    // DeleteLicenseRequest is not currently used except to satify the Action framework, update this interface if it is ever acutally used.
-    void removeLicense(ActionListener<? extends AcknowledgedResponse> listener);
+    void removeLicense(ActionListener<RemoveResponse> listener);
 
     /**
-     *
-     * @param license
      * @return true if the license was found to be expired, false otherwise. If license is null - return false.
      */
     boolean maybeExpireLicense(License license);
 
     License getLicense();
-
-    // TODO: generify this interface to avoid down casting in implementation
-    void startTrialLicense(ActionRequest request, ActionListener<?> listener);
-
-    void startBasicLicense(ActionRequest request, ActionListener<?> listener);
 
 }

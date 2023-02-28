@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 
 public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
 
-    protected LicenseServiceInterface licenseService;
+    protected LicenseServiceInterface<PostStartBasicResponse> licenseService;
     protected ClusterService clusterService;
     protected ClockMock clock;
     protected DiscoveryNodes discoveryNodes;

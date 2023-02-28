@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseServiceInterface;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -90,7 +92,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected LicenseService getLicenseService() {
+            protected LicenseServiceInterface<? extends ActionResponse> getLicenseService() {
                 return thisVar.getLicenseService();
             }
 

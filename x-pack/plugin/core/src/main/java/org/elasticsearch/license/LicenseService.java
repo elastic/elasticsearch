@@ -11,8 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -61,7 +59,9 @@ import java.util.stream.Stream;
  */
 public class LicenseService extends AbstractLifecycleComponent
     implements
-        LicenseServiceInterface,
+        LicenseServiceInterface<PostStartBasicResponse>,
+        TrialLicenseService<PostStartTrialRequest, PostStartTrialResponse>,
+        BasicLicenseService<PostStartBasicRequest, PostStartBasicResponse>,
         ClusterStateListener,
         SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(LicenseService.class);
@@ -350,7 +350,7 @@ public class LicenseService extends AbstractLifecycleComponent
      * Remove license from the cluster state metadata
      */
     @Override
-    public void removeLicense(final ActionListener<? extends AcknowledgedResponse> listener) {
+    public void removeLicense(ActionListener<PostStartBasicResponse> listener) {
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
         @SuppressWarnings("unchecked")
         final StartBasicClusterTask task = new StartBasicClusterTask(
@@ -359,7 +359,7 @@ public class LicenseService extends AbstractLifecycleComponent
             clock,
             startBasicRequest,
             "delete license",
-            (ActionListener<PostStartBasicResponse>) listener
+            listener
         );
         startBasicTaskQueue.submitTask(task.getDescription(), task, null); // TODO should pass in request.masterNodeTimeout() here
     }
@@ -375,13 +375,7 @@ public class LicenseService extends AbstractLifecycleComponent
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public void startTrialLicense(ActionRequest request, ActionListener<?> listener) {
-        assert request instanceof PostStartTrialRequest;
-        innerStartTrialLicense((PostStartTrialRequest) request, (ActionListener<PostStartTrialResponse>) listener);
-    }
-
-    void innerStartTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
+    public void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
         License.LicenseType requestedType = License.LicenseType.parse(request.getType());
         if (VALID_TRIAL_TYPES.contains(requestedType) == false) {
             throw new IllegalArgumentException(
@@ -400,12 +394,7 @@ public class LicenseService extends AbstractLifecycleComponent
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public void startBasicLicense(ActionRequest request, ActionListener<?> listener) {
-        innerStartBasicLicense((PostStartBasicRequest) request, (ActionListener<PostStartBasicResponse>) listener);
-    }
-
-    void innerStartBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
+    public void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
         StartBasicClusterTask task = new StartBasicClusterTask(
             logger,
             clusterService.getClusterName().value(),

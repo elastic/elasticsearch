@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
@@ -59,7 +60,7 @@ public class ClusterStatsCollector extends Collector {
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final LicenseServiceInterface licenseService;
+    private final LicenseServiceInterface<? extends ActionResponse> licenseService;
     private final Client client;
 
     public ClusterStatsCollector(
@@ -67,7 +68,7 @@ public class ClusterStatsCollector extends Collector {
         final ClusterService clusterService,
         final XPackLicenseState licenseState,
         final Client client,
-        final LicenseServiceInterface licenseService,
+        final LicenseServiceInterface<? extends ActionResponse> licenseService,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);

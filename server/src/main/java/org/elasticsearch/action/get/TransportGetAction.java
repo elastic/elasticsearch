@@ -9,9 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -20,8 +18,8 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
@@ -30,6 +28,8 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -100,7 +100,47 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
-            super.asyncShardOperation(request, shardId, listener);
+            var shardRouting = clusterService.state().getRoutingNodes().node(clusterService.localNode().getId()).getByShardId(shardId);
+            if (shardRouting == null) {
+                listener.onFailure(new ShardNotFoundException(shardId, "shard is no longer assigned to current node"));
+                return;
+            }
+            if (shardRouting.isPromotableToPrimary()) {
+                super.asyncShardOperation(request, shardId, listener);
+            } else {
+                var node = clusterService.state()
+                    .nodes()
+                    .get(clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().currentNodeId());
+                transportService.sendRequest(
+                    node,
+                    TransportGetFromTranslogAction.NAME,
+                    request,
+                    new TransportResponseHandler<TransportGetFromTranslogAction.Response>() {
+                        @Override
+                        public void handleResponse(TransportGetFromTranslogAction.Response response) {
+                            if (response.getResult() != null) {
+                                listener.onResponse(new GetResponse(response.getResult()));
+                            } else {
+                                assert response.segmentGeneration() > -1L;
+                                indexShard.waitForSegmentGeneration(
+                                    response.segmentGeneration(),
+                                    listener.map(aLong -> shardOperation(request, shardId))
+                                );
+                            }
+                        }
+
+                        @Override
+                        public void handleException(TransportException e) {
+                            listener.onFailure(e);
+                        }
+
+                        @Override
+                        public TransportGetFromTranslogAction.Response read(StreamInput in) throws IOException {
+                            return new TransportGetFromTranslogAction.Response(in);
+                        }
+                    }
+                );
+            }
         } else {
             indexShard.awaitShardSearchActive(b -> {
                 try {
@@ -119,31 +159,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
         if (request.refresh() && request.realtime() == false) {
             indexShard.refresh("refresh_flag_get");
-        }
-        var shardRouting = clusterService.state().getRoutingNodes().node(clusterService.localNode().getId()).getByShardId(shardId);
-        if (shardRouting == null) {
-            throw new ShardNotFoundException(shardId, "shard is no longer assigned to current node");
-        }
-
-        if (request.realtime() && shardRouting.isPromotableToPrimary() == false) {
-            // TODO: this shouldn't be blocking like this
-            PlainActionFuture<TransportGetFromTranslogAction.Response> listener = new PlainActionFuture<>();
-            var node = clusterService.state()
-                .nodes()
-                .get(clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().currentNodeId());
-            transportService.sendRequest(
-                node,
-                TransportGetFromTranslogAction.NAME,
-                request,
-                new ActionListenerResponseHandler<>(listener, TransportGetFromTranslogAction.Response::new)
-            );
-            var response = FutureUtils.get(listener);
-            if (response.getResult() != null) {
-                return new GetResponse(response.getResult());
-            }
-            PlainActionFuture<Long> segmentGenerationListener = new PlainActionFuture<>();
-            indexShard.waitForSegmentGeneration(response.segmentGeneration(), segmentGenerationListener);
-            FutureUtils.get(segmentGenerationListener);
         }
 
         GetResult result = indexShard.getService()

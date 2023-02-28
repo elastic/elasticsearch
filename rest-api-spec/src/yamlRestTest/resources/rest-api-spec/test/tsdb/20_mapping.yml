@@ -271,6 +271,7 @@ runtime field matching routing path:
 ---
 "dynamic: false matches routing_path":
   - skip:
+      features: contains
       version: " - 8.1.99"
       reason: tsdb indexing changed in 8.2.0
 

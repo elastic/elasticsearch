@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -284,7 +286,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Determines whether this data stream is replicated from elsewhere,
-     * for example a remote cluster.
+     * for example a remote cluster
      *
      * @return Whether this data stream is replicated.
      */
@@ -570,6 +572,56 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle
         );
+    }
+
+    public List<Index> getIndicesPastRetention(Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
+        if (lifecycle == null || lifecycle.getDataRetention() == null) {
+            return List.of();
+        }
+
+        List<Index> indicesPastRetention = getIndicesOlderThan(lifecycle.getDataRetention(), indexMetadataSupplier, nowSupplier);
+        // when it comes to executing retention the write index should be excluded (a data stream must always have a write index)
+        indicesPastRetention.remove(getWriteIndex());
+        return indicesPastRetention;
+    }
+
+    /**
+     * Returns the backing indices that are older than the provided age.
+     * The index age is calculated from the rollover or index creation date.
+     * Note that the write index is also evaluated and could be returned in the list
+     * of results.
+     */
+    public List<Index> getIndicesOlderThan(TimeValue age, Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
+        List<Index> olderIndices = new ArrayList<>();
+        for (Index index : indices) {
+            IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+            if (indexMetadata == null) {
+                // we would normally throw exception in a situation like this however, this is meant to be a helper method
+                // so let's ignore deleted indices
+                continue;
+            }
+            TimeValue indexLifecycleDate = getCreationOrRolloverDate(name, indexMetadata);
+            long nowMillis = nowSupplier.getAsLong();
+            if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
+                olderIndices.add(index);
+            }
+        }
+        return olderIndices;
+    }
+
+    /**
+     * Returns the rollover or creation date for the provided index.
+     * We look for the rollover information for the provided data stream name as the
+     * rollover target. If the index has not been rolled over for the provided
+     * data stream name we return the index creation date.
+     */
+    static TimeValue getCreationOrRolloverDate(String dataStreamName, IndexMetadata index) {
+        RolloverInfo rolloverInfo = index.getRolloverInfos().get(dataStreamName);
+        if (rolloverInfo != null) {
+            return TimeValue.timeValueMillis(rolloverInfo.getTime());
+        } else {
+            return TimeValue.timeValueMillis(index.getCreationDate());
+        }
     }
 
     /**

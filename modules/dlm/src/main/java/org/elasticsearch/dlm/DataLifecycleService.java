@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
@@ -188,45 +189,28 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void maybeExecuteRetention(ClusterState state, DataStream dataStream) {
         TimeValue retention = getRetentionConfiguration(dataStream);
         if (retention != null) {
-            List<Index> backingIndices = dataStream.getIndices();
-            // we'll look at the current write index in the next run if it's rolled over (and not the write index anymore)
-            for (int i = 0; i < backingIndices.size() - 1; i++) {
-                IndexMetadata backingIndex = state.metadata().index(backingIndices.get(i));
+            Metadata metadata = state.metadata();
+            List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
+
+            for (Index index : backingIndicesOlderThanRetention) {
+                IndexMetadata backingIndex = metadata.index(index);
                 if (backingIndex == null || isManagedByDLM(dataStream, backingIndex) == false) {
                     continue;
                 }
+                // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
+                // let's start simple and reevaluate
+                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(backingIndex.getIndex().getName()).masterNodeTimeout(
+                    TimeValue.MAX_VALUE
+                );
 
-                if (isTimeToBeDeleted(dataStream.getName(), backingIndex, nowSupplier, retention)) {
-                    // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
-                    // let's start simple and reevaluate
-                    DeleteIndexRequest deleteRequest = new DeleteIndexRequest(backingIndex.getIndex().getName()).masterNodeTimeout(
-                        TimeValue.MAX_VALUE
-                    );
-
-                    // time to delete the index
-                    transportActionsDeduplicator.executeOnce(
-                        deleteRequest,
-                        ActionListener.noop(),
-                        (req, reqListener) -> deleteIndex(deleteRequest, reqListener)
-                    );
-                }
+                // time to delete the index
+                transportActionsDeduplicator.executeOnce(
+                    deleteRequest,
+                    ActionListener.noop(),
+                    (req, reqListener) -> deleteIndex(deleteRequest, reqListener)
+                );
             }
         }
-    }
-
-    /**
-     * Checks if the provided index is ready to be deleted according to the configured retention.
-     */
-    static boolean isTimeToBeDeleted(
-        String dataStreamName,
-        IndexMetadata backingIndex,
-        LongSupplier nowSupplier,
-        TimeValue configuredRetention
-    ) {
-        TimeValue indexLifecycleDate = getCreationOrRolloverDate(dataStreamName, backingIndex);
-
-        long nowMillis = nowSupplier.getAsLong();
-        return nowMillis >= indexLifecycleDate.getMillis() + configuredRetention.getMillis();
     }
 
     private void rolloverDataStream(RolloverRequest rolloverRequest, ActionListener<Void> listener) {

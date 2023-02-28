@@ -15,6 +15,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
@@ -39,6 +40,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.OptionalLong;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
     private final HdfsBlobStore store;
@@ -318,7 +320,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public long compareAndExchangeRegister(String key, long expected, long updated) {
-        throw new UnsupportedOperationException("HDFS repositories do not support this operation");
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        listener.onFailure(new UnsupportedOperationException("HDFS repositories do not support this operation"));
     }
 }

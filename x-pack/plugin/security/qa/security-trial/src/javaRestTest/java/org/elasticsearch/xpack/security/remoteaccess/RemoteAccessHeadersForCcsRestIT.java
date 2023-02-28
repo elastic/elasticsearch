@@ -995,7 +995,13 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             .put("remote_cluster.port", "0")
             .put("xpack.security.remote_cluster_server.ssl.enabled", "false")
             .build();
-        final MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
+        final MockTransportService service = MockTransportService.createNewService(
+            settings,
+            Version.CURRENT,
+            TransportVersion.CURRENT,
+            threadPool,
+            null
+        );
         try {
             service.registerRequestHandler(
                 RemoteClusterNodesAction.NAME,

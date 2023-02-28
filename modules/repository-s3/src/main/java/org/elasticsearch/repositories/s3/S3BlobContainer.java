@@ -671,6 +671,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         void run(long expected, long updated, ActionListener<OptionalLong> listener) throws Exception {
 
             if (listMultipartUploads().isEmpty() == false) {
+                // TODO What if the previous writer crashed? We should consider the age of any ongoing uploads before bailing out like this.
                 listener.onResponse(OptionalLong.empty());
                 return;
             }

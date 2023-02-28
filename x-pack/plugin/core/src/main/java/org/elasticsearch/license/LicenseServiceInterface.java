@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
-public interface LicenseServerInterface {
+public interface LicenseServiceInterface {
 
     void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener);
 

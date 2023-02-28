@@ -24,13 +24,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNodeAction<DeleteLicenseRequest> {
 
-    private final LicenseService licenseService;
+    private final LicenseServiceInterface licenseService;
 
     @Inject
     public TransportDeleteLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
-        LicenseService licenseService,
+        LicenseServiceInterface licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver

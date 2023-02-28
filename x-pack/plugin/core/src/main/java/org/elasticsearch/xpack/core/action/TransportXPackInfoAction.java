@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseServiceInterface;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -28,7 +28,7 @@ import java.util.List;
 
 public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRequest, XPackInfoResponse> {
 
-    private final LicenseService licenseService;
+    private final LicenseServiceInterface licenseService;
     private final NodeClient client;
     private final List<XPackInfoFeatureAction> infoActions;
 
@@ -36,7 +36,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     public TransportXPackInfoAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        LicenseService licenseService,
+        LicenseServiceInterface licenseService,
         NodeClient client
     ) {
         super(XPackInfoAction.NAME, transportService, actionFilters, XPackInfoRequest::new);

@@ -60,7 +60,7 @@ import java.util.stream.Stream;
  */
 public class LicenseService extends AbstractLifecycleComponent
     implements
-        LicenseServerInterface,
+        LicenseServiceInterface,
         ClusterStateListener,
         SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(LicenseService.class);

@@ -178,8 +178,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
-        Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "2").build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        setReplicaCount(2, "test");
         ClusterHealthResponse health = client().admin()
             .cluster()
             .health(
@@ -291,8 +290,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
-        Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1").build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        setReplicaCount(1, "test");
         client().admin().cluster().prepareReroute().get();
 
         boolean didClusterTurnRed = waitUntil(() -> {
@@ -381,11 +379,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
             );
         }
 
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName())
-            .build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName()),
+            "test"
+        );
         client().admin().cluster().prepareReroute().get();
         hasCorrupted.await();
         corrupt.set(false);
@@ -492,15 +491,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }, TimeValue.timeValueSeconds(30));
 
         // can not allocate on unluckyNode
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-                    .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName())
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName()),
+            "test"
+        );
         allocationGivenUpFuture.actionGet();
         assertThatAllShards("test", shard -> {
             assertThat(shard.primaryShard().currentNodeId(), equalTo(primariesNode.getId()));
@@ -508,16 +504,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
         });
 
         // can allocate on any other data node
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-                    .putNull("index.routing.allocation.include._name")
-                    .put("index.routing.allocation.exclude._name", unluckyNode.getName())
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                .putNull("index.routing.allocation.include._name")
+                .put("index.routing.allocation.exclude._name", unluckyNode.getName()),
+            "test"
+        );
         client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         ensureGreen("test");
         assertThatAllShards("test", shard -> {

@@ -113,7 +113,8 @@ public class AnalyticsCollectionService implements ClusterStateListener {
             AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN
         );
 
-        analyticsCollections = dataStreams.stream().map(AnalyticsCollection::fromDataStreamName)
+        analyticsCollections = dataStreams.stream()
+            .map(AnalyticsCollection::fromDataStreamName)
             .collect(Collectors.toMap(AnalyticsCollection::getName, Function.identity()));
     }
 }

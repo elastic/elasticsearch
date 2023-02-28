@@ -28,10 +28,6 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
 
     def setup() {
         configurationCacheCompatible = false
-        subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
-        subProject(":server") << "apply plugin: 'elasticsearch.java'"
-
-
         buildFile << """
             apply plugin: 'java'
             apply plugin: 'elasticsearch.build'
@@ -40,6 +36,9 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
             }
             """
 
+        //setup fake server & test framework
+        subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
+        subProject(":server") << "apply plugin: 'elasticsearch.java'"
         createClass("org.elasticsearch.common.io.stream.Writeable")
         createClass("org.elasticsearch.test.AbstractWireTestCase")
         createClass("org.elasticsearch.test.AbstractQueryTestCase")

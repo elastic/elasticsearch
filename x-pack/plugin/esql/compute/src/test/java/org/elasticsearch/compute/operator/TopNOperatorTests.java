@@ -27,9 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-import static org.elasticsearch.compute.operator.TopNOperator.compareFirstPositionsOfBlocks;
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -118,79 +116,98 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testCompareInts() {
         Block[] bs = new Block[] {
-            IntBlock.newBlockBuilder(1).appendInt(Integer.MIN_VALUE).build(),
-            IntBlock.newBlockBuilder(1).appendInt(randomIntBetween(-1000, -1)).build(),
-            IntBlock.newBlockBuilder(1).appendInt(0).build(),
-            IntBlock.newBlockBuilder(1).appendInt(randomIntBetween(1, 1000)).build(),
-            IntBlock.newBlockBuilder(1).appendInt(Integer.MAX_VALUE).build() };
-        for (Block b : bs) {
-            assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b, b));
-            Block nullBlock = Block.constantNullBlock(1);
-            assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), true, b, nullBlock));
-            assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), false, b, nullBlock));
-            assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), true, nullBlock, b));
-            assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), false, nullBlock, b));
+            IntBlock.newBlockBuilder(2).appendInt(Integer.MIN_VALUE).appendInt(randomIntBetween(-1000, -1)).build(),
+            IntBlock.newBlockBuilder(2).appendInt(randomIntBetween(-1000, -1)).appendInt(0).build(),
+            IntBlock.newBlockBuilder(2).appendInt(0).appendInt(randomIntBetween(1, 1000)).build(),
+            IntBlock.newBlockBuilder(2).appendInt(randomIntBetween(1, 1000)).appendInt(Integer.MAX_VALUE).build(),
+            IntBlock.newBlockBuilder(2).appendInt(Integer.MAX_VALUE).appendInt(0).build() };
+
+        Page page = new Page(bs);
+        TopNOperator.RowFactory rowFactory = new TopNOperator.RowFactory(page);
+        TopNOperator.Row bRow0 = rowFactory.row(page, 0, null);
+        TopNOperator.Row bRow1 = rowFactory.row(page, 1, null);
+
+        Block nullBlock = Block.constantNullBlock(1);
+        Block[] nullBs = new Block[] { nullBlock, nullBlock, nullBlock, nullBlock, nullBlock };
+        Page nullPage = new Page(nullBs);
+        TopNOperator.RowFactory nullRowFactory = new TopNOperator.RowFactory(page);
+        TopNOperator.Row nullRow = nullRowFactory.row(nullPage, 0, null);
+
+        for (int i = 0; i < bs.length; i++) {
+            assertEquals(0, TopNOperator.comparePositions(randomBoolean(), randomBoolean(), bRow0, bRow0, i));
+            assertEquals(-1, TopNOperator.comparePositions(randomBoolean(), true, bRow0, nullRow, i));
+            assertEquals(1, TopNOperator.comparePositions(randomBoolean(), false, bRow0, nullRow, i));
+            assertEquals(1, TopNOperator.comparePositions(randomBoolean(), true, nullRow, bRow0, i));
+            assertEquals(-1, TopNOperator.comparePositions(randomBoolean(), false, nullRow, bRow0, i));
         }
         for (int i = 0; i < bs.length - 1; i++) {
-            for (int j = i + 1; j < bs.length; j++) {
-                assertEquals(1, compareFirstPositionsOfBlocks(true, randomBoolean(), bs[i], bs[j]));
-                assertEquals(-1, compareFirstPositionsOfBlocks(true, randomBoolean(), bs[j], bs[i]));
-                assertEquals(-1, compareFirstPositionsOfBlocks(false, randomBoolean(), bs[i], bs[j]));
-                assertEquals(1, compareFirstPositionsOfBlocks(false, randomBoolean(), bs[j], bs[i]));
-            }
+            assertEquals(1, TopNOperator.comparePositions(true, randomBoolean(), bRow0, bRow1, i));
+            assertEquals(-1, TopNOperator.comparePositions(true, randomBoolean(), bRow1, bRow0, i));
+            assertEquals(-1, TopNOperator.comparePositions(false, randomBoolean(), bRow0, bRow1, i));
+            assertEquals(1, TopNOperator.comparePositions(false, randomBoolean(), bRow1, bRow0, i));
         }
     }
 
     public void testCompareBytesRef() {
-        Block b1 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("bye")).build();
-        Block b2 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
-        assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b1, b1));
-        assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b2, b2));
+        Block[] bs = new Block[] {
+            BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("bye")).appendBytesRef(new BytesRef("hello")).build() };
+        Page page = new Page(bs);
+        TopNOperator.RowFactory rowFactory = new TopNOperator.RowFactory(page);
+        TopNOperator.Row bRow0 = rowFactory.row(page, 0, null);
+        TopNOperator.Row bRow1 = rowFactory.row(page, 1, null);
 
-        assertThat(compareFirstPositionsOfBlocks(true, randomBoolean(), b1, b2), greaterThan(0));
-        assertThat(compareFirstPositionsOfBlocks(true, rarely(), b2, b1), lessThan(0));
-        assertThat(compareFirstPositionsOfBlocks(false, randomBoolean(), b1, b2), lessThan(0));
-        assertThat(compareFirstPositionsOfBlocks(false, rarely(), b2, b1), greaterThan(0));
-    }
-
-    public void testCompareWithIncompatibleTypes() {
-        Block i1 = IntBlock.newBlockBuilder(1).appendInt(randomInt()).build();
-        Block l1 = LongBlock.newBlockBuilder(1).appendLong(randomLong()).build();
-        Block b1 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
-        IllegalStateException error = expectThrows(
-            IllegalStateException.class,
-            () -> TopNOperator.compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), randomFrom(i1, l1), b1)
-        );
-        assertThat(error.getMessage(), containsString("Blocks have incompatible element types"));
+        assertEquals(0, TopNOperator.comparePositions(false, randomBoolean(), bRow0, bRow0, 0));
+        assertEquals(0, TopNOperator.comparePositions(false, randomBoolean(), bRow1, bRow1, 0));
+        assertThat(TopNOperator.comparePositions(true, randomBoolean(), bRow0, bRow1, 0), greaterThan(0));
+        assertThat(TopNOperator.comparePositions(true, randomBoolean(), bRow1, bRow0, 0), lessThan(0));
+        assertThat(TopNOperator.comparePositions(false, randomBoolean(), bRow0, bRow1, 0), lessThan(0));
+        assertThat(TopNOperator.comparePositions(false, rarely(), bRow1, bRow0, 0), greaterThan(0));
     }
 
     public void testCompareBooleans() {
-        Block[] bs = new Block[] { BooleanBlock.newConstantBlockWith(false, 1), BooleanBlock.newConstantBlockWith(true, 1) };
-        for (Block b : bs) {
-            assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b, b));
-            Block nullBlock = Block.constantNullBlock(1);
-            assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), true, b, nullBlock));
-            assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), false, b, nullBlock));
-            assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), true, nullBlock, b));
-            assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), false, nullBlock, b));
-        }
+        Block[] bs = new Block[] {
+            BooleanBlock.newBlockBuilder(2).appendBoolean(false).appendBoolean(true).build(),
+            BooleanBlock.newBlockBuilder(2).appendBoolean(true).appendBoolean(false).build() };
+
+        Page page = new Page(bs);
+        TopNOperator.RowFactory rowFactory = new TopNOperator.RowFactory(page);
+        TopNOperator.Row bRow0 = rowFactory.row(page, 0, null);
+        TopNOperator.Row bRow1 = rowFactory.row(page, 1, null);
+
+        Block nullBlock = Block.constantNullBlock(2);
+        Block[] nullBs = new Block[] { nullBlock, nullBlock };
+        Page nullPage = new Page(nullBs);
+        TopNOperator.RowFactory nullRowFactory = new TopNOperator.RowFactory(page);
+        TopNOperator.Row nullRow = nullRowFactory.row(nullPage, 0, null);
+
+        assertEquals(0, TopNOperator.comparePositions(randomBoolean(), randomBoolean(), bRow0, bRow0, 0));
+        assertEquals(0, TopNOperator.comparePositions(randomBoolean(), randomBoolean(), bRow1, bRow1, 0));
+
+        assertEquals(-1, TopNOperator.comparePositions(randomBoolean(), true, bRow0, nullRow, 0));
+        assertEquals(1, TopNOperator.comparePositions(randomBoolean(), false, bRow0, nullRow, 0));
+        assertEquals(1, TopNOperator.comparePositions(randomBoolean(), true, nullRow, bRow0, 0));
+        assertEquals(-1, TopNOperator.comparePositions(randomBoolean(), false, nullRow, bRow0, 0));
+
         for (int i = 0; i < bs.length - 1; i++) {
-            for (int j = i + 1; j < bs.length; j++) {
-                assertEquals(1, compareFirstPositionsOfBlocks(true, randomBoolean(), bs[i], bs[j]));
-                assertEquals(-1, compareFirstPositionsOfBlocks(true, randomBoolean(), bs[j], bs[i]));
-                assertEquals(-1, compareFirstPositionsOfBlocks(false, randomBoolean(), bs[i], bs[j]));
-                assertEquals(1, compareFirstPositionsOfBlocks(false, randomBoolean(), bs[j], bs[i]));
-            }
+            assertEquals(1, TopNOperator.comparePositions(true, randomBoolean(), bRow0, bRow1, 0));
+            assertEquals(-1, TopNOperator.comparePositions(true, randomBoolean(), bRow1, bRow0, 0));
+            assertEquals(-1, TopNOperator.comparePositions(false, randomBoolean(), bRow0, bRow1, 0));
+            assertEquals(1, TopNOperator.comparePositions(false, randomBoolean(), bRow1, bRow0, 0));
         }
     }
 
     public void testCompareWithNulls() {
-        Block i1 = IntBlock.newBlockBuilder(1).appendInt(100).build();
-        Block i2 = IntBlock.newBlockBuilder(1).appendNull().build();
-        assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), true, i1, i2));
-        assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), true, i2, i1));
-        assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), false, i1, i2));
-        assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), false, i2, i1));
+        Block i1 = IntBlock.newBlockBuilder(2).appendInt(100).appendNull().build();
+
+        Page page = new Page(i1);
+        TopNOperator.RowFactory rowFactory = new TopNOperator.RowFactory(page);
+        TopNOperator.Row bRow0 = rowFactory.row(page, 0, null);
+        TopNOperator.Row bRow1 = rowFactory.row(page, 1, null);
+
+        assertEquals(-1, TopNOperator.comparePositions(randomBoolean(), true, bRow0, bRow1, 0));
+        assertEquals(1, TopNOperator.comparePositions(randomBoolean(), true, bRow1, bRow0, 0));
+        assertEquals(1, TopNOperator.comparePositions(randomBoolean(), false, bRow0, bRow1, 0));
+        assertEquals(-1, TopNOperator.comparePositions(randomBoolean(), false, bRow1, bRow0, 0));
     }
 
     private List<Long> topN(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {

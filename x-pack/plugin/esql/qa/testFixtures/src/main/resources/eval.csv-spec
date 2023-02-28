@@ -84,4 +84,10 @@ x:integer | a2:integer | a3:integer | a1:integer
 ;
 
 
+evalNullSort
+from test | eval x = null | sort x asc, emp_no desc | project emp_no, x, last_name | limit 2;
 
+emp_no:integer | x:null | last_name:keyword
+10100          | null   | Haraldson
+10099          | null   | Sullins
+;

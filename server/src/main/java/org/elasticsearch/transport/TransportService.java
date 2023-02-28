@@ -1270,6 +1270,7 @@ public class TransportService extends AbstractLifecycleComponent
             );
         }
     }
+
     @Override
     public void onConnectionClosed(Transport.Connection connection) {
         transportVersions.remove(connection.getNode());

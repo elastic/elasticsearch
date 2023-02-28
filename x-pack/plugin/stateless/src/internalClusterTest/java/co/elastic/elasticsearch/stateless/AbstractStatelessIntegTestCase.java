@@ -63,11 +63,15 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         useBasePath = randomBoolean();
     }
 
+    protected String getFsRepoSanitizedBucketName() {
+        return getTestName().replaceAll("[^0-9a-zA-Z-_]", "_") + "_bucket";
+    }
+
     protected Settings.Builder nodeSettings() {
         final Settings.Builder builder = Settings.builder()
             .put(Stateless.STATELESS_ENABLED.getKey(), true)
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.FS)
-            .put(ObjectStoreService.BUCKET_SETTING.getKey(), getTestName() + "_bucket");
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName());
         if (useBasePath) {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }

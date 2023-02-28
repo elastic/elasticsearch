@@ -13,6 +13,11 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
 
+/**
+ * {@code RankShardContext} is a base class used to generate ranking
+ * results on each shard where it's responsible for executing any
+ * queries during the query phase required for its global ranking method.
+ */
 public abstract class RankShardContext {
 
     protected final List<Query> queries;
@@ -25,5 +30,11 @@ public abstract class RankShardContext {
         this.from = from;
     }
 
+    /**
+     * This method is called in place of the standard query phase
+     * execution for a single query. All queries required for the
+     * global rank method must be managed and executed when this
+     * is called.
+     */
     public abstract void executeQueries(SearchContext searchContext);
 }

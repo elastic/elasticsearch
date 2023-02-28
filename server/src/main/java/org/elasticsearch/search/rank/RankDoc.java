@@ -17,6 +17,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * {@code RankDoc} is the base class for all ranked results.
+ * Subclasses should extend this with additional information
+ * required for their global ranking method.
+ */
 public abstract class RankDoc extends ScoreDoc implements ToXContent, VersionedNamedWriteable {
 
     public RankDoc(int doc, float score, int shardIndex) {

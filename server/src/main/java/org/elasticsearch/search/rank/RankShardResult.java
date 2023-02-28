@@ -10,6 +10,11 @@ package org.elasticsearch.search.rank;
 
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 
+/**
+ * This is an interface used a marker for a {@link VersionedNamedWriteable}.
+ * Rank methods should subclass this with enough information to send back from
+ * each shard to the coordinator to perform global ranking after the query phase.
+ */
 public interface RankShardResult extends VersionedNamedWriteable {
 
 }

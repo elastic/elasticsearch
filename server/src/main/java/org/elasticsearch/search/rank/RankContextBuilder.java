@@ -23,6 +23,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * {@code RankContextBuilder} is used as a base class to manage input, parsing,
+ * and subsequent generation of appropriate contexts for handling searches that
+ * require multiple queries for global rank relevance.
+ *
+ * This class contains a {@code List<QueryBuilder>}s, size, and from members that
+ * sub-classes use to execute queries to generate ranking results. These are not part
+ * of ranking input, but instead generated from their respective values within a search
+ * query. We cannot generate the list of queries until after any kNN queries are executed.
+ */
 public abstract class RankContextBuilder implements VersionedNamedWriteable, ToXContent {
 
     protected final List<QueryBuilder> queryBuilders;
@@ -61,6 +71,11 @@ public abstract class RankContextBuilder implements VersionedNamedWriteable, ToX
         return this;
     }
 
+    /**
+     * Generates a shallow copy for creating a new {@link SearchSourceBuilder}
+     * after kNN queries are executed during the DFS phase. This allows us
+     * to create kNN queries that are only relevant to a single shard.
+     */
     public RankContextBuilder shallowCopy() {
         RankContextBuilder rankContextBuilder = subShallowCopy();
         rankContextBuilder.queryBuilders.addAll(this.queryBuilders);
@@ -71,10 +86,19 @@ public abstract class RankContextBuilder implements VersionedNamedWriteable, ToX
 
     public abstract RankContextBuilder subShallowCopy();
 
+    /**
+     * Generates the query used for aggregations and suggesters.
+     */
     public abstract QueryBuilder searchQuery();
 
+    /**
+     * Generates a context used to execute required searches on the shard.
+     */
     public abstract RankShardContext build(SearchExecutionContext searchExecutionContext) throws IOException;
 
+    /**
+     * Generates a context used to perform global ranking on the coordinator.
+     */
     public abstract RankContext build();
 
     @Override

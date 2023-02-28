@@ -2578,16 +2578,26 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
         final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
-
-        // event by default disabled
-        auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
-        assertEmptyLog(logger);
+        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
 
         updateLoggerSettings(
             Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
         );
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
-        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
+            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
+            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
+            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        authentication(authentication, checkedFields);
+
+        restOrTransportOrigin(request, threadContext, checkedFields);
+        indicesRequest(request, checkedFields, checkedArrayFields);
+        opaqueId(threadContext, checkedFields);
+        traceId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedFields);
+        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
     }
 
     public void testRequestsWithoutIndices() throws Exception {
@@ -2918,7 +2928,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
         checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-        if (authentication.isApiKey()) {
+        if (authentication.isApiKey() || authentication.isRemoteAccess()) {
             assert false == authentication.isRunAs();
             checkedFields.put(
                 LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
@@ -2928,11 +2938,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
             if (apiKeyName != null) {
                 checkedFields.put(LoggingAuditTrail.API_KEY_NAME_FIELD_NAME, apiKeyName);
             }
-            String creatorRealmName = (String) authentication.getAuthenticatingSubject()
-                .getMetadata()
-                .get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
-            if (creatorRealmName != null) {
-                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
+            if (authentication.isApiKey()) {
+                String creatorRealmName = (String) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+                if (creatorRealmName != null) {
+                    checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
+                }
+            } else if (authentication.isRemoteAccess()) {
+                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, AuthenticationField.REMOTE_ACCESS_REALM_TYPE);
+                checkedFields.put(LoggingAuditTrail.REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME, "wrong");
             }
         } else {
             final RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();

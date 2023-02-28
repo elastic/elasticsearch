@@ -1625,6 +1625,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 if (apiKeyName != null) {
                     logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
+                // TODO
                 final String creatorRealmName = ApiKeyService.getCreatorRealmName(authentication);
                 if (creatorRealmName != null) {
                     // can be null for API keys created before version 7.7
@@ -1638,7 +1639,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     final StringMapMessage innerLogEntry = logEntry.newInstance(Collections.emptyMap());
                     withAuthenticationFields(innerLogEntry, innerAuthentication, logger);
                     try {
-                        logEntry.with(REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME, toJsonString(innerLogEntry));
+                        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+                        builder.startObject();
+                        builder.startObject("inner");
+                        for (var entry : innerLogEntry.getData().entrySet()) {
+                            builder.field(entry.getKey(), entry.getValue());
+                        }
+                        builder.endObject();
+                        builder.endObject();
+                        logEntry.with(REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
                         logger.error("Failed to write remote access authentication [{}] as audit log entry", innerAuthentication);
                     }
@@ -1731,12 +1740,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
-    }
-
-    private static String toJsonString(final StringMapMessage innerLogEntry) throws IOException {
-        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-        builder.map(innerLogEntry.getData());
-        return Strings.toString(builder);
     }
 
     public static void registerSettings(List<Setting<?>> settings) {
